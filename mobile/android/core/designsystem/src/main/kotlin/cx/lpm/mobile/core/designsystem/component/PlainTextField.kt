@@ -11,13 +11,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 
 /**
  * SwiftUI's borderless `TextField`: one line of [textStyle] text with a gray
  * [placeholder] while empty, and the tint-colored cursor. [maxLines] above one grows
- * it like `axis: .vertical` with `lineLimit(minLines...maxLines)`.
+ * it like `axis: .vertical` with `lineLimit(minLines...maxLines)`. A
+ * `PasswordVisualTransformation` as [visualTransformation] makes it a `SecureField`.
  */
 @Composable
 fun PlainTextField(
@@ -31,7 +33,8 @@ fun PlainTextField(
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     maxLines: Int = 1,
     minLines: Int = 1,
-    textColor: Color = LpmTheme.colors.label
+    textColor: Color = LpmTheme.colors.label,
+    visualTransformation: VisualTransformation = VisualTransformation.None
 ) {
     val colors = LpmTheme.colors
     val style = textStyle.copy(color = textColor, textAlign = textAlign)
@@ -46,6 +49,7 @@ fun PlainTextField(
         cursorBrush = SolidColor(colors.tint),
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
+        visualTransformation = visualTransformation,
         decorationBox = { field ->
             Box {
                 if (value.isEmpty()) {

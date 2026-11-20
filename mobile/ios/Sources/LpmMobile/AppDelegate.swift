@@ -10,6 +10,7 @@ enum NotificationTargetKind: String {
     case usage
     case keepAwake
     case newTab
+    case generate
 }
 
 struct NotificationOpenTarget: Equatable {
@@ -21,9 +22,9 @@ struct NotificationOpenTarget: Equatable {
     init?(userInfo: [AnyHashable: Any]) {
         let serverId = (userInfo["serverId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         let target = NotificationTargetKind(rawValue: userInfo["target"] as? String ?? "") ?? .project
-        // The weekly recap, Usage and Keep awake belong to the Mac, not to one of
-        // its projects.
-        if target == .recap || target == .usage || target == .keepAwake {
+        // The weekly recap, Usage, Keep awake and an `lpm generate` request belong
+        // to the Mac, not to one of its projects.
+        if [.recap, .usage, .keepAwake, .generate].contains(target) {
             self.serverId = serverId
             self.project = ""
             self.kind = target
@@ -37,7 +38,7 @@ struct NotificationOpenTarget: Equatable {
             itemId = (userInfo["terminalId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         case .automation:
             itemId = (userInfo["automationId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-        case .project, .recap, .changes, .usage, .keepAwake, .newTab:
+        case .project, .recap, .changes, .usage, .keepAwake, .newTab, .generate:
             itemId = nil
         }
         self.serverId = serverId

@@ -11,6 +11,7 @@ import cx.lpm.mobile.core.navigation.Navigator
 import cx.lpm.mobile.core.navigation.ProjectKey
 import cx.lpm.mobile.core.navigation.TerminalKey
 import cx.lpm.mobile.feature.connection.ConnectionSheets
+import cx.lpm.mobile.feature.mac.generate.GenerateSheetRoute
 import cx.lpm.mobile.feature.mac.keepawake.KeepAwakeCustomTimeRoute
 import cx.lpm.mobile.feature.mac.keepawake.KeepAwakeSectionRoute
 import cx.lpm.mobile.feature.mac.update.MacUpdateSectionRoute
@@ -33,6 +34,7 @@ internal fun VisitHost(session: MacSession, navigator: Navigator) {
             keepAwakeSection = { open -> KeepAwakeSectionRoute(key, onCustomTime = open) },
             keepAwakeCustomTime = { onDone -> KeepAwakeCustomTimeRoute(key, onDone = onDone) }
         )
+        GenerateSheetRoute(key)
     }
     LaunchedEffect(session, navigator) {
         session.visitSession

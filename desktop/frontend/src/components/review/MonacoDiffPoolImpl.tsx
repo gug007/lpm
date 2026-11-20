@@ -64,6 +64,9 @@ type Entry = {
 type Slot = {
   host: HTMLDivElement;
   editor: monacoNs.editor.IStandaloneDiffEditor;
+  // Ours to dispose: Monaco never disposes a view model it builds from bare
+  // models, so a parked file's diff would run on, uncancelled.
+  viewModel: monacoNs.editor.IDiffEditorViewModel | null;
   path: string | null;
   token: number;
   subs: monacoNs.IDisposable[];
@@ -439,6 +442,8 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       slot.subs.forEach((s) => s.dispose());
       slot.subs = [];
       slot.editor.setModel(null);
+      slot.viewModel?.dispose();
+      slot.viewModel = null;
       slot.host.style.visibility = "";
       slot.host.style.position = "";
       slot.host.style.top = "";
@@ -492,7 +497,11 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
         slot.host.style.visibility = "hidden";
         slot.host.style.height = `${DEFAULT_SLOT_HEIGHT}px`;
         body.appendChild(slot.host);
-        editor.setModel({ original: entry.models.original, modified: entry.models.modified });
+        slot.viewModel = editor.createViewModel({
+          original: entry.models.original,
+          modified: entry.models.modified,
+        });
+        editor.setModel(slot.viewModel);
         // A new file has nothing to compare against, so render it full-width
         // inline instead of wasting half the pane on an empty original. With an
         // empty original the diff would otherwise paint the deleted-side gutter
@@ -636,6 +645,7 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
       const slot: Slot = {
         host,
         editor,
+        viewModel: null,
         path: null,
         token: 0,
         subs: [],
@@ -909,6 +919,8 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
             // Detach the diff model first so hideUnchangedRegions tears down its
             // autoruns before dispose; otherwise they fire against a dead editor.
             s.editor.setModel(null);
+            s.viewModel?.dispose();
+            s.viewModel = null;
             s.editor.dispose();
           } catch {
             // Monaco can throw mid-teardown of its diff observables; ignore.

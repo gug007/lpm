@@ -92,11 +92,12 @@ class PushRegistrarTest {
         assertEquals(3, frames.size)
         assertEquals(false, frames[1].obj("notify")?.bool("waiting"))
         assertEquals("fcm:tok-2", frames[2].string("token"))
-        // Push switched off as a whole turns every kind off on the Mac.
+        // Push switched off as a whole turns every kind off on the Mac; `generate`
+        // says what this app can show, not a kind.
         h.prefs.setNotificationPrefs(NotificationPrefs(enabled = false))
         settle()
         val off = live.sentOf("pushToken").last().obj("notify")!!
-        assertTrue(off.values.none { it.toString() == "true" })
+        assertTrue(off.filterKeys { it != "generate" }.values.none { it.toString() == "true" })
     }
 
     @Test

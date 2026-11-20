@@ -2,6 +2,7 @@ package cx.lpm.mobile.core.protocol
 
 import cx.lpm.mobile.core.model.AgentDialogRead
 import cx.lpm.mobile.core.model.AgentStats
+import cx.lpm.mobile.core.model.GenerateRequest
 import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
 import cx.lpm.mobile.core.model.MacBuild
@@ -90,6 +91,12 @@ internal val sessionParsers = parsers {
             reminders = o.objects("reminders").orEmpty().mapNotNull(LimitReminder::parse),
             error = if (o.bool("ok") == false) o.string("error") ?: USAGE_GENERIC_ERROR else null
         )
+    }
+    put("generateRequests") { o ->
+        Inbound.GenerateRequests(o.objects("requests").orEmpty().mapNotNull(GenerateRequest::parse))
+    }
+    put("answerGenerate") { o ->
+        Inbound.AnswerGenerate(id = o.str("id"), error = o.failure("The Mac couldn't answer it."))
     }
     put("wake") { o -> Inbound.Wake(ok = o.ok) }
     put("ttsSpeak") { o ->

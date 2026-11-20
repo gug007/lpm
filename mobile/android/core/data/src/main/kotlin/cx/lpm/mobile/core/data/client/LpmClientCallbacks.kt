@@ -21,6 +21,7 @@ import cx.lpm.mobile.core.model.CustomWorkStatus
 import cx.lpm.mobile.core.model.DictationEvent
 import cx.lpm.mobile.core.model.DirListing
 import cx.lpm.mobile.core.model.FileChunk
+import cx.lpm.mobile.core.model.GenerateRequest
 import cx.lpm.mobile.core.model.GitAutoRun
 import cx.lpm.mobile.core.model.GitBranch
 import cx.lpm.mobile.core.model.GitChecks
@@ -104,6 +105,8 @@ abstract class LpmClientCallbacks {
     )? = null
     var onLimitsChanged: ((snapshot: LimitsSnapshot) -> Unit)? = null
     var onLimitReminders: ((reminders: List<LimitReminder>, error: String?) -> Unit)? = null
+    var onGenerateRequests: ((requests: List<GenerateRequest>) -> Unit)? = null
+    var onAnswerGenerate: ((id: String, error: String?) -> Unit)? = null
     var onWake: ((ok: Boolean) -> Unit)? = null
     var onSpeech: ((reqId: String, audio: String?, error: String?) -> Unit)? = null
     var onTerminals: ((project: String, terminals: List<TerminalInfo>) -> Unit)? = null

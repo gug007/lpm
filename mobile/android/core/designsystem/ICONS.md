@@ -165,6 +165,9 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `square.and.arrow.up` | `ios_share` | 20 dp card, 24 dp toolbar | note attachment Share | "Share" |
 | `arrow.down.circle` (attachment) | `arrow_circle_down` | 20 dp | note attachment Download | "Download" |
 | `photo` | `image` | 22 dp | image attachment not loaded yet | |
+| `photo` (generate request) | `image` | 22 dp | an agent asking for an image | |
+| `waveform` (generate request) | `graphic_eq` | 22 dp | an agent asking for audio | |
+| `key` (generate request) | `key` | 22 dp | a request waiting for a key | |
 | `doc.questionmark` | `unknown_document` | 56 dp | "Can't open this session" | |
 | `eye` (memory picker) | `visibility` | 17 dp | preview a saved session from the composer's memory picker | "Preview" |
 | `trash` (memory session bar) | `delete` | 24 dp | delete a session memory | "Delete session" |

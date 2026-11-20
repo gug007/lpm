@@ -54,6 +54,10 @@ internal fun NotificationOpenHost(
             session.switchTo(mac)
             return@LaunchedEffect
         }
+        // An `lpm generate` request shows itself once the Mac's list arrives.
+        if (open.kind == NotificationOpenTarget.Kind.Generate) {
+            return@LaunchedEffect opens.clear(open)
+        }
         // Keep awake about to let go: the Mac's own connection page, over whatever is open.
         if (open.kind == NotificationOpenTarget.Kind.KeepAwake) {
             session.link.update { it.copy(sheetOpen = true) }
@@ -82,7 +86,7 @@ internal fun NotificationOpenHost(
 
             NotificationOpenTarget.Kind.Usage -> navigator.reset(UsageKey())
 
-            NotificationOpenTarget.Kind.KeepAwake -> Unit
+            NotificationOpenTarget.Kind.KeepAwake, NotificationOpenTarget.Kind.Generate -> Unit
 
             NotificationOpenTarget.Kind.Changes -> {
                 if (!known) return@LaunchedEffect run { awaited = open }

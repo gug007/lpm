@@ -13,7 +13,17 @@ data class NotificationOpenTarget(
     val kind: Kind,
     val itemId: String?
 ) {
-    enum class Kind { Project, Terminal, Automation, Recap, Changes, Usage, KeepAwake, NewTab }
+    enum class Kind {
+        Project,
+        Terminal,
+        Automation,
+        Recap,
+        Changes,
+        Usage,
+        KeepAwake,
+        NewTab,
+        Generate
+    }
 
     companion object {
         const val PROJECT = "project"
@@ -39,6 +49,7 @@ data class NotificationOpenTarget(
                 PushRecap.TARGET -> Kind.Recap
                 PushMacNotice.USAGE -> Kind.Usage
                 PushMacNotice.KEEP_AWAKE -> Kind.KeepAwake
+                PushMacNotice.GENERATE -> Kind.Generate
                 else -> null
             }
             if (whole != null) {

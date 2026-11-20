@@ -1,6 +1,7 @@
 package cx.lpm.mobile.feature.mac.di
 
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.feature.mac.data.GenerateStore
 import cx.lpm.mobile.feature.mac.data.KeepAwakeStore
 import cx.lpm.mobile.feature.mac.data.MacUpdateStore
 import dagger.Module
@@ -21,4 +22,8 @@ object MacModule {
     @IntoSet
     fun keepAwakeStoreFactory(clock: Clock): SessionStore.Factory =
         SessionStore.Factory { session -> KeepAwakeStore(session, clock) }
+
+    @Provides
+    @IntoSet
+    fun generateStoreFactory(): SessionStore.Factory = SessionStore.Factory(::GenerateStore)
 }

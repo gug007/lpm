@@ -46,6 +46,8 @@ final class LpmClient: NSObject {
     var onWeeklyRecap: ((_ pick: RecapPick, _ recap: WeeklyRecap?, _ error: String?) -> Void)?
     var onLimitsChanged: ((_ snapshot: LimitsSnapshot) -> Void)?
     var onLimitReminders: ((_ reminders: [LimitReminder], _ error: String?) -> Void)?
+    var onGenerateRequests: ((_ requests: [GenerateRequest]) -> Void)?
+    var onAnswerGenerate: ((_ id: String, _ error: String?) -> Void)?
     var onWake: ((_ ok: Bool) -> Void)?
     var onSpeech: ((_ reqId: String, _ audio: String?, _ error: String?) -> Void)?
     var onTerminals: ((_ project: String, _ terminals: [TerminalInfo]) -> Void)?
@@ -289,6 +291,7 @@ final class LpmClient: NSObject {
     static let weeklyRecapFeature = "weeklyRecap"
     static let recapMonthFeature = "recapMonth"
     static let limitRemindersFeature = "limitReminders"
+    static let generateApprovalFeature = "generateApproval"
     static let wakeFeature = "wake"
     static let agentArchiveFeature = "agentArchive"
     static let projectPinsFeature = "projectPins"
@@ -922,6 +925,10 @@ final class LpmClient: NSObject {
     }
     func requestLimits() { send(Wire.limits()) }
     func requestLimitReminders() { send(Wire.limitReminders()) }
+    func requestGenerateRequests() { send(Wire.generateRequests()) }
+    func answerGenerate(id: String, decision: String, prompt: String?, key: String?) {
+        send(Wire.answerGenerate(id: id, decision: decision, prompt: prompt, key: key))
+    }
     func setLimitReminder(limit: String, window: String, resetsAt: Int, name: String) {
         send(Wire.setLimitReminder(limit: limit, window: window, resetsAt: resetsAt, name: name))
     }
@@ -1539,6 +1546,8 @@ final class LpmClient: NSObject {
             case .weeklyRecap(let pick, let recap, let error): self.onWeeklyRecap?(pick, recap, error)
             case .limitsChanged(let snapshot): self.onLimitsChanged?(snapshot)
             case .limitReminders(let reminders, let error): self.onLimitReminders?(reminders, error)
+            case .generateRequests(let requests): self.onGenerateRequests?(requests)
+            case .answerGenerate(let id, let error): self.onAnswerGenerate?(id, error)
             case .wake(let ok): self.onWake?(ok)
             case .ttsSpeak(let reqId, let audio, let error): self.onSpeech?(reqId, audio, error)
             case .terminals(let proj, let t): self.onTerminals?(proj, t)

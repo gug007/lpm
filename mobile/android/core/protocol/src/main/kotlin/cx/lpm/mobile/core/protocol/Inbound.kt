@@ -21,6 +21,7 @@ import cx.lpm.mobile.core.model.CustomWorkStatus
 import cx.lpm.mobile.core.model.DictationEvent
 import cx.lpm.mobile.core.model.DirListing
 import cx.lpm.mobile.core.model.FileChunk as FileRange
+import cx.lpm.mobile.core.model.GenerateRequest
 import cx.lpm.mobile.core.model.GitAutoRun
 import cx.lpm.mobile.core.model.GitBranch
 import cx.lpm.mobile.core.model.GitDiffEntry
@@ -133,6 +134,11 @@ sealed interface Inbound {
     // The Mac's limit reminders, as a reply or after any change; `error` when a
     // change was refused.
     data class LimitReminders(val reminders: List<LimitReminder>, val error: String?) : Inbound
+
+    // The `lpm generate` requests waiting for a yes, as a reply or after any change;
+    // and the answer to one of them.
+    data class GenerateRequests(val requests: List<GenerateRequest>) : Inbound
+    data class AnswerGenerate(val id: String, val error: String?) : Inbound
     data class Wake(val ok: Boolean) : Inbound
     data class TtsSpeak(val reqId: String, val audio: String?, val error: String?) : Inbound
     data class Terminals(val project: String, val terminals: List<TerminalInfo>) : Inbound
