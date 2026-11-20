@@ -176,3 +176,17 @@ fn a_held_command_says_why_and_runs_nothing() {
     assert!(out.html.is_none());
     assert!(!marker.exists());
 }
+
+#[test]
+fn a_held_page_from_a_file_waits_too() {
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::write(tmp.path().join("page.html"), "<p>run</p>").unwrap();
+    let mut held_site = site(tmp.path(), html("page.html"));
+    held_site.held.insert("page page.html".into());
+    let out = make("p", "a", &held_site);
+    assert!(out.error.contains("can run its actions"), "{}", out.error);
+    assert!(out.html.is_none());
+
+    held_site.held.clear();
+    assert_eq!(make("p", "a", &held_site).html.as_deref(), Some("<p>run</p>"));
+}

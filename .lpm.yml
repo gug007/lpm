@@ -47,11 +47,29 @@ actions:
   github-issues:
     label: 'Issues · $(gh api -X GET search/issues -f q="repo:gug007/lpm is:issue is:open -commenter:gug007 -author:gug007" --jq .total_count)'
     emoji: 💬
-    cmd: open "https://github.com/gug007/lpm/issues?q=is%3Aissue+is%3Aopen+-commenter%3Agug007+-author%3Agug007"
-    type: background
     labelRefresh: 10m
     display: footer
     position: 1
+    app:
+      html: scripts/github-issues/app.html
+      data: $(./scripts/github-issues/app-data.sh)
+      title: GitHub issues
+      refresh: 10m
+      cache: 1m
+
+  usage:
+    label: $(node scripts/usage/data.mjs --label)
+    emoji: 📈
+    labelRefresh: 15m
+    display: footer
+    position: 2
+    popup:
+      html: scripts/usage/popup.html
+      data: $(node scripts/usage/data.mjs)
+      title: Usage
+      size: 380x230
+      cache: 10m
+    app: true
 
   first-commit-age:
     label: $(./scripts/first-commit-age.sh) ago

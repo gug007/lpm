@@ -1,7 +1,7 @@
 //! A repo's own `.lpm.yml` runs no command by itself until its user allows it.
 //! Labels, `labelSvg`, popups and apps run their `$(…)` commands without a
-//! click (an app's tab refreshes on its own),
-//! and its automations run on their schedule, so a repo cloned from someone
+//! click (an app's tab refreshes on its own), a popup's or app's page can run
+//! the project's actions, and its automations run on their schedule, so a repo cloned from someone
 //! else would otherwise run its code as soon as its project is open. Until
 //! they're allowed for the folder, they're held: a label reads as if its
 //! command printed nothing, a popup says why it's empty, and an automation
@@ -119,10 +119,10 @@ fn collect(action: &ActionFull, out: &mut BTreeSet<String>) {
         }
     }
     if let Some(popup) = &action.popup {
-        out.extend(popup.commands().map(str::to_string));
+        out.extend(popup.held_parts());
     }
     if let Some(app) = &action.app {
-        out.extend(app.commands().into_iter().map(str::to_string));
+        out.extend(app.held_parts());
     }
     for child in action.actions.values() {
         collect(&child.clone().into_full(), out);

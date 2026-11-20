@@ -57,7 +57,7 @@ pub(super) fn validate_app(
     if opens_app(map) && string_at(map, "cmd").is_some_and(|cmd| !cmd.trim().is_empty()) {
         report.warning(
             &format!("{path}.cmd"),
-            "isn't run: a click opens the app instead",
+            "isn't run: a click opens the mini app instead",
         );
     }
 }

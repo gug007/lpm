@@ -130,17 +130,23 @@ data class ActionPopupReply(
 object ActionPopupCopy {
     const val LATE_ANSWER = "The Mac didn't answer in time."
 
-    fun couldNotOpen(view: ActionPageView): String =
-        if (view == ActionPageView.Tab) "Couldn't open the app." else "Couldn't open the popup."
+    fun couldNotOpen(view: ActionPageView): String = if (view == ActionPageView.Tab) {
+        "Couldn't open the mini app."
+    } else {
+        "Couldn't open the popup."
+    }
 
     fun newerApp(view: ActionPageView): String = if (view == ActionPageView.Tab) {
-        "This app needs a newer lpm Link."
+        "This mini app needs a newer lpm Link."
     } else {
         "This popup needs a newer lpm Link."
     }
 
-    fun stopped(view: ActionPageView): String =
-        if (view == ActionPageView.Tab) "The app stopped working." else "The popup stopped working."
+    fun stopped(view: ActionPageView): String = if (view == ActionPageView.Tab) {
+        "The mini app stopped working."
+    } else {
+        "The popup stopped working."
+    }
 }
 
 /** `(x as? NSNumber)?.intValue`: any number, truncated. */

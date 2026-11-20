@@ -429,6 +429,12 @@ struct DemoWorld {
                            "configPopup": ["html": "popups/stars.html", "data": "$(node scripts/stars.mjs)",
                                            "title": "GitHub stars", "size": "380x200"],
                            "app": ["format": "html", "title": "GitHub stars"],
+                           "configApp": true],
+                          ["name": "releases", "label": "Releases", "type": "app", "cmd": "",
+                           "popup": ["format": "html", "title": "Releases", "width": 360, "height": 220],
+                           "configPopup": ["html": "popups/releases.html", "data": "$(./scripts/releases.sh)",
+                                           "title": "Releases", "size": "360x220"],
+                           "app": ["format": "html", "title": "Releases"],
                            "configApp": true]]
             ),
             Project(

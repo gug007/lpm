@@ -101,15 +101,15 @@ enum ActionPopupCopy {
     static let lateAnswer = "The Mac didn't answer in time."
 
     static func couldNotOpen(_ view: ActionPageView) -> String {
-        view == .tab ? "Couldn't open the app." : "Couldn't open the popup."
+        view == .tab ? "Couldn't open the mini app." : "Couldn't open the popup."
     }
 
     static func newerApp(_ view: ActionPageView) -> String {
-        view == .tab ? "This app needs a newer lpm Link." : "This popup needs a newer lpm Link."
+        view == .tab ? "This mini app needs a newer lpm Link." : "This popup needs a newer lpm Link."
     }
 
     static func stopped(_ view: ActionPageView) -> String {
-        view == .tab ? "The app stopped working." : "The popup stopped working."
+        view == .tab ? "The mini app stopped working." : "The popup stopped working."
     }
 }
 

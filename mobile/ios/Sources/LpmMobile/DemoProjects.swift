@@ -562,6 +562,15 @@ extension DemoServer {
                 line(5.7, "PASS"),
             ])
         }
+        if c.contains("release") {
+            return (5.0, [
+                line(0, "$ \(cmd)"),
+                line(0.8, "Tagging v2.4.2…"),
+                line(2.0, "Building linux/amd64, linux/arm64…"),
+                line(3.4, "Pushing ghcr.io/acme/\(project):v2.4.2…"),
+                line(4.6, "Released v2.4.2."),
+            ])
+        }
         if c.contains("clean") {
             return (5.5, [
                 line(0, "$ \(cmd)"),

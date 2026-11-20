@@ -6,6 +6,7 @@ import SwiftUI
 struct ActionPageContent: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.actionPageRun) private var run
     let project: String
     let action: Action
     let view: ActionPageView
@@ -44,7 +45,8 @@ struct ActionPageContent: View {
                     push: { ActionPopupPayload.push(content) },
                     page: state.page,
                     pushes: state.pushes,
-                    onFailure: { store.pageFailed(project: project, action: action.name, view: view) }
+                    onFailure: { store.pageFailed(project: project, action: action.name, view: view) },
+                    onAsk: ask
                 )
                 .frame(height: height)
                 if let note = state.note {
@@ -56,6 +58,16 @@ struct ActionPageContent: View {
                         .padding(.bottom, height == nil ? 8 : 0)
                 }
             }
+        }
+    }
+
+    private func ask(_ ask: ActionPageAsk, reply: @escaping (ActionPageRunResult) -> Void) {
+        switch ask {
+        case .refresh:
+            store.reload(project: project, action: action.name, view: view)
+        case .run(let id, let name, let inputs):
+            guard let run else { return reply(.init(error: "This page can't run actions here.")) }
+            run(id, name, inputs, reply)
         }
     }
 }

@@ -266,6 +266,7 @@ mod interval;
 mod ipc_gate;
 mod popup_cache;
 mod popup_content;
+mod popup_page;
 mod popup_run;
 mod popup_view;
 mod proctree;
@@ -477,7 +478,9 @@ use label_probes::refresh_action_label;
 use ci_checks::*;
 use ci_commits::recent_commit_checks;
 use popup_content::{action_app, action_popup};
-use popup_view::{popup_view_close, popup_view_open, popup_view_place, popup_view_push};
+use popup_view::{
+    popup_view_close, popup_view_open, popup_view_place, popup_view_push, popup_view_reply,
+};
 use pull_request::*;
 use pull_request_review::pull_request_discussion;
 use gitfollow::{follow_list, follow_pause, follow_resume, follow_stop};
@@ -702,6 +705,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .register_asynchronous_uri_scheme_protocol(mediaproto::SCHEME, mediaproto::handle)
         .register_asynchronous_uri_scheme_protocol(htmlproto::SCHEME, htmlproto::handle)
+        .register_asynchronous_uri_scheme_protocol(popup_page::SCHEME, popup_page::handle)
         .manage(pty::PtyState::default())
         .manage(services::ServiceState::default())
         .manage(log_streaming::LogState::default())

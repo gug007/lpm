@@ -138,6 +138,9 @@ export function PopupViewPlace(id, rect) {
 export function PopupViewPush(id, payload) {
   return invoke("popup_view_push", { id, payload });
 }
+export function PopupViewReply(id, reply) {
+  return invoke("popup_view_reply", { id, reply });
+}
 export function PopupViewClose(id) {
   return invoke("popup_view_close", { id });
 }

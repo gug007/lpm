@@ -3,12 +3,14 @@ import SwiftUI
 /// An action's app, opened by a tap on its button in place of running a command:
 /// the page the Mac made filling a full-height sheet under a bar with its title,
 /// how old its data is, Refresh and Done. It asks again every `refresh` seconds
-/// while it's open.
+/// while it's open, and runs the project's actions the page asks for.
 struct ActionAppScreen: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let project: String
     let action: Action
+    /// Where a terminal the page's run opened goes.
+    var onSpawnedTerminal: ((TerminalInfo) -> Void)? = nil
 
     private var store: ActionPopupStore { model.actionPopups }
     private var state: ActionPopupState { store.state(project: project, action: action.name, view: .tab) }
@@ -40,6 +42,7 @@ struct ActionAppScreen: View {
                     }
                 }
         }
+        .actionPageRuns(project: project, onSpawnedTerminal: onSpawnedTerminal)
         .presentationDetents([.large])
         .onAppear { store.open(project: project, action: action, view: .tab) }
         .onDisappear { store.close(project: project, action: action.name, view: .tab) }

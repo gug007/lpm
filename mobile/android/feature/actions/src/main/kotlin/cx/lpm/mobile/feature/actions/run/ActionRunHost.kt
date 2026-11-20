@@ -59,7 +59,8 @@ fun ActionRunHost(
             project = project,
             action = step.action,
             session = session,
-            onDismiss = { viewModel.dismiss(step) }
+            onDismiss = { viewModel.dismiss(step) },
+            onSpawnedTerminal = onSpawn
         )
 
         is RunStep.Background -> BackgroundRunSheet(

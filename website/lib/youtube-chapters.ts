@@ -360,4 +360,13 @@ export const LESSON_CHAPTERS: Record<YouTubeLessonId, LessonChapters> = {
       [106, "Settings"],
     ],
   },
+  "mini-apps": {
+    seconds: 87,
+    chapters: [
+      [0, "What a mini app is"],
+      [16, "Peek, then open"],
+      [52, "Make your own"],
+      [72, "On your phone"],
+    ],
+  },
 };

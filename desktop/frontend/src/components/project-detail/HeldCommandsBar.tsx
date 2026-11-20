@@ -10,12 +10,13 @@ interface HeldCommandsBarProps {
 }
 
 // The commands the repo's .lpm.yml would run by itself (button labels,
-// labelSvg, popups, automations), held until they're allowed: a repo from
-// someone else mustn't run its code just because its project is open.
+// labelSvg, popups, automations) and its pages, which can run its actions,
+// held until they're allowed: a repo from someone else mustn't run its code
+// just because its project is open.
 export function HeldCommandsBar({ projectName, commands }: HeldCommandsBarProps) {
   const [reviewing, setReviewing] = useState(false);
   const [allowing, setAllowing] = useState(false);
-  const count = commands.length === 1 ? "a command" : `${commands.length} commands`;
+  const one = commands.length === 1;
 
   const allow = async () => {
     setAllowing(true);
@@ -33,8 +34,10 @@ export function HeldCommandsBar({ projectName, commands }: HeldCommandsBarProps)
       <div className="flex items-center gap-2.5">
         <ShieldAlert size={13} className="shrink-0 text-[var(--accent-amber)]" />
         <span className="min-w-0 flex-1 truncate text-[var(--text-secondary)]">
-          This repo's <span className="font-mono">.lpm.yml</span> has {count} that run by themselves. They wait until
-          you allow them.
+          This repo's <span className="font-mono">.lpm.yml</span> has{" "}
+          {one
+            ? "something that runs by itself. It waits until you allow it."
+            : `${commands.length} things that run by themselves. They wait until you allow them.`}
         </span>
         <BarButton aria-expanded={reviewing} onClick={() => setReviewing((v) => !v)}>
           {reviewing ? "Hide" : "Review"}

@@ -42,6 +42,7 @@ import cx.lpm.mobile.core.model.Action
 import cx.lpm.mobile.core.model.ActionPageView
 import cx.lpm.mobile.core.model.ActionPopupContent
 import cx.lpm.mobile.core.model.SessionKey
+import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.model.relativeAgo
 import cx.lpm.mobile.core.navigation.PresentationScope
 import cx.lpm.mobile.core.ui.tickingNow
@@ -52,7 +53,7 @@ import kotlinx.coroutines.delay
 /**
  * An action's popup card (iOS `ActionPopupSheet`), opened from a long press on its
  * button: the page the Mac made and how old it is, refreshed with Refresh and every
- * `refresh` seconds while it's open.
+ * `refresh` seconds while it's open. It runs the project's actions the page asks for.
  */
 @Composable
 fun ActionPopupSheet(
@@ -76,7 +77,8 @@ private fun ActionPopupSheetContent(
         hiltViewModel<ActionPopupViewModel, ActionPopupViewModel.Factory>(
             key = "popup:$session:$project:${action.name}",
             creationCallback = { it.create(project, action, session, ActionPageView.Popup) }
-        )
+        ),
+    runs: ActionPageRunViewModel = pageRuns(session, project, action, ActionPageView.Popup)
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val sheet = rememberModalSheetState(medium = true)
@@ -88,10 +90,33 @@ private fun ActionPopupSheetContent(
             action = action.name,
             onRefresh = viewModel::reload,
             onDone = { sheet.dismiss(onDismiss) },
-            onPageFail = viewModel::pageFailed
+            onPageFail = viewModel::pageFailed,
+            onMessage = { message, answer -> runs.ask(message, viewModel::reload, null, answer) }
         )
     }
+    val step by runs.step.collectAsStateWithLifecycle()
+    ActionPageRunHost(
+        step = step,
+        project = project,
+        session = session,
+        onSubmitInputs = runs::submitInputs,
+        onConfirm = runs::confirm,
+        onDismiss = runs::dismiss,
+        onSpawnedTerminal = null
+    )
 }
+
+/** The runs the page in an action's popup or app sheet asks for. */
+@Composable
+internal fun pageRuns(
+    session: SessionKey,
+    project: String,
+    action: Action,
+    view: ActionPageView
+): ActionPageRunViewModel = hiltViewModel<ActionPageRunViewModel, ActionPageRunViewModel.Factory>(
+    key = "page-run:$session:$project:${action.name}:${view.wire}",
+    creationCallback = { it.create(project, session) }
+)
 
 /** Asks again every [refresh] seconds while the screen is resumed; never at 0. */
 @Composable
@@ -122,7 +147,8 @@ internal fun ActionPopupScreen(
     onRefresh: () -> Unit,
     onDone: () -> Unit,
     onPageFail: () -> Unit,
-    view: ActionPageView = ActionPageView.Popup
+    view: ActionPageView = ActionPageView.Popup,
+    onMessage: ((String, (String) -> Unit) -> Unit)? = null
 ) {
     SheetScaffold(
         title = state.title,
@@ -187,7 +213,8 @@ internal fun ActionPopupScreen(
                     project = project,
                     action = action,
                     view = view,
-                    onPageFail = onPageFail
+                    onPageFail = onPageFail,
+                    onMessage = onMessage
                 )
             }
         }
@@ -232,7 +259,8 @@ private fun ColumnScope.Page(
     project: String,
     action: String,
     view: ActionPageView,
-    onPageFail: () -> Unit
+    onPageFail: () -> Unit,
+    onMessage: ((String, (String) -> Unit) -> Unit)?
 ) {
     val colors = LpmTheme.colors
     val fills = view == ActionPageView.Tab
@@ -251,6 +279,7 @@ private fun ColumnScope.Page(
             page = state.popup.page,
             pushes = state.popup.pushes,
             onFailure = onPageFail,
+            onMessage = onMessage,
             modifier = if (fills) {
                 Modifier
                     .fillMaxWidth()

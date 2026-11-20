@@ -233,6 +233,13 @@ const LESSONS = {
       "In lpm, Claude Code and Codex can make images with Nano Banana: ask in plain words, add your Google Gemini key from the card lpm shows, open the image in lpm with the model, cost and prompt it was made with, ask Codex for Nano Banana Pro and allow a whole project, and set keys, approval and a daily limit in Settings.",
     uploadDate: "2026-11-20T09:00:00+00:00",
   },
+  "mini-apps": {
+    id: "BSkOBv56AcI",
+    name: "Mini Apps in lpm: Your Own Dashboards, One Click Away",
+    description:
+      "Mini apps in lpm turn your project's data into a page of your own that opens in a tab with one click: peek at it from the button's hover card, open the full page, refresh its data, keep it running while you switch tabs, ask Claude Code to build a new one, and open it full screen in lpm Link on your phone.",
+    uploadDate: "2026-11-21T09:00:00+00:00",
+  },
 } as const;
 
 export type YouTubeLessonId = keyof typeof LESSONS;

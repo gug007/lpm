@@ -2,7 +2,7 @@ import SwiftUI
 
 /// An action's popup card, opened from a long press on its button: the page the
 /// Mac made and how old it is, refreshed with Refresh and every `refresh` seconds
-/// while it's open.
+/// while it's open. It runs the project's actions the page asks for.
 struct ActionPopupSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -46,6 +46,7 @@ struct ActionPopupSheet: View {
                 }
             }
         }
+        .actionPageRuns(project: project, onSpawnedTerminal: nil)
         .presentationDetents([.medium, .large])
         .onAppear { store.open(project: project, action: action) }
         .onDisappear { store.close(project: project, action: action.name) }

@@ -22,10 +22,10 @@ for path in glob.glob(os.path.join(sys.argv[1], 'Demo*.swift')):
             '    try! Data(contentsOf: URL(fileURLWithPath: ProcessInfo.processInfo.environment["DEMO_PNG"]!))\n'
             '}\n')
     if path.endswith('DemoActionPopup.swift'):
-        s = s[:s.index('/// The sample page')] + (
-            'private func demoPopupPage() -> String {\n'
+        s = s[:s.index('/// A sample page')] + (
+            'private func demoPopupPage(_ name: String) -> String {\n'
             '    let png = URL(fileURLWithPath: ProcessInfo.processInfo.environment["DEMO_PNG"]!)\n'
             '    return try! String(contentsOf: png.deletingLastPathComponent()\n'
-            '        .appendingPathComponent("popup-stars.html"), encoding: .utf8)\n'
+            '        .appendingPathComponent("\\(name).html"), encoding: .utf8)\n'
             '}\n')
     open(path, 'w').write(s)

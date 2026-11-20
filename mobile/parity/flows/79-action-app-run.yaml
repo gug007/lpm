@@ -1,0 +1,52 @@
+appId: cx.lpm.mobile
+name: 79-action-app-run
+tags: [demo, actions]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "api-gateway"
+- extendedWaitUntil:
+    visible: "Tap a service for its logs."
+    timeout: 5000
+- tapOn: "Actions"
+- extendedWaitUntil:
+    visible: "Releases"
+    timeout: 5000
+# The sample's Releases app lists the latest releases under a button of its own
+# that runs the project's Release action (`lpm.run`), as a tap on Release would.
+- tapOn: "Releases"
+- extendedWaitUntil:
+    visible: "Release v2.4.2"
+    timeout: 5000
+- assertVisible: ".*Rate limits per route.*"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-app
+- tapOn: "Release v2.4.2"
+# Release asks first, over the app.
+- extendedWaitUntil:
+    visible: "Run 🚀 Release.*"
+    timeout: 5000
+- takeScreenshot: 2-confirm
+- tapOn: "Run"
+# Its output shows as it runs, as a tap's run does.
+- extendedWaitUntil:
+    visible: "(?s).*Pushing ghcr.io.*Released v2.4.2.*"
+    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertVisible: "Done"
+- takeScreenshot: 3-output
+- tapOn: "Close"
+# The page heard how the run ended and lists the new release.
+- extendedWaitUntil:
+    visible: "Released v2.4.2."
+    timeout: 5000
+- assertVisible: ".*Shipped from this page.*"
+- assertVisible: "Release again"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 4-released
+- tapOn: "Done"
+- extendedWaitUntil:
+    notVisible: ".*Shipped from this page.*"
+    timeout: 5000

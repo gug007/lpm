@@ -162,7 +162,7 @@ fn an_app_with_no_page_says_what_it_needs() {
     assert!(json["app"]["problem"].as_str().unwrap().contains("needs a page"), "{json}");
     let broken = info_of("stars:\n  app:\n    title: Stars\n", "stars");
     let problem = broken["app"]["problem"].as_str().unwrap();
-    assert!(problem.starts_with("This app's config"), "{problem}");
+    assert!(problem.starts_with("This mini app's config"), "{problem}");
 }
 
 #[test]

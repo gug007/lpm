@@ -5,6 +5,7 @@ import SwiftUI
 /// with `actionRunGauntlet`.
 struct ActionRunGauntlet {
     fileprivate var inputsFor: Action?
+    fileprivate var initial: [String: String] = [:]
     fileprivate var confirming: Confirming?
 
     fileprivate struct Confirming {
@@ -15,34 +16,53 @@ struct ActionRunGauntlet {
     /// Asks for the action's inputs or confirmation; false when it needs neither
     /// and runs now.
     mutating func begin(_ action: Action) -> Bool {
-        if !action.inputs.isEmpty {
+        begin(action, given: [:]) == nil
+    }
+
+    /// Asks for the inputs `given` leaves out, starting from those it fills (a
+    /// page's `lpm.run`), then the confirmation; the values to run with now when
+    /// it asks for nothing.
+    mutating func begin(_ action: Action, given: [String: String]) -> [String: String]? {
+        let filled = action.pageInputs(given)
+        if !filled.complete {
+            initial = filled.values
             inputsFor = action
         } else if action.confirm {
-            confirming = Confirming(action: action, values: [:])
+            confirming = Confirming(action: action, values: filled.values)
         } else {
-            return false
+            return filled.values
         }
-        return true
+        return nil
     }
 }
 
 extension View {
     /// Presents what `gauntlet` asks for, then hands `onRun` the action and its
-    /// input values, as the sheet or alert that asked goes away.
+    /// input values, as the sheet or alert that asked goes away; `onCancel` when
+    /// it's turned down instead.
     func actionRunGauntlet(_ gauntlet: Binding<ActionRunGauntlet>,
+                           onCancel: (() -> Void)? = nil,
                            onRun: @escaping (Action, [String: String]) -> Void) -> some View {
-        modifier(ActionRunGauntletHost(gauntlet: gauntlet, onRun: onRun))
+        modifier(ActionRunGauntletHost(gauntlet: gauntlet, onRun: onRun, onCancel: onCancel))
     }
 }
 
 private struct ActionRunGauntletHost: ViewModifier {
     @Binding var gauntlet: ActionRunGauntlet
     let onRun: (Action, [String: String]) -> Void
+    let onCancel: (() -> Void)?
+    @State private var submitted = false
 
     func body(content: Content) -> some View {
         content
-            .sheet(item: $gauntlet.inputsFor) { action in
-                ActionInputsSheet(action: action) { values in afterInputs(action, values) }
+            .sheet(item: $gauntlet.inputsFor, onDismiss: {
+                if !submitted { onCancel?() }
+                submitted = false
+            }) { action in
+                ActionInputsSheet(action: action, initial: gauntlet.initial) { values in
+                    submitted = true
+                    afterInputs(action, values)
+                }
             }
             .alert(
                 gauntlet.confirming.map { "Run \($0.action.label)?" } ?? "Run action?",
@@ -53,7 +73,7 @@ private struct ActionRunGauntletHost: ViewModifier {
                 presenting: gauntlet.confirming
             ) { confirming in
                 Button("Run") { onRun(confirming.action, confirming.values) }
-                Button("Cancel", role: .cancel) {}
+                Button("Cancel", role: .cancel) { onCancel?() }
             }
     }
 

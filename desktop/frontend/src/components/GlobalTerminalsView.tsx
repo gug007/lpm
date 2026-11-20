@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PageRunContext } from "../popup/pageRun";
+import { usePageRunner } from "../popup/usePageRunner";
 import { useAppStore } from "../store/app";
 import { TerminalView, type TerminalViewHandle } from "./TerminalView";
 import { TerminalFooter } from "./TerminalFooter";
@@ -112,6 +114,7 @@ export function GlobalTerminalsView({
     terminalViewRef: terminalRef,
     onSwitchToTerminal: noop,
   });
+  const runFromPage = usePageRunner(actions, handleRunAction);
 
   const showEmptyState = terminalCount === 0;
   const actionsRow = headerItems.length > 0 && (
@@ -127,109 +130,112 @@ export function GlobalTerminalsView({
   );
 
   return (
-    <div className="flex h-full flex-col">
-      <Header
-        projectName={LABEL}
-        showProjectName={true}
-        sidebarCollapsed={sidebarCollapsed}
-        rowRef={rowRef}
-        innerRef={innerRef}
-        actionsWrapped={wrapped}
-        actions={actionsRow}
-        controls={null}
-        alignTop={hasZones}
-      />
+    <PageRunContext.Provider value={runFromPage}>
+      <div className="flex h-full flex-col">
+        <Header
+          projectName={LABEL}
+          showProjectName={true}
+          sidebarCollapsed={sidebarCollapsed}
+          rowRef={rowRef}
+          innerRef={innerRef}
+          actionsWrapped={wrapped}
+          actions={actionsRow}
+          controls={null}
+          alignTop={hasZones}
+        />
 
-      <div className="relative mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden" style={themeStyle}>
-        {showEmptyState && (
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
-            <div className="flex max-w-sm flex-col items-center gap-5 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] text-[var(--text-muted)] [&_svg]:h-[26px] [&_svg]:w-[26px]">
-                <TerminalIcon />
+        <div className="relative mt-1.5 -mx-6 -mb-6 flex min-h-0 flex-1 flex-col overflow-hidden" style={themeStyle}>
+          {showEmptyState && (
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
+              <div className="flex max-w-sm flex-col items-center gap-5 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--bg-hover)] text-[var(--text-muted)] [&_svg]:h-[26px] [&_svg]:w-[26px]">
+                  <TerminalIcon />
+                </div>
+                <div className="flex flex-col items-center gap-1.5">
+                  <h3 className="text-sm font-medium text-[var(--text-primary)]">No terminals yet</h3>
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Quick shells for scripts, system commands, and anything that isn't tied to a single project.
+                  </p>
+                </div>
+                <NewTerminalButton
+                  project={newTabProject}
+                  onNewTerminal={handleNewTerminal}
+                  onRunCommand={runCommand}
+                  onOpenAgent={openAgent}
+                  onRunAction={handleRunAction}
+                  openRequested={newTabAsked}
+                  onOpenRequestHandled={clearNewTabAsked}
+                  className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85"
+                >
+                  <TerminalIcon />
+                  New Terminal
+                  <kbd className="ml-1 text-[10px] opacity-70">{chordLabel({ key: "t", meta: true })}</kbd>
+                </NewTerminalButton>
               </div>
-              <div className="flex flex-col items-center gap-1.5">
-                <h3 className="text-sm font-medium text-[var(--text-primary)]">No terminals yet</h3>
-                <p className="text-xs text-[var(--text-muted)]">
-                  Quick shells for scripts, system commands, and anything that isn't tied to a single project.
-                </p>
-              </div>
-              <NewTerminalButton
-                project={newTabProject}
-                onNewTerminal={handleNewTerminal}
-                onRunCommand={runCommand}
-                onOpenAgent={openAgent}
-                onRunAction={handleRunAction}
-                openRequested={newTabAsked}
-                onOpenRequestHandled={clearNewTabAsked}
-                className="flex items-center gap-2 rounded-lg bg-[var(--text-primary)] px-4 py-2 text-xs font-medium text-[var(--bg-primary)] transition-all hover:opacity-85"
-              >
-                <TerminalIcon />
-                New Terminal
-                <kbd className="ml-1 text-[10px] opacity-70">{chordLabel({ key: "t", meta: true })}</kbd>
-              </NewTerminalButton>
             </div>
-          </div>
-        )}
+          )}
 
-        <div className={showEmptyState ? "hidden" : "contents"}>
-          <TerminalView
-            ref={terminalRef}
+          <div className={showEmptyState ? "hidden" : "contents"}>
+            <TerminalView
+              ref={terminalRef}
+              projectName={GLOBAL_TERMINALS_KEY}
+              projectLabel={LABEL}
+              projectRoot=""
+              services={EMPTY_SERVICES}
+              terminalTheme={terminalTheme}
+              onTerminalCountChange={setTerminalCount}
+              fontSize={fontSize}
+              onZoomIn={zoomIn}
+              onZoomOut={zoomOut}
+              paneStatus={paneStatus}
+              visible={visible && !showEmptyState}
+              onScreen={visible}
+              actions={actions}
+              onRunAction={handleRunAction}
+            />
+          </div>
+          <TerminalFooter
             projectName={GLOBAL_TERMINALS_KEY}
-            projectLabel={LABEL}
-            projectRoot=""
-            services={EMPTY_SERVICES}
-            terminalTheme={terminalTheme}
-            onTerminalCountChange={setTerminalCount}
-            fontSize={fontSize}
-            onZoomIn={zoomIn}
-            onZoomOut={zoomOut}
-            paneStatus={paneStatus}
-            visible={visible && !showEmptyState}
-            onScreen={visible}
-            actions={actions}
+            projectPath=""
+            items={footerItems}
+            layout={layout}
             onRunAction={handleRunAction}
+            disabled={runningAction !== null}
           />
         </div>
-        <TerminalFooter
-          projectName={GLOBAL_TERMINALS_KEY}
-          projectPath=""
-          items={footerItems}
-          layout={layout}
-          onRunAction={handleRunAction}
-          disabled={runningAction !== null}
-        />
-      </div>
 
-      <ConfirmDialog
-        open={modals.confirm.action !== null}
-        body={
-          <>
-            Run <span className="font-medium text-[var(--text-primary)]">{modals.confirm.action?.label}</span>?
-          </>
-        }
-        confirmLabel="Run"
-        onCancel={modals.confirm.onCancel}
-        onConfirm={modals.confirm.onConfirm}
-      />
-      {modals.inputs.action && (
-        <ActionInputsModal
-          projectName={GLOBAL_TERMINALS_KEY}
-          action={modals.inputs.action}
-          onCancel={modals.inputs.onCancel}
-          onSubmit={modals.inputs.onSubmit}
+        <ConfirmDialog
+          open={modals.confirm.action !== null}
+          body={
+            <>
+              Run <span className="font-medium text-[var(--text-primary)]">{modals.confirm.action?.label}</span>?
+            </>
+          }
+          confirmLabel="Run"
+          onCancel={modals.confirm.onCancel}
+          onConfirm={modals.confirm.onConfirm}
         />
-      )}
-      {modals.running.shown && (
-        <ActionRunCard
-          key={modals.running.shown.id}
-          label={modals.running.shown.action.label}
-          runKey={modals.running.shown.runKey}
-          run={modals.running.shown.run}
-          startedAt={modals.running.shown.startedAt}
-          onClose={modals.running.onClose}
-          onRunAgain={modals.running.onRunAgain}
-        />
-      )}
-    </div>
+        {modals.inputs.action && (
+          <ActionInputsModal
+            projectName={GLOBAL_TERMINALS_KEY}
+            action={modals.inputs.action}
+            initial={modals.inputs.initial}
+            onCancel={modals.inputs.onCancel}
+            onSubmit={modals.inputs.onSubmit}
+          />
+        )}
+        {modals.running.shown && (
+          <ActionRunCard
+            key={modals.running.shown.id}
+            label={modals.running.shown.action.label}
+            runKey={modals.running.shown.runKey}
+            run={modals.running.shown.run}
+            startedAt={modals.running.shown.startedAt}
+            onClose={modals.running.onClose}
+            onRunAgain={modals.running.onRunAgain}
+          />
+        )}
+      </div>
+    </PageRunContext.Provider>
   );
 }

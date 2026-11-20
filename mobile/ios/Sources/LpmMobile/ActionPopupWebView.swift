@@ -3,8 +3,10 @@ import WebKit
 
 /// An action popup's or app's page (PROTOCOL.md, Action popups): the Mac's HTML
 /// loaded with no base URL, `bootstrap.js` run before its own scripts, and nothing
-/// more. The page gets no bridge to the app and can't navigate away: a tapped web
-/// link, or one `lpm.open` asks for, opens outside the app; anything else is dropped. A refresh hands its new values to
+/// more. The page can't navigate away: a tapped web link, or one `lpm.open` asks
+/// for, opens outside the app; anything else is dropped. Its one way to the app is
+/// the `lpm` message handler, for `lpm.run` and `lpm.refresh`, and a run's result
+/// comes back through `window.__lpmReply`. A refresh hands its new values to
 /// `window.__lpmPush` without reloading the page.
 struct ActionPopupWebView: UIViewRepresentable {
     let html: String
@@ -15,6 +17,8 @@ struct ActionPopupWebView: UIViewRepresentable {
     let page: Int
     let pushes: Int
     let onFailure: () -> Void
+    /// What the page asks for, and where a run's result goes.
+    let onAsk: (ActionPageAsk, @escaping (ActionPageRunResult) -> Void) -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
@@ -31,12 +35,15 @@ struct ActionPopupWebView: UIViewRepresentable {
         web.allowsLinkPreview = false
         web.navigationDelegate = context.coordinator
         web.uiDelegate = context.coordinator
+        config.userContentController.add(context.coordinator, name: ActionPopupPage.handler)
+        context.coordinator.web = web
         return web
     }
 
     func updateUIView(_ web: WKWebView, context: Context) {
         let coordinator = context.coordinator
         coordinator.onFailure = onFailure
+        coordinator.onAsk = onAsk
         if coordinator.page != page {
             coordinator.page = page
             coordinator.pushes = pushes
@@ -52,13 +59,17 @@ struct ActionPopupWebView: UIViewRepresentable {
         web.navigationDelegate = nil
         web.uiDelegate = nil
         web.configuration.userContentController.removeAllUserScripts()
+        web.configuration.userContentController.removeScriptMessageHandler(forName: ActionPopupPage.handler)
+        coordinator.onAsk = nil
     }
 
     @MainActor
-    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
         var page = -1
         var pushes = 0
         var onFailure: (() -> Void)?
+        var onAsk: ((ActionPageAsk, @escaping (ActionPageRunResult) -> Void) -> Void)?
+        weak var web: WKWebView?
         /// The next main-frame navigation is the page's own load.
         private var loading = false
 
@@ -100,6 +111,22 @@ struct ActionPopupWebView: UIViewRepresentable {
             return isWeb || ["about", "data", "blob"].contains(scheme) ? .allow : .cancel
         }
 
+        /// `lpm.run` and `lpm.refresh` from the page itself, not a frame inside it.
+        func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.frameInfo.isMainFrame, let ask = ActionPageAsk(message.body) else { return }
+            let id: String
+            switch ask {
+            case .run(let asked, _, _): id = asked
+            case .refresh: id = ""
+            }
+            let page = self.page
+            onAsk?(ask) { [weak self] result in
+                guard let self, self.page == page else { return }
+                self.web?.evaluateJavaScript("window.__lpmReply && window.__lpmReply(\(result.json(id: id)));",
+                                             completionHandler: nil)
+            }
+        }
+
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
             onFailure?()
         }
@@ -121,6 +148,8 @@ struct ActionPopupWebView: UIViewRepresentable {
 /// The scripts a popup page gets from the app.
 enum ActionPopupPage {
     private static let token = "__LPM_POPUP_PAYLOAD__"
+    /// The message handler `bootstrap.js` posts to.
+    static let handler = "lpm"
 
     private static let template: String? = try? String(
         contentsOf: TerminalWebPool.webDir.appendingPathComponent("popup/bootstrap.js"), encoding: .utf8)

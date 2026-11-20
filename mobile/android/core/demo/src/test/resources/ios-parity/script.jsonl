@@ -189,6 +189,8 @@
 {"at": 2700, "frame": {"t": "actionPopup", "project": "nope", "action": "stars"}}
 {"at": 2700, "frame": {"t": "actionApp", "project": "api-gateway", "action": "stars"}}
 {"at": 2700, "frame": {"t": "actionApp", "project": "api-gateway", "action": "test"}}
+{"at": 2700, "frame": {"t": "actionApp", "project": "api-gateway", "action": "releases"}}
+{"at": 2700, "frame": {"t": "actionPopup", "project": "api-gateway", "action": "releases"}}
 {"at": 2800, "frame": {"t": "setLimitReminder", "limit": "codex", "window": "weekly", "resetsAt": 1792400000, "name": "Codex"}}
 {"at": 3000, "frame": {"t": "sub", "id": "demo-storefront-1"}}
 {"at": 3000, "frame": {"t": "clearLimitReminder", "limit": "claude:work", "window": "fiveHour"}}
@@ -268,6 +270,7 @@
 {"at": 15000, "frame": {"t": "runAction", "project": "storefront", "action": "lint", "inputValues": {}}}
 {"at": 15000, "frame": {"t": "runAction", "project": "storefront", "action": "fix-tests", "inputValues": {}}}
 {"at": 15000, "frame": {"t": "runAction", "project": "storefront", "action": "nope"}}
+{"at": 15000, "frame": {"t": "runActionBackground", "project": "api-gateway", "action": "release", "inputValues": {}, "runId": "run-4"}}
 {"at": 16500, "frame": {"t": "terminals", "project": "storefront"}}
 {"at": 17000, "frame": {"t": "runJob", "project": "storefront", "jobId": "nightly-tests"}}
 {"at": 17000, "frame": {"t": "runJob", "project": "storefront", "jobId": "nope"}}
@@ -275,6 +278,7 @@
 {"at": 20000, "frame": {"t": "jobLiveOutput", "project": "storefront", "jobId": "nightly-tests"}}
 {"at": 20000, "frame": {"t": "gitAuto", "project": "work-copy", "kind": "commitPush", "nonce": "wc1"}}
 {"at": 21000, "frame": {"t": "backgroundRuns", "project": "mobile-app"}}
+{"at": 21000, "frame": {"t": "actionBgOutput", "project": "api-gateway", "runId": "run-4"}}
 {"at": 24500, "frame": {"t": "git", "project": "work-copy"}}
 {"at": 24500, "frame": {"t": "gitAutoState", "project": "work-copy"}}
 {"at": 24600, "frame": {"t": "gitAuto", "project": "work-copy", "kind": "pr", "nonce": "wc2"}}

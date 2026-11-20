@@ -11,7 +11,7 @@ Create and modify lpm config on macOS exclusively through `lpm config get` and `
 ## Load only the relevant reference
 
 - Read [references/core.md](references/core.md) for project identity, services, dependencies, profiles, duplicates, linked Git worktrees, auto pull, and project creation.
-- Read [references/actions.md](references/actions.md) when adding or changing actions, buttons, terminals, inputs, ports, shortcuts, colors, dynamic labels, popups, apps, agent prompts, or nested menus.
+- Read [references/actions.md](references/actions.md) when adding or changing actions, buttons, terminals, inputs, ports, shortcuts, colors, dynamic labels, popups, mini apps, agent prompts, or nested menus.
 - Read [references/zones.md](references/zones.md) when creating, filling, rearranging, or removing button zones or zone layers.
 - Read [references/sharing.md](references/sharing.md) for `.lpm.yml`, global config, templates, `extends`, layering, and sparse overrides.
 - Read [references/ssh.md](references/ssh.md) for remote projects or `mode: sync`.
