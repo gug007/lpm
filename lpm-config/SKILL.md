@@ -11,7 +11,7 @@ Create and modify lpm config on macOS exclusively through `lpm config get` and `
 ## Load only the relevant reference
 
 - Read [references/core.md](references/core.md) for project identity, services, dependencies, profiles, duplicates, linked Git worktrees, auto pull, and project creation.
-- Read [references/actions.md](references/actions.md) when adding or changing actions, buttons, terminals, inputs, ports, shortcuts, colors, dynamic labels, popups, agent prompts, or nested menus.
+- Read [references/actions.md](references/actions.md) when adding or changing actions, buttons, terminals, inputs, ports, shortcuts, colors, dynamic labels, popups, apps, agent prompts, or nested menus.
 - Read [references/zones.md](references/zones.md) when creating, filling, rearranging, or removing button zones or zone layers.
 - Read [references/sharing.md](references/sharing.md) for `.lpm.yml`, global config, templates, `extends`, layering, and sparse overrides.
 - Read [references/ssh.md](references/ssh.md) for remote projects or `mode: sync`.
@@ -59,6 +59,7 @@ When `lpm config resolve` is unavailable, inspect the YAML project files read-on
 | Colored button or terminal tab | action `color` |
 | Label or emoji that shows the branch, the last tag and its age, the next version, or a command's output (on a button, input or option) | `{{git.branch}}`, `{{git.tag}}`, `{{git.tagAge}}`, `{{git.nextPatch}}` or `$(command)` in `label` or `emoji` |
 | Chart, graph or any page shown when the pointer rests on a button (long press on the phone) | action `popup` with `html` and `data` |
+| Mini app: a page a click on the button opens in a tab (full screen on the phone) | action `app` with `html` and `data`, or `app: true` for the popup's page |
 | Agent terminal that starts with a task | `type: terminal` with an agent `cmd` plus `prompt` |
 | Hidden command with completion notification | `type: background` |
 | Send command into the focused terminal | `type: command` |

@@ -13,6 +13,7 @@ import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import { actionRunKey } from "../store/actionRunMarks";
 import { ActionRunMarkBadge } from "./ActionRunMarkBadge";
 import { ActionPopupHover } from "../popup/ActionPopupHover";
+import { appRunOf, runsOnClick } from "../popup/appTab";
 import { ActionFace } from "./ActionFace";
 
 const FLAT_BASE =
@@ -44,7 +45,7 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
   const handleHover = () => refreshLabelOnHover(project, action);
   const zoneFit = size === "zone" || size === "footerZone";
   const parsedShortcut =
-    action.cmd && action.shortcut ? parseShortcut(action.shortcut) : null;
+    runsOnClick(action) && action.shortcut ? parseShortcut(action.shortcut) : null;
   const shortcutLabel = parsedShortcut ? formatShortcut(parsedShortcut) : null;
   // An action with a popup shows its card on hover in place of a tooltip, with
   // the shortcut beside the card's title.
@@ -56,6 +57,7 @@ export function ActionView({ action, size, disabled, onRun, onContextMenu, scope
         popup={action.popup}
         triggerClassName={zoneFit ? "flex h-full w-full" : "inline-flex"}
         extra={shortcutLabel ? <Combo label={shortcutLabel} /> : undefined}
+        onOpenTab={disabled ? undefined : () => onRun(appRunOf(action))}
       >
         {button}
       </ActionPopupHover>

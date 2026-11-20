@@ -5,6 +5,7 @@ import { EmojiLabel } from "./EmojiLabel";
 import { actionTextColor } from "../actionColors";
 import { MenuSplitRow } from "./MenuSplitRow";
 import { useActionsActiveId, useActionsSettlingId, useMenuDrop } from "./ActionsDnd";
+import { runsOnClick } from "../popup/appTab";
 
 const leafClass =
   "flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]";
@@ -55,7 +56,7 @@ export function ActionMenuRow({ child, onRun, onDrill }: Props) {
         </span>
       </button>
     );
-  } else if (child.cmd) {
+  } else if (runsOnClick(child)) {
     row = (
       <MenuSplitRow
         icon={null}

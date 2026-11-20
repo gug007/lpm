@@ -55,6 +55,10 @@ const CONNECTIONS: Connection[] = [
     body: "Until you turn off Send crash reports in Settings, an error lpm didn't expect goes to Sentry with your lpm and operating system versions, and never with your code, terminal output or prompts.",
   },
   {
+    what: "Daily usage ping",
+    body: "Until you turn off Send daily usage ping in Settings, the desktop app tells a server lpm runs that it was used today, with your lpm version, operating system and processor type and no ID. The server keeps only daily totals.",
+  },
+  {
     what: "This website",
     body: (
       <>

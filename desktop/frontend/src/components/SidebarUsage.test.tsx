@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   agentUsageMachines: vi.fn(),
   agentLimits: vi.fn(),
   claudeLimitsAccount: vi.fn(),
+  terminalClaudeAccount: vi.fn(),
   peerInvoke: vi.fn(),
   app: { selected: null as string | null, projects: [] as unknown[] },
 }));
@@ -18,6 +19,7 @@ vi.mock("../../bridge/commands", () => ({
   AgentUsageMachines: mocks.agentUsageMachines,
   AgentLimits: mocks.agentLimits,
   ClaudeLimitsAccount: mocks.claudeLimitsAccount,
+  TerminalClaudeAccount: mocks.terminalClaudeAccount,
   PeerInvoke: mocks.peerInvoke,
   AcceptClaudePoolPick: vi.fn(),
   ClaudePoolState: vi.fn(),
@@ -36,7 +38,10 @@ vi.mock("../../bridge/runtime", () => ({
 import { useAccountsStore } from "../store/accounts";
 import { useClaudePoolStore, type ClaudePool } from "../store/claudePool";
 import { useMachineClaudeStore } from "../store/machineClaude";
+import { useProjectClaudeTabs } from "../store/projectClaudeTabs";
 import { useSettingsStore } from "../store/settings";
+import { useTerminalClaudeAccounts } from "../store/terminalClaudeAccounts";
+import { useTerminalTitles } from "../store/terminalTitles";
 import { SidebarUsage } from "./SidebarUsage";
 
 let container: HTMLDivElement;
@@ -120,6 +125,9 @@ beforeEach(() => {
   useAccountsStore.setState({ accounts: [], statuses: {}, usage: {} });
   useClaudePoolStore.setState({ pool: null });
   useMachineClaudeStore.setState({ machines: {}, aliases: {} });
+  useProjectClaudeTabs.setState({ byProject: {} });
+  useTerminalClaudeAccounts.setState({ accounts: {} });
+  useTerminalTitles.setState({ byProject: {}, focusedByProject: {}, onScreenByProject: {} });
   mocks.app.selected = null;
   mocks.app.projects = [];
   container = document.createElement("div");
@@ -314,6 +322,26 @@ describe("SidebarUsage", () => {
       expect(tag("Home")).toBe("in use");
       expect(tag("Work")).toBeNull();
       expect(container.textContent).toContain("New Claude sessions in api use this account");
+    });
+
+    it("tags the account the tab on screen runs on when it is another one", async () => {
+      twoAccounts();
+      mocks.app.selected = "api";
+      mocks.app.projects = [{ name: "api", isRemote: false, claudeAccount: "acc-home" }];
+      mocks.terminalClaudeAccount.mockResolvedValue("acc-work");
+      useProjectClaudeTabs.setState({ byProject: { api: { ids: ["t1"], selected: "t1", working: [] } } });
+      useTerminalTitles.setState({ focusedByProject: { api: "t1" }, onScreenByProject: { api: "t1" } });
+      await render();
+
+      expect(mocks.terminalClaudeAccount).toHaveBeenCalledWith("t1");
+      expect(tag("Work")).toBe("this tab");
+      expect(tag("Home")).toBe("new tabs");
+
+      await act(async () => {
+        useTerminalTitles.setState({ onScreenByProject: { api: null } });
+      });
+      expect(tag("Work")).toBeNull();
+      expect(tag("Home")).toBe("in use");
     });
 
     it("tags the rest of its pool while switching is on", async () => {

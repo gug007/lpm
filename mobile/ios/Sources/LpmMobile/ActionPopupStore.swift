@@ -58,7 +58,8 @@ struct ActionPopupState {
         }
         refreshFailure = nil
         guard let html = content.html, content.error.isEmpty else {
-            phase = .failed(content.error.isEmpty ? ActionPopupCopy.couldNotOpen : content.error, retry: true)
+            phase = .failed(content.error.isEmpty ? ActionPopupCopy.couldNotOpen(reply.view) : content.error,
+                            retry: true)
             return false
         }
         if !reload && self.content?.html == html {
@@ -82,10 +83,11 @@ struct ActionPopupState {
     }
 }
 
-/// The action popups on screen, reached as `model.actionPopups`: each sheet asks
-/// the Mac for its page as it opens and every `refresh` seconds while it stays open,
-/// taking the last result at once and a fresh one after a stale one; Refresh asks
-/// for a fresh one.
+/// The action popups and apps on screen, reached as `model.actionPopups`: each
+/// asks the Mac for its page as it opens and every `refresh` seconds while it
+/// stays open, taking the last result at once and a fresh one after a stale one;
+/// Refresh asks for a fresh one. A popup and an app of the same action are kept
+/// apart, as the Mac keeps their results apart.
 @Observable @MainActor
 final class ActionPopupStore {
     @ObservationIgnored weak var model: AppModel?
@@ -97,76 +99,91 @@ final class ActionPopupStore {
     private static let timeout: TimeInterval = 20
 
     var available: Bool { client?.hostFeatures.contains(LpmClient.actionPopupFeature) == true }
+    var appsAvailable: Bool { client?.hostFeatures.contains(LpmClient.actionAppFeature) == true }
 
-    func state(project: String, action: String) -> ActionPopupState {
-        states[Self.key(project, action)] ?? ActionPopupState()
+    /// Whether a tap on `action` opens its app rather than running it.
+    func opensApp(_ action: Action) -> Bool { action.app != nil && appsAvailable }
+
+    func state(project: String, action: String, view: ActionPageView = .popup) -> ActionPopupState {
+        states[Self.key(view, project, action)] ?? ActionPopupState()
     }
 
-    /// The sheet opened: ask for the page, unless the config already says why
-    /// there's none.
-    func open(project: String, action: Action) {
-        guard let info = action.popup else { return }
-        let key = Self.key(project, action.name)
+    /// The sheet or screen opened: ask for the page, unless the config already
+    /// says why there's none.
+    func open(project: String, action: Action, view: ActionPageView = .popup) {
+        let info: (format: String, problem: String)?
+        switch view {
+        case .popup: info = action.popup.map { ($0.format, $0.problem) }
+        case .tab: info = action.app.map { ($0.format, $0.problem) }
+        }
+        guard let info else { return }
+        let key = Self.key(view, project, action.name)
         if !info.problem.isEmpty {
             states[key] = ActionPopupState(phase: .failed(info.problem, retry: false))
         } else if info.format != ActionPopupInfo.html {
-            states[key] = ActionPopupState(phase: .failed(ActionPopupCopy.newerApp, retry: false))
+            states[key] = ActionPopupState(phase: .failed(ActionPopupCopy.newerApp(view), retry: false))
         } else {
             states[key] = ActionPopupState()
-            request(key, project: project, action: action.name, fresh: false)
+            request(key, view: view, project: project, action: action.name, fresh: false)
         }
     }
 
     /// Refresh and Retry: run the commands again and load the page anew. A page on
     /// show stays until the answer comes.
-    func reload(project: String, action: String) {
-        let key = Self.key(project, action)
+    func reload(project: String, action: String, view: ActionPageView = .popup) {
+        let key = Self.key(view, project, action)
         guard let state = states[key], state.canReload else { return }
         if state.content == nil { states[key]?.phase = .loading }
-        request(key, project: project, action: action, fresh: true, reload: true)
+        request(key, view: view, project: project, action: action, fresh: true, reload: true)
     }
 
     /// The refresh interval passed while the page is on screen: the Mac's last
     /// result, and a fresh one after it when that was stale.
-    func tick(project: String, action: String) {
-        let key = Self.key(project, action)
+    func tick(project: String, action: String, view: ActionPageView = .popup) {
+        let key = Self.key(view, project, action)
         guard let state = states[key], state.content != nil, !state.inFlight else { return }
-        request(key, project: project, action: action, fresh: false)
+        request(key, view: view, project: project, action: action, fresh: false)
     }
 
     /// The page's web content stopped (it crashed or the system reclaimed it).
-    func pageFailed(project: String, action: String) {
-        let key = Self.key(project, action)
+    func pageFailed(project: String, action: String, view: ActionPageView = .popup) {
+        let key = Self.key(view, project, action)
         guard states[key] != nil else { return }
-        states[key]?.phase = .failed(ActionPopupCopy.stopped, retry: true)
+        states[key]?.phase = .failed(ActionPopupCopy.stopped(view), retry: true)
     }
 
-    func close(project: String, action: String) {
-        let key = Self.key(project, action)
+    func close(project: String, action: String, view: ActionPageView = .popup) {
+        let key = Self.key(view, project, action)
         states[key] = nil
         timers.cancel(key)
     }
 
     func apply(_ reply: ActionPopupReply) {
-        let key = Self.key(reply.project, reply.action)
+        let key = Self.key(reply.view, reply.project, reply.action)
         guard states[key] != nil else { return }
         timers.cancel(key)
         if states[key]?.apply(reply) == true {
-            request(key, project: reply.project, action: reply.action, fresh: true)
+            request(key, view: reply.view, project: reply.project, action: reply.action, fresh: true)
         }
     }
 
-    private func request(_ key: String, project: String, action: String, fresh: Bool, reload: Bool = false) {
+    private func request(_ key: String, view: ActionPageView, project: String, action: String,
+                         fresh: Bool, reload: Bool = false) {
         states[key]?.inFlight = true
         states[key]?.askedFresh = fresh
         if reload { states[key]?.reloadOnAnswer = true }
-        client?.requestActionPopup(project: project, action: action, fresh: fresh)
+        switch view {
+        case .popup: client?.requestActionPopup(project: project, action: action, fresh: fresh)
+        case .tab: client?.requestActionApp(project: project, action: action, fresh: fresh)
+        }
         timers.arm(key, seconds: Self.timeout) { [weak self] in
             self?.states[key]?.timeOut()
         }
     }
 
-    private static func key(_ project: String, _ action: String) -> String { "\(project)\n\(action)" }
+    private static func key(_ view: ActionPageView, _ project: String, _ action: String) -> String {
+        "\(view.rawValue)\n\(project)\n\(action)"
+    }
 }
 
 extension AppModel {

@@ -194,6 +194,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_ci::COMMITS_FEATURE,
     crate::remote_ci::MERGE_FEATURE,
     crate::remote_popup::FEATURE,
+    crate::remote_popup::APP_FEATURE,
     review::SECRETS_FEATURE,
     review::BRANCH_FEATURE,
     review::DISCUSSION_FEATURE,
@@ -4805,7 +4806,8 @@ fn handle_msg(
         "gitChecks" | "gitChecksRerun" | "gitCommitChecks" | "gitMergePr" => {
             crate::remote_ci::handle(out, t, &v)
         }
-        "actionPopup" => crate::remote_popup::handle(out, &v),
+        "actionPopup" => crate::remote_popup::handle(out, &v, crate::config::popup::View::Popup),
+        "actionApp" => crate::remote_popup::handle(out, &v, crate::config::popup::View::App),
         "gitScanSecrets" | "gitBranchFiles" | "gitBranchDiffs" | "gitPrDiscussion" => {
             review::handle(out, t, &v)
         }

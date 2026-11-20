@@ -13,6 +13,7 @@ import {
   type DiagnosticLevel,
   type ReportedError,
 } from "./diagnostics";
+import { isStorageFull } from "./storageFull";
 import { getSettings, useSettingsStore } from "./store/settings";
 
 export interface CrashReportTarget {
@@ -199,9 +200,11 @@ function deliver(report: ReportedError): void {
 }
 
 // Report every error the app reports (diagnostics.ts) for as long as the
-// switch is on. Call once, before the settings load.
+// switch is on, except a full disk, which is no error in the app. Call once,
+// before the settings load.
 export function initCrashReports(): void {
   onReportedError((report) => {
+    if (isStorageFull(report.error)) return;
     if (held) {
       if (held.length < MAX_HELD) held.push(report);
     } else if (switchedOnHere()) {

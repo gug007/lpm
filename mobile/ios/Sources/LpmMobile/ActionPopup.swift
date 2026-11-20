@@ -21,6 +21,28 @@ struct ActionPopupInfo {
     }
 }
 
+/// An action's app as the projects list announces it (PROTOCOL.md, Action apps):
+/// a tap opens its page full screen instead of running a command.
+struct ActionAppInfo {
+    let format: String
+    let title: String
+    let problem: String
+
+    init?(_ value: Any?) {
+        guard let o = value as? [String: Any] else { return nil }
+        format = o["format"] as? String ?? ""
+        title = o["title"] as? String ?? ""
+        problem = o["problem"] as? String ?? ""
+    }
+}
+
+/// Which of an action's pages: the popup a long press opens, or the app a tap
+/// opens full screen. The page reads it as `lpm.view`.
+enum ActionPageView: String {
+    case popup
+    case tab
+}
+
 /// The page and data the Mac made for one opening, or one refresh, of a popup.
 struct ActionPopupContent {
     /// Seconds between refreshes while the sheet is open; 0 for only when it opens.
@@ -52,37 +74,50 @@ struct ActionPopupContent {
     }
 }
 
-/// The Mac's answer to `actionPopup`: the popup's content, or why there's none.
+/// The Mac's answer to `actionPopup` or `actionApp`: the page, or why there's none.
 struct ActionPopupReply {
+    let view: ActionPageView
     let project: String
     let action: String
     let content: ActionPopupContent?
     let error: String
 
     init(_ o: [String: Any]) {
+        view = o["t"] as? String == "actionApp" ? .tab : .popup
         project = o["project"] as? String ?? ""
         action = o["action"] as? String ?? ""
-        if o["ok"] as? Bool == true, let popup = o["popup"] as? [String: Any] {
-            content = ActionPopupContent(popup)
+        let key = view == .tab ? "app" : "popup"
+        if o["ok"] as? Bool == true, let page = o[key] as? [String: Any] {
+            content = ActionPopupContent(page)
             error = ""
         } else {
             content = nil
-            error = (o["error"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? ActionPopupCopy.couldNotOpen
+            error = (o["error"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? ActionPopupCopy.couldNotOpen(view)
         }
     }
 }
 
 enum ActionPopupCopy {
-    static let couldNotOpen = "Couldn't open the popup."
-    static let newerApp = "This popup needs a newer lpm Link."
     static let lateAnswer = "The Mac didn't answer in time."
-    static let stopped = "The popup stopped working."
+
+    static func couldNotOpen(_ view: ActionPageView) -> String {
+        view == .tab ? "Couldn't open the app." : "Couldn't open the popup."
+    }
+
+    static func newerApp(_ view: ActionPageView) -> String {
+        view == .tab ? "This app needs a newer lpm Link." : "This popup needs a newer lpm Link."
+    }
+
+    static func stopped(_ view: ActionPageView) -> String {
+        view == .tab ? "The app stopped working." : "The popup stopped working."
+    }
 }
 
 /// What the page's scripts read as `window.lpm`, and the values a refresh hands to
 /// `window.__lpmPush`, as JSON safe to put in a script.
 enum ActionPopupPayload {
-    static func bootstrap(_ content: ActionPopupContent, project: String, action: String, dark: Bool) -> String {
+    static func bootstrap(_ content: ActionPopupContent, project: String, action: String,
+                          view: ActionPageView, dark: Bool) -> String {
         script([
             "data": content.data,
             "text": content.text,
@@ -90,6 +125,7 @@ enum ActionPopupPayload {
             "theme": theme(dark: dark),
             "project": project,
             "action": action,
+            "view": view.rawValue,
         ])
     }
 

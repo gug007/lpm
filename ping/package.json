@@ -1,0 +1,17 @@
+{
+  "name": "lpm-ping",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler d1 migrations apply lpm-ping --local && wrangler dev --port 8788",
+    "deploy": "wrangler d1 migrations apply lpm-ping --remote && wrangler deploy",
+    "report": "node scripts/report.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261019.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.151.2"
+  }
+}

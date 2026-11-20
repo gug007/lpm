@@ -32,6 +32,7 @@ struct ProjectMenuHost: ViewModifier {
     // Action run flow: collect inputs (if any) → confirm (if flagged) → dispatch.
     @State private var gauntlet = ActionRunGauntlet()
     @State private var activeBgRun: BackgroundRunInfo?
+    @State private var appAction: Action?
     @State private var isVisible = false
     // Rename flow: the text field's draft, seeded from the current label.
     @State private var renaming = false
@@ -116,6 +117,9 @@ struct ProjectMenuHost: ViewModifier {
                 ProjectConfigView(project: project).environment(model)
             }
             .projectActionsSheet(project: project, isPresented: $showActions, onRun: beginRun)
+            .sheet(item: $appAction) { action in
+                ActionAppScreen(project: project.name, action: action).environment(model)
+            }
             .tabRenameAlert($renamingTab)
             .alert("Rename project", isPresented: $renaming) {
                 TextField("Project name", text: $renameText)
@@ -189,6 +193,10 @@ struct ProjectMenuHost: ViewModifier {
     // terminal/command actions relay to the Mac's terminal flow (confirmed:true so
     // the Mac doesn't re-prompt).
     private func beginRun(_ action: Action) {
+        if model.actionPopups.opensApp(action) {
+            appAction = action
+            return
+        }
         if !gauntlet.begin(action) { dispatch(action, inputValues: [:], deferred: false) }
     }
     private func dispatch(_ action: Action, inputValues: [String: String], deferred: Bool) {

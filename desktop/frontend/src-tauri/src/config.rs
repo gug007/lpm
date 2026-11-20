@@ -1191,6 +1191,8 @@ struct ActionFull {
     inputs: BTreeMap<String, ActionInputDef>,
     #[serde(default, deserialize_with = "popup::lenient")]
     popup: Option<popup::PopupDef>,
+    #[serde(default, deserialize_with = "popup::lenient_app")]
+    app: Option<popup::AppDef>,
     #[serde(default, deserialize_with = "lenient::actions")]
     actions: BTreeMap<String, ActionDef>, // children
     #[serde(flatten)]
@@ -1874,6 +1876,8 @@ pub struct ActionInfo {
     pub inputs: Vec<ActionInputInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub popup: Option<popup::PopupInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub app: Option<popup::AppInfo>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub children: Vec<ActionInfo>,
 }
@@ -2014,6 +2018,9 @@ fn merge_action(d: &mut ActionFull, s: &ActionFull) {
     }
     if d.popup.is_none() {
         d.popup = s.popup.clone();
+    }
+    if d.app.is_none() {
+        d.app = s.app.clone();
     }
     if d.actions.is_empty() {
         d.actions = s.actions.clone();
@@ -2227,7 +2234,7 @@ fn resolved_child(parent: &ActionFull, child: &ActionFull) -> ActionFull {
     // A child under a terminal parent is itself a terminal unless it says
     // otherwise — without this it serializes as a plain (non-terminal) action and
     // resolve_terminal_action's kind filter would drop it. Mirrors cwd/mode above.
-    if c.kind.is_empty() {
+    if c.kind.is_empty() && parent.kind != popup::APP_KIND {
         c.kind = parent.kind.clone();
     }
     let mut env = parent.env.clone();
@@ -2344,11 +2351,16 @@ fn action_to_info(id: &str, name: &str, act: &ActionFull) -> ActionInfo {
         layer: act.layer.clone(),
         primary: act.primary.clone(),
         prompt: act.prompt.clone(),
-        kind: act.kind.clone(),
+        kind: if popup::opens_app(&act.kind, act.app.as_ref()) {
+            popup::APP_KIND.into()
+        } else {
+            act.kind.clone()
+        },
         reuse: act.reuse,
         position: act.position,
         inputs: build_input_infos(&act.inputs),
         popup: act.popup.as_ref().map(popup::PopupInfo::from),
+        app: popup::app_info(&act.kind, act.app.as_ref(), act.popup.as_ref()),
         children: vec![],
     }
 }
@@ -3031,7 +3043,7 @@ pub struct ActionResolved {
     pub ports: Vec<i64>,
     pub env: BTreeMap<String, String>,
     pub mode: String, // "" | "remote" | "sync"
-    pub kind: String, // "" | "terminal"
+    pub kind: String, // "" | "terminal" | "app"
 }
 
 pub fn resolve_action_full(file_name: &str, action_name: &str) -> Option<ActionResolved> {
@@ -3043,7 +3055,11 @@ pub fn resolve_action_full(file_name: &str, action_name: &str) -> Option<ActionR
         ports: act.port.to_vec(),
         env: act.env,
         mode: act.mode,
-        kind: act.kind,
+        kind: if popup::opens_app(&act.kind, act.app.as_ref()) {
+            popup::APP_KIND.into()
+        } else {
+            act.kind
+        },
     })
 }
 

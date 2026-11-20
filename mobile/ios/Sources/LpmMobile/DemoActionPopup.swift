@@ -1,14 +1,20 @@
 import Foundation
 
-/// Demo handler for `actionPopup`: api-gateway's Stars action shows the repo's
-/// GitHub stars month by month, drawn by the sample page in mobile/shared/demo.
+/// Demo handlers for `actionPopup` and `actionApp`: api-gateway's Stars action
+/// shows the repo's GitHub stars month by month, drawn by the sample page in
+/// mobile/shared/demo, which lays itself out larger as the app.
 extension DemoServer {
     func registerActionPopupHandlers() {
-        register("actionPopup") { [weak self] o in
+        registerActionPage("actionPopup", key: "popup")
+        registerActionPage("actionApp", key: "app")
+    }
+
+    private func registerActionPage(_ type: String, key: String) {
+        register(type) { [weak self] o in
             guard let self else { return }
             let project = o["project"] as? String ?? ""
             let name = o["action"] as? String ?? ""
-            var reply: [String: Any] = ["t": "actionPopup", "project": project, "action": name]
+            var reply: [String: Any] = ["t": type, "project": project, "action": name]
             guard let idx = self.world.projectIndex(project) else {
                 reply["ok"] = false
                 reply["error"] = "Couldn't find the project."
@@ -16,14 +22,14 @@ extension DemoServer {
                 return
             }
             guard let action = self.world.projects[idx].actions.first(where: { $0["name"] as? String == name }),
-                  action["popup"] != nil else {
+                  action[key] != nil else {
                 reply["ok"] = false
-                reply["error"] = "This action has no popup."
+                reply["error"] = "This action has no \(key)."
                 self.push(reply)
                 return
             }
             reply["ok"] = true
-            reply["popup"] = [
+            reply[key] = [
                 "refresh": 0,
                 "html": demoPopupPage(),
                 "data": demoStars,

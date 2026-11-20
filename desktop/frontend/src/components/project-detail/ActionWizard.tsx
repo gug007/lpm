@@ -838,7 +838,8 @@ export function ActionWizard({
     setTemplatesOpen(false);
     setEditingPayload(null);
     setWorkingBase({});
-    const initialMode = readStoredMode();
+    // An app's page has no fields in the form, which would ask it for a command.
+    const initialMode = editing?.type === "app" ? "editor" : readStoredMode();
     if (initialMode === "editor") {
       // Edit mode seeds lazily once editingPayload resolves (see the read
       // effect) to avoid serializing a payload that's missing on-disk fields.

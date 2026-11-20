@@ -27,9 +27,11 @@ export const useTerminalClaudeAccounts = create<TerminalClaudeAccountsState>((se
 
 // The account a terminal's Claude sessions run as; undefined until known, and
 // for a terminal that has none.
-export function useTerminalClaudeAccount(terminalId: string): string | undefined {
-  const account = useTerminalClaudeAccounts((s) => s.accounts[terminalId]);
+export function useTerminalClaudeAccount(terminalId: string | null): string | undefined {
+  const account = useTerminalClaudeAccounts((s) => (terminalId ? s.accounts[terminalId] : undefined));
   const load = useTerminalClaudeAccounts((s) => s.load);
-  useEffect(() => load(terminalId), [terminalId, load]);
+  useEffect(() => {
+    if (terminalId) load(terminalId);
+  }, [terminalId, load]);
   return account ?? undefined;
 }

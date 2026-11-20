@@ -4,6 +4,7 @@ import cx.lpm.mobile.core.data.testing.FakeSocket
 import cx.lpm.mobile.core.data.testing.SessionHarness
 import cx.lpm.mobile.core.data.testing.settleAlive
 import cx.lpm.mobile.core.model.Action
+import cx.lpm.mobile.core.model.ActionPageView
 import cx.lpm.mobile.core.model.ActionPopupCopy
 import cx.lpm.mobile.core.model.bool
 import cx.lpm.mobile.core.model.string
@@ -195,7 +196,7 @@ class ActionPopupStoreTest {
         )
         store.open("api", action("""{ "format": "vega" }"""))
         assertEquals(
-            ActionPopupPhase.Failed(ActionPopupCopy.NEWER_APP, retry = false),
+            ActionPopupPhase.Failed(ActionPopupCopy.newerApp(ActionPageView.Popup), retry = false),
             store.popup.phase
         )
         store.reload("api", "stars")
@@ -210,7 +211,7 @@ class ActionPopupStoreTest {
         runCurrent()
         store.pageFailed("api", "stars")
         assertEquals(
-            ActionPopupPhase.Failed(ActionPopupCopy.STOPPED, retry = true),
+            ActionPopupPhase.Failed(ActionPopupCopy.stopped(ActionPageView.Popup), retry = true),
             store.popup.phase
         )
 
@@ -218,5 +219,49 @@ class ActionPopupStoreTest {
         socket.page()
         runCurrent()
         assertTrue(store.state.value.popups.isEmpty())
+    }
+
+    @Test
+    fun `an app asks with actionApp and is kept apart from the popup`() = runTest {
+        val h = SessionHarness(this)
+        val socket = h.connectReady(features = listOf("actionPopup", "actionApp"))
+        val store: ActionPopupStore = h.session.store()
+        val both = Action.parse(
+            Json.parseToJsonElement(
+                """{ "name": "stars", "label": "Stars", "type": "app",
+                     "popup": { "format": "html" }, "app": { "format": "html" } }"""
+            ).jsonObject
+        )
+        assertTrue(store.opensApp(both))
+        store.open("api", both)
+        store.open("api", both, ActionPageView.Tab)
+        assertEquals(1, socket.sentOf("actionPopup").size)
+        assertEquals("stars", socket.sentOf("actionApp").single().string("action"))
+
+        socket.receive(
+            """{"t":"actionApp","project":"api","action":"stars","ok":true,""" +
+                """"app":{"refresh":0,"html":"<p>app</p>","data":null}}"""
+        )
+        runCurrent()
+        assertEquals(
+            "<p>app</p>",
+            store.state.value.popup("api", "stars", ActionPageView.Tab).content?.html
+        )
+        assertEquals(ActionPopupPhase.Loading, store.popup.phase)
+
+        store.close("api", "stars", ActionPageView.Tab)
+        assertEquals(ActionPopupPhase.Loading, store.popup.phase)
+    }
+
+    @Test
+    fun `a Mac without apps runs the action instead`() = runTest {
+        val (_, store) = ready()
+        val app = Action.parse(
+            Json.parseToJsonElement(
+                """{ "name": "stars", "app": { "format": "html" } }"""
+            ).jsonObject
+        )
+        assertFalse(store.opensApp(app))
+        assertFalse(store.opensApp(action()))
     }
 }

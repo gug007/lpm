@@ -216,6 +216,11 @@ fn resolve_action_command(
 ) -> Result<ActionPlan, String> {
     let mut a = config::resolve_action_full(project, action)
         .ok_or_else(|| format!("action {action:?} not found in project {project:?}"))?;
+    if a.kind == config::popup::APP_KIND {
+        return Err(format!(
+            "{action:?} opens an app in lpm and has no command to run."
+        ));
+    }
     substitute_inputs(&mut a, input_values);
 
     let info = config::spawn_info(project)?;

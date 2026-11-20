@@ -1088,6 +1088,7 @@ fn validate_action(
                 "position",
                 "inputs",
                 "popup",
+                "app",
                 "actions",
             ][..],
             &crate::os_cmd::KEYS,
@@ -1133,7 +1134,7 @@ fn validate_action(
     validate_choice(
         map,
         "type",
-        &["terminal", "command", "background"],
+        &["terminal", "command", "background", "app"],
         path,
         report,
     );
@@ -1150,6 +1151,7 @@ fn validate_action(
     validate_shortcut(map, path, report);
     labels::validate_action_label(map, path, report);
     popup::validate_popup(map, path, local_root.filter(|_| !remote), report);
+    popup::validate_app(map, path, local_root.filter(|_| !remote), report);
     validate_inputs(map, path, report);
     let children = map.get(Value::String("actions".into()));
     validate_primary(map, children, path, report);
@@ -1174,6 +1176,7 @@ fn validate_action(
     }
     let cmd = string_at(map, "cmd").unwrap_or_default();
     if cmd.trim().is_empty()
+        && !popup::opens_app(map)
         && children
             .and_then(Value::as_mapping)
             .map(Mapping::is_empty)

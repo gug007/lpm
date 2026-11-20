@@ -171,6 +171,16 @@ sealed interface WireTerminals {
             if (fresh) put("fresh", true)
         }
 
+    /**
+     * An action's app page and data, made like a popup's. Only for a Mac whose
+     * `features` has "actionApp".
+     */
+    fun actionApp(project: String, action: String, fresh: Boolean): String = frame("actionApp") {
+        put("project", project)
+        put("action", action)
+        if (fresh) put("fresh", true)
+    }
+
     fun actionBgOutput(project: String, runId: String): String = frame("actionBgOutput") {
         put("project", project)
         put("runId", runId)

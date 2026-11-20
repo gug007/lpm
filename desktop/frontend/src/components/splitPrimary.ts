@@ -1,4 +1,5 @@
 import type { ActionInfo } from "../types";
+import { runsOnClick } from "../popup/appTab";
 
 export const PRIMARY_LAST_USED = "last-used";
 
@@ -10,7 +11,7 @@ export function childKey(child: ActionInfo): string {
 
 export function eligibleChildren(action: ActionInfo): ActionInfo[] {
   const children = action.children ?? [];
-  return children.filter((c) => !!c.cmd || !(c.children?.length));
+  return children.filter((c) => runsOnClick(c) || !(c.children?.length));
 }
 
 export function resolvePrimaryChild(
@@ -30,7 +31,7 @@ export function resolvePrimaryChild(
 // A split button is one when it has an item to run or a command of its own;
 // otherwise it is a menu that only opens.
 export function isSplitButton(action: ActionInfo, primaryChild: ActionInfo | null): boolean {
-  return !!primaryChild || !!action.cmd;
+  return !!primaryChild || runsOnClick(action);
 }
 
 // A "last used" split button remembers a direct item run from its menu; the

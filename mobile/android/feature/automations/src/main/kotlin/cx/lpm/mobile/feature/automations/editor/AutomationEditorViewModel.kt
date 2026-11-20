@@ -184,7 +184,7 @@ class AutomationEditorViewModel @AssistedInject constructor(
             d.targets.singleOrNull()
         }
         val project = runProject?.let(p::project) ?: return emptyList()
-        return project.actions.flatMap { it.runnableLeaves }.map {
+        return project.actions.flatMap { it.runnableLeaves }.filter { it.app == null }.map {
             EditorChoice(it.name, if (it.emoji.isEmpty()) it.label else "${it.emoji} ${it.label}")
         }
     }

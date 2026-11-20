@@ -55,6 +55,7 @@ internal fun LpmClient.connectDemo() {
                 add(LpmClient.AGENT_DIALOG_FEATURE)
                 add(LpmClient.GIT_DISCARD_FILES_FEATURE)
                 add(LpmClient.ACTION_POPUP_FEATURE)
+                add(LpmClient.ACTION_APP_FEATURE)
                 add(LpmClient.GIT_SCAN_SECRETS_FEATURE)
                 add(LpmClient.GIT_BRANCH_DIFF_FEATURE)
                 add(LpmClient.GIT_PR_DISCUSSION_FEATURE)

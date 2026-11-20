@@ -117,6 +117,7 @@ at(2600, 'actionBody', project='api-gateway', key='stars')
 # an action's popup: the sample page and its data; an action without one, a missing project
 at(2700, 'actionPopup', project='api-gateway', action='stars'); at(2700, 'actionPopup', project='api-gateway', action='stars', fresh=True)
 at(2700, 'actionPopup', project='api-gateway', action='test'); at(2700, 'actionPopup', project='nope', action='stars')
+at(2700, 'actionApp', project='api-gateway', action='stars'); at(2700, 'actionApp', project='api-gateway', action='test')
 
 # shell
 at(3000, 'sub', id='demo-storefront-1')

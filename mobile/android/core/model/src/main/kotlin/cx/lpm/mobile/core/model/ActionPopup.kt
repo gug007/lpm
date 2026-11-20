@@ -30,6 +30,31 @@ data class ActionPopupInfo(
     }
 }
 
+/**
+ * An action's app as the projects list announces it (PROTOCOL.md, Action apps): a tap
+ * opens its page in a full-height sheet instead of running a command.
+ */
+data class ActionAppInfo(val format: String, val title: String, val problem: String) {
+    companion object {
+        fun parse(o: JsonObject?): ActionAppInfo? = o?.let {
+            ActionAppInfo(
+                format = it.string("format").orEmpty(),
+                title = it.string("title").orEmpty(),
+                problem = it.string("problem").orEmpty()
+            )
+        }
+    }
+}
+
+/**
+ * Which of an action's pages (iOS `ActionPageView`): the popup a long press opens, or
+ * the app a tap opens. The page reads it as `lpm.view`.
+ */
+enum class ActionPageView(val wire: String) {
+    Popup("popup"),
+    Tab("tab")
+}
+
 /** The page and data the Mac made for one opening, or one refresh, of a popup. */
 data class ActionPopupContent(
     /** Seconds between refreshes while the sheet is open; 0 for only when it opens. */
@@ -63,35 +88,59 @@ data class ActionPopupContent(
     }
 }
 
-/** The Mac's answer to `actionPopup`: the popup's [content], or why there's none. */
+/**
+ * The Mac's answer to `actionPopup` or `actionApp`: the page's [content], or why
+ * there's none.
+ */
 data class ActionPopupReply(
     val project: String,
     val action: String,
     val content: ActionPopupContent?,
-    val error: String
+    val error: String,
+    val view: ActionPageView = ActionPageView.Popup
 ) {
     companion object {
         fun parse(o: JsonObject): ActionPopupReply {
-            val popup = o.obj("popup")?.takeIf { o.bool("ok") == true }
+            val view = if (o.string("t") ==
+                "actionApp"
+            ) {
+                ActionPageView.Tab
+            } else {
+                ActionPageView.Popup
+            }
+            val key = if (view == ActionPageView.Tab) "app" else "popup"
+            val page = o.obj(key)?.takeIf { o.bool("ok") == true }
             return ActionPopupReply(
                 project = o.string("project").orEmpty(),
                 action = o.string("action").orEmpty(),
-                content = popup?.let(ActionPopupContent::parse),
+                content = page?.let(ActionPopupContent::parse),
                 error = when {
-                    popup != null -> ""
-                    else -> o.string("error")?.ifEmpty { null } ?: ActionPopupCopy.COULD_NOT_OPEN
-                }
+                    page != null -> ""
+
+                    else -> o.string("error")?.ifEmpty { null }
+                        ?: ActionPopupCopy.couldNotOpen(view)
+                },
+                view = view
             )
         }
     }
 }
 
-/** What the popup sheet says in place of a page (iOS `ActionPopupCopy`). */
+/** What the popup or app sheet says in place of a page (iOS `ActionPopupCopy`). */
 object ActionPopupCopy {
-    const val COULD_NOT_OPEN = "Couldn't open the popup."
-    const val NEWER_APP = "This popup needs a newer lpm Link."
     const val LATE_ANSWER = "The Mac didn't answer in time."
-    const val STOPPED = "The popup stopped working."
+
+    fun couldNotOpen(view: ActionPageView): String =
+        if (view == ActionPageView.Tab) "Couldn't open the app." else "Couldn't open the popup."
+
+    fun newerApp(view: ActionPageView): String = if (view == ActionPageView.Tab) {
+        "This app needs a newer lpm Link."
+    } else {
+        "This popup needs a newer lpm Link."
+    }
+
+    fun stopped(view: ActionPageView): String =
+        if (view == ActionPageView.Tab) "The app stopped working." else "The popup stopped working."
 }
 
 /** `(x as? NSNumber)?.intValue`: any number, truncated. */

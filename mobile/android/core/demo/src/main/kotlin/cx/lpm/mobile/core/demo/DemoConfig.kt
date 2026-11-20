@@ -314,6 +314,15 @@ private fun DemoServer.registerActionConfigHandlers() {
                 entry["popup"] = p.actions[existing]["popup"]
             }
         }
+        // `app: true` keeps the app the Mac makes from the popup's page.
+        if (existing != null) {
+            val config = p.actions[existing]["configApp"] as? Boolean
+            if (config != null && entry["app"] as? Boolean == config) {
+                entry["configApp"] = config
+                entry["app"] = p.actions[existing]["app"]
+                entry["type"] = "app"
+            }
+        }
         p.actions = if (existing != null) {
             p.actions.toMutableList().also { it[existing] = entry }
         } else {

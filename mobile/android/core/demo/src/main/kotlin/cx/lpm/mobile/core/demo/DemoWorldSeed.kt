@@ -113,8 +113,8 @@ internal fun DemoWorld.seedProjects() {
                 mapOf(
                     "name" to "stars",
                     "label" to "Stars",
-                    "type" to "background",
-                    "cmd" to "gh api repos/example/api-gateway --jq .stargazers_count",
+                    "type" to "app",
+                    "cmd" to "",
                     "popup" to mapOf(
                         "format" to "html",
                         "title" to "GitHub stars",
@@ -126,7 +126,9 @@ internal fun DemoWorld.seedProjects() {
                         "data" to "\$(node scripts/stars.mjs)",
                         "title" to "GitHub stars",
                         "size" to "380x200"
-                    )
+                    ),
+                    "app" to mapOf("format" to "html", "title" to "GitHub stars"),
+                    "configApp" to true
                 )
             )
         ),

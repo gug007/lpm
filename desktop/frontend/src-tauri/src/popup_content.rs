@@ -2,8 +2,9 @@
 //! made where the project lives for this Mac's card, a paired Mac's card, or
 //! lpm Link. Nothing a popup gets wrong is an error to the caller: a page that
 //! can't be made, or data that can't be read, comes back as words the card
-//! shows. Only a missing project or action is an error.
-use crate::config::popup::{command_of, popup_site, PopupData, PopupSite, SHOWN};
+//! shows. Only a missing project or action is an error. An action's app, the
+//! page its tab shows, is made the same way.
+use crate::config::popup::{command_of, popup_site, PopupData, PopupSite, View, SHOWN};
 use crate::action_exec::{action_place, size_words};
 use crate::popup_cache;
 use crate::popup_run;
@@ -59,17 +60,34 @@ pub fn action_popup(
     action_name: String,
     fresh: bool,
 ) -> Result<PopupContent, String> {
-    content(&project_name, &action_name, fresh)
+    content(&project_name, &action_name, fresh, View::Popup)
 }
 
-/// The popup of `action` in `project`. Opening a card shows what it showed
-/// last, marked `stale` once older than the config's `cache`, and the caller
-/// then asks again with `fresh`, which runs the commands. A run that fails
-/// keeps the last good result on show, with the failure beside it. Two asks at
-/// once share one run.
-pub(crate) fn content(project: &str, action: &str, fresh: bool) -> Result<PopupContent, String> {
-    let site = popup_site(project, action)?;
-    let key = format!("{project}\n{action}");
+#[tauri::command(async)]
+pub fn action_app(
+    project_name: String,
+    action_name: String,
+    fresh: bool,
+) -> Result<PopupContent, String> {
+    content(&project_name, &action_name, fresh, View::App)
+}
+
+/// The popup of `action` in `project`, or its app. Opening a card shows what
+/// it showed last, marked `stale` once older than the config's `cache`, and
+/// the caller then asks again with `fresh`, which runs the commands. A run
+/// that fails keeps the last good result on show, with the failure beside it.
+/// Two asks at once share one run.
+pub(crate) fn content(
+    project: &str,
+    action: &str,
+    fresh: bool,
+    view: View,
+) -> Result<PopupContent, String> {
+    let site = popup_site(project, action, view)?;
+    let key = match view {
+        View::Popup => format!("{project}\n{action}"),
+        View::App => format!("{project}\n{action}\napp"),
+    };
     let config = fingerprint(&site);
     if !fresh {
         if let Some((age, mut saved)) = popup_cache::get(&key, config) {
@@ -112,7 +130,7 @@ fn make(project: &str, action: &str, site: &PopupSite) -> PopupContent {
         return out;
     }
     if def.commands().any(|command| site.held.contains(command)) {
-        out.error = "This popup runs commands from the repo's .lpm.yml, which wait until you allow them in lpm.".into();
+        out.error = "This page runs commands from the repo's .lpm.yml, which wait until you allow them in lpm.".into();
         return out;
     }
     if !SHOWN.contains(&def.format.as_str()) {

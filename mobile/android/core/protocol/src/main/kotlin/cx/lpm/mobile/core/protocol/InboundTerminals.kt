@@ -64,6 +64,7 @@ internal val terminalParsers = parsers {
     put("agentSessions") { o -> Inbound.AgentSessions(AgentSessionsPage.parse(o)) }
     put("listDir") { o -> Inbound.ListDir(ProjectDirContents.parse(o)) }
     put("actionPopup") { o -> Inbound.ActionPopup(ActionPopupReply.parse(o)) }
+    put("actionApp") { o -> Inbound.ActionPopup(ActionPopupReply.parse(o)) }
     put("actionBgOutput") { o ->
         val found = o.bool("found") ?: false
         Inbound.ActionBgOutput(

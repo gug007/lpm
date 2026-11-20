@@ -14,6 +14,8 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
   `?seed=sample` for the sample workspace)
 - `relay/` — Cloudflare Worker that lets a browser join a shared tab (see its README).
   It's for tab sharing only: never give it other features' routes or storage
+- `ping/` — Cloudflare Worker that counts the desktop app's daily usage pings
+  (see its README). It keeps daily totals only
 - `tailnet/` — built-in Tailscale (Go, tsnet): `cmd/lpm-tailnet` is the desktop
   sidecar (`scripts/build-tailnet.mjs`), `ios/` and `android/` the libraries
   lpm Link links
@@ -63,6 +65,12 @@ lpm starts, stops, duplicates, and switches between local dev projects, with a b
   (Rust): never a second Sentry client, an SDK's own integrations, or user content
   (code, terminal output, prompts, project names). `website/app/privacy/page.tsx`
   says what a report holds — keep it true
+- The daily usage ping leaves only through `src-tauri/src/dailyping.rs`, honors
+  the owner's off switch, and carries no ID: never add a per-install identifier,
+  a field that tells computers apart, or user content, and never store a ping or
+  its address in `ping/`. The privacy page and the security page's network list
+  (`website/app/security/_components/network-list.tsx`) say what a ping holds —
+  keep them true
 - Clean up when you're done: delete what you made just for the task — throwaway
   copies and their build output (in the `lpm-linux` Lima VM, then `sudo fstrim -av`
   so the Mac gets the space back), one-off simulators and emulators, repro folders.

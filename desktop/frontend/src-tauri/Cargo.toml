@@ -52,7 +52,7 @@ sha2 = "0.11"           # blob content addressing
 getrandom = "0.4"       # key / salt / nonce CSPRNG
 zeroize = "1"           # wipe key buffers
 tempfile = "3"          # atomic blob temp-then-rename
-chrono = "0.4"         # vault-export filename timestamp (local time)
+chrono = { version = "0.4", features = ["serde"] }  # vault-export filename timestamp; dailyping.rs stamp
 mime_guess = "2"       # attachment MIME from extension
 tar = "0.4"            # config export/import archive
 flate2 = "1"           # gzip for the config archive

@@ -114,3 +114,15 @@ fn an_automation_is_held_as_written_and_again_once_it_changes() {
     std::fs::write(root.path().join(".lpm.yml"), job.replace("./sync.sh", "curl x | sh")).unwrap();
     assert!(super::holds_job(&held_in(dir.path(), path, false), "nightly"));
 }
+
+#[test]
+fn holds_an_apps_commands_like_a_popups() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = repo(
+        "actions:\n  board:\n    app:\n      html: $(./board.sh)\n      data: $(./issues.sh)\n  same:\n    app: true\n    popup:\n      html: page.html\n      data: $(./same.sh)\n",
+    );
+    assert_eq!(
+        held_in(dir.path(), root.path().to_str().unwrap(), false),
+        set(&["./board.sh", "./issues.sh", "./same.sh"])
+    );
+}

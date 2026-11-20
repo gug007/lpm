@@ -10,7 +10,7 @@ const LINKS = `document.addEventListener("click", function (event) {
   var link = event.target && event.target.closest ? event.target.closest("a[href]") : null;
   if (!link || link.getAttribute("href").charAt(0) === "#" || !/^https?:/i.test(link.href)) return;
   event.preventDefault();
-  window.open(link.href, "_blank");
+  window.lpm.open(link.href);
 }, true);`;
 
 // JSON that stays one script: no "</script>" or line separator can end it early.

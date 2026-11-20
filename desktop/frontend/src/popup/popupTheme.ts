@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import type { PopupColor, PopupTheme } from "./popupTypes";
 
 export const POPUP_FONT = `-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif`;
@@ -39,9 +40,25 @@ function readTheme(mode: PopupTheme["mode"]): PopupTheme {
 
 const themes = new Map<PopupTheme["mode"], PopupTheme>();
 
+function currentMode(): PopupTheme["mode"] {
+  return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+}
+
+function onModeChange(notify: () => void): () => void {
+  const observer = new MutationObserver(notify);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  return () => observer.disconnect();
+}
+
+// The theme for a page that stays open, which follows the app's as it changes.
+export function usePopupTheme(): PopupTheme {
+  useSyncExternalStore(onModeChange, currentMode);
+  return popupTheme();
+}
+
 // The colors only change with the mode, and every labelSvg button asks.
 export function popupTheme(): PopupTheme {
-  const mode = document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+  const mode = currentMode();
   let theme = themes.get(mode);
   if (!theme) {
     theme = readTheme(mode);

@@ -308,6 +308,7 @@ final class LpmClient: NSObject {
     static let agentDialogFeature = "agentDialog"
     static let gitDiscardFilesFeature = "gitDiscardFiles"
     static let actionPopupFeature = "actionPopup"
+    static let actionAppFeature = "actionApp"
     static let gitScanSecretsFeature = "gitScanSecrets"
     static let gitBranchDiffFeature = "gitBranchDiff"
     static let gitPrDiscussionFeature = "gitPrDiscussion"
@@ -556,6 +557,7 @@ final class LpmClient: NSObject {
                              Self.keepAwakeFeature, Self.lpmCommandsFeature, Self.lpmOtherSkillsFeature, Self.lpmNestedFoldersFeature,
                              Self.gitChecksFeature, Self.gitCommitChecksFeature, Self.gitMergeFeature,
                              Self.agentDialogFeature, Self.gitDiscardFilesFeature, Self.actionPopupFeature,
+                             Self.actionAppFeature,
                              Self.gitScanSecretsFeature, Self.gitBranchDiffFeature, Self.gitPrDiscussionFeature,
                              Self.gitCheckLogFeature, Self.writeFileFeature],
             ]))
@@ -1274,6 +1276,10 @@ final class LpmClient: NSObject {
     }
     func requestActionPopup(project: String, action: String, fresh: Bool) {
         send(Wire.actionPopup(project: project, action: action, fresh: fresh))
+    }
+
+    func requestActionApp(project: String, action: String, fresh: Bool) {
+        send(Wire.actionApp(project: project, action: action, fresh: fresh))
     }
     func gitRestoreDiscarded(project: String, id: String) {
         send(Wire.gitRestoreDiscarded(project: project, id: id))

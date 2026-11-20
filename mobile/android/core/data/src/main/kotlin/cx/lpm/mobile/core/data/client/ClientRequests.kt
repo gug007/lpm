@@ -94,6 +94,9 @@ fun LpmClient.cancelActionBackground(runId: String) = send(Wire.cancelActionBack
 fun LpmClient.requestActionPopup(project: String, action: String, fresh: Boolean) =
     send(Wire.actionPopup(project, action, fresh))
 
+fun LpmClient.requestActionApp(project: String, action: String, fresh: Boolean) =
+    send(Wire.actionApp(project, action, fresh))
+
 fun LpmClient.requestBackgroundRuns(project: String) = send(Wire.backgroundRuns(project))
 
 fun LpmClient.newTerminal(project: String, launch: AgentLaunch = AgentLaunch()) =

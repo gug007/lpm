@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { RotateCw } from "lucide-react";
+import { ArrowUpRight, RotateCw } from "lucide-react";
 import type { ActionInfo, ActionPopupInfo } from "../types";
 import { stripMarker } from "../peer/markers";
 import { useDelayedFlag } from "../hooks/useDelayedFlag";
@@ -8,10 +8,7 @@ import { PopupFrame } from "./PopupFrame";
 import { PopupNote } from "./PopupNote";
 import { popupTheme } from "./popupTheme";
 import { useActionPopup } from "./useActionPopup";
-import type { PopupPayload } from "./popupTypes";
-
-// Formats this build draws; another a config names asks for a newer lpm.
-const SHOWN_FORMATS = new Set(["html"]);
+import { SHOWN_FORMATS, type PopupPayload } from "./popupTypes";
 
 interface ActionPopupCardProps {
   project: string;
@@ -23,11 +20,16 @@ interface ActionPopupCardProps {
   delay?: number;
   // Beside the title, as the shortcut a button's own tooltip would show.
   extra?: ReactNode;
+  // Opens the page in a tab of its own.
+  onOpenTab?: () => void;
 }
+
+const HEADER_BUTTON =
+  "flex h-5 w-5 shrink-0 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--terminal-header-active)] hover:text-[var(--text-primary)]";
 
 // The popup's title, its page at the size the config asks for, and a line for
 // data that didn't come. Anything that goes wrong reads as words in the frame.
-export function ActionPopupCard({ project, action, popup, open, delay = 0, extra }: ActionPopupCardProps) {
+export function ActionPopupCard({ project, action, popup, open, delay = 0, extra, onOpenTab }: ActionPopupCardProps) {
   const settled = useDelayedFlag(open, delay);
   const shown = SHOWN_FORMATS.has(popup.format) && !popup.problem;
   const { content, loading, failure, refresh } = useActionPopup(project, action.name, settled && shown);
@@ -44,6 +46,7 @@ export function ActionPopupCard({ project, action, popup, open, delay = 0, extra
             theme,
             project: stripMarker(project),
             action: action.name,
+            view: "popup",
           }
         : null,
     [content, theme, project, action.name],
@@ -81,9 +84,20 @@ export function ActionPopupCard({ project, action, popup, open, delay = 0, extra
               setFrameFailure(null);
               refresh();
             }}
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--terminal-header-active)] hover:text-[var(--text-primary)]"
+            className={HEADER_BUTTON}
           >
             <RotateCw size={12} className={loading ? "animate-spin" : undefined} />
+          </button>
+        )}
+        {shown && onOpenTab && (
+          <button
+            type="button"
+            aria-label="Open in a tab"
+            title="Open in a tab"
+            onClick={onOpenTab}
+            className={HEADER_BUTTON}
+          >
+            <ArrowUpRight size={13} />
           </button>
         )}
       </div>

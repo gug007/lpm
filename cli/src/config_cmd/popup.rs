@@ -2,6 +2,8 @@
 // `size` and `refresh` beside it. The app shows a popup it can't read as words
 // in the card, never dropping the action, but a config that says nothing it
 // can use is still an error here, where it can be fixed before it's applied.
+// An action's `app` is the same kind of page in a tab its click opens, or
+// `true` for the popup's page.
 use super::labels::validate_interval;
 use super::{config, string_at, validate_string_field, Mapping, Report, Value};
 use std::path::{Path, PathBuf};
@@ -22,14 +24,53 @@ pub(super) fn validate_popup(
         return;
     };
     let dir = local_root.map(|root| action_dir(root, string_at(map, "cwd").unwrap_or_default()));
-    let path = format!("{path}.popup");
+    validate_page(value, &format!("{path}.popup"), dir.as_deref(), report);
+}
+
+/// Whether a click on the action opens its app instead of running a command.
+pub(super) fn opens_app(map: &Mapping) -> bool {
+    let app = map.get(Value::String("app".into()));
+    string_at(map, "type") == Some("app")
+        || app.is_some_and(|value| !matches!(value, Value::Null | Value::Bool(false)))
+}
+
+pub(super) fn validate_app(
+    map: &Mapping,
+    path: &str,
+    local_root: Option<&Path>,
+    report: &mut Report,
+) {
+    let app = map.get(Value::String("app".into()));
+    let has_popup = map.contains_key(Value::String("popup".into()));
+    let app_path = format!("{path}.app");
+    match app {
+        Some(Value::Bool(true)) | None if opens_app(map) && !has_popup => report.error(
+            &app_path,
+            "needs a page, as in `app: scripts/stars/app.html`, or a `popup` to show",
+        ),
+        Some(Value::Bool(_)) | Some(Value::Null) | None => {}
+        Some(value) => {
+            let dir = local_root.map(|root| action_dir(root, string_at(map, "cwd").unwrap_or_default()));
+            validate_page(value, &app_path, dir.as_deref(), report);
+        }
+    }
+    if opens_app(map) && string_at(map, "cmd").is_some_and(|cmd| !cmd.trim().is_empty()) {
+        report.warning(
+            &format!("{path}.cmd"),
+            "isn't run: a click opens the app instead",
+        );
+    }
+}
+
+fn validate_page(value: &Value, path: &str, dir: Option<&Path>, report: &mut Report) {
+    let path = path.to_string();
     match value {
         Value::Null => {}
         Value::String(s) if s.trim().is_empty() => {}
         Value::String(s) => match format_of(s.trim()) {
             Some(format) => {
                 warn_unshown(format, &path, report);
-                check_page(format, s.trim(), &path, dir.as_deref(), report);
+                check_page(format, s.trim(), &path, dir, report);
             }
             None => report.error(
                 &path,
@@ -40,10 +81,10 @@ pub(super) fn validate_popup(
                 ),
             ),
         },
-        Value::Mapping(popup) => validate_map(popup, &path, dir.as_deref(), report),
+        Value::Mapping(popup) => validate_map(popup, &path, dir, report),
         _ => report.error(
             &path,
-            "expected a page's file name, or a mapping with html and the popup's settings",
+            "expected a page's file name, or a mapping with html and the page's settings",
         ),
     }
 }
@@ -112,7 +153,7 @@ fn warn_unshown(format: &str, path: &str, report: &mut Report) {
     if !SHOWN.contains(&format) {
         report.warning(
             path,
-            format!("this lpm shows only html popups; a `{format}` one asks to update lpm"),
+            format!("this lpm shows only html pages; a `{format}` one asks to update lpm"),
         );
     }
 }
@@ -210,6 +251,36 @@ mod tests {
         let report = check("popup:\n  vega: bundle.vl.json\n", None);
         assert!(report.errors.is_empty());
         assert!(report.warnings[0].contains("update lpm"), "{:?}", report.warnings);
+    }
+
+    fn check_app(yaml: &str) -> Report {
+        let map: Mapping = serde_norway::from_str(yaml).unwrap();
+        let mut report = Report::new();
+        validate_app(&map, "config.actions.stars", None, &mut report);
+        report
+    }
+
+    #[test]
+    fn an_app_is_a_page_or_the_popups() {
+        let report = check_app("app:\n  html: apps/stars.html\n  data: $(./stars.sh 365)\n  title: Stars\n");
+        assert!(report.errors.is_empty() && report.warnings.is_empty(), "{:?} {:?}", report.errors, report.warnings);
+        let report = check_app("app: true\npopup: popups/stars.html\n");
+        assert!(report.errors.is_empty() && report.warnings.is_empty(), "{:?}", report.errors);
+        let report = check_app("type: app\npopup: popups/stars.html\n");
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+    }
+
+    #[test]
+    fn an_app_with_nothing_to_show_or_a_command_says_so() {
+        for yaml in ["app: true\n", "type: app\n"] {
+            let report = check_app(yaml);
+            assert!(report.errors[0].contains("needs a page"), "{yaml}: {:?}", report.errors);
+        }
+        let report = check_app("app:\n  title: Stars\n");
+        assert!(report.errors[0].contains("needs a format key"), "{:?}", report.errors);
+        let report = check_app("cmd: open .\napp: apps/stars.html\n");
+        assert!(report.warnings[0].contains("isn't run"), "{:?}", report.warnings);
+        assert!(check_app("cmd: open .\napp: false\n").warnings.is_empty());
     }
 
     #[test]

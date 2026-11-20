@@ -112,6 +112,7 @@ import { displayNameForProjectName } from "../components/ProjectNameDisplay";
 import { onProjectsRemoved } from "../sendLater/closeout";
 import { deferRefresh, holdRefresh, refreshHeld } from "./refreshHold";
 import { MACHINE } from "../machineWords";
+import { runsOnClick } from "../popup/appTab";
 
 export type ProjectDetailTarget = "config" | "notes" | "ai" | "memory" | "automations";
 
@@ -543,7 +544,7 @@ function structuralContext(get: AppGet, projectName: string): StructuralContext 
 function isEmptyButton(action: ActionInfo): boolean {
   const label = action.configLabel ?? action.label;
   const emoji = action.configEmoji ?? action.emoji;
-  return !action.cmd && !action.children?.length && !emoji && (!label || label === action.name);
+  return !runsOnClick(action) && !action.children?.length && !emoji && (!label || label === action.name);
 }
 
 // Nesting a button declared in a shared file leaves behind the position notes

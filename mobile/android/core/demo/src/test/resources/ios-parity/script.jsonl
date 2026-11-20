@@ -187,6 +187,8 @@
 {"at": 2700, "frame": {"t": "actionPopup", "project": "api-gateway", "action": "stars", "fresh": true}}
 {"at": 2700, "frame": {"t": "actionPopup", "project": "api-gateway", "action": "test"}}
 {"at": 2700, "frame": {"t": "actionPopup", "project": "nope", "action": "stars"}}
+{"at": 2700, "frame": {"t": "actionApp", "project": "api-gateway", "action": "stars"}}
+{"at": 2700, "frame": {"t": "actionApp", "project": "api-gateway", "action": "test"}}
 {"at": 2800, "frame": {"t": "setLimitReminder", "limit": "codex", "window": "weekly", "resetsAt": 1792400000, "name": "Codex"}}
 {"at": 3000, "frame": {"t": "sub", "id": "demo-storefront-1"}}
 {"at": 3000, "frame": {"t": "clearLimitReminder", "limit": "claude:work", "window": "fiveHour"}}

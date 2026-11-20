@@ -125,3 +125,66 @@ fn a_broken_popup_keeps_its_action() {
     assert!(!build.popup.unwrap().problem.is_empty());
     assert_eq!(actions["ship"].clone().into_full().cmd, "./ship.sh");
 }
+
+fn info_of(actions: &str, name: &str) -> serde_json::Value {
+    let actions: BTreeMap<String, super::super::ActionDef> = serde_norway::from_str(actions).unwrap();
+    let info = super::super::action_to_info(name, name, &actions[name].clone().into_full());
+    serde_json::to_value(info).unwrap()
+}
+
+#[test]
+fn an_app_makes_its_action_one_that_opens_a_tab() {
+    let json = info_of(
+        "stars:\n  app:\n    html: apps/stars.html\n    data: $(./stars.sh 365)\n    title: GitHub stars\n",
+        "stars",
+    );
+    assert_eq!(json["type"], "app");
+    assert_eq!(json["app"], serde_json::json!({ "format": "html", "title": "GitHub stars" }));
+    assert!(json.get("popup").is_none());
+}
+
+#[test]
+fn an_app_can_be_the_popups_page() {
+    let popup = "  popup:\n    html: popups/stars.html\n    title: Stars\n";
+    for app in ["  app: true\n", "  type: app\n"] {
+        let json = info_of(&format!("stars:\n{app}{popup}"), "stars");
+        assert_eq!(json["type"], "app", "{app}");
+        assert_eq!(json["app"], serde_json::json!({ "format": "html", "title": "Stars" }), "{app}");
+    }
+    let plain = info_of(&format!("stars:\n  cmd: open .\n  app: false\n{popup}"), "stars");
+    assert_eq!(plain["type"], "");
+    assert!(plain.get("app").is_none());
+}
+
+#[test]
+fn an_app_with_no_page_says_what_it_needs() {
+    let json = info_of("stars:\n  type: app\n", "stars");
+    assert!(json["app"]["problem"].as_str().unwrap().contains("needs a page"), "{json}");
+    let broken = info_of("stars:\n  app:\n    title: Stars\n", "stars");
+    let problem = broken["app"]["problem"].as_str().unwrap();
+    assert!(problem.starts_with("This app's config"), "{problem}");
+}
+
+#[test]
+fn a_tab_shows_the_app_or_else_the_popups_page() {
+    let popup = parse(&yaml("popups/stars.html")).unwrap();
+    let app = parse_app(&yaml("apps/stars.html")).unwrap();
+    let page = |kind, app: Option<&AppDef>, popup: Option<&PopupDef>| {
+        app_page(kind, app, popup).map(|def| def.source)
+    };
+    assert_eq!(page("", Some(&app), Some(&popup)).as_deref(), Some("apps/stars.html"));
+    assert_eq!(page("", Some(&AppDef::Popup), Some(&popup)).as_deref(), Some("popups/stars.html"));
+    assert_eq!(page("", None, Some(&popup)).as_deref(), Some("popups/stars.html"));
+    assert_eq!(page("", None, None), None);
+}
+
+#[test]
+fn a_child_of_an_app_doesnt_open_its_parents_app() {
+    let actions: BTreeMap<String, super::super::ActionDef> = serde_norway::from_str(
+        "stars:\n  type: app\n  app: apps/stars.html\n  actions:\n    open:\n      cmd: gh repo view --web\n",
+    )
+    .unwrap();
+    let parent = actions["stars"].clone().into_full();
+    let child = parent.actions["open"].clone().into_full();
+    assert_eq!(super::super::resolved_child(&parent, &child).kind, "");
+}

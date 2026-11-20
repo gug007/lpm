@@ -1,5 +1,6 @@
 //! A repo's own `.lpm.yml` runs no command by itself until its user allows it.
-//! Labels, `labelSvg` and popups run their `$(…)` commands without a click,
+//! Labels, `labelSvg`, popups and apps run their `$(…)` commands without a
+//! click (an app's tab refreshes on its own),
 //! and its automations run on their schedule, so a repo cloned from someone
 //! else would otherwise run its code as soon as its project is open. Until
 //! they're allowed for the folder, they're held: a label reads as if its
@@ -119,6 +120,9 @@ fn collect(action: &ActionFull, out: &mut BTreeSet<String>) {
     }
     if let Some(popup) = &action.popup {
         out.extend(popup.commands().map(str::to_string));
+    }
+    if let Some(app) = &action.app {
+        out.extend(app.commands().into_iter().map(str::to_string));
     }
     for child in action.actions.values() {
         collect(&child.clone().into_full(), out);

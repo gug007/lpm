@@ -19,6 +19,7 @@ import {
   isTerminalTab,
   type TerminalInstance,
   type AdoptedTabOpts,
+  type AppTabSeed,
 } from "../paneTree";
 import { agentSessionOf } from "../agentSession";
 import { copyLastAnswer } from "../hooks/useCopyLastAnswer";
@@ -165,6 +166,8 @@ export interface TerminalViewHandle {
   // A page of one of the project's servers, in the Browser tab already on it
   // or a new one in `paneId`.
   openBrowserAt(url: string, label?: string, paneId?: string): Promise<void>;
+  // An action's app, in the tab already on it or a new one in `paneId`.
+  openAppTab(seed: AppTabSeed, paneId?: string): Promise<void>;
 }
 
 export function TerminalView({ projectName, projectLabel, projectRoot, services, terminalTheme, onTerminalCountChange, fontSize, onZoomIn, onZoomOut, paneStatus, visible = true, onScreen = visible, keysActive = true, onResumeSession, actions, onRunAction, onEditService, ref }: TerminalViewProps) {
@@ -256,6 +259,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     openCommandsTab,
     openToolkitTab,
     openBrowserTab,
+    openAppTab,
     closeTerminal,
     closeOtherTerminals,
     restartTerminal,
@@ -1235,6 +1239,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       openMemory,
       openAutomationsTab,
       openBrowserAt: openBrowserTab,
+      openAppTab,
     }),
     [
       createTerminal,
@@ -1262,6 +1267,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       openMemory,
       openAutomationsTab,
       openBrowserTab,
+      openAppTab,
     ],
   );
 

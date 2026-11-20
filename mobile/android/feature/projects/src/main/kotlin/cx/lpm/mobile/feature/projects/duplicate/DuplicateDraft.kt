@@ -39,7 +39,8 @@ fun duplicateSeed(
     return seed
 }
 
-val Project.runnableActions: List<Action> get() = actions.flatMap { it.runnableLeaves }
+val Project.runnableActions: List<Action>
+    get() = actions.flatMap { it.runnableLeaves }.filter { it.app == null }
 
 /** The run modes the sheet offers: Action only when the project has one to run. */
 fun Project.duplicateRunModes(): List<RunMode> =

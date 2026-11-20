@@ -84,6 +84,7 @@ mod conptyreply;
 mod control;
 mod crashreport;
 mod daemonize;
+mod dailyping;
 mod daemonlaunch;
 mod detached;
 mod quickterm;
@@ -457,6 +458,7 @@ use commands_real::*;
 use config_cmds::*;
 use control::*;
 use crashreport::{crash_report_config, crash_reports_allowed};
+use dailyping::daily_ping_available;
 use detached::*;
 use quickterm::{hide_quick_terminal, quick_terminal_cwd, quick_terminal_status, set_quick_terminal};
 use file_browser::*;
@@ -474,7 +476,7 @@ use gitwatch::{start_watching_project, stop_watching_project};
 use label_probes::refresh_action_label;
 use ci_checks::*;
 use ci_commits::recent_commit_checks;
-use popup_content::action_popup;
+use popup_content::{action_app, action_popup};
 use popup_view::{popup_view_close, popup_view_open, popup_view_place, popup_view_push};
 use pull_request::*;
 use pull_request_review::pull_request_discussion;
@@ -725,8 +727,11 @@ pub fn run() {
         .manage(peer_client_hub)
         .on_menu_event(menu::handle_event)
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::Focused(_) = event {
+            if let tauri::WindowEvent::Focused(focused) = event {
                 statusroute::used_here();
+                if *focused {
+                    dailyping::used();
+                }
             }
             // Closing the main window hides it instead of quitting, so terminals,
             // port forwards, sync watchers and the status socket keep running
@@ -880,6 +885,7 @@ pub fn run() {
             if chores {
                 updates::start_auto_check(handle.clone());
                 updateidle::start(handle.clone());
+                dailyping::start(handle.clone());
             }
 
             // Scheduled-jobs runner: a wall-clock tick that fires per-project

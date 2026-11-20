@@ -23,6 +23,7 @@ import { useAgentSessionEvents } from "./terminals/useAgentSessionEvents";
 import { useTerminalMemory } from "./terminals/useTerminalMemory";
 import { useOpenUtilityTab } from "./terminals/useOpenUtilityTab";
 import { useOpenBrowserTab } from "./terminals/useOpenBrowserTab";
+import { useOpenAppTab } from "./terminals/useOpenAppTab";
 import { useApplyLayout } from "./terminals/useApplyLayout";
 import { useDefaultLayout } from "./terminals/useDefaultLayout";
 
@@ -146,6 +147,7 @@ export function useTerminals(
     forkTerminal,
     forkTerminalIntoCopy,
     addTerminalToPane,
+    addAppToPane,
     addBrowserToPane,
     addMemoryToPane,
     addToolkitToPane,
@@ -226,6 +228,7 @@ export function useTerminals(
     focusTerminal,
     addBrowserToPane,
   );
+  const openAppTab = useOpenAppTab(treeRef, restoreSettled, focusTerminal, addAppToPane);
 
   const {
     closeTerminal,
@@ -289,6 +292,7 @@ export function useTerminals(
     switchClaudeAccount,
     continueSessionOn,
     addTerminalToPane,
+    addAppToPane,
     addBrowserToPane,
     addMemoryToPane,
     addToolkitToPane,
@@ -381,6 +385,7 @@ export function useTerminals(
     openCommandsTab,
     openToolkitTab,
     openBrowserTab,
+    openAppTab,
     closeTerminal,
     closeOtherTerminals,
     restartTerminal,

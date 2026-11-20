@@ -89,7 +89,7 @@ const EMPTY_LIST: string[] = [
 
 const FALSE: string[] = [
   "cancel_ai_generate", "cancel_scheduled_update", "cancel_update", "check_ghcli", "check_kokoro_installed",
-  "crash_reports_allowed", "focus_detached_window", "git_push_rebasing", "github_starred", "has_openai_key", "is_terminal_remote",
+  "crash_reports_allowed", "daily_ping_available", "focus_detached_window", "git_push_rebasing", "github_starred", "has_openai_key", "is_terminal_remote",
   "peer_cancel_mac_update", "save_text_file", "voice_to_text_available",
 ];
 

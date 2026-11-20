@@ -245,6 +245,15 @@ export const ROWS = {
     description: "Tell lpm's developers when the app breaks, so it can be fixed",
     keywords: ["privacy", "sentry", "telemetry", "diagnostics", "error", "bug", "panic", "analytics", "data"],
   },
+  "general.dailyPing": {
+    kind: "row",
+    tab: "general",
+    id: "general.dailyPing",
+    reach: "any",
+    label: "Send daily usage ping",
+    description: "Lets lpm's developers count how many computers use it. Nothing in it identifies you",
+    keywords: ["privacy", "telemetry", "analytics", "active users", "statistics", "count", "data", "tracking"],
+  },
   "general.servicesBuild": {
     kind: "row",
     tab: "general",

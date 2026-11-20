@@ -419,6 +419,14 @@ enum Wire {
         return json(o)
     }
 
+    /// An action's app page and data, made like a popup's. Only for a Mac whose
+    /// `features` has "actionApp".
+    static func actionApp(project: String, action: String, fresh: Bool) -> String {
+        var o: [String: Any] = ["t": "actionApp", "project": project, "action": action]
+        if fresh { o["fresh"] = true }
+        return json(o)
+    }
+
     /// Pick one of a dialog's options, naming the report and the dialog it was
     /// picked from, so the Mac types it only while both still stand.
     static func pickAgentDialog(_ read: AgentDialogRead, option: String, reqId: String) -> String {
@@ -1284,7 +1292,7 @@ enum Wire {
                                         undo: (obj["undo"] as? String).flatMap { $0.isEmpty ? nil : $0 },
                                         error: ok ? nil : (obj["error"] as? String ?? "Couldn't discard the changes."))
             case "agentDialog": return .agentDialog(AgentDialogRead(obj))
-            case "actionPopup": return .actionPopup(ActionPopupReply(obj))
+            case "actionPopup", "actionApp": return .actionPopup(ActionPopupReply(obj))
             case "gitScanSecrets": return .gitScanSecrets(SecretScanReply(obj))
             case "gitBranchFiles": return .gitBranchFiles(BranchFilesReply(obj))
             case "gitBranchDiffs":
@@ -1992,7 +2000,7 @@ struct Action: Identifiable {
     let name: String
     let label: String
     let emoji: String
-    let type: String   // terminal | command | background | ""
+    let type: String   // terminal | command | background | app | ""
     let display: String
     // The layer of the zone `display` names; empty means its first.
     let layer: String
@@ -2012,6 +2020,8 @@ struct Action: Identifiable {
     let prompt: String
     // The card a long press shows, when the action has one.
     let popup: ActionPopupInfo?
+    // The page a tap opens full screen in place of running `cmd`.
+    let app: ActionAppInfo?
     let children: [Action]
 
     var id: String { name }
@@ -2033,6 +2043,7 @@ struct Action: Identifiable {
         inputs = (o["inputs"] as? [[String: Any]] ?? []).map(ActionInput.init)
         prompt = o["prompt"] as? String ?? ""
         popup = ActionPopupInfo(o["popup"])
+        app = ActionAppInfo(o["app"])
         children = (o["children"] as? [[String: Any]] ?? []).map(Action.init)
     }
 

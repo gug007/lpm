@@ -874,7 +874,7 @@ fn resolved_child(parent: &ActionFull, child: &ActionFull) -> ActionFull {
     if c.port_conflict.is_empty() {
         c.port_conflict = parent.port_conflict.clone();
     }
-    if c.kind.is_empty() {
+    if c.kind.is_empty() && parent.kind != "app" {
         c.kind = parent.kind.clone();
     }
     let mut env = parent.env.clone();

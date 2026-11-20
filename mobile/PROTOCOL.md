@@ -908,7 +908,20 @@ Only when `features` has `"actionPopup"`. An action whose `ActionInfo` carries `
 - `refresh` is seconds between refreshes while the card is open, `0` for only when it opens. Each refresh asks again without `fresh` (so it follows `cache`, asking with `fresh: true` when the answer is `stale`) and, when `updatedAt` moved, hands the new `data`/`text`/`dataError` to the page through `window.__lpmPush({ data, text, error })`, without reloading it. The sheet's Refresh button asks with `fresh: true`.
 - `updatedAt` is when the page and data were made, in Unix milliseconds; show it as "just now" / "3m ago" beside the title. `refreshError` says why the last run failed while the last good result is shown: show it in place of the `dataError` line as "Couldn't refresh: …".
 
-Rendering: load `html` with no base URL (a page's own files stay on the Mac, so a phone page uses what it holds inline or loads from `https`). Before the page's scripts run, inject `mobile/shared/web/popup/bootstrap.js` with `__LPM_POPUP_PAYLOAD__` replaced by `{ data, text, error: dataError, theme: { mode: "dark"|"light", colors: { bg, surface, text, muted, border, accent, green, red, amber } }, project, action }` as JSON. It defines `window.lpm` (`data`, `text`, `error`, `theme`, `project`, `action`, `onData(fn)`), `window.__lpmPush`, and `--lpm-<color>` CSS variables. Give the page no bridge to the app, keep it on its first load (open `http`/`https` links in the browser instead), and let a script error stay inside it.
+Rendering: load `html` with no base URL (a page's own files stay on the Mac, so a phone page uses what it holds inline or loads from `https`). Before the page's scripts run, inject `mobile/shared/web/popup/bootstrap.js` with `__LPM_POPUP_PAYLOAD__` replaced by `{ data, text, error: dataError, theme: { mode: "dark"|"light", colors: { bg, surface, text, muted, border, accent, green, red, amber } }, project, action, view }` as JSON, where `view` is `"popup"` for a card (the default when absent) and `"tab"` for an [action's app](#action-apps). It defines `window.lpm` (`data`, `text`, `error`, `theme`, `project`, `action`, `view`, `onData(fn)`, `open(url)`), `window.__lpmPush`, and `--lpm-<color>` CSS variables. `lpm.open(url)` calls `window.open(url, "_blank")` for an `http`/`https` address: open it in the browser, as a link. Give the page no other bridge to the app, keep it on its first load (open `http`/`https` links in the browser instead), and let a script error stay inside it.
+
+### Action apps
+
+Only when `features` has `"actionApp"`. An action whose `ActionInfo` carries `app` (its `type` is then `"app"`) runs no command: on the desktop a click opens its page in a tab of its own, and on the phone a tap opens it in a full-height sheet. The page is made like a popup's, by the Mac, and the phone renders it the same way with `view: "tab"` in the payload, so one page can draw a small card and a full view. An action may have both: the tap opens the app and a long press still opens the popup.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "actionApp", "project": "<name>", "action": "<action id>", "fresh": bool? }` | `{ "t": "actionApp", "project": "<name>", "action": "<action id>", "ok": true, "app": PopupContent }` / `{ "ok": false, "error": "…" }` when the project or action doesn't exist, or the action has neither an app nor a popup. `fresh`, `stale`, `refresh`, `updatedAt`, `refreshError` and the 15 seconds a command may take all mean what they do for [`actionPopup`](#action-popups), and the app keeps a result of its own, apart from the popup's. Async (worker) |
+
+- `ActionInfo.app` is `{ format, title?, problem? }`: head the screen with `title`, else the action's label; show `problem` in place of the page; a `format` the client doesn't know reads as "needs a newer lpm Link". An app has no size: it fills the sheet under its bar.
+- The bar holds the title, how old the data is, Refresh (asks with `fresh: true`) and Done, as the popup's sheet does.
+- Never send `runAction` for an action with `app`: there is no command to run. A Mac without `"actionApp"` never sends `app`.
+- A config's `app: true` (or `type: app` with no `app`) shows the popup's page: the Mac resolves that, and `actionApp` answers with the popup's page and data.
 
 ### lpm skills
 
@@ -1472,6 +1485,8 @@ actions: [ActionInfo]     // recursive: { name (composite parent:child), label, 
                           // the action's label). `problem` is why the config can't make a popup (no format key, two of
                           // them, a value of the wrong shape); show it in place of the page. A `format` the client
                           // doesn't know reads as "needs a newer lpm Link"
+                          // `app?: { format, title?, problem? }` — the action opens a page instead of running a
+                          // command (see [Action apps](#action-apps)); its `type` is then "app" and its `cmd` unused
 zones: [ZoneInfo]         // framed groups of buttons in the header or footer row, sorted by position:
                           // { name, label, rows: 1…3, display: "header"|"footer", position?, layers?: [{ name, label?,
                           //   position? }], collapsed?: bool, source: "project"|"repo"|"global" }. Placement only: an

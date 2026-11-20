@@ -93,13 +93,15 @@ A key or credential a script reads (a service account file, a signing key) goes 
 
 ### Files behind a button
 
-A button with a `labelSvg` or a `popup` keeps its files in one folder named after the button, in the same two places as any script: `scripts/<button>/` in the repo, or `~/.lpm/scripts/<button>/` when it isn't part of a repo. Use these names, and leave out what the button doesn't use:
+A button with a `labelSvg`, a `popup` or an `app` keeps its files in one folder named after the button, in the same two places as any script: `scripts/<button>/` in the repo, or `~/.lpm/scripts/<button>/` when it isn't part of a repo. Use these names, and leave out what the button doesn't use:
 
 | File | What it does | Used by |
 |---|---|---|
 | `button.sh` | Prints the button's `<svg>` | `labelSvg` |
 | `data.sh` | Prints the popup's data | the popup's `data` |
 | `popup.html` | The popup's page | the popup's `html` |
+| `app.html` | The app's page, when it isn't the popup's | the app's `html` |
+| `app-data.sh` | Prints the app's data, when it isn't the popup's | the app's `data` |
 
 ```yaml
 actions:
@@ -140,7 +142,7 @@ In a config outside a repo (the project file, `global.yml`, a template), the sam
 | `layer` | string | With `display: <zone>`, the key of the zone layer the button sits in. |
 | `primary` | string | On a parent with child `actions`, `last-used` or a child key; sets which child the split button's main segment runs. |
 | `prompt` | string | With `type: terminal` and an agent CLI `cmd`, the task submitted to the agent once it is ready; see [Agent prompt](#agent-prompt). |
-| `type` | string | Omit for the inline runner, or use `terminal`, `command`, or `background`. |
+| `type` | string | Omit for the inline runner, or use `terminal`, `command`, `background`, or `app` (a click opens the action's page in a tab; see [Apps](#apps)). |
 | `reuse` | boolean | With `type: terminal`, reuse the same pane. |
 | `mode` | string | `remote` or `sync`; see `ssh.md`. |
 | `port` | number, range string, or list | Ports that must be free before running. |
@@ -148,6 +150,7 @@ In a config outside a repo (the project file, `global.yml`, a template), the sam
 | `position` | number | Lower values render first; unpositioned entries follow by key; floats are allowed. Inside a zone it orders the zone's buttons. |
 | `inputs` | mapping | Values prompted before execution and substituted into `{{key}}`. |
 | `popup` | string or mapping | A page shown in a card while the pointer rests on the button, or on a long press in lpm Link; see [Popups](#popups). |
+| `app` | string, mapping, or `true` | A page a click opens in a tab of its own instead of running `cmd`, full screen in lpm Link; `true` uses the popup's page. See [Apps](#apps). |
 | `actions` | mapping | Nested child actions. |
 
 ## Dynamic labels
@@ -250,6 +253,8 @@ The page gets `window.lpm` before its own scripts run:
 - `lpm.data`, `lpm.text`, and `lpm.error` (why the `data` command failed; the page still loads).
 - `lpm.theme`: `{ mode: "dark" | "light", colors: { bg, surface, text, muted, border, accent, green, red, amber } }`, also set as CSS variables `--lpm-bg`, `--lpm-text` and so on. The card's colors are a default that the page's own styles override.
 - `lpm.project`, `lpm.action`, and `lpm.onData(fn)`, called with the new data on each refresh.
+- `lpm.view`: `"popup"` in the card, `"tab"` when the same page is the action's [app](#apps), so one page can draw a small and a full layout.
+- `lpm.open(url)` opens an `http`/`https` address in the browser, as a link does.
 
 ```html
 <!doctype html>
@@ -268,6 +273,33 @@ The page gets `window.lpm` before its own scripts run:
 - The page runs isolated from lpm: on macOS and Windows in a webview of its own that closes with the card, so a page that hangs or throws only affects itself, and one that hasn't finished loading within 8 seconds is closed with a message. It can't call lpm, and a link opens in the browser. On Linux it runs in a sandboxed frame.
 - Nothing about a popup can break its action. A file that's missing, a command that fails or runs too long, a page too big, or a `popup` the app can't read show as a message in the card, and the button still runs. `lpm config apply` reports a `popup` with no format key, two format keys, an unknown field, or a bad `size` or `refresh` as an error, and a page file that doesn't exist as a warning.
 - `widgets`, `vega`, `markdown`, `image`, `terminal` and `url` are reserved as format keys for later; this version shows a note to update lpm for them.
+- The card's ↗ button opens the page in a tab of its own, as an [app](#apps) would.
+
+## Apps
+
+`app` makes a click on the button open a page in a tab of its own (a mini app) instead of running a command; lpm Link opens it full screen on a tap. It is written like a popup, without `size`, since the page fills the tab. A button can have both: hover shows the `popup`, a click opens the `app`.
+
+```yaml
+actions:
+  stars:
+    label: $(gh api repos/acme/shop --jq .stargazers_count)
+    emoji: ⭐
+    popup:                                  # hover: the last 30 days
+      html: scripts/stars/popup.html
+      data: $(./scripts/stars/data.sh 30)
+    app:                                    # click: a year, in a tab
+      html: scripts/stars/app.html
+      data: $(./scripts/stars/app-data.sh)
+      title: GitHub stars
+      refresh: 10m
+```
+
+- `app: true` (or `type: app` with no `app`) opens the popup's page and data in the tab. The page tells the two apart with `lpm.view`, `"popup"` or `"tab"`.
+- `app: scripts/stars/app.html` alone is the short form, as for a popup. `html`, `data`, `title`, `refresh` and `cache` mean what they do for a [popup](#popups), and the app keeps its own result apart from the popup's.
+- An app has no `cmd`: a click only opens or focuses its tab (one per button), and `lpm config apply` warns about a `cmd` beside it. To keep what the old click did, put a link or a button on the page that calls `lpm.open(url)`.
+- The tab has a bar with the title, the data's age and a refresh button. Its page keeps running while another tab is in front, refreshes on `refresh` only while it's in view, and closes with the tab. App tabs aren't restored after lpm restarts.
+- In a repo's `.lpm.yml`, the app's commands wait until the user allows them, like a popup's.
+- `lpm config apply` reports `app: true` or `type: app` with neither an `app` page nor a `popup` as an error.
 
 ## Zones
 

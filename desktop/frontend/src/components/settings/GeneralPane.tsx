@@ -4,11 +4,11 @@ import { SettingsRow } from "../SettingsRow";
 import { SettingsSection } from "../SettingsSection";
 import { Toggle } from "../ui/Toggle";
 import { AboutSection } from "./AboutSection";
-import { CrashReportsSection } from "./CrashReportsSection";
 import { DefaultDirectoryRow } from "./DefaultDirectoryRow";
 import { KeepAwakeSection } from "./KeepAwakeSection";
 import { OpenAtLoginSection } from "./OpenAtLoginSection";
 import { PeerAboutSection } from "./PeerAboutSection";
+import { PrivacySection } from "./PrivacySection";
 import { SegmentButton } from "./SegmentButton";
 import { useRowReach, useSettingsTarget } from "./settingsTarget";
 
@@ -59,7 +59,7 @@ export function GeneralPane() {
 
       <KeepAwakeSection />
 
-      {shows("general.crashReports") && <CrashReportsSection />}
+      <PrivacySection />
 
       {machine.kind === "local" ? <AboutSection /> : <PeerAboutSection version={machine.version} />}
     </>

@@ -1,11 +1,13 @@
 package cx.lpm.mobile.core.data.actions
 
 import cx.lpm.mobile.core.data.client.LpmClient
+import cx.lpm.mobile.core.data.client.requestActionApp
 import cx.lpm.mobile.core.data.client.requestActionPopup
 import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.model.Action
+import cx.lpm.mobile.core.model.ActionPageView
 import cx.lpm.mobile.core.model.ActionPopupContent
 import cx.lpm.mobile.core.model.ActionPopupCopy
 import cx.lpm.mobile.core.model.ActionPopupInfo
@@ -68,7 +70,7 @@ data class ActionPopupState(
         }
         val html = content.html
         if (html == null || content.error.isNotEmpty()) {
-            val message = content.error.ifEmpty { ActionPopupCopy.COULD_NOT_OPEN }
+            val message = content.error.ifEmpty { ActionPopupCopy.couldNotOpen(reply.view) }
             return settled.copy(
                 phase = ActionPopupPhase.Failed(message, retry = true),
                 refreshFailure = null
@@ -99,16 +101,21 @@ data class ActionPopupState(
     }
 }
 
-/** Every open popup sheet's state, by project and action. */
+/** Every open popup or app sheet's state, by view, project and action. */
 data class ActionPopupsState(val popups: Map<String, ActionPopupState> = emptyMap()) {
-    fun popup(project: String, action: String): ActionPopupState =
-        popups[popupKey(project, action)] ?: ActionPopupState()
+    fun popup(
+        project: String,
+        action: String,
+        view: ActionPageView = ActionPageView.Popup
+    ): ActionPopupState = popups[popupKey(view, project, action)] ?: ActionPopupState()
 }
 
 /**
- * The action popups on screen (iOS `ActionPopupStore`): each sheet asks the Mac for
- * its page as it opens and every `refresh` seconds while it stays open, taking the
- * last result at once and a fresh one after a stale one; Refresh asks for a fresh one.
+ * The action popups and apps on screen (iOS `ActionPopupStore`): each sheet asks the
+ * Mac for its page as it opens and every `refresh` seconds while it stays open, taking
+ * the last result at once and a fresh one after a stale one; Refresh asks for a fresh
+ * one. A popup and an app of the same action are kept apart, as the Mac keeps their
+ * results apart.
  */
 class ActionPopupStore(private val session: MacSession) : SessionStore {
     private val mutable = MutableStateFlow(ActionPopupsState())
@@ -121,6 +128,12 @@ class ActionPopupStore(private val session: MacSession) : SessionStore {
     val available: Boolean
         get() = client?.hostFeatures?.contains(LpmClient.ACTION_POPUP_FEATURE) == true
 
+    val appsAvailable: Boolean
+        get() = client?.hostFeatures?.contains(LpmClient.ACTION_APP_FEATURE) == true
+
+    /** Whether a tap on [action] opens its app rather than running it. */
+    fun opensApp(action: Action): Boolean = action.app != null && appsAvailable
+
     override fun wire(client: LpmClient) {
         client.onActionPopup = ::apply
     }
@@ -131,17 +144,20 @@ class ActionPopupStore(private val session: MacSession) : SessionStore {
     }
 
     /** The sheet opened: ask for the page, unless the config already says why there's none. */
-    fun open(project: String, action: Action) {
-        val info = action.popup ?: return
-        val key = popupKey(project, action.name)
+    fun open(project: String, action: Action, view: ActionPageView = ActionPageView.Popup) {
+        val (format, problem) = when (view) {
+            ActionPageView.Popup -> action.popup?.let { it.format to it.problem }
+            ActionPageView.Tab -> action.app?.let { it.format to it.problem }
+        } ?: return
+        val key = popupKey(view, project, action.name)
         when {
-            info.problem.isNotEmpty() -> set(key, failed(info.problem))
+            problem.isNotEmpty() -> set(key, failed(problem))
 
-            info.format != ActionPopupInfo.HTML -> set(key, failed(ActionPopupCopy.NEWER_APP))
+            format != ActionPopupInfo.HTML -> set(key, failed(ActionPopupCopy.newerApp(view)))
 
             else -> {
                 set(key, ActionPopupState())
-                request(key, project, action.name, fresh = false)
+                request(key, view, project, action.name, fresh = false)
             }
         }
     }
@@ -150,51 +166,52 @@ class ActionPopupStore(private val session: MacSession) : SessionStore {
      * Refresh and Retry: run the commands again and load the page anew. A page on show
      * stays until the answer comes.
      */
-    fun reload(project: String, action: String) {
-        val key = popupKey(project, action)
+    fun reload(project: String, action: String, view: ActionPageView = ActionPageView.Popup) {
+        val key = popupKey(view, project, action)
         val popup = popups[key] ?: return
         if (!popup.canReload) return
         if (popup.content == null) change(key) { it.copy(phase = ActionPopupPhase.Loading) }
-        request(key, project, action, fresh = true, reload = true)
+        request(key, view, project, action, fresh = true, reload = true)
     }
 
     /**
      * The refresh interval passed while the page is on screen: the Mac's last result,
      * and a fresh one after it when that was stale.
      */
-    fun tick(project: String, action: String) {
-        val key = popupKey(project, action)
+    fun tick(project: String, action: String, view: ActionPageView = ActionPageView.Popup) {
+        val key = popupKey(view, project, action)
         val popup = popups[key] ?: return
         if (popup.content == null || popup.inFlight) return
-        request(key, project, action, fresh = false)
+        request(key, view, project, action, fresh = false)
     }
 
     /** The page's renderer stopped (it crashed or the system reclaimed it). */
-    fun pageFailed(project: String, action: String) {
-        change(popupKey(project, action)) {
-            it.copy(phase = ActionPopupPhase.Failed(ActionPopupCopy.STOPPED, retry = true))
+    fun pageFailed(project: String, action: String, view: ActionPageView = ActionPageView.Popup) {
+        change(popupKey(view, project, action)) {
+            it.copy(phase = ActionPopupPhase.Failed(ActionPopupCopy.stopped(view), retry = true))
         }
     }
 
-    fun close(project: String, action: String) {
-        val key = popupKey(project, action)
+    fun close(project: String, action: String, view: ActionPageView = ActionPageView.Popup) {
+        val key = popupKey(view, project, action)
         mutable.update { it.copy(popups = it.popups - key) }
         timers.cancel(key)
     }
 
     fun apply(reply: ActionPopupReply) {
-        val key = popupKey(reply.project, reply.action)
+        val key = popupKey(reply.view, reply.project, reply.action)
         val popup = popups[key] ?: return
         timers.cancel(key)
         val (next, stale) = popup.apply(reply)
         set(key, next)
-        if (stale) request(key, reply.project, reply.action, fresh = true)
+        if (stale) request(key, reply.view, reply.project, reply.action, fresh = true)
     }
 
     private val popups: Map<String, ActionPopupState> get() = mutable.value.popups
 
     private fun request(
         key: String,
+        view: ActionPageView,
         project: String,
         action: String,
         fresh: Boolean,
@@ -207,7 +224,10 @@ class ActionPopupStore(private val session: MacSession) : SessionStore {
                 reloadOnAnswer = it.reloadOnAnswer || reload
             )
         }
-        client?.requestActionPopup(project, action, fresh)
+        when (view) {
+            ActionPageView.Popup -> client?.requestActionPopup(project, action, fresh)
+            ActionPageView.Tab -> client?.requestActionApp(project, action, fresh)
+        }
         timers.arm(key, TIMEOUT_MS) { change(key) { it.timedOut() } }
     }
 
@@ -228,4 +248,5 @@ class ActionPopupStore(private val session: MacSession) : SessionStore {
     }
 }
 
-private fun popupKey(project: String, action: String) = "$project\n$action"
+private fun popupKey(view: ActionPageView, project: String, action: String) =
+    "${view.wire}\n$project\n$action"

@@ -3,6 +3,9 @@
 //! (`html` today) and `data`, `title`, `size` and `refresh` beside it mean the
 //! same for every format. A popup the config gets wrong never costs its action:
 //! it reads as a `problem`, which the card shows in place of the page.
+//!
+//! An action's `app` is the same kind of page in a tab of its own, opened by a
+//! click on the button: written like a popup, or `true` for the popup's page.
 use super::SshSettings;
 use crate::interval::parse_secs;
 use serde::{Deserialize, Deserializer};
@@ -13,6 +16,10 @@ use std::collections::{BTreeMap, BTreeSet};
 /// so a config written for a newer lpm says so instead of reading as a mistake.
 const FORMATS: &[&str] = &["html", "widgets", "vega", "markdown", "image", "terminal", "url"];
 pub(crate) const SHOWN: &[&str] = &["html"];
+
+pub(crate) const APP_KIND: &str = "app";
+const POPUP_CONFIG: &str = "This popup's config";
+const APP_CONFIG: &str = "This app's config";
 
 const DEFAULT_SIZE: (u32, u32) = (360, 220);
 const WIDTH: (u32, u32) = (200, 720);
@@ -45,6 +52,15 @@ pub(crate) struct PopupDef {
     /// nothing, and later it shows the saved result while running again.
     pub cache: u64,
     pub problem: String,
+}
+
+impl AppDef {
+    pub(crate) fn commands(&self) -> Vec<&str> {
+        match self {
+            AppDef::Popup => Vec::new(),
+            AppDef::Page(def) => def.commands().collect(),
+        }
+    }
 }
 
 impl PopupDef {
@@ -96,6 +112,71 @@ pub(super) fn lenient<'de, D: Deserializer<'de>>(d: D) -> Result<Option<PopupDef
     Ok(parse(&Value::deserialize(d)?))
 }
 
+/// An action's `app`: a page of its own, or the popup's page at a tab's size.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum AppDef {
+    Popup,
+    Page(PopupDef),
+}
+
+pub(super) fn lenient_app<'de, D: Deserializer<'de>>(d: D) -> Result<Option<AppDef>, D::Error> {
+    Ok(parse_app(&Value::deserialize(d)?))
+}
+
+fn parse_app(value: &Value) -> Option<AppDef> {
+    match value {
+        Value::Bool(true) => Some(AppDef::Popup),
+        Value::Bool(false) => None,
+        other => parse(other).map(|mut def| {
+            def.problem = def.problem.replacen(POPUP_CONFIG, APP_CONFIG, 1);
+            AppDef::Page(def)
+        }),
+    }
+}
+
+/// Whether a click on the action opens its app: it has an `app`, or says so
+/// with `type: app`.
+pub(super) fn opens_app(kind: &str, app: Option<&AppDef>) -> bool {
+    app.is_some() || kind == APP_KIND
+}
+
+/// The page an action's tab shows: its `app`, else its popup's page.
+fn app_page(kind: &str, app: Option<&AppDef>, popup: Option<&PopupDef>) -> Option<PopupDef> {
+    match (app, popup) {
+        (Some(AppDef::Page(def)), _) => Some(def.clone()),
+        (_, Some(popup)) => Some(popup.clone()),
+        _ if opens_app(kind, app) => Some(PopupDef {
+            problem: format!(
+                "{APP_CONFIG} needs a page, as in `app: scripts/stars/app.html`."
+            ),
+            ..sized(DEFAULT_SIZE)
+        }),
+        _ => None,
+    }
+}
+
+/// What the button needs to open the action's app in a tab.
+#[derive(serde::Serialize, Clone, Debug, PartialEq)]
+pub struct AppInfo {
+    pub format: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub title: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub problem: String,
+}
+
+pub(super) fn app_info(kind: &str, app: Option<&AppDef>, popup: Option<&PopupDef>) -> Option<AppInfo> {
+    if !opens_app(kind, app) {
+        return None;
+    }
+    let def = app_page(kind, app, popup)?;
+    Some(AppInfo {
+        format: def.format,
+        title: def.title,
+        problem: def.problem,
+    })
+}
+
 fn parse(value: &Value) -> Option<PopupDef> {
     match value {
         Value::Null => None,
@@ -103,7 +184,7 @@ fn parse(value: &Value) -> Option<PopupDef> {
         Value::String(s) => Some(short_form(s.trim())),
         Value::Mapping(map) => Some(from_map(map)),
         _ => Some(problem(
-            "expected a page's file name, or a map with `html` and the popup's settings",
+            "expected a page's file name, or a map with `html` and the page's settings",
         )),
     }
 }
@@ -226,9 +307,16 @@ fn sized((width, height): (u32, u32)) -> PopupDef {
 
 fn problem(message: impl std::fmt::Display) -> PopupDef {
     PopupDef {
-        problem: format!("This popup's config {message}."),
+        problem: format!("{POPUP_CONFIG} {message}."),
         ..sized(DEFAULT_SIZE)
     }
+}
+
+/// Which of an action's pages is asked for: the card's, or the tab's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum View {
+    Popup,
+    App,
 }
 
 /// Where an action's popup comes from: its definition, and the folder, env and
@@ -243,14 +331,15 @@ pub(crate) struct PopupSite {
     pub held: BTreeSet<String>,
 }
 
-pub(crate) fn popup_site(project: &str, action: &str) -> Result<PopupSite, String> {
+pub(crate) fn popup_site(project: &str, action: &str, view: View) -> Result<PopupSite, String> {
     let map = super::resolve_action_map(project);
     let act = super::lookup_action(&map, action)
         .ok_or_else(|| format!("There's no action {action:?} in this project."))?;
-    let def = act
-        .popup
-        .clone()
-        .ok_or_else(|| "This action has no popup.".to_string())?;
+    let def = match view {
+        View::Popup => act.popup.clone().ok_or("This action has no popup.")?,
+        View::App => app_page(&act.kind, act.app.as_ref(), act.popup.as_ref())
+            .ok_or("This action has no app.")?,
+    };
     let (root, ssh, held) = if project == super::RESERVED_PROJECT_NAME {
         (super::global_root(), None, BTreeSet::new())
     } else {

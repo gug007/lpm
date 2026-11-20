@@ -19,6 +19,11 @@
   .fill { width: 100%; max-width: 28px; border-radius: 4px 4px 0 0; background: var(--lpm-muted, #6b6b6b); opacity: 0.55; }
   .bar:last-child .fill { background: var(--lpm-accent, #e8916f); opacity: 1; }
   .label { font-size: 10px; color: var(--lpm-muted, #9a9a9a); }
+  .tab body { font-size: 15px; gap: 16px; padding: 16px 16px 24px; }
+  .tab .total { font-size: 44px; }
+  .tab .label { font-size: 12px; }
+  .open { display: none; align-self: flex-start; font: inherit; color: var(--lpm-accent, #e8916f); background: none; border: 1px solid var(--lpm-border, #444); border-radius: 8px; padding: 8px 12px; }
+  .tab .open { display: block; }
 </style>
 </head>
 <body>
@@ -27,7 +32,12 @@
     <span class="muted" id="gain"></span>
   </div>
   <div class="bars" id="bars"></div>
+  <button class="open" id="open">Open on GitHub</button>
   <script>
+    if (window.lpm && lpm.view === "tab") document.documentElement.className = "tab";
+    document.getElementById("open").onclick = function () {
+      if (window.lpm && lpm.open) lpm.open("https://github.com/gug007/lpm");
+    };
     function draw(data) {
       var months = (data && data.months) || [];
       var max = Math.max.apply(null, months.map(function (m) { return m.stars; }).concat([1]));

@@ -1,10 +1,10 @@
 import SwiftUI
 import WebKit
 
-/// An action popup's page (PROTOCOL.md, Action popups): the Mac's HTML loaded with
-/// no base URL, `bootstrap.js` run before its own scripts, and nothing more. The
-/// page gets no bridge to the app and can't navigate away: a tapped web link opens
-/// outside the app, anything else is dropped. A refresh hands its new values to
+/// An action popup's or app's page (PROTOCOL.md, Action popups): the Mac's HTML
+/// loaded with no base URL, `bootstrap.js` run before its own scripts, and nothing
+/// more. The page gets no bridge to the app and can't navigate away: a tapped web
+/// link, or one `lpm.open` asks for, opens outside the app; anything else is dropped. A refresh hands its new values to
 /// `window.__lpmPush` without reloading the page.
 struct ActionPopupWebView: UIViewRepresentable {
     let html: String
@@ -30,6 +30,7 @@ struct ActionPopupWebView: UIViewRepresentable {
         web.scrollView.contentInsetAdjustmentBehavior = .never
         web.allowsLinkPreview = false
         web.navigationDelegate = context.coordinator
+        web.uiDelegate = context.coordinator
         return web
     }
 
@@ -49,11 +50,12 @@ struct ActionPopupWebView: UIViewRepresentable {
     static func dismantleUIView(_ web: WKWebView, coordinator: Coordinator) {
         web.stopLoading()
         web.navigationDelegate = nil
+        web.uiDelegate = nil
         web.configuration.userContentController.removeAllUserScripts()
     }
 
     @MainActor
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         var page = -1
         var pushes = 0
         var onFailure: (() -> Void)?
@@ -100,6 +102,18 @@ struct ActionPopupWebView: UIViewRepresentable {
 
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
             onFailure?()
+        }
+
+        /// `window.open`, which `lpm.open` calls from a tap: a web address opens
+        /// outside the app, and the page never gets a window of its own.
+        func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                     for navigationAction: WKNavigationAction,
+                     windowFeatures: WKWindowFeatures) -> WKWebView? {
+            if let url = navigationAction.request.url,
+               ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
+                UIApplication.shared.open(url)
+            }
+            return nil
         }
     }
 }

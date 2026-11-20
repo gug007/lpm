@@ -145,6 +145,9 @@ export interface Settings {
   // Send crash reports from this machine (crashReports.ts, crashreport.rs).
   // Unset means on, and it is kept per machine.
   crashReports?: boolean;
+  // Send the daily ping that counts active computers (dailyping.rs). Unset
+  // means on, and it is kept per machine.
+  dailyPing?: boolean;
   // Opening a finished agent keeps its sidebar row, muted, until it is
   // archived (status/seen.rs). Unset means off.
   keepFinishedAgents?: boolean;
@@ -306,6 +309,7 @@ function normalize(s: main.Settings): Settings {
     installUpdatesWhenIdle: s.installUpdatesWhenIdle || undefined,
     updateChannel: s.updateChannel === "beta" ? "beta" : undefined,
     crashReports: s.crashReports === false ? false : undefined,
+    dailyPing: s.dailyPing === false ? false : undefined,
     keepFinishedAgents: s.keepFinishedAgents,
     autoArchiveAgentsAfter: isArchiveAfter(s.autoArchiveAgentsAfter) ? s.autoArchiveAgentsAfter : undefined,
     seenAgentsShown:

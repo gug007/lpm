@@ -1,9 +1,11 @@
 import { useMemo, useRef, useState } from "react";
 import { formatTokenCount } from "../agentUsageFormat";
 import { usageRows, type UsageRow } from "../sidebarUsage";
+import { accountNote, type AccountMark, type AccountNote } from "../sidebarUsageNote";
 import { useAgentLimits } from "../hooks/useAgentLimits";
 import { useClaudeAccountsOf } from "../hooks/useClaudeAccountsOf";
 import { useNow } from "../hooks/useNow";
+import { useOnScreenClaudeTabAccount } from "../hooks/useOnScreenClaudeTabAccount";
 import { useProjectClaudeAccounts } from "../hooks/useProjectClaudeAccounts";
 import { useTokensToday } from "../hooks/useTokensToday";
 import { peerSlugOf } from "../peer/markers";
@@ -28,13 +30,16 @@ function spentLine(row: UsageRow): string {
   return `${formatTokenCount(row.tokens)} spent today · ${sessions}`;
 }
 
-type AccountMark = "current" | "standby";
+const TAG_FILLED =
+  "font-medium bg-[color-mix(in_srgb,var(--accent-claude)_16%,transparent)] text-[var(--accent-claude-text)]";
 
 const TAG: Record<AccountMark, { text: string; className: string }> = {
-  current: {
-    text: "in use",
+  tab: { text: "this tab", className: TAG_FILLED },
+  current: { text: "in use", className: TAG_FILLED },
+  next: {
+    text: "new tabs",
     className:
-      "font-medium bg-[color-mix(in_srgb,var(--accent-claude)_16%,transparent)] text-[var(--accent-claude-text)]",
+      "text-[var(--accent-claude-text)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--accent-claude)_45%,transparent)]",
   },
   standby: {
     text: "pool",
@@ -42,11 +47,6 @@ const TAG: Record<AccountMark, { text: string; className: string }> = {
       "text-[var(--text-muted)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--text-primary)_20%,transparent)]",
   },
 };
-
-interface AccountNote {
-  mark: AccountMark;
-  text: string;
-}
 
 function RowBody({ row, note }: { row: UsageRow; note?: AccountNote }) {
   const width = row.fraction > 0 ? Math.max(2, Math.round(row.fraction * 100)) : 0;
@@ -113,8 +113,9 @@ function RowBody({ row, note }: { row: UsageRow; note?: AccountNote }) {
 // same card the Usage window shows. The lines are of the machine the selected
 // project is on: this Mac, or the paired machine. With more than one Claude
 // account listed, the selected project's account carries an "in use" tag and
-// the rest of its pool a "pool" tag. Right-clicking an account row switches to
-// that account.
+// the rest of its pool a "pool" tag. A Claude tab on screen that runs on
+// another account tags that one "this tab", and the project's then reads
+// "new tabs". Right-clicking an account row switches to that account.
 export function SidebarUsage({ onOpen }: { onOpen: () => void }) {
   const enabled = useSettingsStore((s) => s.usageInSidebar ?? true);
   const tools = useSettingsStore(usageSidebarTools);
@@ -128,6 +129,7 @@ export function SidebarUsage({ onOpen }: { onOpen: () => void }) {
   const machine = useClaudeAccountsOf(enabled ? selected : null);
   const machineName = useMachineClaudeStore((s) => (host ? s.aliases[host] : undefined));
   const inUse = useProjectClaudeAccounts(enabled ? selected : null, machine);
+  const onScreenAccount = useOnScreenClaudeTabAccount(enabled ? selected : null);
   const [hovered, setHovered] = useState<{ id: string; anchor: DOMRect } | null>(null);
   const [menu, setMenu] = useState<{ account: string; label: string; x: number; y: number } | null>(null);
   const timer = useRef<number | null>(null);
@@ -170,14 +172,19 @@ export function SidebarUsage({ onOpen }: { onOpen: () => void }) {
   if (rows.length === 0) return null;
 
   const accountRows = rows.filter((row) => row.id.startsWith(CLAUDE_ACCOUNT_ROW)).length;
+  // An account with no row has nowhere to carry "this tab", and "new tabs"
+  // without it would read as if nothing were in use.
+  const tabAccount =
+    onScreenAccount && rows.some((row) => row.id === CLAUDE_ACCOUNT_ROW + onScreenAccount) ? onScreenAccount : null;
   const noteFor = (row: UsageRow): AccountNote | undefined => {
-    if (!inUse || !selected || accountRows < 2 || !row.id.startsWith(CLAUDE_ACCOUNT_ROW)) return undefined;
-    const id = row.id.slice(CLAUDE_ACCOUNT_ROW.length);
+    if (!selected || accountRows < 2 || !row.id.startsWith(CLAUDE_ACCOUNT_ROW)) return undefined;
     const name = displayNameForProjectName(selected, projects);
-    const project = machineName ? `${name} on ${machineName}` : name;
-    if (id === inUse.current) return { mark: "current", text: `New Claude sessions in ${project} use this account` };
-    if (inUse.standby.includes(id)) return { mark: "standby", text: `${project} can switch to this account` };
-    return undefined;
+    return accountNote(
+      row.id.slice(CLAUDE_ACCOUNT_ROW.length),
+      inUse,
+      tabAccount,
+      machineName ? `${name} on ${machineName}` : name,
+    );
   };
 
   return (

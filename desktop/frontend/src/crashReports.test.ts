@@ -91,6 +91,23 @@ describe("automatic crash reports", () => {
     expect(sentBodies()[0]).toContain("boom");
   });
 
+  it("leaves out a save the disk had no room for", async () => {
+    const { initCrashReports, reportError } = await load();
+    initCrashReports();
+    settingsLoaded(true);
+
+    reportError(
+      "window.unhandled_rejection",
+      'No space left on device (os error 28) at path "/Users/alice/.lpm/.tmps1Msgr"',
+    );
+    reportError("test.failed", new Error("boom"));
+    await vi.waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(1));
+    await quiet();
+
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+    expect(sentBodies()[0]).toContain('"value":"boom"');
+  });
+
   it("sends a reported error without the owner's name or their tokens", async () => {
     const { initCrashReports, reportError } = await load();
     initCrashReports();
