@@ -226,6 +226,13 @@ const LESSONS = {
       "In lpm, your coding agent can answer a prompt with a short narrated video instead of text. Turn on Video in the composer and ask as usual: the one-time setup, asking Claude Code and playing its video inside lpm, asking Codex the same question, and putting the audience and length in the prompt.",
     uploadDate: "2026-11-20T09:00:00+00:00",
   },
+  "claude-code-codex-nano-banana-images": {
+    id: "wchpqSE2PRg",
+    name: "Generate Images in Claude Code and Codex with Nano Banana",
+    description:
+      "In lpm, Claude Code and Codex can make images with Nano Banana: ask in plain words, add your Google Gemini key from the card lpm shows, open the image in lpm with the model, cost and prompt it was made with, ask Codex for Nano Banana Pro and allow a whole project, and set keys, approval and a daily limit in Settings.",
+    uploadDate: "2026-11-20T09:00:00+00:00",
+  },
 } as const;
 
 export type YouTubeLessonId = keyof typeof LESSONS;

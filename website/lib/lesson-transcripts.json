@@ -4256,5 +4256,179 @@
    140.9,
    "and a one-line prompt."
   ]
+ ],
+ "claude-code-codex-nano-banana-images": [
+  [
+   0.5,
+   "Generate images in Claude Code and Codex with Nano Banana."
+  ],
+  [
+   4.8,
+   "In lpm, you ask your agent for a picture in plain words,"
+  ],
+  [
+   8.8,
+   "and it lands in your project as a file."
+  ],
+  [
+   11.6,
+   "Here's a Claude tab in a sample project."
+  ],
+  [
+   14.4,
+   "Type what you want, and say nano banana, Google's image model."
+  ],
+  [
+   18.8,
+   "Click Send. Claude writes a full description of the image,"
+  ],
+  [
+   22.1,
+   "then asks lpm to make it."
+  ],
+  [
+   24.6,
+   "The first time, lpm needs a Google Gemini key,"
+  ],
+  [
+   28,
+   "one with billing turned on."
+  ],
+  [
+   29.9,
+   "This card asks for it right here, so you never leave the tab."
+  ],
+  [
+   33.9,
+   "It also shows what Claude asked for:"
+  ],
+  [
+   36.3,
+   "the full prompt, which you can still edit,"
+  ],
+  [
+   38.5,
+   "then the model, the size, about five cents, and where the file goes."
+  ],
+  [
+   43,
+   "Now paste your key, and click Save and continue. The key stays on this computer,"
+  ],
+  [
+   47.8,
+   "and Claude only gets the file back."
+  ],
+  [
+   50.7,
+   "lpm makes the image and saves it to a generated folder in your project,"
+  ],
+  [
+   55.4,
+   "kept out of Git. A real one takes twenty or thirty seconds, shortened here."
+  ],
+  [
+   61,
+   "Claude replies with the file's path."
+  ],
+  [
+   63.4,
+   "Click the path, and the image opens right here in lpm."
+  ],
+  [
+   67.5,
+   "Under it, lpm notes how it was made:"
+  ],
+  [
+   70.4,
+   "the model, the cost, which agent asked,"
+  ],
+  [
+   72.8,
+   "and the whole prompt, with a button to copy it."
+  ],
+  [
+   76,
+   "Codex works the same way."
+  ],
+  [
+   77.7,
+   "Close the image, and click Codex."
+  ],
+  [
+   80.4,
+   "This time, ask for nano banana pro,"
+  ],
+  [
+   82.8,
+   "the best image model Google has, and then click Send."
+  ],
+  [
+   86.6,
+   "lpm has the key now, so it only asks you to allow it."
+  ],
+  [
+   90.6,
+   "Just this once would ask again next time."
+  ],
+  [
+   93.3,
+   "Click Allow in saas-app,"
+  ],
+  [
+   94.9,
+   "and this project's later requests run straight away."
+  ],
+  [
+   98.4,
+   "Codex replies with its path. Click it, and there's the infographic,"
+  ],
+  [
+   102.1,
+   "made with Nano Banana Pro, with its cost right under it."
+  ],
+  [
+   106.5,
+   "Now close it. Then open Settings, and pick Images and speech."
+  ],
+  [
+   111.1,
+   "Your keys are here: Google's for Nano Banana,"
+  ],
+  [
+   113.5,
+   "and OpenAI's for GPT Image and for speech."
+  ],
+  [
+   117.9,
+   "Approval sets when lpm asks:"
+  ],
+  [
+   120.5,
+   "each time, once per project,"
+  ],
+  [
+   122.5,
+   "or Always allow."
+  ],
+  [
+   124.1,
+   "And once you pass the daily limit, every request asks again."
+  ],
+  [
+   128,
+   "Further down, pick the image model lpm uses when you don't name one,"
+  ],
+  [
+   132.3,
+   "and see what agents made this month."
+  ],
+  [
+   135.2,
+   "So ask Claude Code or Codex for an image in plain words,"
+  ],
+  [
+   139.1,
+   "allow it once, and it's in your project."
+  ]
  ]
 }

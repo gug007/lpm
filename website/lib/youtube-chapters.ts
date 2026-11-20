@@ -349,4 +349,15 @@ export const LESSON_CHAPTERS: Record<YouTubeLessonId, LessonChapters> = {
       [120, "Add details"],
     ],
   },
+  "claude-code-codex-nano-banana-images": {
+    seconds: 146,
+    chapters: [
+      [0, "What it does"],
+      [11, "Ask Claude Code"],
+      [24, "Add your key"],
+      [50, "See the image"],
+      [75, "Ask Codex"],
+      [106, "Settings"],
+    ],
+  },
 };
