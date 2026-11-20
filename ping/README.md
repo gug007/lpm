@@ -50,6 +50,9 @@ one, delete `daily-ping.json` from its data folder and restart it.
 ## Deploy
 
 Pushing a change under `ping/` to main deploys it (`.github/workflows/ping.yml`).
+The repository's `CLOUDFLARE_API_TOKEN` (shared with `relay/`) needs D1 Edit on
+the whole account and Individual Workers Editor on `lpm-ping`; without D1,
+applying migrations fails with code 7403.
 The first time, create the database and put its id in `wrangler.jsonc`:
 
 ```sh

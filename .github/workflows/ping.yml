@@ -3,7 +3,8 @@ name: Usage ping
 # The Cloudflare Worker that counts the desktop app's daily usage pings (ping/).
 # Pull requests run its checks; a push to main also applies new migrations to
 # its database and deploys it. Deploying needs the CLOUDFLARE_API_TOKEN and
-# CLOUDFLARE_ACCOUNT_ID repository secrets.
+# CLOUDFLARE_ACCOUNT_ID repository secrets; the token needs account-wide D1 Edit
+# and Workers Editor on lpm-ping, not just on the relay.
 
 on:
   push:
