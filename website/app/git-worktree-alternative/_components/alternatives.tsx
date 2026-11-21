@@ -1,3 +1,4 @@
+import { HeroDownload } from "@/components/home/hero-download";
 import { SectionHeader } from "@/components/section-header";
 import AlternativeGroup from "./alternative-group";
 import { ALTERNATIVE_GROUPS } from "./alternatives-data";
@@ -36,6 +37,14 @@ export default function Alternatives() {
           {ALTERNATIVE_GROUPS.map((group) => (
             <AlternativeGroup key={group.id} group={group} />
           ))}
+        </div>
+
+        <div className="mt-8 flex flex-col items-center gap-3 text-center sm:mt-10">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Duplicate and New worktree both come with lpm. Free, open source,
+            no account.
+          </p>
+          <HeroDownload source="worktree-alt-list" compact />
         </div>
       </div>
     </section>

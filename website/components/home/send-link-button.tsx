@@ -2,15 +2,16 @@
 
 import { useState } from "react";
 import { Check, Share } from "lucide-react";
+import {
+  trackSendLink,
+  type SendLinkResult,
+  type SendTarget,
+} from "@/lib/analytics";
 import { SITE_URL } from "@/lib/links";
 
 const DOWNLOAD_URL = `${SITE_URL}/#download`;
 
 type SendState = "idle" | "copied" | "failed";
-
-// Where the link leads: the download section, or the page it was sent from,
-// for a demo the phone can't run.
-type SendTarget = "download" | "page";
 
 const targetUrl = (to: SendTarget) =>
   to === "page" ? `${SITE_URL}${window.location.pathname}` : DOWNLOAD_URL;
@@ -23,18 +24,24 @@ export function useSendLink(to: SendTarget = "download") {
 
   const send = async () => {
     const url = targetUrl(to);
+    let result: SendLinkResult;
     if (navigator.share) {
       try {
         await navigator.share({ title: "lpm", url });
-      } catch {}
-      return;
+        result = "shared";
+      } catch {
+        result = "dismissed";
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(url);
+        result = "copied";
+      } catch {
+        result = "failed";
+      }
+      setState(result);
     }
-    try {
-      await navigator.clipboard.writeText(url);
-      setState("copied");
-    } catch {
-      setState("failed");
-    }
+    trackSendLink(to, result);
   };
 
   return { state, send };

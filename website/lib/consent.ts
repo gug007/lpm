@@ -1,3 +1,16 @@
+import { SITE_URL } from "@/lib/links";
+
+// Google's tags run only on the live site, where a local or preview build
+// can't count its developer as a visitor, and never on /join, which holds a
+// shared tab's invite in its address.
+const TAGS_HOST = new URL(SITE_URL).hostname;
+const NO_TAGS_PATH = /^\/join\/?$/;
+
+export const tagsRun = (hostname: string, pathname: string) =>
+  hostname === TAGS_HOST && !NO_TAGS_PATH.test(pathname);
+
+export const tagsRunScript = `location.hostname === ${JSON.stringify(TAGS_HOST)} && !${NO_TAGS_PATH}.test(location.pathname)`;
+
 // Visitors from these countries are asked before Google's tags may store
 // anything: the EEA, the UK and Switzerland.
 export const CONSENT_COUNTRIES = [

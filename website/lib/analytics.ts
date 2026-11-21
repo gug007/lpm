@@ -40,6 +40,7 @@ export type DownloadSource =
   | "review-hero"
   | "review-cta"
   | "worktree-alt-hero"
+  | "worktree-alt-list"
   | "worktree-alt-mid"
   | "worktree-alt-cta"
   | "worktree-agents-hero"
@@ -234,4 +235,30 @@ export type TokenUsageDemoAction =
 export function trackTokenUsageDemo(action: TokenUsageDemoAction): void {
   if (typeof window === "undefined" || !window.gtag) return;
   window.gtag("event", "token_usage_demo", { action });
+}
+
+// "watch" is choosing the video over a slow load.
+export type DemoAction = "window" | "step" | "replay" | "watch";
+
+const demoReported = new Set<string>();
+
+// Once per action on each page, however often the visitor repeats it.
+export function trackDemo(action: DemoAction): void {
+  if (typeof window === "undefined" || !window.gtag) return;
+  const key = `${window.location.pathname} ${action}`;
+  if (demoReported.has(key)) return;
+  demoReported.add(key);
+  window.gtag("event", "app_demo", { action });
+}
+
+// Where a sent link leads: the download section, or the page it was sent
+// from, for a demo the phone can't run.
+export type SendTarget = "download" | "page";
+
+// "dismissed" is the share sheet closed without sending.
+export type SendLinkResult = "shared" | "dismissed" | "copied" | "failed";
+
+export function trackSendLink(target: SendTarget, result: SendLinkResult): void {
+  if (typeof window === "undefined" || !window.gtag) return;
+  window.gtag("event", "send_link", { link_target: target, result });
 }

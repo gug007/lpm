@@ -16,6 +16,7 @@ import { DemoSteps } from "@/components/home/demo-steps";
 import { DesktopOnlyPrompt } from "@/components/home/desktop-only-prompt";
 import { WINDOW_FRAME } from "@/components/home/demo-window";
 import { YouTubeVideo } from "@/components/youtube-video";
+import { trackDemo } from "@/lib/analytics";
 import type { YouTubeLessonId } from "@/lib/youtube-lessons";
 
 // Set by .demo-stage in globals.css: capped where a 1040px stage keeps the
@@ -265,7 +266,10 @@ function DemoStage({
                     <DemoLoadStatus
                       progress={progress}
                       lesson={lesson}
-                      onWatch={() => setWatching(true)}
+                      onWatch={() => {
+                        setWatching(true);
+                        trackDemo("watch");
+                      }}
                     />
                   }
                 />

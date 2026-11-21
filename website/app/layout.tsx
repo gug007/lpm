@@ -20,7 +20,7 @@ import {
 } from "@/lib/links";
 import { APP_DESCRIPTION, FEATURE_LIST, OPERATING_SYSTEMS } from "@/lib/app-facts";
 import { APP_ID, WEBSITE_ID, jsonLdString } from "@/lib/structured-data";
-import { consentDefaultsScript } from "@/lib/consent";
+import { consentDefaultsScript, tagsRunScript } from "@/lib/consent";
 import { fetchLatestVersion } from "@/lib/github-stats";
 
 const geistSans = Geist({
@@ -192,11 +192,9 @@ export default async function RootLayout({
         </ReleaseProvider>
         <DownloadInstallNote />
         <ConsentBanner />
-        {/* /join holds a shared tab's invite in its address, so nobody else's
-            script runs there. */}
         <Script id="ga-init" strategy="afterInteractive">
           {`
-            if (!/^\\/join\\/?$/.test(location.pathname)) {
+            if (${tagsRunScript}) {
               window.dataLayer = window.dataLayer || [];
               window.gtag = function gtag(){dataLayer.push(arguments);};
               ${consentDefaultsScript}

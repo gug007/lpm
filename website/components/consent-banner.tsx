@@ -8,6 +8,7 @@ import {
   CONSENT_OPEN_EVENT,
   readChoice,
   saveChoice,
+  tagsRun,
   type ConsentChoice,
 } from "@/lib/consent";
 import { PRIVACY_PATH } from "@/lib/links";
@@ -37,8 +38,9 @@ export function ConsentBanner() {
     };
   }, []);
 
-  // /join runs no third-party script, so there is nothing to ask about there.
-  if (!open || pathname === "/join") return null;
+  // Where Google's tags don't run there is nothing to ask about. The banner
+  // only opens in the browser, so `location` is there to read.
+  if (!open || !tagsRun(location.hostname, pathname)) return null;
 
   const choose = (choice: ConsentChoice) => {
     saveChoice(choice);

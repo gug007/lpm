@@ -16,6 +16,7 @@ import {
   type HostMessage,
   type TourStepWire,
 } from "./demo-protocol";
+import { trackDemo } from "@/lib/analytics";
 import type { Tour, TourHandle, TourState, TourStep } from "./tour";
 
 type Args = {
@@ -141,18 +142,20 @@ export function useDemoFrame({
     }
   }, [ready, parked, post]);
 
-  // A click in the window moves focus into the frame, which is all this page
-  // sees of it. The pointer has to be over the frame, so the app focusing its
-  // own composer mid-tour does not count.
+  // The app is served from this origin, so the page can listen for a press in
+  // its document. Only the visitor's own counts: the tour's clicks are
+  // scripted, and focus alone says nothing once the app holds it.
   useEffect(() => {
-    const onBlur = () => {
-      const iframe = iframeRef.current;
-      if (iframe && document.activeElement === iframe && iframe.matches(":hover"))
-        hooksRef.current.onInteract();
+    const doc = ready ? iframeRef.current?.contentDocument : null;
+    if (!doc) return;
+    const onPress = (event: PointerEvent) => {
+      if (!event.isTrusted) return;
+      hooksRef.current.onInteract();
+      trackDemo("window");
     };
-    window.addEventListener("blur", onBlur);
-    return () => window.removeEventListener("blur", onBlur);
-  }, [iframeRef]);
+    doc.addEventListener("pointerdown", onPress, true);
+    return () => doc.removeEventListener("pointerdown", onPress, true);
+  }, [ready, iframeRef]);
 
   useImperativeHandle(
     tourRef,

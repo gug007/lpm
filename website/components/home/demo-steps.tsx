@@ -4,6 +4,7 @@ import { Check, RotateCcw } from "lucide-react";
 import { DownloadLink } from "@/components/download-link";
 import { PrimaryDownload } from "@/components/home/primary-download";
 import type { TourState, TourStep } from "@/components/home/tour";
+import { trackDemo } from "@/lib/analytics";
 import {
   isDownloadPlatform,
   primaryDownload,
@@ -100,7 +101,10 @@ function DoneRow({ done, onRestart }: { done: string; onRestart: () => void }) {
       )}
       <button
         type="button"
-        onClick={onRestart}
+        onClick={() => {
+          trackDemo("replay");
+          onRestart();
+        }}
         className="inline-flex h-8 items-center gap-1.5 rounded-full border border-gray-200 px-3 text-[13px] text-gray-600 transition-colors hover:border-gray-900 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:border-white dark:hover:text-white"
       >
         <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
@@ -147,7 +151,10 @@ export function DemoSteps({ steps, tour, done, onRun, onRestart }: Props) {
                   )}
                   <button
                     type="button"
-                    onClick={() => onRun(i)}
+                    onClick={() => {
+                      trackDemo("step");
+                      onRun(i);
+                    }}
                     aria-current={active ? "step" : undefined}
                     title={step.body}
                     className={`relative flex items-center gap-2 overflow-hidden whitespace-nowrap rounded-full border py-1 pl-1 pr-3 text-[13px] font-medium transition-colors ${
