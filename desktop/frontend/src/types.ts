@@ -504,6 +504,24 @@ export interface PrMergeOffer {
   methods: PrMergeMethod[];
   // GitHub deletes the branch by itself once it's merged.
   deletesBranch: boolean;
+  // Whoever `gh` is signed in as may bypass the rules holding it back.
+  canBypass?: boolean;
+}
+
+export const PR_MERGE_WATCH_EVENT = "pr-merge-watch";
+
+// A pull request lpm merges once its checks pass (pr_merge_watch.rs).
+export interface PrMergeWatch {
+  path: string;
+  number: number;
+  title: string;
+  method: PrMergeMethod;
+  deleteBranch: boolean;
+  // Merges past the base branch's rules if they still hold it back by then.
+  bypass: boolean;
+  state: "waiting" | "merged" | "stopped" | "cancelled";
+  reason?: string;
+  deletedBranch: boolean;
 }
 
 export interface PullRequestMergeInfo extends PullRequestInfo {

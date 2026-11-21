@@ -172,6 +172,9 @@ const FORWARDED_EVENTS: &[&str] = &[
     crate::keepawake_headsup::HEADS_UP_EVENT,
     // CI on a commit pushed here, shown on the Mac as this computer's.
     crate::ci_watch::RESULT_EVENT,
+    // A pull request a Mac asked this computer to merge once its checks pass:
+    // armed, merged or stopped.
+    crate::pr_merge_watch::EVENT,
     // The command a terminal here runs and how it ended, for its tab on a Mac.
     crate::cmdmarks::EVENT,
     // What a coding agent prints while it generates something a paired Mac asked

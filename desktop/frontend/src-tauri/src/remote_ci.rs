@@ -96,7 +96,7 @@ fn merge_reply(project: &str, root: &str, v: &Value) -> Value {
     let method = v["method"].as_str().unwrap_or("squash");
     let head = v["head"].as_str().unwrap_or_default();
     let delete = v["deleteBranch"].as_bool().unwrap_or(false);
-    match crate::pull_request_merge::merge(root, number, method, head, delete) {
+    match crate::pull_request_merge::merge(root, number, method, head, delete, false) {
         Ok(deleted) => json!({
             "t": "gitMergePr",
             "project": project,

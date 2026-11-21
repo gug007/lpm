@@ -71,6 +71,7 @@ import { usePeerFileSaveNotices } from "./peer/usePeerFileSaveNotices";
 import { usePeerRemovedNotices } from "./peer/usePeerRemovedNotices";
 import { useAgentFilesServedNotices } from "./peer/useAgentFilesServedNotices";
 import { useCiResultToasts } from "./hooks/useCiResultToasts";
+import { usePrMergeWatchEvents } from "./hooks/usePrMergeWatchEvents";
 import { useServiceCrashAlerts } from "./hooks/useServiceCrashAlerts";
 import { useKeepAwakeHeadsUp } from "./hooks/useKeepAwakeHeadsUp";
 import { usePeerState } from "./peer/usePeerState";
@@ -194,6 +195,7 @@ export default function App() {
   useAgentFilesServedNotices();
   useKeepAwakeHeadsUp();
   useCiResultToasts();
+  usePrMergeWatchEvents();
   useServiceCrashAlerts();
   useIgnoredSyncConflicts();
   useSshStatusWarnings();

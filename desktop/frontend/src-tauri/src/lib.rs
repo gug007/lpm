@@ -280,6 +280,7 @@ mod projects_crud;
 mod pty;
 mod pull_request;
 mod pull_request_merge;
+mod pr_merge_watch;
 mod pull_request_review;
 mod ptymodes;
 mod ptyring;
@@ -485,6 +486,9 @@ use popup_view::{
 use pull_request::*;
 use pull_request_review::pull_request_discussion;
 use pull_request_merge::{merge_pull_request, pull_request_merge_offer};
+use pr_merge_watch::{
+    cancel_pull_request_merge, merge_pull_request_when_ready, pull_request_merge_watch,
+};
 use gitfollow::{follow_list, follow_pause, follow_resume, follow_stop};
 use gitautopull::{git_auto_pull, git_auto_pull_last, git_auto_pull_undo, set_auto_pull};
 use gitlines::{git_diff_stat, git_file_line_counts};

@@ -1,3 +1,4 @@
+import { useArmedMerge } from "../hooks/useArmedMerge";
 import { usePrMergeOffer } from "../hooks/usePrMergeOffer";
 import { prLook } from "../prLook";
 import type { PullRequestInfo } from "../types";
@@ -19,6 +20,7 @@ interface PrMergeCardProps {
  *  repository's methods and its branch deleted on GitHub, as on the phone. */
 export function PrMergeCard({ pr, branch, projectName, projectPath, onClose }: PrMergeCardProps) {
   const offer = usePrMergeOffer(projectPath, branch);
+  const watch = useArmedMerge(projectPath);
   const info = offer.kind === "loaded" ? offer.info : null;
   const shown = info ?? pr;
   const look = prLook(shown);
@@ -50,8 +52,7 @@ export function PrMergeCard({ pr, branch, projectName, projectPath, onClose }: P
           <PrMergeBody
             key={info.number}
             info={info}
-            branch={branch}
-            projectName={projectName}
+            armed={watch?.number === info.number ? watch : undefined}
             projectPath={projectPath}
             onClose={onClose}
           />

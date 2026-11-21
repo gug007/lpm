@@ -290,8 +290,17 @@ export function PullRequestDiscussion(cwd) {
 export function PullRequestMergeOffer(cwd) {
   return invoke("pull_request_merge_offer", { cwd });
 }
-export function MergePullRequest(cwd, number, method, head, deleteBranch) {
-  return invoke("merge_pull_request", { cwd, number, method, head, deleteBranch });
+export function MergePullRequest(cwd, number, method, head, deleteBranch, bypass) {
+  return invoke("merge_pull_request", { cwd, number, method, head, deleteBranch, bypass });
+}
+export function MergePullRequestWhenReady(cwd, number, title, method, deleteBranch, bypass) {
+  return invoke("merge_pull_request_when_ready", { cwd, number, title, method, deleteBranch, bypass });
+}
+export function CancelPullRequestMerge(cwd) {
+  return invoke("cancel_pull_request_merge", { cwd });
+}
+export function PullRequestMergeWatch(cwd) {
+  return invoke("pull_request_merge_watch", { cwd });
 }
 export function CreatePullRequest(cwd, title, body, base, draft) {
   return invoke("create_pull_request", { cwd, title, body, base, draft });
