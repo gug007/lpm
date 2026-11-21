@@ -93,9 +93,11 @@ export default function PrivacyPage() {
             version, operating system version and processor type, and the
             app&rsquo;s own recent events. Your code, terminal output, prompts
             and project settings are never part of it. The error text can name
-            the file or project it was about; your home folder name and
-            anything that looks like a password or token are removed from it
-            before it leaves your computer. A report has no account or name on
+            the project it was about, but any file path in it is cut to where
+            it starts, like ~/.lpm/&hellip;, so your home folder name and the
+            folders and files you keep aren&rsquo;t in it. Anything that looks
+            like a password or token is removed too, before it leaves your
+            computer. A report has no account or name on
             it, and Sentry is set to keep neither the address it came from nor
             a location worked out from it. Turning the switch off stops reports
             at once. With it off, the screen lpm shows after a crash still has

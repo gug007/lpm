@@ -7,7 +7,7 @@
 // alike, with nothing to restart.
 
 use crate::config;
-use regex::Regex;
+use regex::{Captures, Regex};
 use sentry::integrations::backtrace::ProcessStacktraceIntegration;
 use sentry::integrations::contexts::ContextIntegration;
 use sentry::integrations::panic::PanicIntegration;
@@ -179,7 +179,28 @@ static OWN_HOME: LazyLock<Option<String>> = LazyLock::new(|| {
         .filter(|home| home.len() > 1)
 });
 static HOME_DIR: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)(?:/Users/|/home/|\b[a-z]:[\\/]+Users[\\/]+)[^/\\\s:]+").unwrap()
+    Regex::new(r#"(?i)(?:/Users/|/home/|\b[a-z]:[\\/]+Users[\\/]+)[^/\\\s:"'\x60]+"#).unwrap()
+});
+
+// The same paths diagnostics.ts shortens: (root)(separator)(first folder) or
+// (root)(separator)(only part), where a folder name can hold single spaces.
+const PATH_PART: &str = r#"[^\s/\\"'\x60:]+"#;
+fn path_pattern(root: &str) -> Regex {
+    let name = format!("{PATH_PART}(?: {PATH_PART})*");
+    Regex::new(&format!(
+        r"{root}([\\/]+)(?:({name})[\\/]+(?:{name}[\\/]+)*(?:{PATH_PART})?|({PATH_PART}))"
+    ))
+    .unwrap()
+}
+static HOME_PATH: LazyLock<Regex> = LazyLock::new(|| path_pattern("(~)"));
+static DRIVE_PATH: LazyLock<Regex> = LazyLock::new(|| path_pattern(r"(?i)\b([a-z]:)"));
+static MOUNT_PATH: LazyLock<Regex> = LazyLock::new(|| path_pattern(r"\B(/(?:Volumes|mnt|media))"));
+static TOOLCHAIN_FOLDER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)^\.(?:cargo|rustup)$").unwrap());
+static APP_FOLDER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)^(?:\..+|appdata|library)$").unwrap());
+static SYSTEM_FOLDER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)^(?:program files(?: \(x86\))?|programdata|windows)$").unwrap()
 });
 static BEARER: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)\b(Bearer\s+)[A-Za-z0-9._~+/=-]+").unwrap());
@@ -191,17 +212,50 @@ static SECRET: LazyLock<Regex> = LazyLock::new(|| {
     .unwrap()
 });
 
-/// Whose machine this is and anything shaped like a credential stay here. The
-/// frontend's `redactDiagnosticString` follows the same rules, and both are
-/// held to the examples in src/redaction.vectors.json.
+/// Whose machine this is, the folders on it and anything shaped like a
+/// credential stay here. The frontend's `redactDiagnosticString` follows the
+/// same rules, and both are held to the examples in src/redaction.vectors.json.
 fn redact(text: &str) -> String {
     let text = match OWN_HOME.as_deref() {
         Some(home) => Cow::Owned(text.replace(home, "~")),
         None => Cow::Borrowed(text),
     };
     let text = HOME_DIR.replace_all(&text, "~");
+    let text = shorten_paths(&text);
     let text = BEARER.replace_all(&text, "${1}[REDACTED]");
     SECRET.replace_all(&text, "${1}[REDACTED]").into_owned()
+}
+
+/// The folders and files in a path are the owner's projects, so a path keeps
+/// only its root, and under the home folder the app folder it's in. Rust
+/// dependency sources stay whole: a panic in one names the crate.
+fn shorten_paths(text: &str) -> String {
+    fn first<'h>(caps: &Captures<'h>) -> (Option<&'h str>, &'h str) {
+        let folder = caps.get(3).map(|m| m.as_str());
+        let file = caps.get(4).map(|m| m.as_str());
+        (folder, folder.or(file).unwrap_or_default())
+    }
+    let text = HOME_PATH.replace_all(text, |caps: &Captures| {
+        let (root, sep) = (&caps[1], &caps[2]);
+        match first(caps) {
+            (_, name) if TOOLCHAIN_FOLDER.is_match(name) => caps[0].to_string(),
+            (_, name) if !APP_FOLDER.is_match(name) => format!("{root}{sep}…"),
+            (Some(folder), _) => format!("{root}{sep}{folder}{sep}…"),
+            (None, _) => caps[0].to_string(),
+        }
+    });
+    let text = DRIVE_PATH.replace_all(&text, |caps: &Captures| {
+        if SYSTEM_FOLDER.is_match(first(caps).1) {
+            caps[0].to_string()
+        } else {
+            format!("{}{}…", &caps[1], &caps[2])
+        }
+    });
+    MOUNT_PATH
+        .replace_all(&text, |caps: &Captures| {
+            format!("{}{}…", &caps[1], &caps[2])
+        })
+        .into_owned()
 }
 
 #[derive(Serialize)]

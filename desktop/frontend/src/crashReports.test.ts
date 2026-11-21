@@ -123,12 +123,13 @@ describe("automatic crash reports", () => {
     const [url] = mocks.fetch.mock.calls[0];
     expect(String(url)).toContain("o1.ingest.sentry.invalid/api/1/envelope/");
     const [body] = sentBodies();
-    expect(body).toContain("open ~/app failed, token=[REDACTED]");
+    expect(body).toContain("open ~/… failed, token=[REDACTED]");
     expect(body).not.toContain("alice");
     expect(body).not.toMatch(/\/(?:Users|home)\//);
     expect(body).not.toContain("hunter2");
     expect(body).not.toContain("acme-secret");
-    expect(body).toContain("at Sidebar (~/app/Sidebar.tsx)");
+    expect(body).toContain("at Sidebar (~/…");
+    expect(body).not.toContain("Sidebar.tsx");
     expect(body).toContain('"release":"lpm-desktop@1.2.3"');
     expect(body).toContain('"event":"test.failed"');
     expect(body).toContain('"process":"webview"');

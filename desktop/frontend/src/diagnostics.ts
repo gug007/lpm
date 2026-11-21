@@ -71,9 +71,40 @@ export function onReportedError(
   reportedErrorListener = listener;
 }
 
-export function redactDiagnosticString(value: string): string {
+// A folder name in a path can contain single spaces, so only the last part of a
+// path ends at a space. Every pattern captures (root)(separator)(first folder)
+// or (root)(separator)(only part). crashreport.rs builds the same ones.
+const PATH_PART = String.raw`[^\s/\\"'\x60:]+`;
+const PATH_NAME = `${PATH_PART}(?: ${PATH_PART})*`;
+const PATH_TAIL = String.raw`([\\/]+)(?:(${PATH_NAME})[\\/]+(?:${PATH_NAME}[\\/]+)*(?:${PATH_PART})?|(${PATH_PART}))`;
+const HOME_PATH = new RegExp(`(~)${PATH_TAIL}`, "g");
+const DRIVE_PATH = new RegExp(String.raw`\b([a-z]:)${PATH_TAIL}`, "gi");
+const MOUNT_PATH = new RegExp(String.raw`\B(/(?:Volumes|mnt|media))${PATH_TAIL}`, "g");
+const TOOLCHAIN_FOLDER = /^\.(?:cargo|rustup)$/i;
+const APP_FOLDER = /^(?:\..+|appdata|library)$/i;
+const SYSTEM_FOLDER = /^(?:program files(?: \(x86\))?|programdata|windows)$/i;
+
+// The folders and files in a path are the owner's projects, so a path keeps only
+// its root, and under the home folder the app folder it's in. Rust dependency
+// sources stay whole: a panic in one names the crate.
+function shortenPaths(value: string): string {
   return value
-    .replace(/(?:\/Users\/|\/home\/|\b[a-z]:[\\/]+Users[\\/]+)[^/\\\s:]+/gi, "~")
+    .replace(HOME_PATH, (match, root: string, sep: string, folder?: string, file?: string) => {
+      const name = folder ?? file ?? "";
+      if (TOOLCHAIN_FOLDER.test(name)) return match;
+      if (!APP_FOLDER.test(name)) return `${root}${sep}…`;
+      return folder ? `${root}${sep}${folder}${sep}…` : match;
+    })
+    .replace(DRIVE_PATH, (match, root: string, sep: string, folder?: string, file?: string) =>
+      SYSTEM_FOLDER.test(folder ?? file ?? "") ? match : `${root}${sep}…`,
+    )
+    .replace(MOUNT_PATH, (_match, root: string, sep: string) => `${root}${sep}…`);
+}
+
+export function redactDiagnosticString(value: string): string {
+  return shortenPaths(
+    value.replace(/(?:\/Users\/|\/home\/|\b[a-z]:[\\/]+Users[\\/]+)[^/\\\s:"'\x60]+/gi, "~"),
+  )
     .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, "$1[REDACTED]")
     .replace(
       /\b((?:authorization|api[_-]?key|password|passphrase|private[_-]?key|secret|token)\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)/gi,

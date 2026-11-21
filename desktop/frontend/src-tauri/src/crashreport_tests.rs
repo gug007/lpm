@@ -113,7 +113,7 @@ fn an_event_leaves_without_the_machine_or_its_owner() {
     assert!(events[0].contexts.contains_key("os"));
     assert_eq!(
         events[0].message.as_deref(),
-        Some("open ~/Projects/app failed, token=[REDACTED]")
+        Some("open ~/… failed, token=[REDACTED]")
     );
     assert_eq!(events[0].release.as_deref(), Some("lpm-desktop@dev"));
 }
@@ -131,7 +131,7 @@ fn a_panic_is_named_and_grouped_by_where_it_was_raised() {
     assert_eq!(event.level, Level::Fatal);
     assert_eq!(
         event.exception.values[0].value.as_deref(),
-        Some("no such dir ~/work")
+        Some("no such dir ~/…")
     );
     let location = &event.tags["panic.location"];
     assert!(location.contains("crashreport_tests.rs:"), "{location}");
@@ -191,7 +191,7 @@ fn a_consented_event_is_posted_to_the_dsn_host() {
 
     let request = received.recv_timeout(Duration::from_secs(10)).unwrap();
     assert!(request.starts_with("POST /api/1/envelope/"), "{request}");
-    assert!(request.contains("lost ~/.lpm/settings.json"), "{request}");
+    assert!(request.contains("lost ~/.lpm/…"), "{request}");
     assert!(!request.contains("alice"), "{request}");
     assert!(!request.contains("server_name"), "{request}");
     // Not the event from before the switch, and not a count of it either.

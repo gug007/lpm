@@ -51,14 +51,15 @@ describe("diagnostic redaction", () => {
       "/Users/alice/code token=abc123 Authorization: Bearer secret-value",
     );
 
-    expect(value).toContain("~/code");
+    expect(value).toContain("~/…");
+    expect(value).not.toContain("code");
     expect(value).not.toContain("alice");
     expect(value).not.toContain("abc123");
     expect(value).not.toContain("secret-value");
   });
 
   it("redacts a Windows profile folder", () => {
-    expect(redactDiagnosticString("open C:\\Users\\alice\\code\\a.ts")).toBe("open ~\\code\\a.ts");
+    expect(redactDiagnosticString("open C:\\Users\\alice\\code\\a.ts")).toBe("open ~\\…");
   });
 
   it.each(redactionExamples)("agrees with crashreport.rs on %j", (input, expected) => {
@@ -195,8 +196,9 @@ describe("formatDiagnosticsReport", () => {
     expect(report).toContain("lpm diagnostics");
     expect(report).toContain('"version": "1.2.3"');
     expect(report).toContain('"event":"app.failed"');
-    expect(report).toContain("~/project");
+    expect(report).toContain("Failed in ~/…");
     expect(report).not.toContain("alice");
+    expect(report).not.toContain("project");
   });
 
   it("normalizes non-error failures", () => {

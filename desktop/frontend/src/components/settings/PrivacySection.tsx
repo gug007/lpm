@@ -12,8 +12,9 @@ const CRASH_REPORT_DETAILS = (
     </ul>
     <p>
       Your code, terminal output, prompts and project settings are never part of a report. The
-      error text can name the file or project it was about; your home folder name and anything
-      that looks like a password or token are removed from it before it is sent.
+      error text can name the project it was about, but any file path in it is cut to where it
+      starts, like ~/.lpm/…, so your home folder name and your folders and files aren't in it.
+      Anything that looks like a password or token is removed too, before it is sent.
     </p>
     <p>
       Reports go to Sentry, where lpm's developers read them. Each computer has its own switch,
