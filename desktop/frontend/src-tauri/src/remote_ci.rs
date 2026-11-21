@@ -66,8 +66,7 @@ fn checks_reply(project: &str, root: String) -> Value {
         .or_else(|| commit.as_ref().and_then(|c| c.fix_prompt.clone()));
     let resolve = pr
         .as_ref()
-        .filter(|pr| pr.merge.mergeable == "CONFLICTING" || pr.merge.state == "DIRTY")
-        .map(|pr| crate::ci_prompt::for_conflicts(pr.number, &pr.url, &pr.merge.base));
+        .and_then(crate::pull_request_merge::resolve_prompt);
     let mut reply = json!({
         "t": "gitChecks",
         "project": project,
@@ -97,13 +96,6 @@ fn merge_reply(project: &str, root: &str, v: &Value) -> Value {
     let method = v["method"].as_str().unwrap_or("squash");
     let head = v["head"].as_str().unwrap_or_default();
     let delete = v["deleteBranch"].as_bool().unwrap_or(false);
-    if number == 0 {
-        return git_result_reply(
-            "gitMergePr",
-            project,
-            Err::<(), _>("No pull request to merge".into()),
-        );
-    }
     match crate::pull_request_merge::merge(root, number, method, head, delete) {
         Ok(deleted) => json!({
             "t": "gitMergePr",

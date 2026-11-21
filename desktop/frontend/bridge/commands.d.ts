@@ -89,6 +89,8 @@ export function BranchCommitChecks(cwd: string): Promise<import("../src/types").
 export function RecentCommitChecks(cwd: string): Promise<import("../src/types").CommitCi[]>;
 export function RerunFailedChecks(cwd: string, runIds: string[]): Promise<void>;
 export function PullRequestDiscussion(cwd: string): Promise<{ number: number; title: string; url: string; body: string; notes: { kind: "review" | "line" | "comment"; author: string; body: string; state: string; path: string; line: number | null; createdAt: string }[] } | null>;
+export function PullRequestMergeOffer(cwd: string): Promise<import("../src/types").PullRequestMergeInfo | null>;
+export function MergePullRequest(cwd: string, number: number, method: import("../src/types").PrMergeMethod, head: string, deleteBranch: boolean): Promise<boolean>;
 export function CreatePullRequest(...args: any[]): Promise<any>;
 export function CreateSSHProject(...args: any[]): Promise<any>;
 export function CreateTemplate(...args: any[]): Promise<any>;

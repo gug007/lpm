@@ -1,8 +1,10 @@
-// Merging a branch's open pull request from the phone through `gh`, and what
-// the phone needs before it offers to: the merge methods the repository allows
-// and whether GitHub deletes the branch by itself. The working copy on the Mac
-// is never touched: only the remote branch goes, as GitHub's own button does.
-use crate::pull_request::{gh_out, MergeReadiness};
+// Merging a branch's open pull request through `gh`, from the footer's PR card
+// or the phone, and what both need before they offer to: the merge methods the
+// repository allows and whether GitHub deletes the branch by itself. The working
+// copy is never touched: only the remote branch goes, as GitHub's own button does.
+use crate::pull_request::{
+    branch_pull_request_with_merge, gh_out, MergeReadiness, PullRequestInfo,
+};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -84,9 +86,50 @@ fn offer_json(readiness: &MergeReadiness, settings: &RepoSettings) -> Value {
     offer
 }
 
+/// What an agent is told to resolve the conflicts of a pull request GitHub
+/// can't merge into its base; None while it merges cleanly.
+pub fn resolve_prompt(pr: &PullRequestInfo) -> Option<String> {
+    pr.merge
+        .conflicts()
+        .then(|| crate::ci_prompt::for_conflicts(pr.number, &pr.url, &pr.merge.base))
+}
+
+/// The current branch's open pull request with how GitHub stands on merging it
+/// (`merge`, as the phone gets it), and while it conflicts with its base, what
+/// an agent is told to resolve that. None when the branch has no open one.
+#[tauri::command(async)]
+pub fn pull_request_merge_offer(cwd: String) -> Option<Value> {
+    // Both are a GitHub round trip; the repository's settings are usually
+    // past their cache by the time someone merges again.
+    let (pr, settings) = std::thread::scope(|scope| {
+        let settings = scope.spawn(|| settings(&cwd));
+        let pr = branch_pull_request_with_merge(&cwd);
+        (pr, settings.join().unwrap_or_default())
+    });
+    let pr = pr.filter(|pr| pr.state == "OPEN")?;
+    let mut reply = json!(pr);
+    reply["merge"] = offer_json(&pr.merge, &settings);
+    if let Some(prompt) = resolve_prompt(&pr) {
+        reply["resolvePrompt"] = json!(prompt);
+    }
+    Some(reply)
+}
+
+#[tauri::command(async)]
+pub fn merge_pull_request(
+    cwd: String,
+    number: u64,
+    method: String,
+    head: String,
+    delete_branch: bool,
+) -> Result<bool, String> {
+    merge(&cwd, number, &method, &head, delete_branch)
+}
+
 /// Merge pull request `number` with `method`, only while its head is still
 /// `head`, then delete its branch on GitHub when asked and GitHub doesn't do it
-/// itself. Ok(true) when the branch went too.
+/// itself. Ok(true) when the branch went too. Every window, connected Mac and
+/// phone showing the branch hears of it, wherever the merge came from.
 pub fn merge(
     root: &str,
     number: u64,
@@ -94,8 +137,12 @@ pub fn merge(
     head: &str,
     delete_branch: bool,
 ) -> Result<bool, String> {
+    if number == 0 {
+        return Err("No pull request to merge".into());
+    }
     let number = number.to_string();
     gh_out(root, &merge_args(&number, method, head)?)?;
+    crate::gitmoved::announce(root);
     if !delete_branch || settings(root).delete_branch_on_merge {
         return Ok(delete_branch);
     }

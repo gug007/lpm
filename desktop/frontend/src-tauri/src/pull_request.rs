@@ -43,6 +43,13 @@ pub struct MergeReadiness {
     pub base: String,
 }
 
+impl MergeReadiness {
+    /// GitHub can't merge it because it conflicts with its base.
+    pub fn conflicts(&self) -> bool {
+        self.mergeable == "CONFLICTING" || self.state == "DIRTY"
+    }
+}
+
 #[derive(Serialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PrCheck {
@@ -357,5 +364,17 @@ mod tests {
     fn a_pull_request_without_checks_has_none() {
         let json = r#"{"number":9,"state":"OPEN","title":"t","url":"https://github.com/o/r/pull/9","statusCheckRollup":[]}"#;
         assert!(parse_pull_request(json).unwrap().checks.is_empty());
+    }
+
+    #[test]
+    fn a_conflict_shows_in_either_field() {
+        let readiness = |mergeable: &str, state: &str| MergeReadiness {
+            mergeable: mergeable.into(),
+            state: state.into(),
+            ..Default::default()
+        };
+        assert!(readiness("CONFLICTING", "UNKNOWN").conflicts());
+        assert!(readiness("UNKNOWN", "DIRTY").conflicts());
+        assert!(!readiness("MERGEABLE", "CLEAN").conflicts());
     }
 }

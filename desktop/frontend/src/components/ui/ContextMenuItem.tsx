@@ -17,6 +17,8 @@ interface ContextMenuItemProps {
   disabled?: boolean;
   destructive?: boolean;
   title?: string;
+  // One of a set of choices: whether it is the one picked.
+  checked?: boolean;
 }
 
 export interface ContextMenuAuxAction {
@@ -38,6 +40,7 @@ export function ContextMenuItem({
   disabled,
   destructive,
   title,
+  checked,
 }: ContextMenuItemProps) {
   const tone = destructive
     ? "text-[var(--accent-red)] hover:bg-[var(--bg-hover)] focus-visible:bg-[var(--bg-hover)]"
@@ -51,6 +54,8 @@ export function ContextMenuItem({
       title={title}
       aria-haspopup={expanded === undefined ? undefined : "menu"}
       aria-expanded={expanded}
+      role={checked === undefined ? undefined : "menuitemradio"}
+      aria-checked={checked}
       className={`flex w-full min-w-0 items-center gap-2 px-3 py-1.5 text-left text-[11px] outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${tone} ${description ? "items-start" : ""} ${expanded ? "bg-[var(--bg-hover)] text-[var(--text-primary)]" : ""}`}
     >
       {icon && <span className={`flex shrink-0 items-center ${description ? "pt-0.5" : ""}`}>{icon}</span>}
