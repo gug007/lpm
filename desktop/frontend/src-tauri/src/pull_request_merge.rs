@@ -13,6 +13,9 @@ use std::time::{Duration, Instant};
 
 /// Repository settings change rarely; the CI sheet asks often.
 const SETTINGS_FOR: Duration = Duration::from_secs(10 * 60);
+/// Who may bypass a branch's rules changes as rarely; the card asks on every poll.
+const BYPASS_FOR: Duration = Duration::from_secs(10 * 60);
+const BYPASS_QUERY: &str = "query($owner:String!,$repo:String!,$number:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$number){viewerCanMergeAsAdmin}}}";
 const REPO_FIELDS: &str =
     "squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed,deleteBranchOnMerge";
 
@@ -86,6 +89,53 @@ fn offer_json(readiness: &MergeReadiness, settings: &RepoSettings) -> Value {
     offer
 }
 
+fn bypass_cache() -> &'static Mutex<HashMap<(String, u64), (bool, Instant)>> {
+    static CACHE: OnceLock<Mutex<HashMap<(String, u64), (bool, Instant)>>> = OnceLock::new();
+    CACHE.get_or_init(Default::default)
+}
+
+/// Whether GitHub lets whoever `gh` is signed in as bypass the rules that hold
+/// pull request `number` back (its "Bypass requirements"); false when it can't say.
+pub fn can_bypass(root: &str, number: u64) -> bool {
+    let key = (root.to_string(), number);
+    if let Some((allowed, at)) = bypass_cache().lock().unwrap().get(&key) {
+        if at.elapsed() < BYPASS_FOR {
+            return *allowed;
+        }
+    }
+    let query = format!("query={BYPASS_QUERY}");
+    let number_field = format!("number={number}");
+    let args = [
+        "api",
+        "graphql",
+        "-f",
+        &query,
+        "-F",
+        "owner={owner}",
+        "-F",
+        "repo={repo}",
+        "-F",
+        &number_field,
+        "--jq",
+        ".data.repository.pullRequest.viewerCanMergeAsAdmin",
+    ];
+    let Ok(out) = gh_out(root, &args) else {
+        return false;
+    };
+    let allowed = out.trim() == "true";
+    bypass_cache()
+        .lock()
+        .unwrap()
+        .insert(key, (allowed, Instant::now()));
+    allowed
+}
+
+/// The states bypassing the rules can get past: rules (a required check or
+/// review, restricted updates) and a branch behind its base.
+pub fn held_by_rules(readiness: &MergeReadiness) -> bool {
+    matches!(readiness.state.as_str(), "BLOCKED" | "BEHIND")
+}
+
 /// What an agent is told to resolve the conflicts of a pull request GitHub
 /// can't merge into its base; None while it merges cleanly.
 pub fn resolve_prompt(pr: &PullRequestInfo) -> Option<String> {
@@ -109,6 +159,7 @@ pub fn pull_request_merge_offer(cwd: String) -> Option<Value> {
     let pr = pr.filter(|pr| pr.state == "OPEN")?;
     let mut reply = json!(pr);
     reply["merge"] = offer_json(&pr.merge, &settings);
+    reply["merge"]["canBypass"] = json!(held_by_rules(&pr.merge) && can_bypass(&cwd, pr.number));
     if let Some(prompt) = resolve_prompt(&pr) {
         reply["resolvePrompt"] = json!(prompt);
     }
@@ -122,26 +173,30 @@ pub fn merge_pull_request(
     method: String,
     head: String,
     delete_branch: bool,
+    bypass: bool,
 ) -> Result<bool, String> {
-    merge(&cwd, number, &method, &head, delete_branch)
+    merge(&cwd, number, &method, &head, delete_branch, bypass)
 }
 
 /// Merge pull request `number` with `method`, only while its head is still
 /// `head`, then delete its branch on GitHub when asked and GitHub doesn't do it
-/// itself. Ok(true) when the branch went too. Every window, connected Mac and
-/// phone showing the branch hears of it, wherever the merge came from.
+/// itself. `bypass` merges past the base branch's rules, as GitHub's "Bypass
+/// requirements" does for someone allowed to. Ok(true) when the branch went
+/// too. Every window, connected Mac and phone showing the branch hears of it,
+/// wherever the merge came from.
 pub fn merge(
     root: &str,
     number: u64,
     method: &str,
     head: &str,
     delete_branch: bool,
+    bypass: bool,
 ) -> Result<bool, String> {
     if number == 0 {
         return Err("No pull request to merge".into());
     }
     let number = number.to_string();
-    gh_out(root, &merge_args(&number, method, head)?)?;
+    gh_out(root, &merge_args(&number, method, head, bypass)?)?;
     crate::gitmoved::announce(root);
     if !delete_branch || settings(root).delete_branch_on_merge {
         return Ok(delete_branch);
@@ -149,16 +204,28 @@ pub fn merge(
     Ok(delete_remote_branch(root, &number))
 }
 
-fn merge_args<'a>(number: &'a str, method: &str, head: &'a str) -> Result<Vec<&'a str>, String> {
-    let flag = match method {
-        "squash" => "--squash",
-        "merge" => "--merge",
-        "rebase" => "--rebase",
-        _ => return Err(format!("Unknown merge method “{method}”")),
-    };
-    let mut args = vec!["pr", "merge", number, flag];
+/// `gh pr merge`'s flag for `method`.
+pub fn method_flag(method: &str) -> Result<&'static str, String> {
+    match method {
+        "squash" => Ok("--squash"),
+        "merge" => Ok("--merge"),
+        "rebase" => Ok("--rebase"),
+        _ => Err(format!("Unknown merge method “{method}”")),
+    }
+}
+
+fn merge_args<'a>(
+    number: &'a str,
+    method: &str,
+    head: &'a str,
+    bypass: bool,
+) -> Result<Vec<&'a str>, String> {
+    let mut args = vec!["pr", "merge", number, method_flag(method)?];
     if !head.is_empty() {
         args.extend(["--match-head-commit", head]);
+    }
+    if bypass {
+        args.push("--admin");
     }
     Ok(args)
 }
@@ -196,7 +263,7 @@ mod tests {
     #[test]
     fn each_method_maps_to_its_flag_and_pins_the_head() {
         assert_eq!(
-            merge_args("42", "squash", "9e7d031").unwrap(),
+            merge_args("42", "squash", "9e7d031", false).unwrap(),
             vec![
                 "pr",
                 "merge",
@@ -207,10 +274,10 @@ mod tests {
             ]
         );
         assert_eq!(
-            merge_args("42", "rebase", "").unwrap(),
-            vec!["pr", "merge", "42", "--rebase"]
+            merge_args("42", "rebase", "", true).unwrap(),
+            vec!["pr", "merge", "42", "--rebase", "--admin"]
         );
-        assert!(merge_args("42", "octopus", "").is_err());
+        assert!(merge_args("42", "octopus", "", false).is_err());
     }
 
     #[test]

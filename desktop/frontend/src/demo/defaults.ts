@@ -6,7 +6,7 @@ const NULL: string[] = [
   "accept_claude_pool_pick", "ack_terminal_data", "add_port_forward", "agent_last_answer", "allow_repo_commands",
   "agent_session_title", "apply_claude_limits", "apply_claude_statusline",
   "apply_claude_statusline_custom", "apply_codex_statusline", "attach_project",
-  "branch_commit_checks", "branch_pull_request", "pull_request_discussion", "pull_request_merge_offer", "browser_back", "browser_forward", "browser_reload", "inspect_browser",
+  "branch_commit_checks", "branch_pull_request", "pull_request_discussion", "pull_request_merge_offer", "merge_pull_request_when_ready", "cancel_pull_request_merge", "pull_request_merge_watch", "browser_back", "browser_forward", "browser_reload", "inspect_browser",
   "cancel_action_background", "cancel_file_download", "check_aicl_is", "check_claude_hooks", "check_for_update",
   "claude_limit_stop", "claude_pool_state", "claude_session_state", "claude_statusline_preset_spec", "clear_job_state",
   "clear_job_state_global", "clear_openai_key", "clear_port_suggestions", "close_browser",

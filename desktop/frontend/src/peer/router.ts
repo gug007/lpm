@@ -122,6 +122,8 @@ export const GLOBAL_PEER_EVENTS = new Set<string>([
   "projects-changed",
   "status-changed",
   "git-changed",
+  // A pull request armed to merge once its checks pass: { path: projectRoot, … }.
+  "pr-merge-watch",
   "ports-changed",
   "port-auto-forwarded",
   "port-forward-failed",
@@ -418,7 +420,8 @@ export function translatePeerEventPayload(
       // Payload is the bare project name.
       return typeof payload === "string" ? prefixName(slug, payload) : payload;
     case "git-changed":
-      // { path: projectRoot, files: string[] | null }
+    case "pr-merge-watch":
+      // { path: projectRoot, … }
       if (payload && typeof payload === "object") {
         const p = payload as { path?: unknown };
         if (typeof p.path === "string") {

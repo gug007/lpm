@@ -11,18 +11,25 @@ const mocks = vi.hoisted(() => ({
   error: vi.fn(),
   offer: vi.fn(),
   merge: vi.fn(),
+  whenReady: vi.fn(),
+  cancel: vi.fn(),
+  watch: vi.fn(),
 }));
 vi.mock("../../bridge/runtime", () => ({ BrowserOpenURL: (url: string) => mocks.open(url) }));
 vi.mock("../../bridge/commands", async (original) => ({
   ...(await original<typeof import("../../bridge/commands")>()),
   PullRequestMergeOffer: mocks.offer,
   MergePullRequest: mocks.merge,
+  MergePullRequestWhenReady: mocks.whenReady,
+  CancelPullRequestMerge: mocks.cancel,
+  PullRequestMergeWatch: mocks.watch,
 }));
 vi.mock("../ciFix", () => ({ startFix: mocks.ask }));
 vi.mock("../notifications/toast", () => ({ toast: { success: mocks.success, error: mocks.error } }));
 
 import { prLook } from "../prLook";
 import { useBranchPr } from "../store/branchPr";
+import { usePrMergeWatch } from "../store/prMergeWatch";
 import { BranchPrLink } from "./BranchPrLink";
 
 const PR: PullRequestInfo = {
@@ -47,6 +54,7 @@ afterEach(() => {
   container.remove();
   for (const mock of Object.values(mocks)) mock.mockReset();
   localStorage.clear();
+  usePrMergeWatch.setState({ watches: {} });
 });
 
 const buttonByText = (text: string) =>
@@ -157,8 +165,9 @@ describe("BranchPrLink", () => {
     });
     const text = () => document.body.textContent ?? "";
 
-    async function openCard(answer: PullRequestMergeInfo | null) {
+    async function openCard(answer: PullRequestMergeInfo | null, armed: unknown = null) {
       mocks.offer.mockResolvedValue(answer);
+      mocks.watch.mockResolvedValue(armed);
       // As the app runs: effects mount, unmount and mount again.
       act(() =>
         root.render(
@@ -182,12 +191,12 @@ describe("BranchPrLink", () => {
       expect(buttonByText("Squash and merge")!.disabled).toBe(false);
       expect(useBranchPr.getState().entries["/p"]).toMatchObject({ branch: "feat/labels", pr: { state: "OPEN" } });
 
-      act(() => document.querySelector<HTMLButtonElement>('[aria-label="Merge method"]')!.click());
+      act(() => document.querySelector<HTMLButtonElement>('[aria-label="When and how to merge"]')!.click());
       act(() => buttonByText("Rebase and merge")!.click());
       expect(localStorage.getItem("lpm.prMerge.method")).toBe("rebase");
       await act(async () => buttonByText("Rebase and merge")!.click());
 
-      expect(mocks.merge).toHaveBeenCalledWith("/p", 128, "rebase", "9e7d031", true);
+      expect(mocks.merge).toHaveBeenCalledWith("/p", 128, "rebase", "9e7d031", true, false);
       expect(mocks.success).toHaveBeenCalledWith("Merged #128", {
         description: "Its branch was deleted on GitHub. This checkout stays on feat/labels.",
       });
@@ -200,14 +209,14 @@ describe("BranchPrLink", () => {
       await openCard(offer());
       act(() => document.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
       await act(async () => buttonByText("Squash and merge")!.click());
-      expect(mocks.merge).toHaveBeenCalledWith("/p", 128, "squash", "9e7d031", false);
+      expect(mocks.merge).toHaveBeenCalledWith("/p", 128, "squash", "9e7d031", false, false);
 
       act(() => root.unmount());
       root = createRoot(container);
       await openCard(offer({ deletesBranch: true, methods: ["squash"] }));
       expect(text()).toContain("GitHub deletes the branch once it's merged.");
       expect(document.querySelector('input[type="checkbox"]')).toBeNull();
-      expect(document.querySelector('[aria-label="Merge method"]')).toBeNull();
+      expect(document.querySelector('[aria-label="When and how to merge"]')).toBeNull();
     });
 
     it("holds the merge back and says why", async () => {
@@ -232,6 +241,78 @@ describe("BranchPrLink", () => {
       expect(buttonByText("Squash and merge")!.disabled).toBe(false);
       expect(mocks.success).not.toHaveBeenCalled();
       expect(mocks.error).not.toHaveBeenCalled();
+    });
+
+    const running = [
+      { name: "test", workflow: "CI", state: "pass" as const, url: "" },
+      { name: "smoke", workflow: "CI", state: "pending" as const, url: "" },
+    ];
+    const menu = () => act(() => document.querySelector<HTMLButtonElement>('[aria-label="When and how to merge"]')!.click());
+
+    it("waits for running checks: arms, says what it will do, and cancels", async () => {
+      mocks.whenReady.mockResolvedValue(undefined);
+      mocks.cancel.mockResolvedValue(undefined);
+      await openCard(offer({ state: "BLOCKED", review: "" }, { checks: running }));
+      expect(text()).not.toContain("It can merge once every check has finished.");
+      await act(async () => buttonByText("Merge when checks pass")!.click());
+      expect(mocks.whenReady).toHaveBeenCalledWith("/p", 128, "Tables label visibility", "squash", true, false);
+      expect(text()).toContain("Merging when checks pass");
+      expect(text()).toContain(
+        "Squash and merge once the running checks pass, then delete the branch on GitHub. Stops if a check fails.",
+      );
+      expect(mocks.merge).not.toHaveBeenCalled();
+
+      await act(async () => buttonByText("Cancel")!.click());
+      expect(mocks.cancel).toHaveBeenCalledWith("/p");
+      expect(buttonByText("Merge when checks pass")).toBeDefined();
+    });
+
+    it("merges now without waiting when GitHub would", async () => {
+      mocks.merge.mockResolvedValue(true);
+      await openCard(offer({ state: "UNSTABLE" }, { checks: running }));
+      menu();
+      expect(text()).toContain("lpm merges once the running check passes");
+      act(() => buttonByText("Now")!.click());
+      await act(async () => buttonByText("Squash and merge")!.click());
+      expect(mocks.merge).toHaveBeenCalledWith("/p", 128, "squash", "9e7d031", true, false);
+      expect(mocks.whenReady).not.toHaveBeenCalled();
+    });
+
+    it("bypasses the rules only when picked, as GitHub does", async () => {
+      mocks.merge.mockResolvedValue(true);
+      await openCard(offer({ state: "BLOCKED", review: "", canBypass: true }));
+      expect(text()).toContain("You can bypass them from the arrow beside the merge button.");
+      expect(buttonByText("Squash and merge")!.disabled).toBe(true);
+      menu();
+      act(() => buttonByText("Bypass requirements")!.click());
+      await act(async () => buttonByText("Bypass rules and merge")!.click());
+      expect(mocks.merge).toHaveBeenCalledWith("/p", 128, "squash", "9e7d031", true, true);
+    });
+
+    it("arms with the bypass when GitHub allows it, and says so", async () => {
+      mocks.whenReady.mockResolvedValue(undefined);
+      await openCard(offer({ state: "BLOCKED", review: "", canBypass: true }, { checks: running }));
+      menu();
+      expect(text()).toContain("bypassing the rules on main if they still block it");
+      expect(buttonByText("Bypass requirements")).toBeDefined();
+      act(() => buttonByText("When checks pass")!.click());
+      await act(async () => buttonByText("Merge when checks pass")!.click());
+      expect(mocks.whenReady).toHaveBeenCalledWith("/p", 128, "Tables label visibility", "squash", true, true);
+    });
+
+    it("shows a wait armed before the card opened", async () => {
+      await openCard(offer({ state: "BLOCKED", review: "" }, { checks: running }), {
+        path: "/host/p",
+        number: 128,
+        title: "Tables label visibility",
+        method: "rebase",
+        deleteBranch: false,
+        bypass: false,
+        state: "waiting",
+        deletedBranch: false,
+      });
+      expect(text()).toContain("Rebase and merge once the running checks pass. Stops if a check fails.");
+      expect(usePrMergeWatch.getState().watches["/p"]?.method).toBe("rebase");
     });
 
     it("falls back to GitHub when it can't say", async () => {
