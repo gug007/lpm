@@ -145,22 +145,33 @@ describe("uncaught errors", () => {
     expect(heard.mock.calls[0][0].event).toBe("window.unhandled_rejection");
   });
 
-  it("reports errors, except the terminal renderer rebuilding on a lost GPU", () => {
+  it("reports errors, except the terminal renderer losing the GPU", () => {
+    const dispatch = (error: Error) =>
+      window.dispatchEvent(Object.assign(new Event("error"), { error, message: error.message }));
     const fail = (message: string, stack: string) => {
       const error = new Error(message);
       error.stack = `Error: ${message}\n${stack}`;
-      window.dispatchEvent(Object.assign(new Event("error"), { error, message }));
+      dispatch(error);
+    };
+    const unreadable = (stack: string) => {
+      const error = new DOMException("The object is in an invalid state.", "InvalidStateError");
+      error.stack = stack;
+      dispatch(error);
     };
 
     fail(
       "value must not be falsy",
       "T@tauri://localhost/assets/addon-webgl-BzUHyRKl.js:1:5998\n_initializeWebGLState@tauri://localhost/assets/addon-webgl-BzUHyRKl.js:58:16315",
     );
+    unreadable(
+      "getImageData@[native code]\n_drawToCache@tauri://localhost/assets/addon-webgl-BQ7i_L2W.js:1:197643\n@tauri://localhost/assets/addon-webgl-BQ7i_L2W.js:1:186436\n_process@tauri://localhost/assets/addon-webgl-BQ7i_L2W.js:1:179894",
+    );
     expect(heard).not.toHaveBeenCalled();
 
     fail("value must not be falsy", "render@tauri://localhost/assets/index.js:1:20");
-    expect(heard).toHaveBeenCalledTimes(1);
-    expect(heard.mock.calls[0][0].event).toBe("window.error");
+    unreadable("getImageData@[native code]\nsnapshot@tauri://localhost/assets/index.js:1:20");
+    expect(heard).toHaveBeenCalledTimes(2);
+    expect(heard.mock.calls.map(([report]) => report.event)).toEqual(["window.error", "window.error"]);
   });
 });
 

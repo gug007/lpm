@@ -218,13 +218,17 @@ function isEditorCancellation(reason: unknown): boolean {
 }
 
 // xterm's WebGL renderer rebuilds itself when the webview hands back a lost GPU
-// context, and throws if the GPU process goes away again halfway through. The
-// terminal keeps drawing afterwards.
-function isTerminalRendererRebuild(error: unknown): boolean {
+// context, and throws if the GPU process goes away again halfway through. Its
+// glyph atlas reads every glyph back from a scratch canvas, and WebKit throws
+// InvalidStateError when it can't read that canvas back, as when the GPU process
+// is gone; the glyph is drawn again the next time it's needed. The terminal
+// keeps drawing afterwards.
+function isTerminalRendererGpuLoss(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const stack = error.stack ?? "";
   return (
-    error instanceof Error &&
-    error.message === "value must not be falsy" &&
-    (error.stack ?? "").includes("_initializeWebGLState")
+    (error.message === "value must not be falsy" && stack.includes("_initializeWebGLState")) ||
+    (error.name === "InvalidStateError" && stack.includes("_drawToCache"))
   );
 }
 
@@ -234,7 +238,7 @@ export function initializeDiagnostics(surface: string): void {
   initialized = true;
 
   window.addEventListener("error", (event) => {
-    if (isTerminalRendererRebuild(event.error)) return;
+    if (isTerminalRendererGpuLoss(event.error)) return;
     reportError("window.error", event.error ?? event.message, {
       filename: event.filename,
       line: event.lineno,
