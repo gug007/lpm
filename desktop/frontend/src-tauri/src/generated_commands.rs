@@ -126,6 +126,8 @@ macro_rules! all_command_handlers {
             recent_commit_checks,
             rerun_failed_checks,
             pull_request_discussion,
+            pull_request_merge_offer,
+            merge_pull_request,
             create_ssh_project,
             create_template,
             delete_branch,

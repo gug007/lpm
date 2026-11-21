@@ -65,7 +65,9 @@ export function TerminalFooter({
         onContextMenu={onActionContextMenu}
         onZoneContextMenu={onZoneContextMenu}
       >
-        {pullRequest && <BranchPrLink pr={pullRequest} projectName={projectName} projectPath={projectPath} />}
+        {pullRequest && (
+          <BranchPrLink pr={pullRequest} branch={branch} projectName={projectName} projectPath={projectPath} />
+        )}
         {isGitRepo && commit && (
           <BranchCiPill
             projectName={projectName}

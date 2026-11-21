@@ -490,6 +490,28 @@ export interface PullRequestInfo {
   fixPrompt?: string;
 }
 
+export type PrMergeMethod = "merge" | "squash" | "rebase";
+
+// How GitHub stands on merging an open pull request, in its own words, with
+// the methods the repository allows (pull_request_merge.rs; the phone gets the
+// same object).
+export interface PrMergeOffer {
+  mergeable: string;
+  state: string;
+  review: string;
+  head: string;
+  base?: string;
+  methods: PrMergeMethod[];
+  // GitHub deletes the branch by itself once it's merged.
+  deletesBranch: boolean;
+}
+
+export interface PullRequestMergeInfo extends PullRequestInfo {
+  merge: PrMergeOffer;
+  // What a Resolve with … agent is told while it conflicts with its base.
+  resolvePrompt?: string;
+}
+
 export const MEMORY_CHANGED_EVENT = "memory-changed";
 
 export interface MemorySession {

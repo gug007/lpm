@@ -287,6 +287,12 @@ export function RerunFailedChecks(cwd, runIds) {
 export function PullRequestDiscussion(cwd) {
   return invoke("pull_request_discussion", { cwd });
 }
+export function PullRequestMergeOffer(cwd) {
+  return invoke("pull_request_merge_offer", { cwd });
+}
+export function MergePullRequest(cwd, number, method, head, deleteBranch) {
+  return invoke("merge_pull_request", { cwd, number, method, head, deleteBranch });
+}
 export function CreatePullRequest(cwd, title, body, base, draft) {
   return invoke("create_pull_request", { cwd, title, body, base, draft });
 }

@@ -18,6 +18,8 @@ interface BranchPrState {
   entries: Record<string, BranchPrEntry>;
   setEntry: (projectPath: string, entry: BranchPrEntry) => void;
   markRerun: (projectPath: string, runIds: string[]) => void;
+  /** The PR just merged from here, until the next lookup says so itself. */
+  markMerged: (projectPath: string) => void;
 }
 
 export const useBranchPr = create<BranchPrState>((set) => ({
@@ -32,6 +34,13 @@ export const useBranchPr = create<BranchPrState>((set) => ({
         v.checks ? { ...v, checks: markRerunning(v.checks, runIds) } : v;
       const next = { ...entry, pr: entry.pr && rerun(entry.pr), commit: entry.commit && rerun(entry.commit) };
       return { entries: { ...s.entries, [projectPath]: next } };
+    }),
+  markMerged: (projectPath) =>
+    set((s) => {
+      const entry = s.entries[projectPath];
+      if (!entry?.pr) return s;
+      const pr = { ...entry.pr, state: "MERGED" as const };
+      return { entries: { ...s.entries, [projectPath]: { ...entry, pr } } };
     }),
 }));
 
