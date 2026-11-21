@@ -1,35 +1,36 @@
 import type { KeepAwakeStatus } from "../keepAwake";
 
-const LOOK: Record<KeepAwakeStatus, { label: string; pill: string; dot: string }> = {
+const LOOK: Record<KeepAwakeStatus, { label: string; text: string; dot: string }> = {
   off: {
     label: "Off",
-    pill: "bg-[var(--bg-hover)] text-[var(--text-muted)]",
+    text: "text-[var(--text-muted)]",
     dot: "bg-current",
   },
   waiting: {
     label: "Waiting",
-    pill: "text-[var(--text-secondary)] ring-1 ring-inset ring-[var(--border)]",
-    dot: "ring-[1.5px] ring-inset ring-current",
+    text: "text-[var(--text-secondary)]",
+    dot: "ring-[1.5px] ring-inset ring-[var(--accent-amber)]",
   },
   awake: {
     label: "Awake",
-    pill: "bg-[var(--accent-amber)]/15 text-[var(--accent-amber-text)]",
-    dot: "bg-current",
+    text: "text-[var(--text-secondary)]",
+    dot: "bg-[var(--accent-amber)]",
   },
   paused: {
     label: "Paused",
-    pill: "bg-[var(--accent-red)]/15 text-[var(--accent-red-text)]",
+    text: "text-[var(--accent-red-text)]",
     dot: "bg-current",
   },
 };
 
 // Off, Waiting, Awake or Paused, beside the Keep awake menu's title, so the
-// state reads without the sentence.
+// state reads without the sentence. Only the dot carries color: the cup and
+// the drain bar already say "on" in amber.
 export function KeepAwakeStatusPill({ status }: { status: KeepAwakeStatus }) {
   const look = LOOK[status];
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-[5px] whitespace-nowrap rounded-full py-0.5 pl-[7px] pr-2 text-[10.5px] font-semibold leading-[15px] ${look.pill}`}
+      className={`inline-flex shrink-0 items-center gap-[5px] whitespace-nowrap py-0.5 text-[10.5px] font-medium leading-[15px] ${look.text}`}
     >
       <span aria-hidden className={`h-1.5 w-1.5 rounded-full ${look.dot}`} />
       {look.label}

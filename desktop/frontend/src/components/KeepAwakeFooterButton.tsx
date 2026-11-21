@@ -1,24 +1,32 @@
 import type { ReactNode } from "react";
 import { type KeepAwakeSession, useKeepAwakeLeft, useKeepAwakeSpan } from "../hooks/useKeepAwakeSession";
-import { keepAwakeCup, keepAwakeCupLabel } from "../keepAwake";
-import { CoffeeIcon } from "./icons";
+import { keepAwakeCupLabel } from "../keepAwake";
+import { keepAwakeCup } from "../keepAwakeCup";
+import { KeepAwakeCupIcon } from "./KeepAwakeCupIcon";
 import { Tooltip } from "./ui/Tooltip";
 
-const RING_RADIUS = 12.5;
-const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
-
 const TONE = {
-  held: "text-[var(--accent-amber-text)]",
+  held: "text-[var(--text-primary)]",
+  ending: "text-[var(--accent-amber-text)]",
   ready: "text-[var(--text-muted)]",
   stopped: "text-[var(--text-muted)]",
 } as const;
 
+const TEXT_TONE = {
+  held: "font-semibold text-[var(--text-secondary)]",
+  ending: "font-semibold",
+  ready: "font-medium",
+  stopped: "font-medium",
+} as const;
+
 // The footer's own button while Keep awake is on and its row is folded into
-// More, so the state isn't hidden behind a menu. A dim cup is ready for the
-// next agent; an amber one holds the machine, with how many agents hold it or
-// the time left after them beside it, or a ring that drains with a set time; a
-// gray one with "!" is on but can't hold. Resting on it shows `card`, and a
-// click opens the whole menu.
+// More, so the state isn't hidden behind a menu. Holding, the cup is the text
+// color with coffee that drains with the time left, and beside it how many
+// agents hold it or the time left; it turns amber only in the last five
+// minutes, with the heads-up toast. An empty gray cup is on but not holding:
+// waiting for an agent, or with a battery or "!" on its corner when it can't.
+// Connected computers kept awake are counted beside it. Resting on it shows
+// `card`, and a click opens the whole menu.
 export function KeepAwakeFooterButton({
   session,
   othersOn,
@@ -38,13 +46,14 @@ export function KeepAwakeFooterButton({
   const { state, endsAt } = session;
   const left = useKeepAwakeLeft(endsAt);
   const total = useKeepAwakeSpan(endsAt);
-  const look = keepAwakeCup(state, left, othersOn);
+  const look = keepAwakeCup(state, left, total, othersOn);
   if (!look) return null;
-  const ring = look.ring && left !== null && total !== null ? Math.min(1, left / total) : null;
   const localOn = state !== null && state.mode !== "off";
+  const others = `${othersOn} ${othersOn === 1 ? "other computer" : "other computers"} kept awake`;
   const label = localOn
-    ? keepAwakeCupLabel(state, left)
-    : `${othersOn} ${othersOn === 1 ? "other computer" : "other computers"} kept awake`;
+    ? `${keepAwakeCupLabel(state, left)}${othersOn > 0 ? `, ${others}` : ""}`
+    : others;
+  const wide = look.text !== null || look.others > 0;
 
   return (
     <Tooltip content={card} side="top" wide interactive delay={150} triggerClassName="inline-flex shrink-0">
@@ -53,44 +62,47 @@ export function KeepAwakeFooterButton({
         onClick={(e) => onToggleMenu(e.currentTarget)}
         aria-expanded={menuOpen}
         aria-label={`Keep awake: ${label}`}
-        className={`${className} relative gap-1 ${look.text ? "w-auto min-w-9 px-2" : ""} ${TONE[look.tone]} ${
-          look.tone === "ready" ? "border border-dashed border-[var(--border)]" : ""
-        } ${
+        className={`${className} gap-1.5 ${wide ? "w-auto min-w-9 px-2" : ""} ${TONE[look.tone]} ${
           menuOpen ? "bg-[var(--bg-active)]" : "hover:bg-[var(--bg-hover)]"
         }`}
       >
-        {ring !== null && (
-          <svg
-            width="28"
-            height="28"
-            viewBox="0 0 28 28"
-            aria-hidden="true"
-            className="absolute inset-0 m-auto -rotate-90"
-          >
-            <circle cx="14" cy="14" r={RING_RADIUS} fill="none" stroke="currentColor" strokeOpacity={0.25} strokeWidth={1.5} />
-            <circle
-              cx="14"
-              cy="14"
-              r={RING_RADIUS}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              strokeLinecap="round"
-              strokeDasharray={RING_LENGTH}
-              strokeDashoffset={RING_LENGTH * (1 - ring)}
-              className="transition-[stroke-dashoffset] duration-1000 ease-linear motion-reduce:transition-none"
-            />
-          </svg>
-        )}
-        <CoffeeIcon awake={look.tone === "held"} />
+        <span className="relative flex">
+          <KeepAwakeCupIcon level={look.level} ending={look.tone === "ending"} />
+          {look.mark && (
+            <span
+              aria-hidden
+              className={`absolute -bottom-1 -right-1.5 flex h-[11px] min-w-[11px] items-center justify-center rounded-full text-[8px] font-bold leading-none ring-[1.5px] ring-[var(--bg-sidebar)] ${
+                look.mark === "error"
+                  ? "bg-[var(--accent-amber)] text-[var(--bg-primary)]"
+                  : "bg-[var(--bg-active)] text-[var(--text-secondary)]"
+              }`}
+            >
+              {look.mark === "error" ? (
+                "!"
+              ) : (
+                <svg width="9" height="8" viewBox="0 0 13 12" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round">
+                  <rect x="1" y="3.2" width="9" height="5.6" rx="1.3" />
+                  <path d="M12 5.2v1.6M2 10.6 9.5 1.4" />
+                </svg>
+              )}
+            </span>
+          )}
+        </span>
         {look.text && (
+          <span aria-hidden className={`text-[11px] leading-none tabular-nums ${TEXT_TONE[look.tone]}`}>
+            {look.text}
+          </span>
+        )}
+        {look.others > 0 && (
           <span
             aria-hidden
-            className={`text-[11px] font-semibold leading-none tabular-nums ${
-              look.tone === "stopped" ? "text-[var(--accent-amber-text)]" : ""
-            }`}
+            className="flex items-center gap-0.5 text-[11px] font-semibold leading-none tabular-nums text-[var(--text-secondary)]"
           >
-            {look.text}
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round">
+              <rect x="1.2" y="1.8" width="9.6" height="6.4" rx="1.2" />
+              <path d="M4.2 10.4h3.6" />
+            </svg>
+            {look.others}
           </span>
         )}
       </button>

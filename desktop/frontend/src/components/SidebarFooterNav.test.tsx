@@ -306,7 +306,7 @@ describe("SidebarFooterNav", () => {
 describe("SidebarFooterNav Keep awake in the More menu", () => {
   const cup = () =>
     [...container.querySelectorAll("button")].find((b) => b.getAttribute("aria-label")?.startsWith("Keep awake:"));
-  const ring = () => cup()?.querySelectorAll("circle").length === 2;
+  const coffee = () => cup()?.querySelector('path[stroke="none"]') != null;
 
   it("gives the footer its own keep-awake button while it keeps the machine awake", async () => {
     mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "always", active: true, power: "awake" });
@@ -317,7 +317,8 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
     expect(cup()!.getAttribute("aria-label")).toBe("Keep awake: until you turn it off");
     expect(moreButton()!.contains(cup()!)).toBe(false);
     expect(moreButton()!.title).not.toContain("awake");
-    expect(ring()).toBe(false);
+    expect(coffee()).toBe(true);
+    expect(cup()!.className).not.toContain("accent-amber");
   });
 
   it("counts the agents that hold it on the button", async () => {
@@ -326,17 +327,18 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
     await act(async () => {});
 
     expect(cup()!.getAttribute("aria-label")).toBe("Keep awake: 2 agents working");
-    expect(cup()!.textContent).toBe("2");
-    expect(ring()).toBe(false);
+    expect(cup()!.textContent).toBe("2 agents");
+    expect(coffee()).toBe(true);
   });
 
-  it("drains a ring while a set time runs", async () => {
+  it("fills the cup and says the time left while a set time runs", async () => {
     mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "timed", active: true, endsIn: 42 * 60_000 });
     renderNav();
     await act(async () => {});
 
     expect(cup()!.getAttribute("aria-label")).toBe("Keep awake: 42 min left");
-    expect(ring()).toBe(true);
+    expect(cup()!.textContent).toBe("42m");
+    expect(coffee()).toBe(true);
   });
 
   it("leaves the button to the row while the row sits in the sidebar", async () => {
@@ -450,14 +452,15 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
     expect(cup()).toBeUndefined();
   });
 
-  it("shows a dim cup while it waits for the next agent", async () => {
+  it("shows an empty gray cup while it waits for the next agent", async () => {
     mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "agents", active: false });
     renderNav();
     await act(async () => {});
 
     expect(cup()!.getAttribute("aria-label")).toBe("Keep awake: ready for the next agent");
-    expect(cup()!.className).toContain("border-dashed");
+    expect(cup()!.className).not.toContain("border-dashed");
     expect(cup()!.textContent).toBe("");
+    expect(coffee()).toBe(false);
   });
 
   it("shows the time left after the last agent beside the cup", async () => {
@@ -466,7 +469,7 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
     await act(async () => {});
 
     expect(cup()!.textContent).toMatch(/^4:3[12]$/);
-    expect(ring()).toBe(false);
+    expect(cup()!.className).toContain("accent-amber");
   });
 
   it("marks a cup that is on but can't hold", async () => {
@@ -474,7 +477,8 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
     renderNav();
     await act(async () => {});
 
-    expect(cup()!.textContent).toBe("!");
+    expect(cup()!.textContent).toBe("");
+    expect(coffee()).toBe(false);
     expect(cup()!.getAttribute("aria-label")).toBe("Keep awake: on battery, so not held");
   });
 
@@ -490,6 +494,8 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
     await act(async () => {});
 
     expect(cup()!.getAttribute("aria-label")).toBe("Keep awake: 1 other computer kept awake");
+    expect(cup()!.textContent).toBe("1");
+    expect(coffee()).toBe(false);
     act(() => {
       cup()!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
       cup()!.click();
@@ -503,6 +509,11 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
 
     act(() => (tabs[0] as HTMLButtonElement).click());
     expect(menu().textContent).toContain("Keep this Mac awake");
+
+    act(() => (menu().querySelectorAll('[role="tab"]')[1] as HTMLButtonElement).click());
+    expect(menu().textContent).toContain("Keep Studio awake");
+    expect(menu().textContent).not.toContain("Loading");
+    expect(menu().textContent).toContain("For a set time");
   });
 
   it("leaves out a connected computer that can't be kept awake", async () => {
@@ -552,12 +563,12 @@ describe("SidebarFooterNav Keep awake in the sidebar", () => {
     expect(buttonWithText("Keep awake")!.textContent).toContain("2 agents");
   });
 
-  it("counts down a set time on the row", async () => {
+  it("says the time left of a set time on the row", async () => {
     mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "timed", active: true, endsIn: 90 * 60_000 });
     renderNav();
     await act(async () => {});
 
-    expect(buttonWithText("Keep awake")!.textContent).toMatch(/1:(30|29):\d\d/);
+    expect(buttonWithText("Keep awake")!.textContent).toMatch(/1h (30|29)m$/);
   });
 
   it("opens its menu from the row and turns it on until turned off", async () => {

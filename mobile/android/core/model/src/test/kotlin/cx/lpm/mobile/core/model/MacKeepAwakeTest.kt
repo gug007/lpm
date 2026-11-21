@@ -101,6 +101,11 @@ class MacKeepAwakeTest {
         assertEquals("4:59", tail.badge(299.0))
         assertEquals("Agents", base.copy(mode = MacKeepAwake.Mode.Agents).badge(null))
         assertEquals("On", base.copy(mode = MacKeepAwake.Mode.Always, active = true).badge(null))
+        val timed = base.copy(mode = MacKeepAwake.Mode.Timed, active = true)
+        assertEquals("1h 42m", timed.badge(101 * 60.0 + 30))
+        assertEquals("2h", timed.badge(7200.0))
+        assertEquals("42m", timed.badge(41 * 60.0 + 30))
+        assertEquals("10:00", timed.badge(600.0))
     }
 
     @Test

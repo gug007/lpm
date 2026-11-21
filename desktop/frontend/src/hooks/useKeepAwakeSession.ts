@@ -55,11 +55,16 @@ export interface KeepAwakeSession {
   setPrefs: (prefs: KeepAwakePrefs) => void;
 }
 
-/** Keep awake on this machine (`slug` null) or a connected one, kept live. */
-export function useKeepAwakeSession(slug: string | null, enabled = true): KeepAwakeSession {
+/** Keep awake on this machine (`slug` null) or a connected one, kept live.
+ *  `seed` is what is already known of it, shown until the machine answers. */
+export function useKeepAwakeSession(
+  slug: string | null,
+  enabled = true,
+  seed: { state: State; endsAt: number | null } | null = null,
+): KeepAwakeSession {
   const source = useMemo(() => keepAwakeSource(slug), [slug]);
-  const [state, setState] = useState<State | null>(null);
-  const [endsAt, setEndsAt] = useState<number | null>(null);
+  const [state, setState] = useState<State | null>(seed?.state ?? null);
+  const [endsAt, setEndsAt] = useState<number | null>(seed?.endsAt ?? null);
   const [error, setError] = useState<string | null>(null);
 
   const take = useCallback((raw: unknown) => {

@@ -11,6 +11,10 @@ const REREAD_MS = 5_000;
 
 type Lid = "none" | "sleeps" | "stays" | "unknown";
 
+// The last answer from each machine, so the note is there at once when the
+// menu or a computer's tab opens again, and only changes if the answer does.
+const lastLid = new Map<string, Lid>();
+
 function readLid(raw: unknown): Lid {
   const lid = ((raw ?? {}) as Record<string, unknown>).lid;
   return lid === "none" || lid === "sleeps" || lid === "stays" ? lid : "unknown";
@@ -22,14 +26,19 @@ function readLid(raw: unknown): Lid {
 // Anywhere else, and on a connected computer whose lpm can't say, the general
 // sentence.
 export function KeepAwakeLidNote({ slug, on }: { slug: string | null; on: boolean }) {
-  const [lid, setLid] = useState<Lid | null>(null);
+  const key = slug ?? "";
+  const [lid, setLid] = useState<Lid | null>(() => lastLid.get(key) ?? null);
 
   useEffect(() => {
     let live = true;
+    const take = (next: Lid) => {
+      lastLid.set(key, next);
+      if (live) setLid(next);
+    };
     const read = () =>
       (slug ? PeerInvoke(slug, "keep_awake_lid", {}) : KeepAwakeLid()).then(
-        (raw: unknown) => live && setLid(readLid(raw)),
-        () => live && setLid("unknown"),
+        (raw: unknown) => take(readLid(raw)),
+        () => take("unknown"),
       );
     void read();
     const timer = window.setInterval(() => void read(), REREAD_MS);
@@ -37,7 +46,7 @@ export function KeepAwakeLidNote({ slug, on }: { slug: string | null; on: boolea
       live = false;
       window.clearInterval(timer);
     };
-  }, [slug]);
+  }, [slug, key]);
 
   if (!lid || lid === "none") return null;
   if (lid === "unknown") {
@@ -48,10 +57,10 @@ export function KeepAwakeLidNote({ slug, on }: { slug: string | null; on: boolea
   const fine = lid === "stays";
   return (
     <p
-      className={`mx-2 mb-0.5 mt-1 flex items-start gap-[7px] rounded-md px-2 py-1.5 text-[11px] leading-snug ${
+      className={`mx-1 mb-0.5 mt-1.5 flex items-start gap-2 rounded-md px-2 py-1.5 text-[11px] leading-snug ${
         fine
           ? "bg-[var(--accent-green)]/12 text-[var(--accent-green-text)]"
-          : "bg-[var(--accent-amber)]/15 text-[var(--accent-amber-text)]"
+          : "bg-[var(--bg-hover)] text-[var(--text-secondary)]"
       }`}
     >
       <svg
@@ -64,7 +73,7 @@ export function KeepAwakeLidNote({ slug, on }: { slug: string | null; on: boolea
         strokeLinecap="round"
         strokeLinejoin="round"
         aria-hidden="true"
-        className="mt-px shrink-0"
+        className={`mt-px shrink-0 ${fine ? "" : "text-[var(--accent-amber-text)]"}`}
       >
         {fine ? (
           <>

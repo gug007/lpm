@@ -12,7 +12,7 @@ export function KeepAwakeMachineTabs({
   onPick: (slug: string | null) => void;
 }) {
   return (
-    <div role="tablist" aria-label="Computers" className="flex flex-wrap gap-1 px-3 pb-1 pt-1.5">
+    <div role="tablist" aria-label="Computers" className="flex flex-wrap gap-1 px-3 pb-0.5 pt-2">
       {machines.map((m) => {
         const selected = m.slug === picked;
         const awake = m.reading?.state.active === true;
@@ -23,7 +23,7 @@ export function KeepAwakeMachineTabs({
             role="tab"
             aria-selected={selected}
             onClick={() => onPick(m.slug)}
-            className={`flex max-w-[150px] items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10.5px] outline-none transition-colors focus-visible:ring-1 focus-visible:ring-[var(--accent-cyan)]/60 ${
+            className={`flex min-w-0 max-w-full items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10.5px] outline-none transition-colors focus-visible:ring-1 focus-visible:ring-[var(--accent-cyan)]/60 ${
               selected
                 ? "border-[var(--border)] bg-[var(--bg-active)] font-semibold text-[var(--text-primary)]"
                 : "border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"

@@ -157,37 +157,28 @@ export function keepAwakeCupLabel(state: KeepAwakeState, left: number | null): s
   return "until you turn it off";
 }
 
-export interface KeepAwakeCupLook {
-  /** Held: amber. Ready: on, waiting for an agent. Stopped: on, but not held. */
-  tone: "held" | "ready" | "stopped";
-  /** Beside the cup: how many agents hold it, or the time left after them. */
-  text: string | null;
-  /** A ring that drains with a set time. */
-  ring: boolean;
+const SECONDS_SHOWN_MS = 10 * 60_000;
+
+/** Time left the way the sidebar says it: "1h 42m", "42m", then "4:32" in the
+ *  last ten minutes, so it changes once a minute until the seconds matter. */
+export function shortLeft(ms: number): string {
+  if (ms <= SECONDS_SHOWN_MS) return clock(ms);
+  const minutes = Math.ceil(ms / 60_000);
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}m`;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
-/** How the footer's cup looks for this machine's state, or with this one off,
- *  for `othersOn` connected ones that are on; null when there's nothing to show. */
-export function keepAwakeCup(state: KeepAwakeState | null, left: number | null, othersOn: number): KeepAwakeCupLook | null {
-  if (!state || state.mode === "off") return othersOn > 0 ? { tone: "held", text: null, ring: false } : null;
-  if (keepAwakeStopped(state)) return { tone: "stopped", text: "!", ring: false };
-  if (!state.active) return { tone: "ready", text: null, ring: false };
-  if (state.mode === "agents") {
-    if (state.agents > 0) return { tone: "held", text: state.agents > 9 ? "9+" : String(state.agents), ring: false };
-    return { tone: "held", text: left !== null ? clock(left) : null, ring: false };
-  }
-  return { tone: "held", text: null, ring: state.mode === "timed" && left !== null };
-}
-
-/** The short text beside the sidebar row: "2 agents", "4:32", "On". */
+/** The short text beside the sidebar row: "2 agents", "1h 42m", "On". */
 export function keepAwakeBadge(state: KeepAwakeState | null, left: number | null): string | null {
   if (!state || state.mode === "off") return null;
   switch (state.mode) {
     case "agents":
       if (state.agents > 0) return agents(state.agents);
-      return left !== null ? clock(left) : "Agents";
+      return left !== null ? shortLeft(left) : "Agents";
     case "timed":
-      return clock(left ?? 0);
+      return shortLeft(left ?? 0);
     default:
       return "On";
   }

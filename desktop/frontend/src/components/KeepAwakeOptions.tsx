@@ -1,8 +1,10 @@
 import { FLOOR_CHOICES, type KeepAwakePrefs, type KeepAwakeState } from "../keepAwake";
+import { KeepAwakeCheckbox } from "./KeepAwakeCheckbox";
 import { KA_FIELD } from "./keepAwakeStyles";
 
 const ROW =
-  "mx-1 flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-[var(--bg-hover)]";
+  "group mx-1 flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-[var(--bg-hover)]";
+const label = (on: boolean) => (on ? "text-[var(--text-primary)]" : "");
 
 // How Keep awake holds, whichever mode is on: the screen too, and on battery.
 // Each whole row toggles its checkbox; the battery level field inside its row
@@ -17,24 +19,20 @@ export function KeepAwakeOptions({
   return (
     <div className="flex flex-col gap-0.5 py-1 text-[11px] text-[var(--text-secondary)]">
       {state.screenSupported && (
-        <label className={`${ROW} min-h-[29px]`}>
-          <input
+        <label className={`${ROW} min-h-[29px] ${label(state.screen)}`}>
+          <KeepAwakeCheckbox
             id="keep-awake-screen"
-            type="checkbox"
             checked={state.screen}
-            onChange={(e) => onChange({ screen: e.target.checked })}
-            className="accent-[var(--accent-amber)]"
+            onChange={(screen) => onChange({ screen })}
           />
           Keep the screen on too
         </label>
       )}
-      <label className={ROW}>
-        <input
+      <label className={`${ROW} ${label(state.battery)}`}>
+        <KeepAwakeCheckbox
           id="keep-awake-battery"
-          type="checkbox"
           checked={state.battery}
-          onChange={(e) => onChange({ battery: e.target.checked })}
-          className="accent-[var(--accent-amber)]"
+          onChange={(battery) => onChange({ battery })}
         />
         On battery too, until
         <select

@@ -59,10 +59,10 @@ data class MacKeepAwake(
 
         Mode.Agents -> when {
             agents > 0 -> if (agents == 1) "1 agent" else "$agents agents"
-            else -> leftSeconds?.let(::clock) ?: "Agents"
+            else -> leftSeconds?.let(::shortLeft) ?: "Agents"
         }
 
-        Mode.Timed -> clock(leftSeconds ?: 0.0)
+        Mode.Timed -> shortLeft(leftSeconds ?: 0.0)
 
         Mode.Always -> "On"
     }
@@ -142,6 +142,16 @@ data class MacKeepAwake(
             val m = (total % 3600) / 60
             val s = total % 60
             return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
+        }
+
+        /** "1h 42m", "42m", then "4:32" in the last ten minutes, as the Mac's sidebar says it. */
+        fun shortLeft(seconds: Double): String {
+            if (seconds <= 600) return clock(seconds)
+            val minutes = ceil(seconds / 60).toInt()
+            val h = minutes / 60
+            val m = minutes % 60
+            if (h == 0) return "${m}m"
+            return if (m == 0) "${h}h" else "${h}h ${m}m"
         }
 
         /** "45 min", "2 h", "1 h 30 min". */

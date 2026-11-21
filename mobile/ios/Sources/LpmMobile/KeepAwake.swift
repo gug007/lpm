@@ -44,14 +44,14 @@ struct MacKeepAwake: Equatable {
     /// Holding now.
     var isOn: Bool { mode != .off && active }
 
-    /// The short text beside the Mac's name: "2 agents", "4:32", "On".
+    /// The short text beside the Mac's name: "2 agents", "1h 42m", "On".
     func badge(left: TimeInterval?) -> String? {
         switch mode {
         case .off: return nil
         case .agents:
             if agents > 0 { return agents == 1 ? "1 agent" : "\(agents) agents" }
-            return left.map(Self.clock) ?? "Agents"
-        case .timed: return Self.clock(left ?? 0)
+            return left.map(Self.shortLeft) ?? "Agents"
+        case .timed: return Self.shortLeft(left ?? 0)
         case .always: return "On"
         }
     }
@@ -95,6 +95,16 @@ struct MacKeepAwake: Equatable {
         let total = max(0, Int(seconds.rounded(.up)))
         let h = total / 3600, m = (total % 3600) / 60, s = total % 60
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
+    }
+
+    /// "1h 42m", "42m", then "4:32" in the last ten minutes, as the Mac's
+    /// sidebar says it.
+    static func shortLeft(_ seconds: TimeInterval) -> String {
+        if seconds <= 600 { return clock(seconds) }
+        let minutes = Int((seconds / 60).rounded(.up))
+        let h = minutes / 60, m = minutes % 60
+        if h == 0 { return "\(m)m" }
+        return m == 0 ? "\(h)h" : "\(h)h \(m)m"
     }
 
     /// "45 min", "2 h", "1 h 30 min".

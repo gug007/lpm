@@ -4,7 +4,6 @@ import {
   countdownSpan,
   customMinutes,
   keepAwakeBadge,
-  keepAwakeCup,
   keepAwakeCupLabel,
   keepAwakeStatus,
   keepAwakeSummary,
@@ -16,6 +15,7 @@ import {
   keepAwakeLine,
   keepAwakePowerNote,
   readKeepAwake,
+  shortLeft,
   span,
   tailChoices,
   tailLabel,
@@ -90,6 +90,17 @@ describe("tailChoices", () => {
   });
 });
 
+describe("shortLeft", () => {
+  it("says hours and minutes, then minutes, then the seconds in the last ten minutes", () => {
+    expect(shortLeft(101 * 60_000 + 1)).toBe("1h 42m");
+    expect(shortLeft(120 * 60_000)).toBe("2h");
+    expect(shortLeft(41 * 60_000 + 30_000)).toBe("42m");
+    expect(shortLeft(10 * 60_000 + 1)).toBe("11m");
+    expect(shortLeft(10 * 60_000)).toBe("10:00");
+    expect(shortLeft(272_000)).toBe("4:32");
+  });
+});
+
 describe("keepAwakeBadge", () => {
   it("says nothing while off", () => {
     expect(keepAwakeBadge(with_({}), null)).toBeNull();
@@ -106,7 +117,8 @@ describe("keepAwakeBadge", () => {
   });
 
   it("counts a set time down and reads On until turned off", () => {
-    expect(keepAwakeBadge(with_({ mode: "timed", active: true }), 3_600_000)).toBe("1:00:00");
+    expect(keepAwakeBadge(with_({ mode: "timed", active: true }), 3_600_000)).toBe("1h");
+    expect(keepAwakeBadge(with_({ mode: "timed", active: true }), 101 * 60_000 + 30_000)).toBe("1h 42m");
     expect(keepAwakeBadge(with_({ mode: "always", active: true }), null)).toBe("On");
   });
 });
@@ -208,28 +220,6 @@ describe("keepAwakeCupLabel", () => {
       "battery at 30% or less, so not held",
     );
     expect(keepAwakeCupLabel(with_({ mode: "timed", power: "failed" }), 60_000)).toBe("couldn't keep it awake");
-  });
-});
-
-describe("keepAwakeCup", () => {
-  it("shows nothing while off, unless a connected computer is on", () => {
-    expect(keepAwakeCup(with_({}), null, 0)).toBeNull();
-    expect(keepAwakeCup(null, null, 0)).toBeNull();
-    expect(keepAwakeCup(with_({}), null, 2)).toEqual({ tone: "held", text: null, ring: false });
-  });
-
-  it("is ready, holding with a count or the time left, or stopped", () => {
-    expect(keepAwakeCup(with_({ mode: "agents" }), null, 0)).toEqual({ tone: "ready", text: null, ring: false });
-    expect(keepAwakeCup(with_({ mode: "agents", active: true, agents: 3 }), null, 0)?.text).toBe("3");
-    expect(keepAwakeCup(with_({ mode: "agents", active: true, agents: 12 }), null, 0)?.text).toBe("9+");
-    expect(keepAwakeCup(with_({ mode: "agents", active: true }), 272_000, 0)).toEqual({
-      tone: "held",
-      text: "4:32",
-      ring: false,
-    });
-    expect(keepAwakeCup(with_({ mode: "timed", active: true }), 60_000, 0)).toEqual({ tone: "held", text: null, ring: true });
-    expect(keepAwakeCup(with_({ mode: "always", active: true }), null, 0)?.ring).toBe(false);
-    expect(keepAwakeCup(with_({ mode: "always", power: "low" }), null, 0)).toEqual({ tone: "stopped", text: "!", ring: false });
   });
 });
 

@@ -29,7 +29,6 @@ export function KeepAwakePanel({
       <KeepAwakeStatusHeader session={session} title={title} machine={machine} />
       {state?.supported && (
         <>
-          <ContextMenuSeparator />
           <div role="radiogroup" aria-label={title} className="flex flex-col gap-0.5">
             <KeepAwakeModeRow
               checked={state.mode === "off"}
