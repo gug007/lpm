@@ -19,8 +19,17 @@ struct KeepAwakeSection: View {
                 choice(.off, "Off", state)
                 choice(.agents, "While agents work", state)
                 Menu {
-                    ForEach(MacKeepAwake.presets, id: \.self) { minutes in
-                        Button(MacKeepAwake.presetTitle(minutes)) { store.set(.timed, minutes: minutes) }
+                    if state.mode == .timed {
+                        Section {
+                            ForEach(MacKeepAwake.extensions, id: \.self) { minutes in
+                                Button(MacKeepAwake.extendTitle(minutes)) { store.extend(minutes: minutes) }
+                            }
+                        }
+                    }
+                    Section {
+                        ForEach(MacKeepAwake.presets, id: \.self) { minutes in
+                            Button(MacKeepAwake.presetTitle(minutes)) { store.set(.timed, minutes: minutes) }
+                        }
                     }
                 } label: {
                     row("For a set time", checked: state.mode == .timed, trailing: "chevron.up.chevron.down")

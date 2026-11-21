@@ -211,6 +211,25 @@ pub(crate) fn parse_mode(name: &str, minutes: Option<u64>, now: i64) -> Result<M
     }
 }
 
+/// The minutes from `now` until the clock next reads `at` ("18:00", "9:30"):
+/// today while that's still ahead, else tomorrow.
+pub(crate) fn minutes_until(at: &str, now: chrono::NaiveDateTime) -> Result<u64, String> {
+    let bad = || format!("\"{at}\" isn't a time of day such as 18:00.");
+    let (hours, minutes) = at.split_once(':').ok_or_else(bad)?;
+    if hours.is_empty() || hours.len() > 2 || minutes.len() != 2 {
+        return Err(bad());
+    }
+    let hours = hours.parse::<u32>().map_err(|_| bad())?;
+    let minutes = minutes.parse::<u32>().map_err(|_| bad())?;
+    let time = chrono::NaiveTime::from_hms_opt(hours, minutes, 0).ok_or_else(bad)?;
+    let mut target = now.date().and_time(time);
+    if target <= now {
+        target += chrono::TimeDelta::days(1);
+    }
+    let seconds = (target - now).num_seconds();
+    Ok(((seconds + 59) / 60).max(1) as u64)
+}
+
 pub(crate) fn span_minutes(minutes: Option<u64>) -> Result<u64, String> {
     minutes
         .filter(|m| (1..=MAX_MINUTES).contains(m))

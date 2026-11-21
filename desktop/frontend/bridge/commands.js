@@ -879,6 +879,9 @@ export function KeepAwakeSet(mode, minutes) {
 export function KeepAwakeSetPrefs(prefs) {
   return invoke("keep_awake_set_prefs", { prefs });
 }
+export function KeepAwakeLid() {
+  return invoke("keep_awake_lid");
+}
 export function LoginItemState() {
   return invoke("login_item_state");
 }

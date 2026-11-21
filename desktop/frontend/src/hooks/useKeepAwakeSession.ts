@@ -15,7 +15,7 @@ import {
 import { useSecondsClock } from "./useSecondsClock";
 
 // Where a machine's Keep awake is read and changed: this one, or a connected one.
-interface KeepAwakeSource {
+export interface KeepAwakeSource {
   state: () => Promise<unknown>;
   set: (mode: KeepAwakeChoice, minutes?: number) => Promise<unknown>;
   setPrefs: (prefs: KeepAwakePrefs) => Promise<unknown>;
@@ -29,7 +29,9 @@ const LOCAL: KeepAwakeSource = {
   subscribe: (callback) => EventsOn(KEEP_AWAKE_CHANGED, callback),
 };
 
-function peerSource(slug: string): KeepAwakeSource {
+/** This machine's Keep awake (`slug` null), or a connected one's. */
+export function keepAwakeSource(slug: string | null): KeepAwakeSource {
+  if (!slug) return LOCAL;
   return {
     state: () => PeerInvoke(slug, "keep_awake_state", {}),
     set: (mode, minutes) => PeerInvoke(slug, "keep_awake_set", { mode, minutes }),
@@ -55,7 +57,7 @@ export interface KeepAwakeSession {
 
 /** Keep awake on this machine (`slug` null) or a connected one, kept live. */
 export function useKeepAwakeSession(slug: string | null, enabled = true): KeepAwakeSession {
-  const source = useMemo(() => (slug ? peerSource(slug) : LOCAL), [slug]);
+  const source = useMemo(() => keepAwakeSource(slug), [slug]);
   const [state, setState] = useState<State | null>(null);
   const [endsAt, setEndsAt] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);

@@ -280,6 +280,7 @@ export function RemoteSetKeepAwake(...args: any[]): Promise<any>;
 export function KeepAwakeState(...args: any[]): Promise<any>;
 export function KeepAwakeSet(...args: any[]): Promise<any>;
 export function KeepAwakeSetPrefs(...args: any[]): Promise<any>;
+export function KeepAwakeLid(...args: any[]): Promise<any>;
 export function LoginItemState(...args: any[]): Promise<any>;
 export function LoginItemSet(...args: any[]): Promise<any>;
 export function TailnetState(...args: any[]): Promise<any>;

@@ -1,8 +1,8 @@
-//! `lpm awake [agents|on|off|<time>|+<time>] [--then <time>] [--json]` — keep
-//! this machine awake through the running app, as its Keep awake menu does:
-//! while agents work and for a while after the last one finishes, for a set
-//! time, or until turned off. `+<time>` adds to the time left. With no argument
-//! it says what is on now.
+//! `lpm awake [agents|on|off|<time>|<HH:MM>|+<time>] [--then <time>] [--json]` —
+//! keep this machine awake through the running app, as its Keep awake menu
+//! does: while agents work and for a while after the last one finishes, for a
+//! set time or until a time of day, or until turned off. `+<time>` adds to the
+//! time left. With no argument it says what is on now.
 
 use crate::config::Ctx;
 use crate::control;
@@ -40,6 +40,7 @@ fn command_line(what: Option<&str>, then: Option<&str>) -> Result<String, RunErr
         Some("off") => "keep_awake off".to_string(),
         Some(time) => match time.strip_prefix('+') {
             Some(more) => format!("keep_awake extend {}", minutes(more)?),
+            None if time.contains(':') => format!("keep_awake until {}", clock_time(time)?),
             None => format!("keep_awake timed {}", minutes(time)?),
         },
     };
@@ -75,9 +76,23 @@ fn minutes_or_zero(text: &str) -> Result<u64, RunError> {
     Ok(hours * 60 + mins)
 }
 
+/// `18:00` or `9:30`, as the app reads it: the next time the clock shows it.
+fn clock_time(text: &str) -> Result<String, RunError> {
+    let text = text.trim();
+    let (hours, mins) = text.split_once(':').ok_or_else(|| usage(text))?;
+    let fits = |part: &str, max: u32, width: std::ops::RangeInclusive<usize>| {
+        width.contains(&part.len()) && part.parse::<u32>().is_ok_and(|n| n <= max)
+    };
+    if fits(hours, 23, 1..=2) && fits(mins, 59, 2..=2) {
+        Ok(text.to_string())
+    } else {
+        Err(usage(text))
+    }
+}
+
 fn usage(text: &str) -> RunError {
     RunError::NotFound(format!(
-        "\"{text}\" isn't a time — use agents, on, off, a time such as 45m, 2h or 1h30m, or +1h to add an hour"
+        "\"{text}\" isn't a time — use agents, on, off, a time such as 45m, 2h or 1h30m, a time of day such as 18:00, or +1h to add an hour"
     ))
 }
 
@@ -183,6 +198,17 @@ mod tests {
             "keep_awake extend 60"
         );
         assert!(command_line(Some("+"), None).is_err());
+        assert_eq!(
+            command_line(Some("18:00"), None).unwrap(),
+            "keep_awake until 18:00"
+        );
+        assert_eq!(
+            command_line(Some("9:30"), None).unwrap(),
+            "keep_awake until 9:30"
+        );
+        for bad in ["24:00", "18:60", "18:5", "+18:00", ":30", "1:2:3"] {
+            assert!(command_line(Some(bad), None).is_err(), "{bad}");
+        }
     }
 
     #[test]

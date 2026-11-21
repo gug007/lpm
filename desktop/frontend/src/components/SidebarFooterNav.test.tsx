@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   keepAwakeState: vi.fn(),
   keepAwakeSet: vi.fn(),
   keepAwakeSetPrefs: vi.fn(),
+  keepAwakeLid: vi.fn(),
+  peerInvoke: vi.fn(),
   githubStarred: vi.fn(),
 }));
 
@@ -19,8 +21,9 @@ vi.mock("../../bridge/commands", () => ({
   KeepAwakeState: mocks.keepAwakeState,
   KeepAwakeSet: mocks.keepAwakeSet,
   KeepAwakeSetPrefs: mocks.keepAwakeSetPrefs,
+  KeepAwakeLid: mocks.keepAwakeLid,
   GithubStarred: mocks.githubStarred,
-  PeerInvoke: vi.fn(),
+  PeerInvoke: mocks.peerInvoke,
 }));
 vi.mock("../../bridge/runtime", () => ({
   EventsOn: vi.fn(() => () => {}),
@@ -113,6 +116,8 @@ beforeEach(() => {
   mocks.keepAwakeState.mockResolvedValue(KEEP_AWAKE);
   mocks.keepAwakeSet.mockResolvedValue(KEEP_AWAKE);
   mocks.keepAwakeSetPrefs.mockResolvedValue(KEEP_AWAKE);
+  mocks.keepAwakeLid.mockResolvedValue({ lid: "none", onPower: true });
+  mocks.peerInvoke.mockRejectedValue(new Error("no peer"));
   useGlobalAgentStatus.setState({ entries: [] });
   useTerminalTitles.setState({ byProject: {}, focusedByProject: {} });
   useCollapsedAgents.setState({ collapsed: new Set() });
@@ -361,7 +366,8 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
     expect(panelText()).toBeUndefined();
     hover(row);
 
-    expect(panelText()).toContain("1 agent working.");
+    expect(panelText()).toContain("1 agent working · then 5 min more");
+    expect(panelText()).toContain("Awake");
     expect(moreButton()!.getAttribute("aria-expanded")).toBe("true");
     const always = [...container.querySelectorAll("button")].find((b) => b.textContent?.includes("Until I turn it off"))!;
     await act(async () => always.click());
@@ -427,7 +433,7 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
       cup()!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
       cup()!.click();
     });
-    expect(document.querySelector("[data-context-menu]")?.textContent).toContain("Awake until you turn it off.");
+    expect(document.querySelector("[data-context-menu]")?.textContent).toContain("Until you turn it off or quit lpm");
     expect(moreButton()!.getAttribute("aria-expanded")).toBe("false");
 
     act(() => {
@@ -437,12 +443,79 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
     expect(document.querySelector("[data-context-menu]")).toBeNull();
   });
 
-  it("has no cup while nothing keeps the machine awake", async () => {
-    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "agents", active: false });
+  it("has no cup while Keep awake is off", async () => {
     renderNav();
     await act(async () => {});
 
     expect(cup()).toBeUndefined();
+  });
+
+  it("shows a dim cup while it waits for the next agent", async () => {
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "agents", active: false });
+    renderNav();
+    await act(async () => {});
+
+    expect(cup()!.getAttribute("aria-label")).toBe("Keep awake: ready for the next agent");
+    expect(cup()!.className).toContain("border-dashed");
+    expect(cup()!.textContent).toBe("");
+  });
+
+  it("shows the time left after the last agent beside the cup", async () => {
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "agents", active: true, endsIn: 4 * 60_000 + 32_000 });
+    renderNav();
+    await act(async () => {});
+
+    expect(cup()!.textContent).toMatch(/^4:3[12]$/);
+    expect(ring()).toBe(false);
+  });
+
+  it("marks a cup that is on but can't hold", async () => {
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "always", active: false, power: "battery" });
+    renderNav();
+    await act(async () => {});
+
+    expect(cup()!.textContent).toBe("!");
+    expect(cup()!.getAttribute("aria-label")).toBe("Keep awake: on battery, so not held");
+  });
+
+  const STUDIO = { slug: "studio", alias: "Studio", host: "studio.local", port: 8766, enabled: true, connected: true };
+
+  it("shows the cup for a connected computer kept awake, and gives each its own tab", async () => {
+    mocks.peerInvoke.mockImplementation((_slug: string, cmd: string) =>
+      cmd === "keep_awake_state"
+        ? Promise.resolve({ ...KEEP_AWAKE, mode: "timed", active: true, endsIn: 30 * 60_000, power: "awake" })
+        : Promise.reject(new Error("no")),
+    );
+    renderNav({ peers: [STUDIO] as never });
+    await act(async () => {});
+
+    expect(cup()!.getAttribute("aria-label")).toBe("Keep awake: 1 other computer kept awake");
+    act(() => {
+      cup()!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      cup()!.click();
+    });
+    await act(async () => {});
+    const menu = () => document.querySelector("[data-context-menu]")!;
+    const tabs = [...menu().querySelectorAll('[role="tab"]')];
+    expect(tabs.map((t) => t.textContent)).toEqual(["This Mac", "Studio, kept awake"]);
+    expect(tabs[1].getAttribute("aria-selected")).toBe("true");
+    expect(menu().textContent).toContain("Keep Studio awake");
+
+    act(() => (tabs[0] as HTMLButtonElement).click());
+    expect(menu().textContent).toContain("Keep this Mac awake");
+  });
+
+  it("leaves out a connected computer that can't be kept awake", async () => {
+    mocks.peerInvoke.mockResolvedValue({ ...KEEP_AWAKE, supported: false, power: "unsupported" });
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "always", active: true, power: "awake" });
+    renderNav({ peers: [STUDIO] as never });
+    await act(async () => {});
+    act(() => {
+      cup()!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      cup()!.click();
+    });
+
+    expect(document.querySelector('[data-context-menu] [role="tab"]')).toBeNull();
   });
 
   it("closes its menu once the pointer rests on another row, not when it leaves the menus", async () => {

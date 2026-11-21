@@ -1,4 +1,4 @@
-use super::{parse_mode, Mode, PrefsPatch, Saved, Session, MAX_MINUTES};
+use super::{minutes_until, parse_mode, Mode, PrefsPatch, Saved, Session, MAX_MINUTES};
 use crate::keepawake::SessionHold;
 
 const MIN: i64 = 60_000;
@@ -246,5 +246,22 @@ fn only_a_countdown_can_be_extended() {
         let before = s.saved;
         assert!(s.extend(60, MIN).is_err());
         assert_eq!(s.saved, before);
+    }
+}
+
+#[test]
+fn a_time_of_day_is_the_next_time_the_clock_reads_it() {
+    let at = |h, m, s| {
+        chrono::NaiveDate::from_ymd_opt(2026, 11, 21)
+            .unwrap()
+            .and_hms_opt(h, m, s)
+            .unwrap()
+    };
+    assert_eq!(minutes_until("18:00", at(9, 52, 0)), Ok(488));
+    assert_eq!(minutes_until("18:00", at(9, 52, 30)), Ok(488));
+    assert_eq!(minutes_until("9:30", at(22, 0, 0)), Ok(690));
+    assert_eq!(minutes_until("09:52", at(9, 52, 0)), Ok(1440));
+    for bad in ["18", "24:00", "18:60", "18:5", "x:00", ":30", "123:00"] {
+        assert!(minutes_until(bad, at(9, 0, 0)).is_err(), "{bad}");
     }
 }

@@ -36,6 +36,10 @@ struct MacKeepAwake: Equatable {
     }
 
     static let presets = [30, 60, 120, 240, 480]
+    /// What the menu adds to a set time that is running.
+    static let extensions = [30, 60, 120]
+    /// The longest set time the Mac takes: 99 hours 59 minutes.
+    static let maxMinutes = 5999
 
     /// Holding now.
     var isOn: Bool { mode != .off && active }
@@ -105,5 +109,26 @@ struct MacKeepAwake: Equatable {
         if minutes < 60 { return "For \(minutes) Minutes" }
         let h = minutes / 60
         return h == 1 ? "For 1 Hour" : "For \(h) Hours"
+    }
+
+    /// An extension's menu title: "Add 30 Minutes", "Add 1 Hour", "Add 2 Hours".
+    static func extendTitle(_ minutes: Int) -> String {
+        if minutes < 60 { return "Add \(minutes) Minutes" }
+        let h = minutes / 60
+        return h == 1 ? "Add 1 Hour" : "Add \(h) Hours"
+    }
+
+    /// When the clock next shows `hour`:`minute`: today if that's still ahead,
+    /// otherwise tomorrow.
+    static func nextTime(hour: Int, minute: Int, after now: Date, calendar: Calendar = .current) -> Date {
+        calendar.nextDate(after: now, matching: DateComponents(hour: hour, minute: minute, second: 0),
+                          matchingPolicy: .nextTime) ?? now.addingTimeInterval(60)
+    }
+
+    /// The minutes a set time needs to last until `end`, rounded up and kept
+    /// within what the Mac takes.
+    static func minutes(until end: Date, from now: Date) -> Int {
+        let minutes = Int((end.timeIntervalSince(now) / 60).rounded(.up))
+        return min(max(minutes, 1), maxMinutes)
     }
 }

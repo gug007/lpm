@@ -34,6 +34,7 @@ pub(crate) fn answer_peer(cmd: &str, args: &Value) -> Option<Result<Value, Strin
         "keep_awake_set_prefs" => Some(Ok(set_prefs(
             &serde_json::from_value(args["prefs"].clone()).unwrap_or_default(),
         ))),
+        crate::keepawake_lid::PEER_CMD => Some(Ok(crate::keepawake_lid::lid())),
         _ => None,
     }
 }
@@ -52,8 +53,8 @@ pub(crate) fn answer_phone(t: &str, v: &Value) -> Value {
     }
 }
 
-/// `keep_awake [<mode> [<minutes>]] [--tail <minutes>]` from `lpm awake`: the
-/// state as JSON after any change.
+/// `keep_awake [<mode> [<minutes>]] [--tail <minutes>]` from `lpm awake`, or
+/// `keep_awake until <HH:MM>`: the state as JSON after any change.
 pub(crate) fn cmd_keep_awake(args: &[String]) -> String {
     let (positional, options) = crate::socketsrv::parse_options(args);
     if let Some(tail) = options.get("tail") {
@@ -67,6 +68,10 @@ pub(crate) fn cmd_keep_awake(args: &[String]) -> String {
     }
     let result = match positional.as_slice() {
         [] => Ok(state()),
+        [mode, at] if mode == "until" => {
+            crate::keepawake_model::minutes_until(at, chrono::Local::now().naive_local())
+                .and_then(|minutes| set_mode("timed", Some(minutes)))
+        }
         [mode] => set_mode(mode, None),
         [mode, minutes] => match minutes.parse::<u64>() {
             Ok(m) => set_mode(mode, Some(m)),

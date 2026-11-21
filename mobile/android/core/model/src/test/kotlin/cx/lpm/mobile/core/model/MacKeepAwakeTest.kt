@@ -60,6 +60,39 @@ class MacKeepAwakeTest {
     }
 
     @Test
+    fun extensionsAddHalfAnHourToTwoHours() {
+        assertEquals(
+            listOf("Add 30 Minutes", "Add 1 Hour", "Add 2 Hours"),
+            MacKeepAwake.EXTENSIONS.map(MacKeepAwake::extendTitle)
+        )
+    }
+
+    @Test
+    fun untilATimeIsTodayWhileItIsAheadOtherwiseTomorrow() {
+        val ny = ZoneId.of("America/New_York")
+        fun next(hour: Int, minute: Int, at: String) =
+            MacKeepAwake.nextTime(hour, minute, Instant.parse(at), ny).toOffsetDateTime().toString()
+        assertEquals("2026-11-21T18:00-05:00", next(18, 0, "2026-11-21T19:00:30Z"))
+        assertEquals("2026-11-22T18:00-05:00", next(18, 0, "2026-11-21T23:00:30Z"))
+        assertEquals("2026-11-22T18:00-05:00", next(18, 0, "2026-11-21T23:00:00Z"))
+        assertEquals("2026-11-22T09:00-05:00", next(9, 0, "2026-11-21T19:00:00Z"))
+        assertEquals("2026-03-08T03:00-04:00", next(2, 30, "2026-03-08T05:00:00Z"))
+        assertEquals("2026-11-01T01:30-04:00", next(1, 30, "2026-11-01T04:00:00Z"))
+        assertEquals("2026-11-01T01:30-05:00", next(1, 30, "2026-11-01T05:45:00Z"))
+    }
+
+    @Test
+    fun minutesUntilRoundUpAndStayWithinWhatTheMacTakes() {
+        fun minutes(seconds: Long) = MacKeepAwake.minutesUntil(now.plusSeconds(seconds), now)
+        assertEquals(240, minutes(4 * 3600))
+        assertEquals(240, minutes(4 * 3600 - 30))
+        assertEquals(241, minutes(4 * 3600 + 1))
+        assertEquals(1, minutes(10))
+        assertEquals(1, minutes(-60))
+        assertEquals(MacKeepAwake.MAX_MINUTES, minutes(200L * 3600))
+    }
+
+    @Test
     fun badgeNamesTheAgentsThenTheCountdown() {
         assertNull(base.badge(null))
         val working = base.copy(mode = MacKeepAwake.Mode.Agents, active = true, agents = 2)

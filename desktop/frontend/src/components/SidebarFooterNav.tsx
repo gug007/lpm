@@ -3,8 +3,7 @@ import { AGENT_STATE_LABEL, AGENT_STATE_TONE, computeProjectStatus } from "../ag
 import { SETTINGS_CHORD } from "../appMenuKeys";
 import { chordLabel } from "../keys";
 import { useJobsAmbient } from "../hooks/useJobsAmbient";
-import { useKeepAwakeSession } from "../hooks/useKeepAwakeSession";
-import { MACHINE } from "../machineWords";
+import { useFooterKeepAwake } from "../hooks/useFooterKeepAwake";
 import { hiddenKeys, useArchivingAgents } from "../agentArchive";
 import { sidebarProjectAlert } from "../sidebarAgents";
 import { sidebarAgentRows } from "../sidebarSeenAgents";
@@ -24,9 +23,9 @@ import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import { useSettingsStore } from "../store/settings";
 import { useWeeklyRecapStore } from "../store/weeklyRecap";
 import { useTerminalTitles } from "../store/terminalTitles";
+import type { PeerClient } from "../peer/usePeerState";
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import {
-  CoffeeIcon,
   HistoryIcon,
   MessageIcon,
   RecapIcon,
@@ -37,11 +36,6 @@ import {
   TerminalIcon,
   ZapIcon,
 } from "./icons";
-import { KeepAwakeBadge } from "./KeepAwakeBadge";
-import { KeepAwakeFooterButton } from "./KeepAwakeFooterButton";
-import { KeepAwakeHoverCard } from "./KeepAwakeHoverCard";
-import { KeepAwakeMenu } from "./KeepAwakeMenu";
-import { KeepAwakePanel } from "./KeepAwakePanel";
 import { SidebarAgentSummary } from "./SidebarAgentSummary";
 import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarNavRowMenu } from "./SidebarNavRowMenu";
@@ -65,7 +59,11 @@ interface SidebarFooterNavProps {
   showSettings: boolean;
   onSettings: () => void;
   onFeedback: () => void;
+  /** Paired computers, whose Keep awake the footer's menu offers too. */
+  peers?: PeerClient[];
 }
+
+const NO_PEERS: PeerClient[] = [];
 
 const FOOTER_ICON_CLASS =
   "flex h-9 w-9 items-center justify-center rounded-md transition-colors";
@@ -93,6 +91,7 @@ export function SidebarFooterNav({
   showSettings,
   onSettings,
   onFeedback,
+  peers = NO_PEERS,
 }: SidebarFooterNavProps) {
   const inSidebar = useSettingsStore((s) => s.sidebarNavInSidebar ?? DEFAULT_SIDEBAR_NAV);
   const githubStarred = useSettingsStore((s) => s.githubStarred === true);
@@ -104,15 +103,8 @@ export function SidebarFooterNav({
   const { running, unread, waiting } = useJobsAmbient();
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
   const footerRef = useRef<HTMLDivElement>(null);
-  const keepAwake = useKeepAwakeSession(null);
-  const awakeMode = keepAwake.state?.mode ?? "off";
-  const awake = keepAwake.state?.active === true;
   // The sidebar row's popup; in More, the row opens the same panel beside it.
-  const [awakeMenu, setAwakeMenu] = useState<{ x: number; y: number; trigger?: HTMLElement } | null>(null);
-  const toggleAwakeMenu = (trigger?: HTMLElement) => {
-    const rect = footerRef.current?.getBoundingClientRect();
-    setAwakeMenu((open) => (open || !rect ? null : { x: rect.right + 6, y: rect.bottom, trigger }));
-  };
+  const keepAwake = useFooterKeepAwake({ peers, footerRef, inSidebar: inSidebar.includes("awake") });
 
   // Agents in the global Terminals report under the reserved key, which no
   // project row speaks for — so the Terminals row does, the way a project row
@@ -191,30 +183,7 @@ export function SidebarFooterNav({
           agent.terminalId ? onOpenTerminalTab(agent.terminalId) : onTerminals(),
       },
     },
-    awake: {
-      id: "awake",
-      label: "Keep awake",
-      icon: (
-        <span className={awakeMode !== "off" ? "text-[var(--accent-amber-text)]" : undefined}>
-          <CoffeeIcon awake={awake} />
-        </span>
-      ),
-      // Folded into More, the footer's own button opens the menu and shows it
-      // open, so More doesn't light up for it.
-      active: awakeMenu !== null && inSidebar.includes("awake"),
-      onSelect: toggleAwakeMenu,
-      description: `Keep ${MACHINE.thisMachine} awake while agents work, for a set time, or until you turn it off.`,
-      hoverCard: awakeMode !== "off" ? <KeepAwakeHoverCard session={keepAwake} /> : undefined,
-      popupOpen: awakeMenu !== null,
-      submenu: (
-        <KeepAwakePanel
-          session={keepAwake}
-          title={`Keep ${MACHINE.thisMachine} awake`}
-          machine={MACHINE.thisMachine}
-        />
-      ),
-      trailing: <KeepAwakeBadge session={keepAwake} />,
-    },
+    awake: keepAwake.entry,
     automations: {
       id: "automations",
       label: "Automations",
@@ -295,7 +264,7 @@ export function SidebarFooterNav({
   // A machine that can't be kept awake has no row for it, and someone who
   // starred lpm isn't asked to again.
   const shown = (id: NavItemId) =>
-    (id !== "awake" || keepAwake.state?.supported !== false) &&
+    (id !== "awake" || keepAwake.offered) &&
     (id !== "github" || !githubStarred) &&
     (id !== "archive" || archived > 0 || showArchive);
   const sidebarIds = inSidebar.filter(shown);
@@ -320,14 +289,7 @@ export function SidebarFooterNav({
             onReset={reset}
           />
         )}
-        {awake && menuIds.includes("awake") && (
-          <KeepAwakeFooterButton
-            session={keepAwake}
-            menuOpen={awakeMenu !== null}
-            onToggleMenu={toggleAwakeMenu}
-            className={FOOTER_ICON_CLASS}
-          />
-        )}
+        {menuIds.includes("awake") && keepAwake.cup(FOOTER_ICON_CLASS)}
         <Tooltip
           content={`Settings  ·  ${chordLabel(SETTINGS_CHORD)}`}
           triggerClassName="ml-auto inline-flex shrink-0"
@@ -357,16 +319,7 @@ export function SidebarFooterNav({
           </button>
         </Tooltip>
       </div>
-      {awakeMenu && (
-        <KeepAwakeMenu
-          session={keepAwake}
-          title={`Keep ${MACHINE.thisMachine} awake`}
-          machine={MACHINE.thisMachine}
-          place={{ x: awakeMenu.x, y: awakeMenu.y }}
-          trigger={awakeMenu.trigger}
-          onClose={() => setAwakeMenu(null)}
-        />
-      )}
+      {keepAwake.menu}
       {rowMenu && (
         <SidebarNavRowMenu
           x={rowMenu.x}

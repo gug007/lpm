@@ -1,15 +1,11 @@
-import { type KeepAwakeSession, useKeepAwakeLeft } from "../hooks/useKeepAwakeSession";
-import { keepAwakeLine, keepAwakePowerNote } from "../keepAwake";
-import { isMac } from "../platform";
+import type { KeepAwakeSession } from "../hooks/useKeepAwakeSession";
+import { KeepAwakeLidNote } from "./KeepAwakeLidNote";
 import { KeepAwakeModeRow } from "./KeepAwakeModeRow";
 import { KeepAwakeOptions } from "./KeepAwakeOptions";
+import { KeepAwakeStatusHeader } from "./KeepAwakeStatusHeader";
 import { KeepAwakeTailChips } from "./KeepAwakeTailChips";
 import { KeepAwakeTime } from "./KeepAwakeTime";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
-
-const LID_NOTE = isMac
-  ? "Closing the lid still puts it to sleep, unless a display is connected."
-  : "Closing a laptop's lid follows its power settings.";
 
 // What Keep awake offers, whether it pops up on its own or opens beside its row
 // in the More menu.
@@ -17,27 +13,20 @@ export function KeepAwakePanel({
   session,
   title,
   machine,
+  slug = null,
 }: {
   session: KeepAwakeSession;
   title: string;
   /** How the notes name the machine: "this Mac", or a connected one's name. */
   machine: string;
+  /** The connected computer it controls; null for this one. */
+  slug?: string | null;
 }) {
-  const { state, endsAt, error, set, setPrefs } = session;
-  const left = useKeepAwakeLeft(endsAt);
-  const note = state ? keepAwakePowerNote(state, machine) : null;
+  const { state, endsAt, set, extend, setPrefs } = session;
 
   return (
     <div className="w-[300px] pb-1">
-      <div className="px-3 pb-2 pt-1.5">
-        <p className="text-[12px] font-semibold text-[var(--text-primary)]">{title}</p>
-        {/* Two lines whatever it says, so switching modes doesn't move the rows. */}
-        <p className="mt-0.5 min-h-[31px] text-[11px] leading-snug text-[var(--text-secondary)]" aria-live="polite">
-          {state ? keepAwakeLine(state, left) : "Loading…"}
-        </p>
-        {note && <p className="mt-1 text-[11px] leading-snug text-[var(--accent-amber-text)]">{note}</p>}
-        {error && <p className="mt-1 text-[11px] leading-snug text-[var(--accent-red-text)]">{error}</p>}
-      </div>
+      <KeepAwakeStatusHeader session={session} title={title} machine={machine} />
       {state?.supported && (
         <>
           <ContextMenuSeparator />
@@ -59,7 +48,11 @@ export function KeepAwakePanel({
               )}
             </KeepAwakeModeRow>
             <KeepAwakeModeRow checked={state.mode === "timed"} label="For a set time">
-              <KeepAwakeTime onPick={(minutes) => set("timed", minutes)} />
+              <KeepAwakeTime
+                endsAt={state.mode === "timed" ? endsAt : null}
+                onPick={(minutes) => set("timed", minutes)}
+                onExtend={extend}
+              />
             </KeepAwakeModeRow>
             <KeepAwakeModeRow
               checked={state.mode === "always"}
@@ -70,7 +63,7 @@ export function KeepAwakePanel({
           </div>
           <ContextMenuSeparator />
           <KeepAwakeOptions state={state} onChange={setPrefs} />
-          <p className="px-3 pt-0.5 text-[10.5px] leading-snug text-[var(--text-muted)]">{LID_NOTE}</p>
+          <KeepAwakeLidNote slug={slug} on={state.mode !== "off"} />
         </>
       )}
     </div>

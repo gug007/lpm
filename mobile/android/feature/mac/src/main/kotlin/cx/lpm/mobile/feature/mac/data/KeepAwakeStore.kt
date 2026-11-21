@@ -2,6 +2,7 @@ package cx.lpm.mobile.feature.mac.data
 
 import cx.lpm.mobile.core.data.client.LpmClient
 import cx.lpm.mobile.core.data.client.keepAwake
+import cx.lpm.mobile.core.data.client.keepAwakeExtend
 import cx.lpm.mobile.core.data.client.keepAwakeSet
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
@@ -71,5 +72,11 @@ class KeepAwakeStore(private val session: MacSession, private val clock: Clock) 
     fun set(mode: MacKeepAwake.Mode, minutes: Int? = null) {
         mutable.update { it.copy(error = null) }
         session.client?.keepAwakeSet(mode, minutes)
+    }
+
+    /** Adds [minutes] to the set time or the after-agents countdown that is running. */
+    fun extend(minutes: Int) {
+        mutable.update { it.copy(error = null) }
+        session.client?.keepAwakeExtend(minutes)
     }
 }

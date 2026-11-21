@@ -271,11 +271,12 @@ automation reports to, and the first answer from any of them wins."
         long_about = "Keep this machine from sleeping, as the app's Keep awake menu does. \
 `agents` keeps it awake while any agent on it is working or waiting for an answer, and for a \
 few minutes after the last one finishes (`--then` sets how long; 5 min by default). A time \
-such as 45m, 2h or 1h30m keeps it awake that long; `on` until `off`. With no argument it \
-says what is on now. Closing a laptop's lid still puts it to sleep."
+such as 45m, 2h or 1h30m keeps it awake that long, and a time of day such as 18:00 until \
+then (tomorrow when it has passed today); `on` until `off`. With no argument it says what \
+is on now. Closing a laptop's lid still puts it to sleep."
     )]
     Awake {
-        /// agents, on, off, a time such as 45m, 2h or 1h30m, or +1h to add an hour to the time left.
+        /// agents, on, off, a time such as 45m, 2h or 1h30m, a time of day such as 18:00, or +1h to add an hour to the time left.
         what: Option<String>,
         /// After the last agent finishes, stay awake this long (e.g. 10m; 0 to let it sleep).
         #[arg(long, value_name = "TIME")]

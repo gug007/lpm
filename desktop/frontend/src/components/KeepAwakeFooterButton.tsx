@@ -1,23 +1,36 @@
+import type { ReactNode } from "react";
 import { type KeepAwakeSession, useKeepAwakeLeft, useKeepAwakeSpan } from "../hooks/useKeepAwakeSession";
-import { keepAwakeCupLabel } from "../keepAwake";
+import { keepAwakeCup, keepAwakeCupLabel } from "../keepAwake";
 import { CoffeeIcon } from "./icons";
-import { KeepAwakeHoverCard } from "./KeepAwakeHoverCard";
 import { Tooltip } from "./ui/Tooltip";
 
 const RING_RADIUS = 12.5;
 const RING_LENGTH = 2 * Math.PI * RING_RADIUS;
 
-// The footer's own button while this machine is kept awake and its row is
-// folded into More, so the state isn't hidden behind a menu. A ring drains with
-// a countdown and a count says how many agents hold it; resting on it shows the
-// card with +1 h and Turn off, and a click opens the whole menu.
+const TONE = {
+  held: "text-[var(--accent-amber-text)]",
+  ready: "text-[var(--text-muted)]",
+  stopped: "text-[var(--text-muted)]",
+} as const;
+
+// The footer's own button while Keep awake is on and its row is folded into
+// More, so the state isn't hidden behind a menu. A dim cup is ready for the
+// next agent; an amber one holds the machine, with how many agents hold it or
+// the time left after them beside it, or a ring that drains with a set time; a
+// gray one with "!" is on but can't hold. Resting on it shows `card`, and a
+// click opens the whole menu.
 export function KeepAwakeFooterButton({
   session,
+  othersOn,
+  card,
   menuOpen,
   onToggleMenu,
   className,
 }: {
   session: KeepAwakeSession;
+  /** Connected computers whose Keep awake is on. */
+  othersOn: number;
+  card: ReactNode;
   menuOpen: boolean;
   onToggleMenu: (trigger: HTMLElement) => void;
   className: string;
@@ -25,25 +38,26 @@ export function KeepAwakeFooterButton({
   const { state, endsAt } = session;
   const left = useKeepAwakeLeft(endsAt);
   const total = useKeepAwakeSpan(endsAt);
-  if (!state) return null;
-  const holding = state.mode === "agents" ? state.agents : 0;
-  const ring = left !== null && total !== null ? Math.min(1, left / total) : null;
+  const look = keepAwakeCup(state, left, othersOn);
+  if (!look) return null;
+  const ring = look.ring && left !== null && total !== null ? Math.min(1, left / total) : null;
+  const localOn = state !== null && state.mode !== "off";
+  const label = localOn
+    ? keepAwakeCupLabel(state, left)
+    : `${othersOn} ${othersOn === 1 ? "other computer" : "other computers"} kept awake`;
 
   return (
-    <Tooltip
-      content={<KeepAwakeHoverCard session={session} />}
-      side="top"
-      wide
-      interactive
-      delay={150}
-      triggerClassName="inline-flex shrink-0"
-    >
+    <Tooltip content={card} side="top" wide interactive delay={150} triggerClassName="inline-flex shrink-0">
       <button
         type="button"
         onClick={(e) => onToggleMenu(e.currentTarget)}
         aria-expanded={menuOpen}
-        aria-label={`Keep awake: ${keepAwakeCupLabel(state, left)}`}
-        className={`${className} relative text-[var(--accent-amber-text)] ${menuOpen ? "bg-[var(--bg-active)]" : "hover:bg-[var(--bg-hover)]"}`}
+        aria-label={`Keep awake: ${label}`}
+        className={`${className} relative gap-1 ${look.text ? "w-auto min-w-9 px-2" : ""} ${TONE[look.tone]} ${
+          look.tone === "ready" ? "border border-dashed border-[var(--border)]" : ""
+        } ${
+          menuOpen ? "bg-[var(--bg-active)]" : "hover:bg-[var(--bg-hover)]"
+        }`}
       >
         {ring !== null && (
           <svg
@@ -68,10 +82,15 @@ export function KeepAwakeFooterButton({
             />
           </svg>
         )}
-        <CoffeeIcon awake />
-        {holding > 0 && (
-          <span className="absolute right-0.5 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[var(--accent-amber-text)] px-1 text-[9px] font-bold leading-none tabular-nums text-[var(--bg-primary)] ring-2 ring-[var(--bg-sidebar)]">
-            {holding > 9 ? "9+" : holding}
+        <CoffeeIcon awake={look.tone === "held"} />
+        {look.text && (
+          <span
+            aria-hidden
+            className={`text-[11px] font-semibold leading-none tabular-nums ${
+              look.tone === "stopped" ? "text-[var(--accent-amber-text)]" : ""
+            }`}
+          >
+            {look.text}
           </span>
         )}
       </button>

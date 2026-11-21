@@ -70,6 +70,13 @@
     <string name="keep_awake_custom_footer">Stays awake for %1$s, then sleeps on its usual schedule.</string>
     <string name="keep_awake_hours">Hours</string>
     <string name="keep_awake_minutes">Minutes</string>
+    <string name="keep_awake_for">For</string>
+    <string name="keep_awake_until">Until</string>
+    <string name="keep_awake_until_time">Time</string>
+    <string name="keep_awake_until_ok">OK</string>
+    <string name="keep_awake_until_cancel">Cancel</string>
+    <string name="keep_awake_until_today_footer">Stays awake until %1$s today, then sleeps on its usual schedule.</string>
+    <string name="keep_awake_until_tomorrow_footer">Stays awake until %1$s tomorrow, then sleeps on its usual schedule.</string>
     <string name="keep_awake_menu">Keep Awake</string>
     <string name="keep_awake_menu_agents">While Agents Work</string>
     <string name="keep_awake_menu_always">Until Turned Off</string>

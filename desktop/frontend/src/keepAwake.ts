@@ -41,6 +41,8 @@ export interface KeepAwakePrefs {
 }
 
 export const TIME_PRESETS = [30, 60, 120, 240, 480];
+/** What the chips add to a set time that is running. */
+export const EXTEND_CHOICES = [30, 60, 120];
 const TAIL_CHOICES = [0, 5, 15, 30];
 export const FLOOR_CHOICES = [10, 20, 30, 50];
 const MAX_MINUTES = 99 * 60 + 59;
@@ -91,6 +93,18 @@ export function tailLabel(minutes: number): string {
   return minutes === 0 ? "no extra time" : span(minutes);
 }
 
+/** An after-agents chip: "None", "15m". */
+export function tailChip(minutes: number): string {
+  return minutes === 0 ? "None" : `${minutes}m`;
+}
+
+/** What resting on an after-agents chip says it does. */
+export function tailHint(minutes: number): string {
+  return minutes === 0
+    ? "Can sleep as soon as the last agent finishes"
+    : `Stays awake ${span(minutes)} after the last agent finishes`;
+}
+
 /** The extra times to offer, with `current` among them when it was set elsewhere. */
 export function tailChoices(current: number): number[] {
   return TAIL_CHOICES.includes(current) ? TAIL_CHOICES : [...TAIL_CHOICES, current].sort((a, b) => a - b);
@@ -123,12 +137,46 @@ export function countdownSpan(prev: CountdownSpan | null, endsAt: number | null,
   return { endsAt, ms: Math.max(1, endsAt - now) };
 }
 
+/** A mode is on, but the machine isn't held: on battery, at the battery limit,
+ *  or the system refused. */
+export function keepAwakeStopped(state: KeepAwakeState): boolean {
+  return state.mode !== "off" && (state.power === "battery" || state.power === "low" || state.power === "failed");
+}
+
 /** What the footer's keep-awake button says it is doing: "2 agents working",
- *  "42 min left", "until you turn it off". */
+ *  "42 min left", "until you turn it off", "ready for the next agent". */
 export function keepAwakeCupLabel(state: KeepAwakeState, left: number | null): string {
+  if (keepAwakeStopped(state)) {
+    if (state.power === "battery") return "on battery, so not held";
+    if (state.power === "low") return `battery at ${state.floor}% or less, so not held`;
+    return "couldn't keep it awake";
+  }
   if (state.mode === "agents" && state.agents > 0) return `${agents(state.agents)} working`;
   if (left !== null) return `${span(Math.max(1, Math.ceil(left / 60_000)))} left`;
+  if (state.mode === "agents") return "ready for the next agent";
   return "until you turn it off";
+}
+
+export interface KeepAwakeCupLook {
+  /** Held: amber. Ready: on, waiting for an agent. Stopped: on, but not held. */
+  tone: "held" | "ready" | "stopped";
+  /** Beside the cup: how many agents hold it, or the time left after them. */
+  text: string | null;
+  /** A ring that drains with a set time. */
+  ring: boolean;
+}
+
+/** How the footer's cup looks for this machine's state, or with this one off,
+ *  for `othersOn` connected ones that are on; null when there's nothing to show. */
+export function keepAwakeCup(state: KeepAwakeState | null, left: number | null, othersOn: number): KeepAwakeCupLook | null {
+  if (!state || state.mode === "off") return othersOn > 0 ? { tone: "held", text: null, ring: false } : null;
+  if (keepAwakeStopped(state)) return { tone: "stopped", text: "!", ring: false };
+  if (!state.active) return { tone: "ready", text: null, ring: false };
+  if (state.mode === "agents") {
+    if (state.agents > 0) return { tone: "held", text: state.agents > 9 ? "9+" : String(state.agents), ring: false };
+    return { tone: "held", text: left !== null ? clock(left) : null, ring: false };
+  }
+  return { tone: "held", text: null, ring: state.mode === "timed" && left !== null };
 }
 
 /** The short text beside the sidebar row: "2 agents", "4:32", "On". */
@@ -169,6 +217,49 @@ export function keepAwakeLine(state: KeepAwakeState, left: number | null, now = 
   }
 }
 
+export type KeepAwakeStatus = "off" | "waiting" | "awake" | "paused";
+
+/** The pill beside the menu's title: Off, Waiting (for an agent), Awake (held
+ *  now) or Paused (on, but battery or the system lets it sleep). */
+export function keepAwakeStatus(state: KeepAwakeState): KeepAwakeStatus {
+  if (state.mode === "off") return "off";
+  if (keepAwakeStopped(state)) return "paused";
+  return state.active ? "awake" : "waiting";
+}
+
+/** A short line in runs, the `strong` ones set bold. */
+export type KeepAwakeWords = Array<string | { strong: string }>;
+
+/** The line under the menu's title: what holds it, and until when. */
+export function keepAwakeSummary(
+  state: KeepAwakeState,
+  left: number | null,
+  machine: string,
+  now = Date.now(),
+): KeepAwakeWords {
+  const stopped = keepAwakePowerNote(state, machine);
+  if (stopped) return [stopped];
+  switch (state.mode) {
+    case "off":
+      return ["Sleeps on its usual schedule"];
+    case "agents":
+      if (state.agents > 0) {
+        return [
+          { strong: agents(state.agents) },
+          state.tailMinutes > 0 ? ` working · then ${span(state.tailMinutes)} more` : " working · can sleep when they finish",
+        ];
+      }
+      if (left !== null) return ["Agents finished · can sleep in ", { strong: clock(left) }];
+      return ["Turns on when an agent starts"];
+    case "timed": {
+      const ms = left ?? 0;
+      return ["Until ", { strong: shortWhenLabel(now + ms, now) }, ` · ${span(Math.max(1, Math.ceil(ms / 60_000)))} left`];
+    }
+    default:
+      return ["Until you turn it off or quit lpm"];
+  }
+}
+
 /** Why it isn't held right now although a mode is on, if that's the case. */
 export function keepAwakePowerNote(state: KeepAwakeState, thisMachine: string): string | null {
   if (state.mode === "off") return null;
@@ -197,6 +288,23 @@ export function keepAwakeHeadsUp(
         ? "The time you set is running out."
         : "Agents finished, and the time after them is running out.",
   };
+}
+
+/** When the clock next reads `hours`:`minutes` after `now` (today while that's
+ *  still ahead, else tomorrow), or null when the fields make no clock time. */
+export function untilAt(hours: string, minutes: string, now: Date): number | null {
+  const h = hours.trim() === "" ? Number.NaN : Number(hours);
+  const m = minutes.trim() === "" ? 0 : Number(minutes);
+  if (!Number.isInteger(h) || !Number.isInteger(m) || h < 0 || h > 23 || m < 0 || m > 59) return null;
+  const at = new Date(now);
+  at.setHours(h, m, 0, 0);
+  if (at.getTime() <= now.getTime()) at.setDate(at.getDate() + 1);
+  return at.getTime();
+}
+
+/** The minutes a set time needs to end at `at`, rounded up. */
+export function minutesUntil(at: number, now: Date): number {
+  return Math.min(MAX_MINUTES, Math.max(1, Math.ceil((at - now.getTime()) / 60_000)));
 }
 
 /** Hours and minutes from the custom fields, or null when they make no time. */

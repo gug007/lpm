@@ -53,6 +53,10 @@ class KeepAwakeViewModel @AssistedInject constructor(
         store?.set(mode, minutes)
     }
 
+    fun extend(minutes: Int) {
+        store?.extend(minutes)
+    }
+
     @AssistedFactory
     interface Factory {
         fun create(session: SessionKey): KeepAwakeViewModel

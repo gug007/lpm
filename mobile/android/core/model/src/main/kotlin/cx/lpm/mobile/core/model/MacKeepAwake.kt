@@ -2,6 +2,7 @@ package cx.lpm.mobile.core.model
 
 import java.time.Instant
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import kotlin.math.ceil
@@ -114,6 +115,12 @@ data class MacKeepAwake(
     companion object {
         val PRESETS = listOf(30, 60, 120, 240, 480)
 
+        /** What the menu adds to a set time that is running. */
+        val EXTENSIONS = listOf(30, 60, 120)
+
+        /** The longest set time the Mac takes: 99 hours 59 minutes. */
+        const val MAX_MINUTES = 5999
+
         fun parse(o: JsonObject): MacKeepAwake? {
             val mode = Mode.of(o.string("mode")) ?: return null
             return MacKeepAwake(
@@ -150,6 +157,37 @@ data class MacKeepAwake(
             if (minutes < 60) return "For $minutes Minutes"
             val h = minutes / 60
             return if (h == 1) "For 1 Hour" else "For $h Hours"
+        }
+
+        /** An extension's menu title: "Add 30 Minutes", "Add 1 Hour", "Add 2 Hours". */
+        fun extendTitle(minutes: Int): String {
+            if (minutes < 60) return "Add $minutes Minutes"
+            val h = minutes / 60
+            return if (h == 1) "Add 1 Hour" else "Add $h Hours"
+        }
+
+        /**
+         * When the clock in [zone] next shows [hour]:[minute]: today if that's still
+         * ahead, otherwise tomorrow. As iOS's `Calendar.nextDate(…, .nextTime)`, a time
+         * the clock skips is the first one after the gap, and one it shows twice counts
+         * both times.
+         */
+        fun nextTime(hour: Int, minute: Int, now: Instant, zone: ZoneId): ZonedDateTime {
+            val today = now.atZone(zone).toLocalDate()
+            return sequenceOf(today, today.plusDays(1))
+                .map { day ->
+                    val time = day.atTime(hour, minute)
+                    val gap = zone.rules.getTransition(time)?.takeIf { it.isGap }
+                    (gap?.dateTimeAfter ?: time).atZone(zone)
+                }
+                .flatMap { sequenceOf(it, it.withLaterOffsetAtOverlap()) }
+                .first { it.toInstant() > now }
+        }
+
+        /** The minutes a set time needs to last until [end], rounded up, within 1…[MAX_MINUTES]. */
+        fun minutesUntil(end: Instant, now: Instant): Int {
+            val minutes = ceil((end.toEpochMilli() - now.toEpochMilli()) / 60_000.0).toInt()
+            return minutes.coerceIn(1, MAX_MINUTES)
         }
     }
 }

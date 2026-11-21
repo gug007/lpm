@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.ContextMenu
+import cx.lpm.mobile.core.designsystem.component.ContextMenuDivider
 import cx.lpm.mobile.core.designsystem.component.ContextMenuItem
 import cx.lpm.mobile.core.designsystem.component.ListHeaderStyle
 import cx.lpm.mobile.core.designsystem.component.ListRow
@@ -34,7 +35,12 @@ import java.time.ZoneId
 fun KeepAwakeSectionRoute(session: SessionKey = SessionKey.Live, onCustomTime: () -> Unit) {
     val viewModel = keepAwakeViewModel(session)
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    KeepAwakeSection(state, onSet = viewModel::set, onCustomTime = onCustomTime)
+    KeepAwakeSection(
+        state,
+        onSet = viewModel::set,
+        onExtend = viewModel::extend,
+        onCustomTime = onCustomTime
+    )
 }
 
 /**
@@ -45,6 +51,7 @@ fun KeepAwakeSectionRoute(session: SessionKey = SessionKey.Live, onCustomTime: (
 fun KeepAwakeSection(
     state: KeepAwakeUiState,
     onSet: (MacKeepAwake.Mode, Int?) -> Unit,
+    onExtend: (minutes: Int) -> Unit,
     onCustomTime: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -89,7 +96,11 @@ fun KeepAwakeSection(
         Choice(stringResource(R.string.keep_awake_agents), mode == MacKeepAwake.Mode.Agents) {
             onSet(MacKeepAwake.Mode.Agents, null)
         }
-        SetTime(checked = mode == MacKeepAwake.Mode.Timed) { onSet(MacKeepAwake.Mode.Timed, it) }
+        SetTime(
+            running = mode == MacKeepAwake.Mode.Timed,
+            onPick = { onSet(MacKeepAwake.Mode.Timed, it) },
+            onExtend = onExtend
+        )
         NavigationRow(title = stringResource(R.string.keep_awake_custom), onClick = onCustomTime)
         Choice(stringResource(R.string.keep_awake_always), mode == MacKeepAwake.Mode.Always) {
             onSet(MacKeepAwake.Mode.Always, null)
@@ -129,13 +140,13 @@ private fun Check() {
     )
 }
 
-/** "For a set time": a menu of the presets. */
+/** "For a set time": a menu of the presets, led by what adds to a set time that is running. */
 @Composable
-private fun SetTime(checked: Boolean, onPick: (Int) -> Unit) {
+private fun SetTime(running: Boolean, onPick: (Int) -> Unit, onExtend: (Int) -> Unit) {
     var open by remember { mutableStateOf(false) }
     ListRow(onClick = { open = true }, trailing = {
         Box {
-            if (checked) {
+            if (running) {
                 Check()
             } else {
                 Icon(
@@ -146,6 +157,15 @@ private fun SetTime(checked: Boolean, onPick: (Int) -> Unit) {
                 )
             }
             ContextMenu(expanded = open, onDismissRequest = { open = false }) {
+                if (running) {
+                    MacKeepAwake.EXTENSIONS.forEach { minutes ->
+                        ContextMenuItem(
+                            title = MacKeepAwake.extendTitle(minutes),
+                            onClick = { onExtend(minutes) }
+                        )
+                    }
+                    ContextMenuDivider()
+                }
                 MacKeepAwake.PRESETS.forEach { minutes ->
                     ContextMenuItem(
                         title = MacKeepAwake.presetTitle(minutes),

@@ -437,6 +437,7 @@ macro_rules! all_command_handlers {
             keep_awake_state,
             keep_awake_set,
             keep_awake_set_prefs,
+            keep_awake_lid,
             login_item_state,
             login_item_set,
             remote_set_terminal_labels,

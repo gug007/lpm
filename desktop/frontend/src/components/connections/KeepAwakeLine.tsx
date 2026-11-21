@@ -3,6 +3,7 @@ import { useKeepAwakeLeft, useKeepAwakeSession } from "../../hooks/useKeepAwakeS
 import { keepAwakeLine } from "../../keepAwake";
 import { CoffeeIcon } from "../icons";
 import { KeepAwakeMenu } from "../KeepAwakeMenu";
+import { KeepAwakePanel } from "../KeepAwakePanel";
 import { DetailLine } from "./DetailLine";
 
 // A connected computer's Keep awake, set from here: keep a desk machine awake
@@ -30,14 +31,9 @@ export function KeepAwakeLine({ slug, name }: { slug: string; name: string }) {
         {on ? "Change" : "Keep awake"}
       </button>
       {anchor && (
-        <KeepAwakeMenu
-          session={session}
-          title={`Keep ${name} awake`}
-          machine={name}
-          place={{ anchor }}
-          align="end"
-          onClose={() => setAnchor(null)}
-        />
+        <KeepAwakeMenu place={{ anchor }} align="end" onClose={() => setAnchor(null)}>
+          <KeepAwakePanel session={session} title={`Keep ${name} awake`} machine={name} slug={slug} />
+        </KeepAwakeMenu>
       )}
     </DetailLine>
   );

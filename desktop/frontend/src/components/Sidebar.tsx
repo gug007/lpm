@@ -2170,6 +2170,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         showSettings={showSettings}
         onSettings={onSettings}
         onFeedback={onFeedback}
+        peers={peerState.peers}
       />
       <div
         onMouseDown={handleResizeStart}

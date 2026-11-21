@@ -4,7 +4,8 @@ import { KEEP_AWAKE_CHANGED, type KeepAwakeChoice, type KeepAwakeMode, type Keep
 import { projects } from "./state";
 
 // The sample Mac starts kept awake while its agents work, with one at it once
-// a project is added; a fresh install has none.
+// a project is added; a fresh install has none, so it waits for one. It's a
+// laptop with nothing plugged in, so its lid would put it to sleep.
 let mode: KeepAwakeMode = "agents";
 let endsAt: number | null = null;
 let prefs: Required<KeepAwakePrefs> = { tailMinutes: 5, screen: true, battery: true, floor: 20 };
@@ -15,15 +16,17 @@ function state() {
     mode = "off";
     endsAt = null;
   }
+  const agents = mode === "agents" ? agentsAtWork() : 0;
+  const active = mode === "agents" ? agents > 0 : mode !== "off";
   return {
     supported: true,
     screenSupported: true,
     mode,
-    active: mode !== "off",
-    agents: mode === "agents" ? agentsAtWork() : 0,
+    active,
+    agents,
     endsIn: endsAt === null ? null : endsAt - Date.now(),
     ...prefs,
-    power: mode === "off" ? "idle" : "awake",
+    power: active ? "awake" : "idle",
   };
 }
 
@@ -51,4 +54,5 @@ export const keepAwakeCommands: CommandMap = {
     prefs = { ...prefs, ...(patch as KeepAwakePrefs) };
     return changed();
   },
+  keep_awake_lid: () => ({ lid: "sleeps", onPower: false }),
 };

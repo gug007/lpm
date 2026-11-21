@@ -206,16 +206,20 @@
 {"at": 3400, "frame": {"t": "in", "id": "demo-storefront-1", "d": "abc\u007f\u007fx\u001b[A\u001b]0;title\u0007\u0003"}}
 {"at": 3400, "frame": {"t": "keepAwakeSet", "mode": "timed", "minutes": 90}}
 {"at": 3450, "frame": {"t": "in", "id": "demo-storefront-1", "d": "claude\rpwd\rwhoami\r\r"}}
+{"at": 3450, "frame": {"t": "keepAwakeSet", "mode": "extend", "minutes": 30}}
+{"at": 3450, "frame": {"t": "keepAwakeSet", "mode": "extend"}}
 {"at": 3500, "frame": {"t": "in", "id": "demo-storefront-1", "d": "npm run dev\rnpm run lint\r"}}
 {"at": 3500, "frame": {"t": "keepAwake"}}
 {"at": 3550, "frame": {"t": "in", "id": "demo-storefront-1", "d": "caf\u00e9 \ud83d\ude00\u007f\r"}}
 {"at": 3600, "frame": {"t": "in", "id": "demo-storefront-1", "d": "\u0000ignored"}}
 {"at": 3600, "frame": {"t": "keepAwakeSet", "mode": "timed"}}
 {"at": 3650, "frame": {"t": "resize", "id": "demo-storefront-1", "cols": 100, "rows": 30}}
+{"at": 3655, "frame": {"t": "keepAwakeSet", "mode": "extend", "minutes": 5999}}
 {"at": 3700, "frame": {"t": "unsub", "id": "demo-storefront-1"}}
 {"at": 3700, "frame": {"t": "keepAwakeSet", "mode": "forever"}}
 {"at": 3800, "frame": {"t": "claim", "id": "demo-storefront-1"}}
 {"at": 3800, "frame": {"t": "keepAwakeSet", "mode": "always"}}
+{"at": 3850, "frame": {"t": "keepAwakeSet", "mode": "extend", "minutes": 60}}
 {"at": 3900, "frame": {"t": "keepAwakeSet", "mode": "off"}}
 {"at": 4000, "frame": {"t": "sub", "id": "demo-storefront-claude"}}
 {"at": 4000, "frame": {"t": "keepAwakeSet", "mode": "agents"}}

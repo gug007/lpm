@@ -103,6 +103,15 @@ export function ContextMenuShell({
     setPos((prev) => (prev.left === left && prev.top === top ? prev : { left, top }));
   };
   useLayoutEffect(place, [x, y, align, side, anchor]);
+  // A menu whose content grows after it opens (an answer arriving, a form
+  // unfolding) is placed again, so it stays on screen.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => place());
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [x, y, align, side, anchor]);
 
   // Capture-phase: scrolls inside a container don't bubble to the window.
   useEventListener(

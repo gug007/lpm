@@ -248,6 +248,8 @@ fun LpmClient.keepAwake() = send(Wire.keepAwake())
 fun LpmClient.keepAwakeSet(mode: MacKeepAwake.Mode, minutes: Int? = null) =
     send(Wire.keepAwakeSet(mode.rawValue, minutes))
 
+fun LpmClient.keepAwakeExtend(minutes: Int) = send(Wire.keepAwakeSet("extend", minutes))
+
 fun LpmClient.claim(id: String) = send(Wire.claim(id))
 
 fun LpmClient.sendInput(id: String, data: String) = sendLive(Wire.input(id, data))

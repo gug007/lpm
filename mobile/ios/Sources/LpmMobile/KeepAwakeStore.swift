@@ -46,4 +46,10 @@ final class KeepAwakeStore {
         error = nil
         model?.client?.keepAwakeSet(mode: mode.rawValue, minutes: minutes)
     }
+
+    /// Adds `minutes` to the set time or the after-agents countdown that is running.
+    func extend(minutes: Int) {
+        error = nil
+        model?.client?.keepAwakeSet(mode: "extend", minutes: minutes)
+    }
 }
