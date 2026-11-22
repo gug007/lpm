@@ -30,8 +30,8 @@ function betaItem(checksumsBelow: boolean): SafetyItem {
     icon: FlaskConical,
     title: "Windows and Linux beta",
     body: checksumsBelow
-      ? "Not code-signed yet, so compare the SHA-256 checksums below. The Windows installer needs no admin rights."
-      : "Not code-signed yet, so compare the SHA-256 checksum on the GitHub release page. The Windows installer needs no admin rights.",
+      ? "Not code-signed yet, so compare the SHA-256 checksums below. Windows code signing through SignPath Foundation is on the way. The Windows installer needs no admin rights."
+      : "Not code-signed yet, so compare the SHA-256 checksum on the GitHub release page. Windows code signing through SignPath Foundation is on the way. The Windows installer needs no admin rights.",
   };
 }
 
