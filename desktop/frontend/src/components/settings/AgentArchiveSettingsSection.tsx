@@ -1,5 +1,5 @@
 import { rowProps } from "../../settings-registry";
-import { DEFAULT_SEEN_SHOWN, SEEN_SHOWN_MAX, SEEN_SHOWN_MIN } from "../../store/settings";
+import { DEFAULT_KEEP_FINISHED_AGENTS, DEFAULT_SEEN_SHOWN, SEEN_SHOWN_MAX, SEEN_SHOWN_MIN } from "../../store/settings";
 import { SettingsRow } from "../SettingsRow";
 import { SettingsSection } from "../SettingsSection";
 import { Toggle } from "../ui/Toggle";
@@ -10,7 +10,7 @@ import { useRowReach, useSettingsTarget } from "./settingsTarget";
 export function AgentArchiveSettingsSection() {
   const { settings, update } = useSettingsTarget();
   const shows = useRowReach();
-  const keep = settings.keepFinishedAgents ?? false;
+  const keep = settings.keepFinishedAgents ?? DEFAULT_KEEP_FINISHED_AGENTS;
   const shown = settings.seenAgentsShown ?? DEFAULT_SEEN_SHOWN;
 
   if (!shows("general.keepFinishedAgents") && !shows("general.autoArchiveAgents") && !shows("general.seenAgentsShown")) {

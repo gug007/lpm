@@ -24,20 +24,20 @@ pub(super) fn is_finished(value: &str) -> bool {
 }
 
 /// Settings › Agents › In the sidebar › Keep finished agents until archived.
-/// Unset means off.
+/// Unset means on.
 pub fn keeps_finished(settings: &Value) -> bool {
     settings
         .get("keepFinishedAgents")
         .and_then(Value::as_bool)
-        .unwrap_or(false)
+        .unwrap_or(true)
 }
 
 /// How long an agent stays seen before it archives itself; None for never.
-/// Unset, or a value it can't read, means a day.
+/// Unset, or a value it can't read, means an hour.
 fn archive_after_ms(settings: &Value) -> Option<i64> {
     match settings.get("autoArchiveAgentsAfter").and_then(Value::as_str) {
         Some("never") => None,
-        value => Some(value.and_then(duration_ms).unwrap_or(DAY_MS)),
+        value => Some(value.and_then(duration_ms).unwrap_or(HOUR_MS)),
     }
 }
 
@@ -64,12 +64,12 @@ pub fn is_archive_after(value: &str) -> bool {
 }
 
 /// Settings › Agents › In the sidebar › Seen agents per project, 1–10. Unset
-/// means 3.
+/// means 5.
 pub fn seen_shown(settings: &Value) -> u64 {
     settings
         .get("seenAgentsShown")
         .and_then(Value::as_u64)
-        .map_or(3, |n| n.clamp(1, 10))
+        .map_or(5, |n| n.clamp(1, 10))
 }
 
 impl StatusStore {
@@ -394,28 +394,29 @@ mod tests {
         s.set("q", entry("new", STATUS_DONE, 100, "q-1"));
         s.mark_seen("p", &strings(&["old"]), 0);
         s.mark_seen("q", &strings(&["new"]), 23 * HOUR_MS);
-        let keep = json!({ "keepFinishedAgents": true });
-        assert_eq!(sweep(&s, &keep, 24 * HOUR_MS), ["p"]);
+        assert_eq!(sweep(&s, &json!({}), 24 * HOUR_MS - 1), ["p"], "on by default, after an hour");
         assert_eq!(keys(s.seen_list("q")), ["new"]);
-        let never = json!({ "keepFinishedAgents": true, "autoArchiveAgentsAfter": "never" });
+        let never = json!({ "autoArchiveAgentsAfter": "never" });
         assert!(sweep(&s, &never, 99 * HOUR_MS).is_empty());
-        assert_eq!(sweep(&s, &json!({}), 0), ["q"], "off unless switched on");
+        let off = json!({ "keepFinishedAgents": false });
+        assert_eq!(sweep(&s, &off, 23 * HOUR_MS), ["q"], "everything once switched off");
     }
 
     #[test]
     fn settings_read_their_defaults() {
-        assert!(!keeps_finished(&json!({})));
-        assert_eq!(archive_after_ms(&json!({})), Some(24 * HOUR_MS));
+        assert!(keeps_finished(&json!({})));
+        assert!(!keeps_finished(&json!({ "keepFinishedAgents": false })));
+        assert_eq!(archive_after_ms(&json!({})), Some(HOUR_MS));
         assert_eq!(archive_after_ms(&json!({ "autoArchiveAgentsAfter": "8h" })), Some(8 * HOUR_MS));
         assert_eq!(archive_after_ms(&json!({ "autoArchiveAgentsAfter": "90m" })), Some(90 * MINUTE_MS));
         assert_eq!(archive_after_ms(&json!({ "autoArchiveAgentsAfter": "3w" })), Some(21 * DAY_MS));
         assert_eq!(archive_after_ms(&json!({ "autoArchiveAgentsAfter": "never" })), None);
-        assert_eq!(archive_after_ms(&json!({ "autoArchiveAgentsAfter": "soon" })), Some(DAY_MS));
+        assert_eq!(archive_after_ms(&json!({ "autoArchiveAgentsAfter": "soon" })), Some(HOUR_MS));
         for bad in ["", "0d", "1000h", "2y", "d", "-1d", "1.5h", "2дн"] {
             assert!(!is_archive_after(bad), "{bad}");
         }
         assert!(is_archive_after("999m") && is_archive_after("never"));
-        assert_eq!(seen_shown(&json!({})), 3);
+        assert_eq!(seen_shown(&json!({})), 5);
         assert_eq!(seen_shown(&json!({ "seenAgentsShown": 40 })), 10);
     }
 }

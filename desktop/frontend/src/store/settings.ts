@@ -52,7 +52,8 @@ function isGenerateApproval(v: unknown): v is GenerateApprovalMode {
 
 export type VideoNarrator = "local" | "openai";
 
-export const DEFAULT_SEEN_SHOWN = 3;
+export const DEFAULT_KEEP_FINISHED_AGENTS = true;
+export const DEFAULT_SEEN_SHOWN = 5;
 export const SEEN_SHOWN_MIN = 1;
 export const SEEN_SHOWN_MAX = 10;
 
@@ -154,12 +155,12 @@ export interface Settings {
   // means on, and it is kept per machine.
   dailyPing?: boolean;
   // Opening a finished agent keeps its sidebar row, muted, until it is
-  // archived (status/seen.rs). Unset means off.
+  // archived (status/seen.rs). Unset means on.
   keepFinishedAgents?: boolean;
   // How long a seen agent stays before it archives itself: "never", or an
-  // amount and a unit such as "90m" (archiveAfter.ts). Unset means a day.
+  // amount and a unit such as "90m" (archiveAfter.ts). Unset means an hour.
   autoArchiveAgentsAfter?: string;
-  // How many seen agents a project lists before the rest fold. Unset means 3.
+  // How many seen agents a project lists before the rest fold. Unset means 5.
   seenAgentsShown?: number;
   experimentalTTS?: boolean;
   ttsEnabled?: boolean;

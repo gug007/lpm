@@ -252,11 +252,11 @@ describe("SidebarAgentRows menu", () => {
   });
 
   it("offers to mark a new finish seen only while finished agents are kept", () => {
-    expect(openMenu({ state: "error" })).not.toContain("Mark as seen");
+    expect(openMenu({ state: "error" })).toContain("Mark as seen");
     act(() => document.querySelector<HTMLButtonElement>(".menu-pop button")?.click());
-    useSettingsStore.setState({ keepFinishedAgents: true });
+    useSettingsStore.setState({ keepFinishedAgents: false });
     try {
-      expect(openMenu({ state: "error" })).toContain("Mark as seen");
+      expect(openMenu({ state: "error" })).not.toContain("Mark as seen");
     } finally {
       useSettingsStore.setState({ keepFinishedAgents: undefined });
     }
@@ -321,9 +321,11 @@ describe("SidebarAgentRows seen agents", () => {
       agent({ key: "b", state: "done", seenAt: 2 }),
       agent({ key: "c", state: "done", seenAt: 3 }),
       agent({ key: "d", state: "done", seenAt: 4 }),
-      agent({ key: "e", state: "done" }),
+      agent({ key: "e", state: "done", seenAt: 5 }),
+      agent({ key: "f", state: "done", seenAt: 6 }),
+      agent({ key: "g", state: "done" }),
     ]);
-    expect(lines().map((b) => b.dataset.agentRow)).toEqual(["b", "c", "d", "e"]);
+    expect(lines().map((b) => b.dataset.agentRow)).toEqual(["b", "c", "d", "e", "f", "g"]);
     expect(container.textContent).toContain("1 more seen");
   });
 

@@ -9,7 +9,7 @@ export interface ArchiveAfter {
   unit: ArchiveUnit;
 }
 
-export const DEFAULT_ARCHIVE_AFTER = "1d";
+export const DEFAULT_ARCHIVE_AFTER = "1h";
 export const ARCHIVE_AMOUNT_MAX = 999;
 
 const PATTERN = /^([1-9]\d{0,2})([mhdw])$/;

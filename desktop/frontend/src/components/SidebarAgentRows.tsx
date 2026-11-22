@@ -5,7 +5,7 @@ import type { SidebarAgentRow } from "../sidebarAgents";
 import { useExpandedSeenAgents } from "../sidebarCollapsed";
 import { isPeerName } from "../peer/markers";
 import { canArchive, foldSeenRows } from "../sidebarSeenAgents";
-import { DEFAULT_SEEN_SHOWN, useSettingsStore } from "../store/settings";
+import { DEFAULT_KEEP_FINISHED_AGENTS, DEFAULT_SEEN_SHOWN, useSettingsStore } from "../store/settings";
 import { SidebarAgentAsk } from "./SidebarAgentAsk";
 import { SidebarAgentFold } from "./SidebarAgentFold";
 import { SidebarAgentLine } from "./SidebarAgentLine";
@@ -57,7 +57,7 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
   const [menu, setMenu] = useState<{ agent: SidebarAgentRow; x: number; y: number } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const limit = useSettingsStore((s) => s.seenAgentsShown ?? DEFAULT_SEEN_SHOWN);
-  const keepsSeen = useSettingsStore((s) => s.keepFinishedAgents ?? false);
+  const keepsSeen = useSettingsStore((s) => s.keepFinishedAgents ?? DEFAULT_KEEP_FINISHED_AGENTS);
   const expanded = useExpandedSeenAgents((s) => s.collapsed.has(projectName));
   const toggleExpanded = useExpandedSeenAgents((s) => s.toggle);
   const onScreen = activeTerminalId ?? null;

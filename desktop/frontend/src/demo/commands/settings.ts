@@ -23,7 +23,7 @@ export function seedSettings(selected?: string): void {
 }
 
 export function keepsFinishedAgents(): boolean {
-  return settings.keepFinishedAgents === true;
+  return settings.keepFinishedAgents !== false;
 }
 
 export function selectedProject(): string | undefined {
