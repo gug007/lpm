@@ -263,13 +263,25 @@ function isTerminalRendererGpuLoss(error: unknown): boolean {
   );
 }
 
+// Monaco warns of a "potential listener LEAK" once 200 listeners wait on its list
+// of languages, and throws the warning from a timer. Every open text model is one
+// of them, and the Review pane keeps two models for each file it has shown, so a
+// review of a hundred or so files trips it. A real runaway leak still ends in
+// Monaco refusing new listeners, which stays reported.
+const EDITOR_LEAK_WARNING =
+  /^\[[0-9a-f]+\] potential listener LEAK detected, having \d+ listeners already\./;
+
+function isEditorLeakWarning(error: unknown): boolean {
+  return error instanceof Error && EDITOR_LEAK_WARNING.test(error.message);
+}
+
 export function initializeDiagnostics(surface: string): void {
   currentSurface = surface;
   if (initialized || typeof window === "undefined") return;
   initialized = true;
 
   window.addEventListener("error", (event) => {
-    if (isTerminalRendererGpuLoss(event.error)) return;
+    if (isTerminalRendererGpuLoss(event.error) || isEditorLeakWarning(event.error)) return;
     reportError("window.error", event.error ?? event.message, {
       filename: event.filename,
       line: event.lineno,

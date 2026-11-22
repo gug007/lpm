@@ -23,7 +23,12 @@ data class ClaudeAccountInfo(
     /** "max", "pro", "team", "enterprise", or "" when unknown. */
     val plan: String,
     /** Confirmed on the Mac as this person's alone, needed before it takes turns in a list. */
-    val confirmed: Boolean
+    val confirmed: Boolean,
+    /**
+     * The earlier account signed in as the same Claude account, after a `/login` inside
+     * this one picked it; its usage shows on that account's card.
+     */
+    val sameAs: String? = null
 ) {
     /** Personal plans take turns without the Mac allowing them first. */
     val personal: Boolean get() = plan == "max" || plan == "pro"
@@ -43,7 +48,8 @@ data class ClaudeAccountInfo(
                 signedIn = o.bool("signedIn") ?: false,
                 email = email,
                 plan = o.string("plan").orEmpty(),
-                confirmed = o.bool("confirmed") ?: false
+                confirmed = o.bool("confirmed") ?: false,
+                sameAs = o.string("sameAs")?.ifEmpty { null }
             )
         }
     }

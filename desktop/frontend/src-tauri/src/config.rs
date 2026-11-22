@@ -896,19 +896,29 @@ pub fn claude_chrome_by_default() -> bool {
 }
 
 /// Per-account sign-in status for every id in accounts.json plus the ambient
-/// "default" login, as `{"statuses": [{"id", "signedIn", "email"}, ...]}`.
-/// Consumers look ids up by key, so the extra entry never renders as an
-/// account row.
+/// "default" login, as `{"statuses": [{"id", "signedIn", "email", "sameAs"?},
+/// ...]}`. `sameAs` names the earlier profile (the main login first) signed in
+/// as the same Claude account. Consumers look ids up by key, so the extra
+/// entry never renders as an account row.
 pub fn claude_accounts_status() -> Value {
-    let mut statuses: Vec<Value> = claude_account_ids(&load_claude_accounts())
+    let ids = claude_account_ids(&load_claude_accounts());
+    let same = crate::agent_limits_login::same_logins();
+    let entry = |id: &str, signed_in: bool, email: String| {
+        let mut v = json!({ "id": id, "signedIn": signed_in, "email": email });
+        if let Some(earlier) = same.get(id) {
+            v["sameAs"] = json!(earlier);
+        }
+        v
+    };
+    let mut statuses: Vec<Value> = ids
         .iter()
         .map(|id| {
             let (signed_in, email) = account_signin_status(id);
-            json!({ "id": id, "signedIn": signed_in, "email": email })
+            entry(id, signed_in, email)
         })
         .collect();
     let (signed_in, email) = default_signin_status();
-    statuses.push(json!({ "id": "default", "signedIn": signed_in, "email": email }));
+    statuses.push(entry("default", signed_in, email));
     json!({ "statuses": statuses })
 }
 

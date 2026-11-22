@@ -1,10 +1,12 @@
-import { Archive, ArrowUpRight, Circle, CircleDot, Copy, GitFork, Users } from "lucide-react";
+import { Archive, ArrowUpRight, Circle, CircleDot, Copy, GitFork, Settings2, Users } from "lucide-react";
 import { ARCHIVE_AGENT_CHORD } from "../agentArchive";
 import { AGENT_STATE_LABEL } from "../agentStatus";
 import { chordLabel } from "../keys";
 import { peerSlugOf } from "../peer/markers";
 import type { SidebarAgentRow } from "../sidebarAgents";
+import { archiveBlocked } from "../sidebarSeenAgents";
 import { XIcon } from "./icons";
+import { TabMoveToSubmenu } from "./terminal/TabMoveToSubmenu";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
@@ -23,12 +25,8 @@ interface SidebarAgentMenuProps {
   onArchive?: () => void;
   onMarkSeen?: () => void;
   onMarkUnread?: () => void;
+  onSettings?: () => void;
   onClose: () => void;
-}
-
-// Why Archive is out of reach: only a turn that has ended can be put away.
-function archiveBlocked(agent: SidebarAgentRow): string {
-  return agent.state === "needs-you" ? "Answer it first" : "Available once the turn ends";
 }
 
 // An agent row's right-click menu: its tab's own actions, without opening the
@@ -43,6 +41,7 @@ export function SidebarAgentMenu({
   onArchive,
   onMarkSeen,
   onMarkUnread,
+  onSettings,
   onClose,
 }: SidebarAgentMenuProps) {
   const close = (fn: () => void) => () => {
@@ -66,6 +65,9 @@ export function SidebarAgentMenu({
           {!peerSlugOf(projectName) && (
             <ContextMenuItem label="Share tab…" icon={<Users size={12} />} onClick={act("share")} />
           )}
+          {agent.terminalId && (
+            <TabMoveToSubmenu projectName={projectName} terminalId={agent.terminalId} onClose={onClose} />
+          )}
         </>
       )}
       <ContextMenuSeparator />
@@ -81,6 +83,9 @@ export function SidebarAgentMenu({
         disabled={!onArchive}
         onClick={close(() => onArchive?.())}
       />
+      {onSettings && (
+        <ContextMenuItem label="Agent settings…" icon={<Settings2 size={12} />} onClick={close(onSettings)} />
+      )}
       {act && (
         <>
           <ContextMenuSeparator />

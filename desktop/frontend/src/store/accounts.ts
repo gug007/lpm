@@ -11,6 +11,9 @@ import type { ClaudeAccount } from "../types";
 export interface ClaudeAccountStatus {
   signedIn: boolean;
   email: string;
+  /** The earlier profile signed in as the same Claude account, after a
+   *  `/login` inside this one swapped its login. */
+  sameAs?: string;
 }
 
 export function normalizeAccounts(raw: unknown): ClaudeAccount[] {
@@ -30,6 +33,7 @@ export function normalizeStatuses(raw: unknown): Record<string, ClaudeAccountSta
     out[s.id] = {
       signedIn: Boolean(s.signedIn),
       email: typeof s.email === "string" ? s.email : "",
+      ...(typeof s.sameAs === "string" && s.sameAs ? { sameAs: s.sameAs } : {}),
     };
   }
   return out;

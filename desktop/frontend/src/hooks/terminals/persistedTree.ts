@@ -1,6 +1,7 @@
 import {
   StartTerminal,
   StartTerminalForRestore,
+  StartTerminalWithCwdEnv,
   TerminalExists,
 } from "../../../bridge/commands";
 import { askHostFollows } from "../../peer/hostFollows";
@@ -142,10 +143,20 @@ async function reifyTab(t: PersistedTab, projectName: string): Promise<ReifiedTa
 // it, whatever account new sessions in the project use now. One whose agent was
 // quit continues nothing.
 function startFresh(t: PersistedTab, projectName: string): Promise<string> {
-  const sessionId = t.agentEnded ? undefined : claudeResumeSessionId(t.resumeCmd);
-  return t.actionName
-    ? StartTerminalForRestore(projectName, t.actionName, sessionId)
-    : StartTerminal(projectName, sessionId, undefined, undefined, undefined, t.shell);
+  return startTabTerminal(projectName, t, t.agentEnded ? undefined : claudeResumeSessionId(t.resumeCmd));
+}
+
+// A tab's pty as the tab last ran: in the folder it moved with, else as its
+// action, else as a plain terminal in its shell.
+export function startTabTerminal(
+  projectName: string,
+  tab: Pick<PersistedTab, "cwd" | "actionName" | "shell">,
+  sessionId: string | undefined,
+): Promise<string> {
+  if (tab.cwd) return StartTerminalWithCwdEnv(projectName, tab.cwd, {}, sessionId);
+  return tab.actionName
+    ? StartTerminalForRestore(projectName, tab.actionName, sessionId)
+    : StartTerminal(projectName, sessionId, undefined, undefined, undefined, tab.shell);
 }
 
 async function reifyTree(
@@ -197,6 +208,7 @@ async function reifyTree(
           agentEnded: t.agentEnded,
           actionName: t.actionName,
           shell: t.shell,
+          cwd: t.cwd,
           pinned: t.pinned,
           emoji: t.emoji,
           color: t.color,
@@ -293,6 +305,7 @@ export function treeToPersisted(node: PaneNode): PersistedPaneNode {
           ...(t.agentEnded ? { agentEnded: true } : {}),
           ...(t.actionName ? { actionName: t.actionName } : {}),
           ...(t.shell ? { shell: t.shell } : {}),
+          ...(t.cwd ? { cwd: t.cwd } : {}),
           ...(t.pinned ? { pinned: true } : {}),
           ...(t.emoji ? { emoji: t.emoji } : {}),
           ...(t.color ? { color: t.color } : {}),

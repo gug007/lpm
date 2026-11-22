@@ -56,7 +56,8 @@ class TabMenuExtras(
     val fork: (() -> Unit)? = null,
     val forkCopy: (() -> Unit)? = null,
     val closeOthers: (() -> Unit)? = null,
-    val claudeAccount: (@Composable ColumnScope.() -> Unit)? = null
+    val claudeAccount: (@Composable ColumnScope.() -> Unit)? = null,
+    val moveTo: (@Composable ColumnScope.() -> Unit)? = null
 )
 
 /**
@@ -188,6 +189,7 @@ fun TabRow(
                     )
                 }
                 extras.claudeAccount?.invoke(this)
+                extras.moveTo?.invoke(this)
                 ContextMenuItem(
                     title = closeLabel,
                     onClick = onClose,

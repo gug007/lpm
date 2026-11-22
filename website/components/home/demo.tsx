@@ -169,6 +169,10 @@ const LESSON_CAPTION: Record<
     heading: "Your own dashboard, one click away",
     blurb: "A short video: open a mini app in a tab, refresh its data, and have Claude Code build a new one.",
   },
+  "project-rows": {
+    heading: "See each project's branch, pull request and changes at a glance",
+    blurb: "A short video: open the row builder, start from a preset, and drag details onto your project rows.",
+  },
 };
 
 // The frame sits in the first viewport, so the observer fires on load. Waiting

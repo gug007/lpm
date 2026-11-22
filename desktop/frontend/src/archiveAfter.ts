@@ -12,6 +12,15 @@ export interface ArchiveAfter {
 export const DEFAULT_ARCHIVE_AFTER = "1h";
 export const ARCHIVE_AMOUNT_MAX = 999;
 
+export const UNIT_LABEL: Record<ArchiveUnit, [one: string, many: string]> = {
+  m: ["minute", "minutes"],
+  h: ["hour", "hours"],
+  d: ["day", "days"],
+  w: ["week", "weeks"],
+};
+
+const UNIT_MS: Record<ArchiveUnit, number> = { m: 60_000, h: 3_600_000, d: 86_400_000, w: 604_800_000 };
+
 const PATTERN = /^([1-9]\d{0,2})([mhdw])$/;
 
 /** "never" as itself, a length as its amount and unit, anything else as null. */
@@ -27,4 +36,20 @@ export function formatArchiveAfter({ amount, unit }: ArchiveAfter): string {
 
 export function isArchiveAfter(value: unknown): value is string {
   return typeof value === "string" && parseArchiveAfter(value) !== null;
+}
+
+/** The setting as it takes effect: a length, or null for never. Unset or
+ *  unreadable means the default, as status/seen.rs reads it. */
+export function archiveAfterOf(value: string | undefined): ArchiveAfter | null {
+  const after = parseArchiveAfter(value ?? DEFAULT_ARCHIVE_AFTER) ?? parseArchiveAfter(DEFAULT_ARCHIVE_AFTER);
+  return after && after !== "never" ? after : null;
+}
+
+export function archiveAfterMillis({ amount, unit }: ArchiveAfter): number {
+  return amount * UNIT_MS[unit];
+}
+
+/** "1 hour", "90 minutes". */
+export function describeArchiveAfter({ amount, unit }: ArchiveAfter): string {
+  return `${amount} ${UNIT_LABEL[unit][amount === 1 ? 0 : 1]}`;
 }

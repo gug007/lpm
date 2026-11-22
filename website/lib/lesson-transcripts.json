@@ -4536,5 +4536,115 @@
    80.2,
    "so your numbers are always in your pocket, wherever you are."
   ]
+ ],
+ "project-rows": [
+  [
+   0.5,
+   "Every project in lpm's sidebar is a row."
+  ],
+  [
+   4,
+   "Now you choose what that row tells you:"
+  ],
+  [
+   6,
+   "the branch, the pull request and its checks, what changed, and more."
+  ],
+  [
+   10.5,
+   "Click the sliders button next to Projects,"
+  ],
+  [
+   12.9,
+   "and the row builder opens beside the sidebar."
+  ],
+  [
+   16.6,
+   "It draws the selected project's"
+  ],
+  [
+   19.1,
+   "real row at twice the size,"
+  ],
+  [
+   21.7,
+   "exactly the way your sidebar will show it."
+  ],
+  [
+   24.4,
+   "Start from a preset."
+  ],
+  [
+   26.1,
+   "Two lines adds the pull request and its checks,"
+  ],
+  [
+   29.1,
+   "the branch, the changes and the last commit."
+  ],
+  [
+   32.2,
+   "The sidebar follows at once,"
+  ],
+  [
+   34.6,
+   "and each project fills in its own."
+  ],
+  [
+   37.1,
+   "To add a detail, drag it from the list onto the row."
+  ],
+  [
+   40.4,
+   "Here, the version goes to the end of line two."
+  ],
+  [
+   43.6,
+   "Details on the row move the same way."
+  ],
+  [
+   46.2,
+   "Drag the last commit up to the end of line one."
+  ],
+  [
+   48.8,
+   "A dashed icon means this project has nothing there right now,"
+  ],
+  [
+   52.3,
+   "like this status note."
+  ],
+  [
+   53.9,
+   "Hover it, and click the cross to hide it."
+  ],
+  [
+   56.2,
+   "Need more room?"
+  ],
+  [
+   58,
+   "Add a line, up to four, and drop the unpushed commits onto it."
+  ],
+  [
+   63.1,
+   "Options fine-tune the details."
+  ],
+  [
+   66,
+   "Turn on the pull request's state,"
+  ],
+  [
+   68.1,
+   "and the badge says Open beside its number."
+  ],
+  [
+   71.1,
+   "Now close the builder, and every project shows its branch,"
+  ],
+  [
+   75.3,
+   "pull request and changes at a glance."
+  ]
  ]
 }

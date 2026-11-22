@@ -126,6 +126,11 @@ export function providerMeta(key: string): ProviderMeta {
   return PROVIDER_META[key] ?? { label: key, short: key, color: "var(--text-muted)" };
 }
 
+/** The status key prefix an agent's hooks report under. */
+export function statusKeyPrefix(provider: StatusProvider): string | undefined {
+  return STATUS_AGENTS.find((agent) => agent.provider === provider)?.keyPrefix;
+}
+
 export function statusProvider(key: string): StatusProvider {
   return STATUS_AGENTS.find(({ keyPrefix }) => key.startsWith(keyPrefix))?.provider ?? "unknown";
 }

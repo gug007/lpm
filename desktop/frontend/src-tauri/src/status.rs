@@ -10,6 +10,7 @@ use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, State};
 
+mod moving;
 pub mod saved;
 pub mod seen;
 

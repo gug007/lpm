@@ -1,4 +1,4 @@
-import { sidebarProjectAlert, type SidebarAgentRow } from "../sidebarAgents";
+import { agentOnScreen, sidebarProjectAlert, type SidebarAgentRow } from "../sidebarAgents";
 import { useCollapsedPinnedAgents } from "../sidebarCollapsed";
 import { isPeerName } from "../peer/markers";
 import type { ProjectInfo } from "../types";
@@ -70,7 +70,7 @@ export function SidebarPinned({
                   opensIn={windowOf(project.name)}
                   canExpand={canExpand}
                   expanded={expanded}
-                  selected={isSelected}
+                  selected={isSelected && !(expanded && agentOnScreen(agents, focusedTerminals[project.name]))}
                   menuOpen={menuFor === project.name}
                   onSelect={() => onSelect(project.name)}
                   onToggleAgents={() => toggle(project.name)}

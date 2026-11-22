@@ -47,6 +47,7 @@ fun UsageRoute(
         onRefresh = viewModel::refresh,
         onRetry = viewModel::retry,
         onToggleReminder = viewModel::toggleReminder,
+        onReadUsage = viewModel::readUsage,
         modifier = modifier
     )
 }
@@ -68,7 +69,8 @@ fun UsageScreen(
         window: String,
         win: LimitWindow,
         name: String
-    ) -> Unit = { _, _, _, _ -> }
+    ) -> Unit = { _, _, _, _ -> },
+    onReadUsage: (account: String) -> Unit = {}
 ) {
     UsageScaffold(
         title = stringResource(R.string.usage_title),
@@ -96,7 +98,7 @@ fun UsageScreen(
                     tween(200),
                     label = "dim"
                 )
-                UsageCards(body, state, onToggleReminder, Modifier.alpha(alpha))
+                UsageCards(body, state, onToggleReminder, onReadUsage, Modifier.alpha(alpha))
             }
         }
     }
@@ -107,6 +109,7 @@ private fun UsageCards(
     body: UsageBody.Loaded,
     state: UsageUiState,
     onToggleReminder: (limit: String, window: String, win: LimitWindow, name: String) -> Unit,
+    onReadUsage: (account: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val now = state.now
@@ -124,17 +127,40 @@ private fun UsageCards(
             }
         }
     }
+    val readerFor = { account: String ->
+        if (state.readSupported) {
+            UsageReader(account in state.reading, state.readErrors[account]) {
+                onReadUsage(account)
+            }
+        } else {
+            null
+        }
+    }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        body.note?.let {
+            Text(
+                it,
+                style = LpmTheme.typography.caption1,
+                color = LpmTheme.colors.secondaryLabel,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
         body.claude.forEach { card ->
             key(card.key) {
-                UsageProviderCard(
-                    card.data,
-                    now,
-                    macNow,
-                    card.title,
-                    subtitle = card.subtitle,
-                    reminder = reminderFor(card.key, card.title)
-                )
+                val sameAsTitle = card.sameAsTitle
+                if (sameAsTitle != null) {
+                    UsageSameLoginCard(card.title, card.email, sameAsTitle)
+                } else {
+                    UsageProviderCard(
+                        card.data,
+                        now,
+                        macNow,
+                        card.title,
+                        subtitle = card.subtitle,
+                        reminder = reminderFor(card.key, card.title),
+                        reader = readerFor(card.account)
+                    )
+                }
             }
         }
         if (body.claude.isEmpty()) {

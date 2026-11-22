@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { BranchCommitChecks, BranchPullRequest } from "../../bridge/commands";
+import { fetchBranchCi } from "../branchCi";
 import { checksSummary, summarizeChecks } from "../prChecks";
 import { useBranchPr } from "../store/branchPr";
 import { useEventListener } from "./useEventListener";
@@ -42,20 +42,7 @@ export function useBranchPullRequest(projectPath: string, branch: string, active
   const lookup = useCallback(async () => {
     if (!projectPath || !branch || inFlight.current) return;
     inFlight.current = true;
-    let pr: PullRequestInfo | null = null;
-    let commit: CommitChecksInfo | null = null;
-    try {
-      pr = ((await BranchPullRequest(projectPath)) as PullRequestInfo | null) ?? null;
-    } catch {
-      pr = null;
-    }
-    if (pr?.state !== "OPEN") {
-      try {
-        commit = (await BranchCommitChecks(projectPath)) ?? null;
-      } catch {
-        commit = null;
-      }
-    }
+    const { pr, commit } = await fetchBranchCi(projectPath);
     inFlight.current = false;
     setEntry(projectPath, { branch, pr, commit, checkedAt: Date.now() });
   }, [projectPath, branch, setEntry]);

@@ -2,6 +2,7 @@ package cx.lpm.mobile.core.protocol
 
 import cx.lpm.mobile.core.model.AgentDialogRead
 import cx.lpm.mobile.core.model.AgentStats
+import cx.lpm.mobile.core.model.CLAUDE_MAIN_LOGIN
 import cx.lpm.mobile.core.model.GenerateRequest
 import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
@@ -89,6 +90,12 @@ internal val sessionParsers = parsers {
         )
     }
     put("limits-changed") { o -> Inbound.LimitsChanged(LimitsSnapshot.parse(o)) }
+    put("readUsage") { o ->
+        Inbound.ReadUsage(
+            account = o.string("account") ?: CLAUDE_MAIN_LOGIN,
+            error = if (o.ok) null else o.string("error") ?: "Couldn't read this account."
+        )
+    }
     put("limitReminders") { o ->
         Inbound.LimitReminders(
             reminders = o.objects("reminders").orEmpty().mapNotNull(LimitReminder::parse),

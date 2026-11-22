@@ -19,6 +19,13 @@ pub(crate) fn advertised() -> Value {
     json!(crate::linkhelper::launcher_port(port))
 }
 
+/// Removing lpm takes the login item with it, so launchd stops starting a
+/// helper that is gone.
+#[cfg(target_os = "macos")]
+pub(crate) fn remove_for_uninstall() -> Result<(), String> {
+    imp::uninstall()
+}
+
 #[tauri::command(async)]
 pub fn remote_set_open_from_phone(
     app: AppHandle,

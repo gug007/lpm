@@ -174,6 +174,23 @@ describe("uncaught errors", () => {
     expect(heard).toHaveBeenCalledTimes(2);
     expect(heard.mock.calls.map(([report]) => report.event)).toEqual(["window.error", "window.error"]);
   });
+
+  it("reports errors, except the editor's listener count warning", () => {
+    const rethrown = (message: string) =>
+      window.dispatchEvent(
+        Object.assign(new Event("error"), {
+          error: new Error(`${message}\n\ncreate@tauri://localhost/assets/editor.api2-BSIQRriz.js:5:34129`),
+          message,
+        }),
+      );
+
+    rethrown("[001] potential listener LEAK detected, having 200 listeners already. MOST frequent listener (1):");
+    rethrown("[001] potential listener LEAK detected, having 300 listeners already. MOST frequent listener (51):");
+    expect(heard).not.toHaveBeenCalled();
+
+    rethrown("[001] REFUSES to accept new listeners because it exceeded its threshold by far (40001 vs 200)");
+    expect(heard).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("formatDiagnosticsReport", () => {

@@ -3,6 +3,8 @@ import { rowProps } from "../../settings-registry";
 import { SettingsRow } from "../SettingsRow";
 import { SettingsSection } from "../SettingsSection";
 import { Toggle } from "../ui/Toggle";
+import { BTN_SECONDARY_SM } from "../ui/buttons";
+import { openRowLayoutDialog } from "../../store/rowLayoutDialog";
 import { AboutSection } from "./AboutSection";
 import { DefaultDirectoryRow } from "./DefaultDirectoryRow";
 import { InterfaceSizeRow } from "./InterfaceSizeRow";
@@ -54,6 +56,13 @@ export function GeneralPane() {
               enabled={settings.doubleClickToToggle}
               onChange={(v) => void update({ doubleClickToToggle: v })}
             />
+          </SettingsRow>
+        )}
+        {machine.kind === "local" && shows("general.sidebarRows") && (
+          <SettingsRow {...rowProps("general.sidebarRows")}>
+            <button type="button" className={BTN_SECONDARY_SM} onClick={openRowLayoutDialog}>
+              Customize…
+            </button>
           </SettingsRow>
         )}
         <DefaultDirectoryRow />

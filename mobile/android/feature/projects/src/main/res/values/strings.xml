@@ -294,6 +294,8 @@
     <string name="tab_use_title">Use Conversation Title</string>
     <string name="tab_fork">Fork Session</string>
     <string name="tab_fork_copy">Fork into Copy</string>
+    <string name="tab_move_to">Move To</string>
+    <string name="tab_move_to_note">It keeps running in this project\'s folder</string>
     <string name="tab_close_others">Close Other Tabs</string>
     <string name="tab_fork_copy_title">Fork into a Copy</string>
     <string name="tab_fork_copy_message">Create a copy of this project and continue the “%1$s” conversation there. The original keeps running here.</string>

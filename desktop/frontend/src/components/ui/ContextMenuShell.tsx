@@ -8,9 +8,10 @@ type ContextMenuShellProps = {
   // (default) or its right, for a menu hanging from a control at the right of
   // its container.
   align?: "start" | "end";
-  // Which side of the anchor the menu opens on: below it (default), or above,
-  // for a control at the bottom of the window.
-  side?: "bottom" | "top";
+  // Which side of the anchor the menu opens on: below it (default), above, for
+  // a control at the bottom of the window, or to its right, top edges level,
+  // for a panel that belongs to a whole row.
+  side?: "bottom" | "top" | "right";
   minWidth?: number;
   // The control that opened the menu (the anchor, unless given). Pressing it is
   // not an outside click, so its own click can close the menu again.
@@ -91,13 +92,18 @@ export function ContextMenuShell({
     let px: number, py: number;
     if (anchor) {
       const r = anchor.getBoundingClientRect();
-      px = align === "end" ? r.right : r.left;
-      py = side === "top" ? r.top - ANCHOR_GAP - height : r.bottom + ANCHOR_GAP;
+      if (side === "right") {
+        px = r.right + ANCHOR_GAP;
+        py = r.top;
+      } else {
+        px = align === "end" ? r.right : r.left;
+        py = side === "top" ? r.top - ANCHOR_GAP - height : r.bottom + ANCHOR_GAP;
+      }
     } else {
       px = x;
       py = y;
     }
-    const anchored = align === "end" ? px - width : px;
+    const anchored = align === "end" && side !== "right" ? px - width : px;
     const left = Math.max(VIEWPORT_MARGIN, Math.min(anchored, window.innerWidth - width - VIEWPORT_MARGIN));
     const top = Math.max(VIEWPORT_MARGIN, Math.min(py, window.innerHeight - height - VIEWPORT_MARGIN));
     setPos((prev) => (prev.left === left && prev.top === top ? prev : { left, top }));

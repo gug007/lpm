@@ -49,3 +49,4 @@ Manual order. Each published lesson is appended here and to the playlist in the 
 - Any AI Coding Agent Can Answer with a Video: lpm's Video Request Mode — https://youtu.be/JRf26eXi_ik
 - Generate Images in Claude Code and Codex with Nano Banana — https://youtu.be/wchpqSE2PRg
 - Mini Apps in lpm: Your Own Dashboards, One Click Away — https://youtu.be/BSkOBv56AcI
+- Customize Project Rows in lpm: Branch, PR and Changes at a Glance — https://youtu.be/4wywPQufylo

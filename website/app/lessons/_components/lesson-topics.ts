@@ -52,6 +52,7 @@ const LESSONS: Record<YouTubeLessonId, { topic: TopicId; title: string }> = {
   "edit-services": { topic: "get-started", title: "Edit and add services" },
   "switch-profiles": { topic: "get-started", title: "Run only the services you need" },
   "archive-projects": { topic: "get-started", title: "Archive projects and free disk space" },
+  "project-rows": { topic: "get-started", title: "Show branch, PR and changes on each row" },
   "add-action": { topic: "buttons", title: "Turn any command into a button" },
   "dynamic-action-labels": { topic: "buttons", title: "Buttons that show live info" },
   "six-action-button-ideas": { topic: "buttons", title: "Six ideas for charts on your buttons" },

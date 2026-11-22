@@ -52,9 +52,11 @@ internal fun UsageProviderCard(
     footer: List<String> = emptyList(),
     fill: Color = LpmTheme.colors.secondarySystemGroupedBackground,
     fiveHourFirst: Boolean = false,
-    reminder: ((window: String, win: LimitWindow?) -> MeterReminder?)? = null
+    reminder: ((window: String, win: LimitWindow?) -> MeterReminder?)? = null,
+    reader: UsageReader? = null
 ) {
     val stale = macNow - data.updatedAt > STALE_MS
+    val old = macNow - data.updatedAt > OLD_MS
     Column(
         modifier
             .fillMaxWidth()
@@ -63,36 +65,10 @@ internal fun UsageProviderCard(
     ) {
         CardHeader(data, title, subtitle, stale, macNow)
         CardDivider()
-        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            val weekly = @Composable {
-                UsageMeter(
-                    stringResource(R.string.usage_weekly),
-                    data.weekly,
-                    WEEKLY_MS,
-                    now,
-                    stale,
-                    reminder = reminder?.invoke(LimitReminder.WEEKLY, data.weekly)
-                )
-            }
-            val fiveHour = @Composable {
-                UsageMeter(
-                    stringResource(R.string.usage_five_hour),
-                    data.fiveHour,
-                    FIVE_HOUR_MS,
-                    now,
-                    stale,
-                    reminder = reminder?.invoke(LimitReminder.FIVE_HOUR, data.fiveHour)
-                )
-            }
-            if (data.noFiveHour) {
-                weekly()
-            } else if (fiveHourFirst) {
-                fiveHour()
-                weekly()
-            } else {
-                weekly()
-                fiveHour()
-            }
+        if (old) {
+            UsageOldReading(data, macNow, reader = reader)
+        } else {
+            CardMeters(data, now, stale, fiveHourFirst, reminder)
         }
         if (footer.isNotEmpty()) {
             CardDivider()
@@ -110,7 +86,48 @@ internal fun UsageProviderCard(
 }
 
 @Composable
-private fun CardDivider() {
+private fun CardMeters(
+    data: ProviderLimits,
+    now: Double,
+    stale: Boolean,
+    fiveHourFirst: Boolean,
+    reminder: ((window: String, win: LimitWindow?) -> MeterReminder?)?
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        val weekly = @Composable {
+            UsageMeter(
+                stringResource(R.string.usage_weekly),
+                data.weekly,
+                WEEKLY_MS,
+                now,
+                stale,
+                reminder = reminder?.invoke(LimitReminder.WEEKLY, data.weekly)
+            )
+        }
+        val fiveHour = @Composable {
+            UsageMeter(
+                stringResource(R.string.usage_five_hour),
+                data.fiveHour,
+                FIVE_HOUR_MS,
+                now,
+                stale,
+                reminder = reminder?.invoke(LimitReminder.FIVE_HOUR, data.fiveHour)
+            )
+        }
+        if (data.noFiveHour) {
+            weekly()
+        } else if (fiveHourFirst) {
+            fiveHour()
+            weekly()
+        } else {
+            weekly()
+            fiveHour()
+        }
+    }
+}
+
+@Composable
+internal fun CardDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(vertical = 12.dp),
         thickness = Dp.Hairline,

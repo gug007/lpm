@@ -183,6 +183,20 @@ export function updatedText(updatedAt: number, now: number): string {
   return `updated ${Math.round(hours / 24)}d ago`;
 }
 
+/** A reading older than this says its age in place of the number: the 5-hour
+ *  window may have turned over since, and a reset can't reach lpm until Claude
+ *  replies on that account again. */
+export const OLD_MS = 60 * 60 * 1000;
+
+export function lastReadText(updatedAt: number, now: number): string {
+  const mins = Math.max(1, Math.round((now - updatedAt) / 60000));
+  if (mins < 60) return `Last read ${mins} minute${mins === 1 ? "" : "s"} ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `Last read ${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.round(hours / 24);
+  return `Last read ${days} day${days === 1 ? "" : "s"} ago`;
+}
+
 export function asOfText(updatedAt: number, now: number): string {
   const mins = Math.round((now - updatedAt) / 60000);
   if (mins < 1) return "as of just now";

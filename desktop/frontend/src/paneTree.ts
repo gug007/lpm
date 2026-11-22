@@ -49,6 +49,9 @@ export interface TerminalInstance {
   // The shell a plain terminal asked for (shells.ts), asked for again on a
   // restart. Absent: the login shell, which agent and action tabs always use.
   shell?: string;
+  // A tab moved here from another project keeps working in the folder it
+  // started in, and a restart opens it there (tabMove.ts). Absent: the root.
+  cwd?: string;
   pinned?: boolean;
   // Custom emoji shown as the tab icon (in place of the terminal icon).
   // Inherited from the action that launched the terminal.
@@ -139,6 +142,7 @@ export function makeTerminal(
     agentEnded?: boolean;
     actionName?: string;
     shell?: string;
+    cwd?: string;
     pinned?: boolean;
     emoji?: string;
     color?: string;
@@ -164,6 +168,7 @@ export function makeTerminal(
     ...(opts?.agentEnded ? { agentEnded: true } : {}),
     ...(opts?.actionName ? { actionName: opts.actionName } : {}),
     ...(opts?.shell ? { shell: opts.shell } : {}),
+    ...(opts?.cwd ? { cwd: opts.cwd } : {}),
     ...(opts?.pinned ? { pinned: true } : {}),
     ...(opts?.emoji ? { emoji: opts.emoji } : {}),
     ...(opts?.color ? { color: opts.color } : {}),

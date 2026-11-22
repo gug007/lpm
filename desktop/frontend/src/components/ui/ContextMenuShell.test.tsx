@@ -70,6 +70,18 @@ describe("ContextMenuShell anchor", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("opens beside its anchor, top edges level, when asked to its right", () => {
+    act(() => {
+      root.render(
+        <ContextMenuShell anchor={anchor} side="right" align="end" onClose={onClose}>
+          <button type="button">Rename</button>
+        </ContextMenuShell>,
+      );
+    });
+    expect(menu()!.style.left).toBe("432px");
+    expect(menu()!.style.top).toBe("300px");
+  });
+
   it("stays put without an anchor", () => {
     render({ x: 428, y: 332 });
     scrollTo(60);

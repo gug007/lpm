@@ -17,6 +17,9 @@ struct ClaudeAccountInfo: Identifiable {
     /// Confirmed on the Mac as this person's alone, which an account needs
     /// before it takes turns in a list.
     let confirmed: Bool
+    /// The earlier account signed in as the same Claude account, after a
+    /// `/login` inside this one picked it; its usage shows on that account's card.
+    let sameAs: String?
 
     init(_ o: [String: Any]) {
         id = o["id"] as? String ?? ""
@@ -24,6 +27,7 @@ struct ClaudeAccountInfo: Identifiable {
         email = o["email"] as? String ?? ""
         plan = o["plan"] as? String ?? ""
         confirmed = o["confirmed"] as? Bool ?? false
+        sameAs = (o["sameAs"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         let named = (o["label"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         name = named
         if id == claudeMainLogin {

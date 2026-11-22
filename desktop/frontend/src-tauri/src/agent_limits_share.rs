@@ -52,7 +52,7 @@ struct SharedReading {
 
 /// Every login here that knows which Claude account it is, as (id, identity):
 /// the registered accounts and the main login.
-fn local_identities() -> Vec<(String, String)> {
+pub(crate) fn local_identities() -> Vec<(String, String)> {
     crate::config::registered_claude_account_ids()
         .into_iter()
         .chain(std::iter::once(MAIN_LOGIN.to_string()))
@@ -132,6 +132,7 @@ fn incoming(
                     updated_at: r.updated_at,
                     no_limits: r.no_limits,
                     no_five_hour: r.no_five_hour,
+                    identity: Some(r.identity.clone()),
                 },
             ));
         }

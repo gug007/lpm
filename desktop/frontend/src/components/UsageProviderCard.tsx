@@ -4,12 +4,14 @@ import type { LimitRemindersState } from "../hooks/useLimitReminders";
 import { reminderFor, remindable, type ReminderWindow } from "../limitReminders";
 import {
   FIVE_HOUR_MS,
+  OLD_MS,
   STALE_MS,
   WEEKLY_MS,
   providerMeta,
   updatedText,
 } from "./stats/limitsFormat";
 import { UsageMeter } from "./UsageMeter";
+import { UsageOldReading, type UsageReader } from "./UsageOldReading";
 
 interface UsageProviderCardProps {
   data: ProviderLimits;
@@ -27,6 +29,8 @@ interface UsageProviderCardProps {
   /** Offers reset reminders, for the card whose limits are `limitKey` in the snapshot. */
   reminders?: LimitRemindersState;
   limitKey?: string;
+  /** Reads the account again, for a card whose reading is old. */
+  reader?: UsageReader;
 }
 
 export function UsageProviderCard({
@@ -39,9 +43,11 @@ export function UsageProviderCard({
   fiveHourFirst = false,
   reminders,
   limitKey,
+  reader,
 }: UsageProviderCardProps) {
   const meta = providerMeta(data.provider);
   const stale = now - data.updatedAt > STALE_MS;
+  const old = now - data.updatedAt > OLD_MS;
   const weekly = {
     label: "Weekly",
     id: "weekly" as ReminderWindow,
@@ -98,22 +104,26 @@ export function UsageProviderCard({
         </div>
       </header>
 
-      <div
-        className={`grid gap-x-6 gap-y-5 pt-4 ${stacked || meters.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}
-      >
-        {meters.map((meter, i) => (
-          <UsageMeter
-            key={meter.label}
-            label={meter.label}
-            win={meter.win}
-            windowMs={meter.windowMs}
-            now={now}
-            stale={stale}
-            thin={stacked && i === 1}
-            reminder={reminderOf(meter)}
-          />
-        ))}
-      </div>
+      {old ? (
+        <UsageOldReading data={data} now={now} reader={reader} />
+      ) : (
+        <div
+          className={`grid gap-x-6 gap-y-5 pt-4 ${stacked || meters.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}
+        >
+          {meters.map((meter, i) => (
+            <UsageMeter
+              key={meter.label}
+              label={meter.label}
+              win={meter.win}
+              windowMs={meter.windowMs}
+              now={now}
+              stale={stale}
+              thin={stacked && i === 1}
+              reminder={reminderOf(meter)}
+            />
+          ))}
+        </div>
+      )}
 
       {footer && (
         <div className="mt-4 border-t border-[var(--border)]/50 pt-3 text-[11px] tabular-nums text-[var(--text-muted)]">

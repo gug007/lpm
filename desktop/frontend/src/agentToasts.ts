@@ -1,12 +1,12 @@
 import type { AgentState } from "./agentStatus";
-import { displayNameForProjectName } from "./components/ProjectNameDisplay";
+import { tabHomeName } from "./components/ProjectNameDisplay";
 import { toast } from "./notifications/toast";
 import type { NotificationEvent } from "./notifications/types";
 import { projectAgentRows, type SidebarAgentRow } from "./sidebarAgents";
 import { useAppStore } from "./store/app";
 import { useGlobalAgentStatus } from "./store/globalAgentStatus";
-import { useTerminalTitles } from "./store/terminalTitles";
-import { GLOBAL_TERMINALS_KEY, GLOBAL_TERMINALS_LABEL } from "./terminals";
+import { knownTabTitles, useTerminalTitles } from "./store/terminalTitles";
+import { GLOBAL_TERMINALS_KEY } from "./terminals";
 
 type Notable = Extract<AgentState, "needs-you" | "done" | "error">;
 
@@ -66,8 +66,7 @@ const tabOnScreen = (project: string, terminalId: string | null) =>
   terminalId !== null && useTerminalTitles.getState().onScreenByProject[project] === terminalId;
 
 function projectLabel(project: string): string {
-  if (project === GLOBAL_TERMINALS_KEY) return GLOBAL_TERMINALS_LABEL;
-  return displayNameForProjectName(project, useAppStore.getState().projects);
+  return tabHomeName(project, useAppStore.getState().projects);
 }
 
 /** A toast for an agent that needs you, finished or stopped in a tab you're not
@@ -108,10 +107,10 @@ export function watchAgents(): () => void {
 
     const now = Date.now();
     const { arrivals, settled } = agentChanges(seen, [
-      ...projects.map((p) => ({ project: p.name, rows: projectAgentRows(p, now, titles[p.name]) })),
+      ...projects.map((p) => ({ project: p.name, rows: projectAgentRows(p, now, knownTabTitles(p.name)) })),
       {
         project: GLOBAL_TERMINALS_KEY,
-        rows: projectAgentRows({ statusEntries: entries }, now, titles[GLOBAL_TERMINALS_KEY]),
+        rows: projectAgentRows({ statusEntries: entries }, now, knownTabTitles(GLOBAL_TERMINALS_KEY)),
       },
     ]);
     settled.forEach(retire);

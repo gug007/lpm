@@ -194,12 +194,15 @@ pub fn terminal_tab_op(
 ) -> Result<(), String> {
     if !matches!(
         op.as_str(),
-        "rename" | "pin" | "reorder" | "title" | "restart" | "account"
+        "rename" | "pin" | "reorder" | "title" | "restart" | "account" | "move"
     ) {
         return Err(format!("unknown tab op {op:?}"));
     }
     if op == "account" && account.as_deref().unwrap_or("").is_empty() {
         return Err("no Claude account given".into());
+    }
+    if op == "move" && label.as_deref().unwrap_or("").is_empty() {
+        return Err("no project to move the tab to".into());
     }
     app.emit(
         "remote-terminal-op",

@@ -92,7 +92,7 @@ pub fn remove_claude_account(id: String) -> Result<(), String> {
     config::remove_claude_account(&id)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn claude_accounts_status() -> Value {
     config::claude_accounts_status()
 }

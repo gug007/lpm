@@ -65,6 +65,12 @@ pub struct ProviderLimits {
     pub no_limits: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub no_five_hour: bool,
+    /// The Claude account (`accountUuid:organizationUuid`) the profile was
+    /// signed in as when this reading was taken. `/login` inside a profile
+    /// changes that account, and the old readings are someone else's then
+    /// (agent_limits_login.rs).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<String>,
 }
 
 /// Pick between the stored and incoming reading of one window. Every concurrent
@@ -140,6 +146,7 @@ fn merge_limits(prev: &ProviderLimits, next: ProviderLimits, now: i64) -> Provid
         updated_at: next.updated_at.max(prev.updated_at),
         no_limits,
         no_five_hour,
+        identity: next.identity.or_else(|| prev.identity.clone()),
     }
 }
 
@@ -152,6 +159,7 @@ fn meaningful_eq(a: &ProviderLimits, b: &ProviderLimits) -> bool {
         && same_reading(&a.weekly, &b.weekly)
         && a.no_limits == b.no_limits
         && a.no_five_hour == b.no_five_hour
+        && a.identity == b.identity
 }
 
 /// Same values, both observed or both not. When a reading was observed moves on
@@ -206,11 +214,13 @@ impl AgentLimitsStore {
             }
         }
         let mut m = self.entries.write().unwrap();
-        let merged = merge_limits(
-            m.get(key).unwrap_or(&ProviderLimits::default()),
-            limits,
-            now,
-        );
+        let blank = ProviderLimits::default();
+        // A reading of another Claude account has nothing to merge with.
+        let prev = m
+            .get(key)
+            .filter(|p| !crate::agent_limits_login::switched(p.identity.as_deref(), limits.identity.as_deref()))
+            .unwrap_or(&blank);
+        let merged = merge_limits(prev, limits, now);
         let changed = m
             .get(key)
             .map(|e| !meaningful_eq(e, &merged))
@@ -255,6 +265,12 @@ impl AgentLimitsStore {
 
     pub fn snapshot(&self) -> HashMap<String, ProviderLimits> {
         self.entries.read().unwrap().clone()
+    }
+
+    /// Drops `keys`; true when any was there.
+    pub fn remove(&self, keys: &[String]) -> bool {
+        let mut m = self.entries.write().unwrap();
+        keys.iter().fold(false, |any, k| m.remove(k).is_some() || any)
     }
 }
 
@@ -302,7 +318,14 @@ fn load_claude_at(path: &Path, now: i64) -> HashMap<String, ProviderLimits> {
 
 pub fn load_persisted(store: &AgentLimitsStore) {
     let now = now_secs();
-    for (k, l) in load_claude_at(&limits_path(), now) {
+    for (k, mut l) in load_claude_at(&limits_path(), now) {
+        // Saved before readings recorded their login: taken as the login the
+        // profile holds now.
+        if l.identity.is_none() {
+            l.identity = k
+                .strip_prefix("claude:")
+                .and_then(crate::agent_limits_login::identity_of);
+        }
         store.set(&k, l, now, false);
     }
 }
@@ -322,9 +345,21 @@ pub(crate) fn now_secs() -> i64 {
 }
 
 /// Full snapshot map — the payload the frontend fetches and the event carries.
+/// Readings of an account a profile no longer holds are dropped first.
 #[tauri::command(async)]
-pub fn agent_limits(store: State<'_, Arc<AgentLimitsStore>>) -> HashMap<String, ProviderLimits> {
+pub fn agent_limits(app: AppHandle, store: State<'_, Arc<AgentLimitsStore>>) -> HashMap<String, ProviderLimits> {
+    drop_stale_logins(&app, &store);
     store.snapshot()
+}
+
+/// Drops the readings of accounts their profiles no longer hold, and tells
+/// everyone that reads them when any went.
+pub(crate) fn drop_stale_logins(app: &AppHandle, store: &AgentLimitsStore) {
+    if crate::agent_limits_login::drop_switched(store) {
+        emit_snapshot(app, store);
+        crate::claude_pool::refresh();
+        persist_claude(store);
+    }
 }
 
 /// Which `claude:<account>` entry holds the readings for this project's agents.
@@ -684,16 +719,40 @@ pub fn ingest_from_socket(
     let now = now_secs();
     let fresh = claude_session_advanced(store, &payload, now);
     if let Some(limits) = claude_reading(account_id, &payload, now_millis(), fresh) {
-        let changed = store.set(&claude_store_key(account_id), limits, now, fresh);
-        if changed {
-            emit_snapshot(app, store);
-            crate::claude_pool::refresh();
-        }
-        if changed || !limits_path().exists() {
-            persist_claude(store);
-        }
+        record_claude(app, store, account_id, limits, now, fresh);
     }
     "OK".into()
+}
+
+/// Store a Claude reading of `account_id` under the login it holds now, for
+/// every profile here signed in as that same Claude account: they share one
+/// plan, so a reply on either is news for both.
+pub(crate) fn record_claude(
+    app: &AppHandle,
+    store: &AgentLimitsStore,
+    account_id: &str,
+    mut limits: ProviderLimits,
+    now: i64,
+    fresh: bool,
+) {
+    limits.identity = crate::agent_limits_login::identity_of(account_id);
+    let reading_for = |id: &str| ProviderLimits {
+        account_id: Some(id.to_string()),
+        ..limits.clone()
+    };
+    let changed = store.set(&claude_store_key(account_id), reading_for(account_id), now, fresh);
+    if changed {
+        for id in crate::agent_limits_login::profiles_like(account_id, limits.identity.as_deref()).iter().skip(1) {
+            store.set(&claude_store_key(id), reading_for(id), now, fresh);
+        }
+    }
+    if changed {
+        emit_snapshot(app, store);
+        crate::claude_pool::refresh();
+    }
+    if changed || !limits_path().exists() {
+        persist_claude(store);
+    }
 }
 
 #[cfg(test)]

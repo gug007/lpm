@@ -104,6 +104,12 @@ export const PROJECTS_AREA: FeatureArea = {
       body: "Open a project in Cursor, VS Code, Windsurf, Zed, WebStorm, or Sublime Text, in a terminal app, or in your file manager: on macOS that includes Xcode, iTerm, Ghostty, Warp, and Finder, and on Windows, Windows Terminal, Git Bash, and File Explorer. Only apps you have installed are listed.",
     },
     {
+      title: "Customizable project rows",
+      body: "Choose what each project row shows: the branch, the pull request and its checks, lines changed, changed files, the last commit, unpushed commits, ports, and the version. Drag details onto a copy of the row, on up to four lines, left or right, and every project follows.",
+      href: lessonPath("project-rows"),
+      linkLabel: "Watch the project rows lesson",
+    },
+    {
       title: "Folders and work statuses",
       body: "Group projects into collapsible sidebar folders, drag to reorder, and tag projects In progress, Blocked, Review, Done, or your own emoji status.",
     },

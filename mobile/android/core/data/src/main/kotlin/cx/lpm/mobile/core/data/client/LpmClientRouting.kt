@@ -40,6 +40,8 @@ internal fun LpmClientCallbacks.route(frame: Inbound) {
 
         is Inbound.LimitReminders -> onLimitReminders?.invoke(frame.reminders, frame.error)
 
+        is Inbound.ReadUsage -> onReadUsage?.invoke(frame.account, frame.error)
+
         is Inbound.GenerateRequests -> onGenerateRequests?.invoke(frame.requests)
 
         is Inbound.AnswerGenerate -> onAnswerGenerate?.invoke(frame.id, frame.error)

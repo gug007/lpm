@@ -1,5 +1,5 @@
 import { type RefObject } from "react";
-import { type AdoptedTabOpts, type AppTabSeed, type PaneNode, type PaneLeaf, type SplitDirection } from "../../paneTree";
+import { type AdoptedTabOpts, type AppTabSeed, type PaneNode, type PaneLeaf, type SplitDirection, type TerminalInstance } from "../../paneTree";
 import { type PersistedHistoryEntry } from "../../terminals";
 import { type TerminalMemoryRef } from "../../terminalMemory";
 import type { ModelPick } from "../../agentModelSwitch";
@@ -52,6 +52,9 @@ export interface UseTerminalsResult {
     label?: string,
     opts?: AdoptedTabOpts,
   ) => Promise<void>;
+  // A tab moved here from another project, and one of ours sent to `dest`.
+  takeInTerminal: (tab: TerminalInstance, root: string) => Promise<void>;
+  moveTerminalOut: (termId: string, dest: string) => Promise<void>;
   resumeFromHistory: (entry: PersistedHistoryEntry, background?: boolean) => Promise<void>;
   forkTerminal: (paneId: string, termId: string) => Promise<void>;
   forkTerminalIntoCopy: (paneId: string, termId: string) => Promise<void>;

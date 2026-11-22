@@ -3,6 +3,15 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const app = vi.hoisted(() => ({
+  projects: [],
+  openSettingsTab: vi.fn(),
+  openMachineSettings: vi.fn(),
+  setSettingsTab: vi.fn(),
+}));
+vi.mock("../store/app", () => ({ useAppStore: (select: (s: typeof app) => unknown) => select(app) }));
+vi.mock("../../bridge/runtime", () => ({ EventsOn: () => () => {} }));
+
 vi.mock("./SidebarAgentAsk", () => ({
   SidebarAgentAsk: ({ terminalId }: { terminalId: string }) => <div data-ask={terminalId} />,
 }));
@@ -210,7 +219,9 @@ describe("SidebarAgentRows menu", () => {
       "Copy last answer",
       "Fork session",
       "Share tab…",
+      "Move to",
       expect.stringContaining("Answer it first"),
+      "Agent settings…",
       "Close tab",
     ]);
     expect(document.querySelector(".menu-pop")?.textContent).toContain("Claude Code · Needs you");
@@ -230,9 +241,9 @@ describe("SidebarAgentRows menu", () => {
 
   it("only opens a row that has no tab yet, or no one to act on it", () => {
     const archiveLater = expect.stringContaining("Answer it first");
-    expect(openMenu({ terminalId: null })).toEqual(["Open", archiveLater]);
+    expect(openMenu({ terminalId: null })).toEqual(["Open", archiveLater, "Agent settings…"]);
     act(() => document.querySelector<HTMLButtonElement>(".menu-pop button")?.click());
-    expect(openMenu({}, false)).toEqual(["Open", archiveLater]);
+    expect(openMenu({}, false)).toEqual(["Open", archiveLater, "Agent settings…"]);
   });
 
   it("keeps Archive out of reach until the turn ends", () => {
@@ -339,8 +350,106 @@ describe("SidebarAgentRows seen agents", () => {
 
   it("offers Archive on hover only where the turn has ended", () => {
     render([agent({ key: "w", state: "working" }), agent({ key: "d", state: "done" })]);
-    expect([...container.querySelectorAll("[aria-label^='Archive']")].map((b) => b.getAttribute("aria-label"))).toEqual([
-      "Archive Rebalance worker",
-    ]);
+    const [working, done] = [...container.querySelectorAll<HTMLButtonElement>("[aria-label^='Archive']")];
+    // The button keeps its place on a running row, and says why it waits.
+    expect(working.getAttribute("aria-disabled")).toBe("true");
+    expect(working.title).toBe("Available once the turn ends");
+    const before = useArchivingAgents.getState().hidden["crypto-portfolio"];
+    act(() => working.click());
+    expect(useArchivingAgents.getState().hidden["crypto-portfolio"]).toEqual(before);
+    expect(done.getAttribute("aria-disabled")).toBeNull();
+  });
+});
+
+describe("SidebarAgentRows agent settings", () => {
+  // The panel loads on first open; awaiting a press lets it arrive.
+  const press = async (button: HTMLElement | null | undefined) => {
+    await act(async () => button?.click());
+    await vi.waitFor(() => expect(panel()).not.toBeNull());
+  };
+  const update = vi.fn(async () => {});
+  const original = useSettingsStore.getState().update;
+  const panel = () => document.querySelector<HTMLElement>("[role='dialog'][aria-label^='Agent settings']");
+  const settingsButton = (title: string) =>
+    container.querySelector<HTMLButtonElement>(`[aria-label='Agent settings for ${title}']`)!;
+
+  beforeEach(() => {
+    update.mockClear();
+    useSettingsStore.setState({ update, keepFinishedAgents: undefined, autoArchiveAgentsAfter: undefined });
+  });
+  afterEach(() => {
+    useSettingsStore.setState({ update: original, keepFinishedAgents: undefined, autoArchiveAgentsAfter: undefined });
+  });
+
+  const render = (agents: SidebarAgentRow[]) =>
+    act(() => {
+      root.render(<SidebarAgentRows projectName="crypto-portfolio" agents={agents} onOpenAgent={vi.fn()} />);
+    });
+
+  it("opens the sidebar's agent settings beside a row, and closes them again", async () => {
+    const seenAt = Date.now() - (12 * 60 + 5) * 1000;
+    render([agent({ key: "s", state: "done", title: "Ship the picker", seenAt })]);
+    const button = settingsButton("Ship the picker");
+    expect(panel()).toBeNull();
+
+    await press(button);
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    const text = panel()?.textContent ?? "";
+    expect(text).toContain("Keep finished agents until archived");
+    expect(text).toContain("Archive seen agents after");
+    expect(text).toContain("Seen agents per project");
+    expect(panel()?.querySelector("[data-agent-settings-line]")?.textContent).toBe("Seen 12m ago · Archived in 48m");
+
+    act(() => button.click());
+    expect(panel()).toBeNull();
+  });
+
+  it("changes the settings in place, hiding what only applies while finished agents are kept", async () => {
+    render([agent({ key: "d", state: "done", title: "Ship the picker" })]);
+    await press(settingsButton("Ship the picker"));
+    expect(panel()?.querySelector("[data-agent-settings-line]")?.textContent).toBe(
+      "Done · Not opened yet · Once opened, it's archived 1 hour later",
+    );
+
+    act(() => panel()!.querySelector<HTMLButtonElement>("[role='switch']")!.click());
+    expect(update).toHaveBeenCalledWith({ keepFinishedAgents: false });
+
+    act(() => useSettingsStore.setState({ keepFinishedAgents: false }));
+    expect(panel()?.textContent).not.toContain("Archive seen agents after");
+    expect(panel()?.querySelector("[data-agent-settings-line]")?.textContent).toBe(
+      "Done · Not opened yet · Opening it removes the row",
+    );
+  });
+
+  it("steps the seen agents shown within Settings' range", async () => {
+    render([agent({ key: "d", state: "done", title: "Ship the picker" })]);
+    await press(settingsButton("Ship the picker"));
+    act(() => panel()!.querySelector<HTMLButtonElement>("[aria-label='Increase seen agents per project']")!.click());
+    expect(update).toHaveBeenCalledWith({ seenAgentsShown: 6 });
+  });
+
+  it("leads on to every agent setting", async () => {
+    render([agent({ key: "d", state: "done", title: "Ship the picker" })]);
+    await press(settingsButton("Ship the picker"));
+    const all = [...panel()!.querySelectorAll<HTMLButtonElement>("button")].find(
+      (b) => b.textContent === "All agent settings…",
+    );
+    act(() => all!.click());
+    expect(app.openSettingsTab).toHaveBeenCalledWith("agents");
+    expect(panel()).toBeNull();
+  });
+
+  it("opens from the row's menu too", async () => {
+    render([agent({ key: "w", state: "working", title: "Rebalance worker" })]);
+    act(() => {
+      lines()[0].dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, clientX: 10, clientY: 10 }));
+    });
+    const item = [...document.querySelectorAll<HTMLButtonElement>(".menu-pop button")].find(
+      (b) => b.textContent === "Agent settings…",
+    );
+    await press(item);
+    expect(panel()?.querySelector("[data-agent-settings-line]")?.textContent).toBe(
+      "Working · Archive waits until the turn ends",
+    );
   });
 });

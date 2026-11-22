@@ -75,8 +75,18 @@ struct UsageCard: Identifiable {
     let data: ProviderLimits
     let title: String
     let subtitle: String?
+    /// The Claude account the card reads ("default" for the main login).
+    var account: String = claudeMainLogin
+    /// The earlier account this one shares a login with, which speaks for it.
+    var sameAsTitle: String? = nil
+    var email: String? = nil
 
     var id: String { key }
+}
+
+/// A Claude account's card title: its name on the Mac, or its id.
+func claudeTitle(_ id: String, accounts: [ClaudeAccountInfo]) -> String {
+    id == claudeMainLogin ? "Claude" : (accounts.first { $0.id == id }?.name ?? id)
 }
 
 /// The Claude cards, one per account, ordered by title then key so the list does
@@ -93,12 +103,15 @@ func claudeCards(_ snapshot: LimitsSnapshot, accounts: [ClaudeAccountInfo]) -> [
             let id = data.accountId.flatMap { $0.isEmpty ? nil : $0 } ?? claudeMainLogin
             let account = accounts.first { $0.id == id }
             let email = account.flatMap { $0.email.isEmpty ? nil : $0.email }
-            if id == claudeMainLogin {
-                return UsageCard(key: key, data: data, title: "Claude", subtitle: email)
+            let also = accounts.filter { $0.sameAs == id }.map { claudeTitle($0.id, accounts: accounts) }
+            let withAlso = { (text: String?) -> String? in
+                also.isEmpty ? text : [text, "also on \(also.joined(separator: ", "))"].compactMap { $0 }.joined(separator: " · ")
             }
-            let name = account?.name
-            return UsageCard(key: key, data: data, title: name ?? id,
-                             subtitle: email ?? (name == nil ? nil : id))
+            let sameAsTitle = account?.sameAs.map { claudeTitle($0, accounts: accounts) }
+            let named = id != claudeMainLogin && account?.name != nil
+            return UsageCard(key: key, data: data, title: claudeTitle(id, accounts: accounts),
+                             subtitle: withAlso(email ?? (named ? id : nil)),
+                             account: id, sameAsTitle: sameAsTitle, email: email)
         }
         .sorted { lhs, rhs in
             switch lhs.title.localizedCompare(rhs.title) {

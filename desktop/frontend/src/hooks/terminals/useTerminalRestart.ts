@@ -1,15 +1,11 @@
 import { useCallback, type RefObject } from "react";
 import { toast } from "../../notifications/toast";
-import {
-  StartTerminal,
-  StartTerminalForRestore,
-  TerminalExists,
-  TerminalTabOp,
-} from "../../../bridge/commands";
+import { TerminalExists, TerminalTabOp } from "../../../bridge/commands";
 import { claudeResumeSessionId } from "../../agentSession";
 import { isPeerName } from "../../peer/markers";
 import { tabOpRefusal } from "../../peer/tabOpRefusal";
 import { type PaneNode } from "../../paneTree";
+import { startTabTerminal } from "./persistedTree";
 import { replaceTabTerminal, terminalTabOf } from "./replaceTabTerminal";
 
 interface UseTerminalRestartProps {
@@ -49,9 +45,7 @@ export function useTerminalRestart({
       let newId: string | null;
       try {
         newId = await replaceTabTerminal({ treeRef, applyTree }, oldId, () =>
-          tab.actionName
-            ? StartTerminalForRestore(projectName, tab.actionName, sessionId)
-            : StartTerminal(projectName, sessionId, undefined, undefined, undefined, tab.shell),
+          startTabTerminal(projectName, tab, sessionId),
         );
       } catch (err) {
         toast.error(`Couldn't restart the terminal: ${err}`);

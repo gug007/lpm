@@ -37,6 +37,9 @@ export function SavePngImage(b64Data, name) {
 export function SharePngImage(b64Data, name, anchor) {
   return invoke("share_png_image", { b64Data, name, anchor });
 }
+export function ClaudeReadUsage(account) {
+  return invoke("claude_read_usage", { account });
+}
 export function AgentLimits() {
   return invoke("agent_limits");
 }
@@ -590,6 +593,9 @@ export function GitAutoPullUndo(cwd) {
 export function GitOriginStatus(cwd, fetch) {
   return invoke("git_origin_status", { cwd, fetch });
 }
+export function ProjectRowStats(cwd, sinceBranch) {
+  return invoke("project_row_stats", { cwd, sinceBranch });
+}
 export function WatchOriginRefs(roots) {
   return invoke("watch_origin_refs", { roots });
 }
@@ -690,6 +696,9 @@ export function ListProjectTerminals(projectName, withTabs) {
   return invoke("list_project_terminals", { projectName, withTabs });
 }
 // `account`: the Claude account the "account" op moves a tab to.
+export function MoveTerminal(id, to) {
+  return invoke("move_terminal", { id, to });
+}
 export function TerminalTabOp(projectName, op, id, label, emoji, order, account) {
   return invoke("terminal_tab_op", { projectName, op, id, label, emoji, order, account });
 }

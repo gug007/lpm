@@ -17,6 +17,15 @@ extension DemoServer {
             }
         }
         register("limitReminders") { [weak self] _ in self?.pushReminders() }
+        // "Read it now": the account answers, and its reading is fresh.
+        register("readUsage") { [weak self] o in
+            guard let self else { return }
+            let account = o["account"] as? String ?? "default"
+            self.pushAfter(0.8) { ["t": "readUsage", "ok": true, "account": account] }
+            self.pushAfter(0.8) { [weak self] in
+                self?.limitsPayload(t: "limits-changed", ok: nil, advanced: true)
+            }
+        }
         register("setLimitReminder") { [weak self] o in
             guard let self else { return }
             let limit = o["limit"] as? String ?? "", window = o["window"] as? String ?? ""

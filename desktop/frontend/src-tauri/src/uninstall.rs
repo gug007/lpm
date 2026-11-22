@@ -89,6 +89,7 @@ pub fn uninstall_app(
     let _ = crate::session_memory::remove_for_uninstall();
     let _ = crate::skill_install::remove_agent_skills();
     let _ = crate::cli_install::remove_managed_symlink();
+    let _ = crate::linkhelper_agent::remove_for_uninstall();
 
     let data_dir = remove_data.then(|| crate::config::lpm_dir());
     let script = cleanup_script(

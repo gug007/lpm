@@ -129,6 +129,7 @@ fun ProjectDetailRoute(
                 viewModel.close(it.id)
             },
             useTitle = viewModel::useConversationTitle,
+            moveTo = viewModel::moveTerminal,
             fork = { viewModel.fork(it, openSpawned) },
             forkCopy = { forkingIntoCopy = it },
             closeOthers = { closingOthers = it },

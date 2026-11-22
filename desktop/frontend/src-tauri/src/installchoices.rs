@@ -22,6 +22,23 @@ fn opted_out_settings() -> Value {
     Value::Object(patch)
 }
 
+/// Saves the two switches off. Settings written this early would make a first
+/// start look like an existing install, so the first-launch defaults go in
+/// before them; and a settings file made here is dated like the seeded
+/// global.yml, so it can't win the first sync with another computer.
+fn opt_out() -> bool {
+    crate::firstlaunch::seed_defaults();
+    let path = crate::config::settings_path();
+    let created = !path.exists();
+    if crate::config::merge_settings(opted_out_settings()).is_err() {
+        return false;
+    }
+    if created {
+        let _ = crate::firstlaunch::backdate(&path);
+    }
+    true
+}
+
 pub fn apply() {
     let mut send: u32 = 1;
     let mut size = std::mem::size_of::<u32>() as u32;
@@ -39,7 +56,7 @@ pub fn apply() {
     if code != ERROR_SUCCESS {
         return;
     }
-    if send == 0 && crate::config::merge_settings(opted_out_settings()).is_err() {
+    if send == 0 && !opt_out() {
         return;
     }
     unsafe {

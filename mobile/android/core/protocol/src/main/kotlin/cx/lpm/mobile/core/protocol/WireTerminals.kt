@@ -99,6 +99,13 @@ sealed interface WireTerminals {
         put("id", id)
     }
 
+    /** A tab to another project on the Mac, only when `features` has "moveTab". */
+    fun moveTerminal(project: String, id: String, to: String): String = frame("moveTerminal") {
+        put("project", project)
+        put("id", id)
+        put("to", to)
+    }
+
     fun forkTerminalCopy(project: String, id: String): String = frame("forkTerminalCopy") {
         put("project", project)
         put("id", id)

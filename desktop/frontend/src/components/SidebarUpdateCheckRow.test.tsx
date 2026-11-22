@@ -8,6 +8,10 @@ const mocks = vi.hoisted(() => ({
   getVersion: vi.fn(),
 }));
 
+vi.mock("./terminal/TabMoveToSubmenu", () => ({ TabMoveToSubmenu: () => null }));
+vi.mock("../hooks/useAgentRowDrag", () => ({
+  useAgentRowDrag: () => ({ dropLine: null, onPointerDownCapture: () => {}, onClickCapture: () => {} }),
+}));
 vi.mock("../../bridge/commands", () => ({
   CheckForUpdate: mocks.checkForUpdate,
   GetVersion: mocks.getVersion,

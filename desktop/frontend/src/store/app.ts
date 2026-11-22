@@ -1,5 +1,5 @@
 import { create, type StoreApi } from "zustand";
-import { type AdoptedTabOpts } from "../paneTree";
+import { type AdoptedTabOpts, type TerminalInstance } from "../paneTree";
 import { toast } from "../notifications/toast";
 import YAML from "yaml";
 import {
@@ -127,7 +127,8 @@ export type RemoteTerminalOp =
   | "forkCopy"
   | "closeOthers"
   | "copyAnswer"
-  | "account";
+  | "account"
+  | "move";
 
 export type View =
   | "projects"
@@ -212,8 +213,8 @@ interface AppState {
   // can request it via FocusMainWindow("usage"), so it lives in the store.
   usageOpen: boolean;
   visited: Set<string>;
-  // Most-recently-selected project names, most-recent-first. Drives the
-  // Ctrl+Tab MRU switcher. Session-only; not persisted.
+  // Recently selected projects, newest first, for the send-to-terminal
+  // picker. Session-only; not persisted.
   mruProjects: string[];
   // Source names with a duplication in flight. A multiset (repeats allowed) so
   // several copies of the same source can run at once and each finishing only
@@ -404,6 +405,11 @@ interface AppState {
     opts?: AdoptedTabOpts,
   ) => void;
   clearPendingAdoptTerminal: () => void;
+  // Tabs moved here from another project (tabMove.ts), waiting for their new
+  // project's tab tree. Queued, since several can be on their way at once.
+  pendingTakeIns: { projectName: string; tab: TerminalInstance }[];
+  takeInTerminal: (projectName: string, tab: TerminalInstance) => void;
+  takeTakeIns: (projectName: string) => TerminalInstance[];
   // A peer Mac closed a terminal it had spawned here; drop the host tab holding
   // that pty id. Mounted projects remove it from the live tree via this op; a
   // parked (unmounted) tab is dropped from the persisted cache directly.
@@ -1392,6 +1398,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   clearPendingFocusTerminal: () => set({ pendingFocusTerminal: null }),
 
   pendingAdoptTerminal: null,
+
+  pendingTakeIns: [],
+
+  takeInTerminal: (projectName, tab) =>
+    set((s) => ({
+      visited: s.visited.has(projectName) ? s.visited : new Set([...s.visited, projectName]),
+      pendingTakeIns: [...s.pendingTakeIns, { projectName, tab }],
+    })),
+
+  takeTakeIns: (projectName) => {
+    const mine = get().pendingTakeIns.filter((p) => p.projectName === projectName);
+    if (mine.length === 0) return [];
+    set((s) => ({ pendingTakeIns: s.pendingTakeIns.filter((p) => p.projectName !== projectName) }));
+    return mine.map((p) => p.tab);
+  },
 
   adoptRemoteTerminal: (projectName, id, label, opts) => {
     const s = get();

@@ -8,6 +8,9 @@ use serde_json::{json, Map, Value};
 /// `closeOtherTerminals`.
 pub(super) const FEATURE: &str = "tabMenu";
 
+/// The phone may send `moveTerminal`: a tab to another project on this Mac.
+pub(super) const MOVE_FEATURE: &str = "moveTab";
+
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub(super) struct TabCaps {
     fork: bool,
@@ -41,6 +44,7 @@ pub(super) fn op(verb: &str) -> Option<&'static str> {
         "forkTerminalCopy" => Some("forkCopy"),
         "titleTerminal" => Some("title"),
         "closeOtherTerminals" => Some("closeOthers"),
+        "moveTerminal" => Some("move"),
         _ => None,
     }
 }
@@ -73,6 +77,7 @@ mod tests {
         assert_eq!(op("forkTerminalCopy"), Some("forkCopy"));
         assert_eq!(op("titleTerminal"), Some("title"));
         assert_eq!(op("closeOtherTerminals"), Some("closeOthers"));
+        assert_eq!(op("moveTerminal"), Some("move"));
         assert_eq!(op("closeTerminal"), None);
     }
 }

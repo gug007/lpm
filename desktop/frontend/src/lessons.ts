@@ -8,6 +8,11 @@ export interface Lesson {
 // lists them. The lesson-publish skill prints the entry to add at the top.
 export const LESSONS: readonly Lesson[] = [
   {
+    id: "4wywPQufylo",
+    title: "Customize Project Rows in lpm: Branch, PR and Changes at a Glance",
+    published: "2026-11-22",
+  },
+  {
     id: "BSkOBv56AcI",
     title: "Mini Apps in lpm: Your Own Dashboards, One Click Away",
     published: "2026-11-21",

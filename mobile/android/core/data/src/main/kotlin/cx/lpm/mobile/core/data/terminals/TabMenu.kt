@@ -5,6 +5,7 @@ import cx.lpm.mobile.core.data.client.closeOtherTerminals
 import cx.lpm.mobile.core.data.client.closeTerminal
 import cx.lpm.mobile.core.data.client.forkTerminal
 import cx.lpm.mobile.core.data.client.forkTerminalCopy
+import cx.lpm.mobile.core.data.client.moveTerminal
 import cx.lpm.mobile.core.data.client.titleTerminal
 import cx.lpm.mobile.core.model.TerminalInfo
 import kotlinx.coroutines.delay
@@ -75,6 +76,21 @@ fun TerminalsStore.useConversationTitle(term: TerminalInfo) {
     if (!canUseTabMenu || !term.canTitle) return
     client?.titleTerminal(term.project, term.id)
     reloadTerminalsSoon(term.project)
+}
+
+/** The Mac moves a tab to another of its projects (`moveTab`). */
+val TerminalsStore.canMoveTabs: Boolean
+    get() = client?.hostFeatures?.contains(LpmClient.MOVE_TAB_FEATURE) == true
+
+/**
+ * Hand the tab to another project. It keeps running where it is; the Mac lists it
+ * there, with its agent, from now on.
+ */
+fun TerminalsStore.moveTerminal(term: TerminalInfo, to: String) {
+    if (!canMoveTabs) return
+    client?.moveTerminal(term.project, term.id, to)
+    reloadTerminalsSoon(term.project)
+    reloadTerminalsSoon(to)
 }
 
 /** The unpinned tabs Close Other Tabs would close. */

@@ -169,6 +169,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_answers::FEATURE,
     RESTART_TERMINAL_FEATURE,
     tab_menu::FEATURE,
+    tab_menu::MOVE_FEATURE,
     tab_account::FEATURE,
     crate::remote_agents::LAUNCH_FEATURE,
     crate::remote_agents::SESSIONS_FEATURE,
@@ -184,6 +185,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_pins::FEATURE,
     crate::remote_history::FEATURE,
     reminders::FEATURE,
+    crate::remote_claude::READ_USAGE_FEATURE,
     generate::FEATURE,
     crate::wakeonlan::FEATURE,
     crate::keepawake_cmds::PHONE_FEATURE,
@@ -2021,6 +2023,7 @@ fn limits_payload(app: &AppHandle, snapshot: Option<Value>) -> Value {
 
 fn limits_snapshot(app: &AppHandle) -> Value {
     let store = app.state::<Arc<crate::agent_limits::AgentLimitsStore>>();
+    crate::agent_limits::drop_stale_logins(app, &store);
     serde_json::to_value(store.snapshot()).unwrap_or_else(|_| json!({}))
 }
 
@@ -3494,6 +3497,7 @@ fn handle_msg(
         | "forkTerminalCopy"
         | "titleTerminal"
         | "closeOtherTerminals"
+        | "moveTerminal"
         | "switchTerminalAccount" => {
             let project = str_field("project").unwrap_or_default();
             let id = str_field("id").unwrap_or_default();
@@ -3512,7 +3516,7 @@ fn handle_msg(
                         "project": project,
                         "op": op,
                         "id": id,
-                        "label": str_field("label").unwrap_or_default(),
+                        "label": str_field(if t == "moveTerminal" { "to" } else { "label" }).unwrap_or_default(),
                         "account": str_field("account"),
                     }),
                 );
@@ -4777,7 +4781,7 @@ fn handle_msg(
             let reply = crate::keepawake_cmds::answer_phone(t, &v);
             let _ = out.try_send(reply.to_string());
         }
-        "claudeAccounts" | "setClaudeAccount" => crate::remote_claude::handle(app, out, t, &v),
+        "claudeAccounts" | "setClaudeAccount" | "readUsage" => crate::remote_claude::handle(app, out, t, &v),
         "gitChecks" | "gitChecksRerun" | "gitCommitChecks" | "gitMergePr" => {
             crate::remote_ci::handle(out, t, &v)
         }

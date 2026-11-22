@@ -1,4 +1,4 @@
-import { Columns2, FolderSync } from "lucide-react";
+import { Columns2, FolderSync, SlidersHorizontal } from "lucide-react";
 import {
   BrainIcon,
   CheckSquareIcon,
@@ -17,6 +17,7 @@ import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
 import type { ClaudeAccountChoice } from "../types";
 import type { SideBySideMenuItem } from "../hooks/useSideBySideMenu";
 import { chordLabel } from "../keys";
+import { openRowLayoutDialog } from "../store/rowLayoutDialog";
 
 export interface ProjectMoreSubmenuProps {
   projectName: string;
@@ -90,6 +91,11 @@ export function ProjectMoreSubmenu({
         label={isDetached ? "Attach to main window" : "Detach to new window"}
         icon={<DetachIcon />}
         onClick={close(isDetached ? onAttach : onDetach)}
+      />
+      <ContextMenuItem
+        label="Customize Rows…"
+        icon={<SlidersHorizontal size={14} />}
+        onClick={close(openRowLayoutDialog)}
       />
       <ContextMenuSeparator />
       {!sshRemote && (

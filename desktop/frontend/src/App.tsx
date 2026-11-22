@@ -42,22 +42,25 @@ import { DictationOverlay } from "./components/dictation/DictationOverlay";
 import { DictationShortcut } from "./components/dictation/DictationShortcut";
 import { DICTATION_AVAILABLE } from "./hooks/useVoiceDictation";
 import { MainTopBar } from "./components/MainTopBar";
-import { ProjectSwitcher } from "./components/ProjectSwitcher";
+import { TabSwitcher } from "./components/TabSwitcher";
 import { useIsFullscreen } from "./hooks/useIsFullscreen";
 import { useKeyboardShortcut } from "./hooks/useKeyboardShortcut";
 import { PROJECT_JUMP_SHORTCUTS } from "./projectJumpShortcuts";
 import { jumpTargets, shownPins } from "./pinnedProjects";
-import { useProjectSwitcher } from "./hooks/useProjectSwitcher";
+import { useTabSwitcher } from "./hooks/useTabSwitcher";
 import { useProjectsSync } from "./hooks/useProjectsSync";
 import { useGlobalAgentStatusSync } from "./hooks/useGlobalTerminalStatus";
 import { useAgentToasts } from "./hooks/useAgentToasts";
 import { GLOBAL_TERMINALS_KEY } from "./terminals";
+import { tabHomeName } from "./components/ProjectNameDisplay";
 import { useAppEvents } from "./hooks/useAppEvents";
 import { useSshStatusWarnings } from "./hooks/useSshStatusWarnings";
 import { useUpdateNote } from "./hooks/useUpdateNote";
 import { useActionErrorToasts } from "./hooks/useActionErrorToasts";
 import { useProjectWatcher } from "./hooks/useProjectWatcher";
 import { useOriginStatusPoller } from "./hooks/useOriginStatusPoller";
+import { useRowDetailsPollers } from "./hooks/useRowDetailsPollers";
+import { SidebarRowLayoutDialog } from "./components/SidebarRowLayoutDialog";
 import { useMergedCopiesPoller } from "./hooks/useMergedCopiesPoller";
 import { getSettings, saveSettings, useSettingsStore } from "./store/settings";
 import { useAppStore } from "./store/app";
@@ -87,7 +90,8 @@ import { PeerLinkStrip } from "./components/PeerLinkStrip";
 import { publishPeerSnapshot } from "./peer/retainedSessions";
 import { PeerDisconnectedBanner } from "./components/PeerDisconnectedBanner";
 import { startSendLaterRunner } from "./sendLater/runner";
-import { startOpenLinks } from "./openLinks";
+import { openTab, startOpenLinks } from "./openLinks";
+import { startTabHistory } from "./tabHistoryRecorder";
 import { ClaudePoolConsentDialog } from "./components/ClaudePoolConsentDialog";
 import { ClaudeTabAccountQuestion } from "./components/ClaudeTabAccountQuestion";
 import { ClaudeAccountPoolDialog } from "./components/ClaudeAccountPoolDialog";
@@ -109,7 +113,6 @@ export default function App() {
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const visited = useAppStore((s) => s.visited);
   const detached = useAppStore((s) => s.detached);
-  const mruProjects = useAppStore((s) => s.mruProjects);
   const duplicatingNames = useAppStore((s) => s.duplicatingNames);
   const pendingDuplicates = useAppStore((s) => s.pendingDuplicates);
   const removingNames = useAppStore((s) => s.removingNames);
@@ -188,6 +191,7 @@ export default function App() {
   useAppEvents();
   useEffect(() => startSendLaterRunner(), []);
   useEffect(() => startOpenLinks(), []);
+  useEffect(() => startTabHistory(), []);
   usePeerDispatcher();
   const { state: peerState, loaded: peersLoaded } = usePeerState();
   const settingsMachine = useSettingsMachine(peerState.peers);
@@ -252,11 +256,9 @@ export default function App() {
     const name = jumpTargets(pins, projectNames)[Number(matched.key) - 1];
     if (name) void handleSelect(name);
   });
-  const switcher = useProjectSwitcher({
+  const switcher = useTabSwitcher({
     projectNames,
-    mru: mruProjects,
-    current: selected,
-    onCommit: handleSelect,
+    onCommit: (visit) => openTab(visit.project, tabHomeName(visit.project, useAppStore.getState().projects), visit.key),
   });
 
   // Drop a stale saved selection if the project was deleted while lpm was
@@ -284,6 +286,7 @@ export default function App() {
 
   useProjectWatcher(view === "projects" ? selectedProject?.root : null);
   useOriginStatusPoller(projects, checkOrigin);
+  useRowDetailsPollers(projects);
   useMergedCopiesPoller(projects, checkOrigin);
 
   useEffect(() => {
@@ -438,6 +441,7 @@ export default function App() {
       <RemoteFolderPickerHost />
       <PortConflictDialog />
       <ArchiveProjectDialog />
+      <SidebarRowLayoutDialog />
       <PairApprovalHost />
       <AgentFilesApproval />
       <GenerateApproval />
@@ -451,7 +455,7 @@ export default function App() {
       <IgnoredSyncHost />
       <TerminalDropOverlayHost />
       <MiniViewHost />
-      <ProjectSwitcher
+      <TabSwitcher
         active={switcher.active}
         list={switcher.list}
         index={switcher.index}

@@ -14,11 +14,13 @@ import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.session.SessionAlerts
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
+import cx.lpm.mobile.core.data.terminals.canMoveTabs
 import cx.lpm.mobile.core.data.terminals.canUseTabMenu
 import cx.lpm.mobile.core.data.terminals.closeOtherTerminals
 import cx.lpm.mobile.core.data.terminals.closeTerminal
 import cx.lpm.mobile.core.data.terminals.forkTerminal
 import cx.lpm.mobile.core.data.terminals.forkTerminalIntoCopy
+import cx.lpm.mobile.core.data.terminals.moveTerminal
 import cx.lpm.mobile.core.data.terminals.otherClosableTerminals
 import cx.lpm.mobile.core.data.terminals.undoTabClose
 import cx.lpm.mobile.core.data.terminals.useConversationTitle
@@ -102,6 +104,7 @@ class ProjectDetailViewModel @AssistedInject constructor(
             canStopServices = s.store<ProjectsStore>().canRestartServices,
             canLaunchAgents = s.store<AgentLaunchStore>().canLaunchAgents,
             canUseTabMenu = s.store<TerminalsStore>().canUseTabMenu,
+            canMoveTabs = s.store<TerminalsStore>().canMoveTabs,
             pendingClose = t.pendingTabClose,
             now = clock.millis(),
             closedTips = closedTips
@@ -181,6 +184,10 @@ class ProjectDetailViewModel @AssistedInject constructor(
 
     fun undoClose() {
         terminals?.undoTabClose()
+    }
+
+    fun moveTerminal(term: TerminalInfo, to: String) {
+        terminals?.moveTerminal(term, to)
     }
 
     fun useConversationTitle(term: TerminalInfo) {

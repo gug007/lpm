@@ -17,6 +17,7 @@ import { useTabCreation } from "./terminals/useTabCreation";
 import { usePaneOps } from "./terminals/usePaneOps";
 import { useTabClose } from "./terminals/useTabClose";
 import { useRemoteTabControls } from "./terminals/useRemoteTabControls";
+import { useTabMoveOut } from "./terminals/useTabMoveOut";
 import { useMirrorOwner } from "./terminals/useMirrorOwner";
 import { useAgentSessionTitles } from "./terminals/useAgentSessionTitles";
 import { useAgentSessionEvents } from "./terminals/useAgentSessionEvents";
@@ -142,6 +143,7 @@ export function useTerminals(
   const {
     createTerminal,
     adoptTerminal,
+    takeInTerminal,
     createTerminalWithCmd,
     resumeFromHistory,
     forkTerminal,
@@ -278,6 +280,8 @@ export function useTerminals(
     forkTerminalIntoCopy,
   });
 
+  const moveTerminalOut = useTabMoveOut({ projectName, treeRef, restoreSettled, applyTree });
+
   // Owner side of action forwarding: execute the actions a mirror window sends
   // for this project against the authoritative tree. This map is the single
   // list of everything a mirror may do; the result flows back to the mirror
@@ -371,6 +375,8 @@ export function useTerminals(
     createTerminal,
     createTerminalWithCmd,
     adoptTerminal,
+    takeInTerminal,
+    moveTerminalOut,
     resumeFromHistory,
     forkTerminal,
     forkTerminalIntoCopy,

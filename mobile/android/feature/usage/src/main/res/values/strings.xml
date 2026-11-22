@@ -122,6 +122,14 @@
     <string name="usage_percent">%</string>
     <string name="usage_no_value">—</string>
     <string name="usage_meter_label">%1$s window usage</string>
+    <string name="usage_weekly_was">Weekly was %1$d%%</string>
+    <string name="usage_five_hour_was">5-hour was %1$d%%</string>
+    <string name="usage_then">%1$s then.</string>
+    <string name="usage_read_now">Read it now</string>
+    <string name="usage_reading">Reading…</string>
+    <string name="usage_read_hint">Claude reports usage only when it replies; this asks it for one short reply.</string>
+    <string name="usage_same_login">Signed in as the same Claude account as %1$s, so its usage shows on that card.</string>
+    <string name="usage_same_login_hint">Sign it in again in lpm on your Mac.</string>
 
     <!-- Usage rows -->
     <string name="rows_header">Usage</string>

@@ -32,6 +32,8 @@ interface TabContextMenuProps {
   accountMenu?: ReactNode;
   // "Continue on", where the tab's session can move to another computer.
   continueMenu?: ReactNode;
+  // "Move to", the other projects on the tab's computer.
+  moveMenu?: ReactNode;
   // Absent when the pane would be left with nothing to show.
   onMoveToNewPane?: (edge: Exclude<PaneEdge, "left">) => void;
   // Keeps the tab in a mini view, or takes it out; absent where none can show
@@ -62,6 +64,7 @@ export function TabContextMenu({
   onForkCopy,
   accountMenu,
   continueMenu,
+  moveMenu,
   onMoveToNewPane,
   onToggleMiniView,
   miniViewKept = false,
@@ -115,6 +118,7 @@ export function TabContextMenu({
       )}
       {accountMenu}
       {continueMenu}
+      {moveMenu}
       {canShare && (
         <ContextMenuItem
           label="Share tab…"

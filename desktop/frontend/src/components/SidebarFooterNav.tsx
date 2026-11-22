@@ -23,6 +23,8 @@ import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import { useSettingsStore } from "../store/settings";
 import { useWeeklyRecapStore } from "../store/weeklyRecap";
 import { useTerminalTitles } from "../store/terminalTitles";
+import { useSavedTabTitles } from "../store/savedTabTitles";
+import { pastTabNamesFor } from "../pastTabNames";
 import type { PeerClient } from "../peer/usePeerState";
 import { GLOBAL_TERMINALS_KEY } from "../terminals";
 import {
@@ -115,7 +117,9 @@ export function SidebarFooterNav({
   const terminalEntries = useGlobalAgentStatus((s) => s.entries);
   const terminalSeen = useGlobalAgentStatus((s) => s.seen);
   const archiving = useArchivingAgents((s) => s.hidden);
-  const terminalTitles = useTerminalTitles((s) => s.byProject[GLOBAL_TERMINALS_KEY]);
+  const liveTitles = useTerminalTitles((s) => s.byProject[GLOBAL_TERMINALS_KEY]);
+  const savedTitles = useSavedTabTitles((s) => s.byProject[GLOBAL_TERMINALS_KEY]);
+  const terminalTitles = liveTitles ?? savedTitles;
   const focusedTerminal = useTerminalTitles(
     (s) => s.focusedByProject[GLOBAL_TERMINALS_KEY] ?? null,
   );
@@ -129,8 +133,9 @@ export function SidebarFooterNav({
         Date.now(),
         terminalTitles,
         hiddenKeys(archiving, GLOBAL_TERMINALS_KEY),
+        liveTitles ? undefined : pastTabNamesFor(GLOBAL_TERMINALS_KEY, terminalEntries, terminalSeen),
       ),
-    [terminalEntries, terminalSeen, terminalTitles, archiving],
+    [terminalEntries, terminalSeen, terminalTitles, liveTitles, archiving],
   );
   const terminalAlert = sidebarProjectAlert(terminalAgents);
 

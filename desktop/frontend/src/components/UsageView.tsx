@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
+import { StartClaudeLogin } from "../../bridge/commands";
 import { LoaderCircle, RefreshCw, X } from "lucide-react";
 import { toast } from "../notifications/toast";
 import { setClaudeLimitsEnabled } from "../claudeLimits";
 import { useAgentLimits, pickProvider } from "../hooks/useAgentLimits";
+import { useUsageReads } from "../hooks/useUsageReads";
 import { useLimitReminders } from "../hooks/useLimitReminders";
 import type { ProviderLimits } from "../hooks/useAgentLimits";
 import { useNow } from "../hooks/useNow";
 import { useTokensToday } from "../hooks/useTokensToday";
 import { useSettingsStore } from "../store/settings";
-import { useAccountsStore } from "../store/accounts";
+import { useAccountsStore, type ClaudeAccountStatus } from "../store/accounts";
 import { tokensToday } from "../sidebarUsage";
 import { providerMeta } from "./stats/limitsFormat";
 import { UsageProviderCard } from "./UsageProviderCard";
@@ -17,12 +19,29 @@ import { UsageAccountWaiting } from "./UsageAccountWaiting";
 import { UsageSkeleton } from "./UsageSkeleton";
 import { UsageSidebarSection } from "./UsageSidebarSection";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
+import { UsageSameLoginCard } from "./UsageSameLoginCard";
+import { ClaudeLoginModal } from "./ClaudeLoginModal";
+import type { ClaudeAccount } from "../types";
 
 interface ClaudeCard {
   key: string;
   data: ProviderLimits;
   title: string;
   subtitle?: string;
+  account: string;
+}
+
+const MAIN_TITLE = "Claude";
+
+function titleOf(id: string, accounts: ClaudeAccount[]): string {
+  return id === "default" ? MAIN_TITLE : accounts.find((a) => a.id === id)?.label || id;
+}
+
+// The profiles signed in as the same account as `id`, which its card speaks for.
+function alsoOn(id: string, accounts: ClaudeAccount[], statuses: Record<string, ClaudeAccountStatus>): string[] {
+  return Object.entries(statuses)
+    .filter(([, s]) => s.sameAs === id)
+    .map(([other]) => titleOf(other, accounts));
 }
 
 interface UsageViewProps {
@@ -41,6 +60,8 @@ export function UsageView({ onClose }: UsageViewProps) {
   const hydrateAccounts = useAccountsStore((s) => s.hydrate);
   const [busy, setBusy] = useState(false);
   const [confirmDisable, setConfirmDisable] = useState(false);
+  const [loginAccount, setLoginAccount] = useState<ClaudeAccount | null>(null);
+  const reads = useUsageReads(map, refresh);
 
   useEffect(() => {
     void hydrateAccounts();
@@ -51,18 +72,18 @@ export function UsageView({ onClose }: UsageViewProps) {
     return Object.entries(map)
       .filter(([, v]) => v.provider === "claude")
       .map(([key, data]) => {
-        const id = data.accountId;
-        if (!id || id === "default") {
-          const email = statuses["default"]?.email;
-          return { key, data, title: "Claude", subtitle: email || undefined };
-        }
-        const label = accounts.find((a) => a.id === id)?.label;
+        const id = data.accountId || "default";
+        const also = alsoOn(id, accounts, statuses);
+        const withAlso = (text?: string) =>
+          also.length ? [text, `also on ${also.join(", ")}`].filter(Boolean).join(" · ") : text;
         const email = statuses[id]?.email;
+        const named = id !== "default" && !!accounts.find((a) => a.id === id)?.label;
         return {
           key,
           data,
-          title: label || id,
-          subtitle: email || (label ? id : undefined),
+          title: titleOf(id, accounts),
+          subtitle: withAlso(email || (named ? id : undefined)),
+          account: id,
         };
       })
       .sort((a, b) => a.title.localeCompare(b.title) || a.key.localeCompare(b.key));
@@ -82,6 +103,27 @@ export function UsageView({ onClose }: UsageViewProps) {
   const showClaudeEnable = claudeCards.length === 0 && !enabled;
   const showClaudeWaiting = claudeCards.length === 0 && waitingAccounts.length === 0 && enabled;
   const hasSnapshot = Object.keys(map).length > 0;
+
+  // Only an added account signs in here; the main login is Claude Code's own.
+  const signInAgain = (id: string) => {
+    const account = accounts.find((a) => a.id === id);
+    return account ? () => setLoginAccount(account) : undefined;
+  };
+
+  // A profile signed in as an earlier one's account, which that card speaks for.
+  const sameLoginCard = (id: string, key: string, name: string) => {
+    const sameAs = statuses[id]?.sameAs;
+    if (!sameAs) return null;
+    return (
+      <UsageSameLoginCard
+        key={key}
+        name={name}
+        email={statuses[id]?.email}
+        sameAsName={titleOf(sameAs, accounts)}
+        onSignIn={signInAgain(id)}
+      />
+    );
+  };
 
   const setClaudeLimits = async (next: boolean) => {
     if (busy) return;
@@ -116,7 +158,10 @@ export function UsageView({ onClose }: UsageViewProps) {
         )}
         <button
           type="button"
-          onClick={() => void refresh()}
+          onClick={() => {
+            void hydrateAccounts();
+            void reads.refresh();
+          }}
           disabled={loading}
           aria-label="Refresh usage"
           className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border)] text-[var(--text-muted)] transition-colors duration-[120ms] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent-blue)] disabled:opacity-50"
@@ -134,6 +179,12 @@ export function UsageView({ onClose }: UsageViewProps) {
           </button>
         )}
       </div>
+
+      {reads.note && (
+        <p role="status" className="mt-2 text-xs text-[var(--text-muted)]">
+          {reads.note}
+        </p>
+      )}
 
       <div className="no-scrollbar mt-4 min-h-0 flex-1 overflow-y-auto">
         {error && (
@@ -157,7 +208,8 @@ export function UsageView({ onClose }: UsageViewProps) {
           >
             <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(360px,1fr))]">
               {claudeCards.map((c) =>
-                c.data.noLimits ? (
+                sameLoginCard(c.account, c.key, c.title) ??
+                (c.data.noLimits ? (
                   <UsageEmptyPanel key={c.key} dot={providerMeta("claude").dot} name={c.title}>
                     <p className="text-[13px] leading-relaxed text-[var(--text-secondary)]">
                       Claude is running on this account, but its plan has no 5-hour or weekly
@@ -173,18 +225,30 @@ export function UsageView({ onClose }: UsageViewProps) {
                     subtitle={c.subtitle}
                     reminders={reminders}
                     limitKey={c.key}
+                    reader={
+                      statuses[c.account]?.signedIn === false
+                        ? undefined
+                        : {
+                            busy: !!reads.busy[c.account],
+                            error: reads.errors[c.account],
+                            onRead: () => void reads.read(c.account),
+                          }
+                    }
                   />
-                ),
+                )),
               )}
 
-              {waitingAccounts.map((account) => (
-                <UsageAccountWaiting
-                  key={account.id}
-                  name={account.label}
-                  signedIn={statuses[account.id]?.signedIn ?? true}
-                  projects={pinned[account.id] ?? []}
-                />
-              ))}
+              {waitingAccounts.map(
+                (account) =>
+                  sameLoginCard(account.id, account.id, account.label) ?? (
+                    <UsageAccountWaiting
+                      key={account.id}
+                      name={account.label}
+                      signedIn={statuses[account.id]?.signedIn ?? true}
+                      projects={pinned[account.id] ?? []}
+                    />
+                  ),
+              )}
 
               {showClaudeEnable && (
                 <UsageEmptyPanel dot={providerMeta("claude").dot} name="Claude">
@@ -234,6 +298,23 @@ export function UsageView({ onClose }: UsageViewProps) {
           </div>
         )}
       </div>
+
+      {loginAccount && (
+        <ClaudeLoginModal
+          account={loginAccount}
+          startLogin={(id) => StartClaudeLogin(id)}
+          status={{
+            signedIn: statuses[loginAccount.id]?.signedIn ?? false,
+            email: statuses[loginAccount.id]?.email ?? "",
+            planLabel: "",
+          }}
+          refresh={hydrateAccounts}
+          onClose={() => {
+            setLoginAccount(null);
+            void reads.refresh();
+          }}
+        />
+      )}
 
       <ConfirmDialog
         open={confirmDisable}

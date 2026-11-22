@@ -33,6 +33,7 @@ const READING: Record<YouTubeLessonId, string[]> = {
   "edit-services": [docsPath("services"), docsPath("editor")],
   "switch-profiles": [docsPath("profiles")],
   "archive-projects": [PROJECT_SIDEBAR_PATH, docsPath("project")],
+  "project-rows": [PROJECT_SIDEBAR_PATH],
   "add-action": [docsPath("actions")],
   "dynamic-action-labels": [docsPath("actions")],
   "six-action-button-ideas": [docsPath("actions")],

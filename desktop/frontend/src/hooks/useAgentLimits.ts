@@ -24,7 +24,9 @@ export interface AgentLimitsState {
   limits: AgentLimitsMap;
   loading: boolean;
   error: string;
-  refresh: () => Promise<void>;
+  /** Reads the snapshot again and returns it, or undefined when it failed or
+   *  a newer one arrived meanwhile. */
+  refresh: () => Promise<AgentLimitsMap | undefined>;
 }
 
 const CHANGED_EVENT = "agent-limits-changed";
@@ -80,9 +82,12 @@ export function useAgentLimits(host: string | null = null): AgentLimitsState {
     setError("");
     try {
       const m = await readLimits(host);
-      if (current()) setSnapshots(filed(key, m));
+      if (!current()) return undefined;
+      setSnapshots(filed(key, m));
+      return (m ?? {}) as AgentLimitsMap;
     } catch (err) {
       if (current()) setError(String(err));
+      return undefined;
     } finally {
       if (current()) setLoading(false);
     }

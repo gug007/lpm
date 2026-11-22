@@ -30,6 +30,7 @@ import {
 import { chordLabel } from "../keys";
 import type { RemoteAgentLaunch } from "../remoteAgentTabs";
 import { NewTerminalButton } from "./terminal/NewTerminalButton";
+import { useRemoteTerminalOps } from "../hooks/terminals/useRemoteTerminalOps";
 
 interface GlobalTerminalsViewProps {
   visible?: boolean;
@@ -72,6 +73,8 @@ export function GlobalTerminalsView({
     clearPendingFocusTerminal();
     terminalRef.current?.focusTerminalById(terminalId);
   }, [visible, pendingFocusTerminal, clearPendingFocusTerminal]);
+
+  useRemoteTerminalOps(GLOBAL_TERMINALS_KEY, terminalRef);
 
   const [{ actions, zones }, setConfig] = useState(NO_ACTIONS);
   useEffect(() => {

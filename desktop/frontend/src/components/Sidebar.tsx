@@ -23,6 +23,8 @@ import { pickClaudeAccount } from "../store/claudeAccountPick";
 import { openClaudeAccountSettings } from "../store/claudeAccountPin";
 import { useClaudePoolStore } from "../store/claudePool";
 import { useTerminalTitles } from "../store/terminalTitles";
+import { useSavedTabTitles } from "../store/savedTabTitles";
+import { pastTabNamesFor } from "../pastTabNames";
 import { EventsOn } from "../../bridge/runtime";
 import { GetVersion, SetClipboardText } from "../../bridge/commands";
 import {
@@ -33,7 +35,7 @@ import {
   type ProjectInfo,
 } from "../types";
 import { computeProjectStatus, rowNameClass } from "../agentStatus";
-import { sidebarProjectAlert, type SidebarAgentRow } from "../sidebarAgents";
+import { agentOnScreen, sidebarProjectAlert, type SidebarAgentRow } from "../sidebarAgents";
 import { sidebarAgentRows } from "../sidebarSeenAgents";
 import { hiddenKeys, useArchivingAgents } from "../agentArchive";
 import { useArchiveAgentShortcut } from "../hooks/useArchiveAgentShortcut";
@@ -56,6 +58,7 @@ import { focusDetachedTerminal, focusMainTerminal, projectWindow } from "../wind
 import { SidebarFooterNav } from "./SidebarFooterNav";
 import { SidebarArchivedOpen } from "./SidebarArchivedOpen";
 import { SidebarNoProjects } from "./SidebarNoProjects";
+import { SidebarRowLayoutButton } from "./SidebarRowLayoutButton";
 import { AppMenuButton } from "./AppMenuButton";
 import { isMac, trashName } from "../platform";
 import { chordLabel } from "../keys";
@@ -132,6 +135,12 @@ import { CheckboxBox } from "./ChangedFilesTree";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { SpinnerIcon } from "./project-detail/icons";
 import { SidebarOriginMark } from "./SidebarOriginMark";
+import { SidebarRowSide } from "./SidebarRowSide";
+import { SidebarRowExtraLines } from "./SidebarRowExtraLines";
+import { useSidebarRowLayout } from "../hooks/useSidebarRowLayout";
+import { useRowDataOf } from "../hooks/useRowDataOf";
+import { visibleLines } from "../sidebarRowLayout";
+import { detailShows, type RowBuiltIns } from "../sidebarRowDetails";
 import { SidebarMergedMark } from "./SidebarMergedMark";
 import { SidebarMergedOffer } from "./SidebarMergedOffer";
 import { SidebarOriginAction } from "./SidebarOriginAction";
@@ -329,6 +338,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
   // Only a project this window has open publishes its tab names; the rest fall
   // back to naming their agent.
   const terminalTitles = useTerminalTitles((s) => s.byProject);
+  const savedTitles = useSavedTabTitles((s) => s.byProject);
   const focusedTerminals = useTerminalTitles((s) => s.focusedByProject);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -492,11 +502,19 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     return new Map(
       projects.map((p) => [
         p.name,
-        sidebarAgentRows(p, now, terminalTitles[p.name], hiddenKeys(archiving, p.name)),
+        sidebarAgentRows(
+          p,
+          now,
+          terminalTitles[p.name] ?? savedTitles[p.name],
+          hiddenKeys(archiving, p.name),
+          terminalTitles[p.name] ? undefined : pastTabNamesFor(p.name, p.statusEntries, p.seenEntries),
+        ),
       ]),
     );
-  }, [projects, terminalTitles, archiving]);
+  }, [projects, terminalTitles, savedTitles, archiving]);
   useArchiveAgentShortcut(agentsByProject, selected);
+  const rowLayout = useSidebarRowLayout();
+  const rowDataOf = useRowDataOf(rowLayout);
 
   const openGitModal = (kind: GitModalTarget["kind"]) => {
     if (contextProject?.root && contextMenu) {
@@ -1061,9 +1079,20 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     if (next) onApplySidebarLayout(next);
   };
 
-  // A row with a note under its name stands two lines tall wherever it sits,
-  // so the elbow a folder draws into it has to know as well as the row does.
-  const hasNoteLine = (project: ProjectInfo) => projectNoteLine(project) !== null;
+  // Which of the row layout's lines and details this project's row draws.
+  const rowLinesFor = (project: ProjectInfo, builtIns: RowBuiltIns) => {
+    const data = rowDataOf(project);
+    return visibleLines(rowLayout.lines, (d) => detailShows(d, data, builtIns, rowLayout));
+  };
+
+  // A row with anything under its name stands taller wherever it sits, so the
+  // elbow a folder draws into it has to know as well as the row does.
+  const rowIsTall = (project: ProjectInfo, deckCollapsed = false, inPeerSection = false) =>
+    rowLinesFor(project, {
+      alert: sidebarProjectAlert(agentsByProject.get(project.name) ?? []) !== null,
+      status: deckCollapsed || projectNoteLine(project) !== null,
+      origin: showsOrigin(project, inPeerSection),
+    }).length > 1;
 
   // A row in its machine's own list: this Mac's, or a paired Mac's section. A
   // synced copy shown in that section is this Mac's project, in neither.
@@ -1107,11 +1136,18 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const deckSegments = deckCollapsed ? rollupSegments(deckChildren) : [];
     const work = project.workStatus;
     const noteLine = projectNoteLine(project);
-    const twoLine = deckCollapsed || noteLine !== null;
+    const rowData = rowDataOf(project);
+    const lines = rowLinesFor(project, {
+      alert: alert !== null,
+      status: deckCollapsed || noteLine !== null,
+      origin: showOrigin,
+    });
+    const twoLine = lines.length > 1;
     // Tints the parent instead: a folded deck is the only trace of a selected
     // duplicate, which has no row of its own on screen.
     const deckHoldsSelected =
       deckCollapsed && selected !== null && deckChildren.some((c) => c.name === selected);
+    const agentHoldsSelected = isSelected && isExpanded && agentOnScreen(agents, focusedTerminals[project.name]);
     const controlTop = twoLine ? "top-[14px]" : "top-1/2";
     const edgeAgents = unpinnedEdgeAgents([
       ...(isExpanded ? [] : [project]),
@@ -1132,6 +1168,15 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     ) : (
       noteLine
     );
+    const detailProps = {
+      data: rowData,
+      layout: rowLayout,
+      builtIns: {
+        alert: alert && <SidebarAgentSummary agent={alert} />,
+        status: secondLine,
+        origin: <SidebarOriginMark root={project.root} />,
+      },
+    };
 
     const identity = (
       <>
@@ -1155,9 +1200,13 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         {follow && (
           <FollowIndicator follow={follow} macName={peerAlias(peerState.peers, follow.slug)} />
         )}
-        {alert && <SidebarAgentSummary agent={alert} />}
-        {merged && <SidebarMergedMark root={project.root} />}
-        {showOrigin && <SidebarOriginMark root={project.root} />}
+        <SidebarRowSide details={lines[0].left} place="firstLeft" {...detailProps} />
+        <SidebarRowSide
+          details={lines[0].right}
+          place="firstRight"
+          lead={merged ? <SidebarMergedMark root={project.root} /> : undefined}
+          {...detailProps}
+        />
       </>
     );
 
@@ -1170,7 +1219,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       : `${rowShape} ${trailingPad} ${indentClass} ${
           isContextTarget ? "ring-1 ring-inset ring-[var(--accent-cyan)]/60" : ""
         } ${
-          isSelected || deckHoldsSelected
+          (isSelected && !agentHoldsSelected) || deckHoldsSelected
             ? "bg-[var(--bg-active)] text-[var(--text-primary)]"
             : sideBySideColumns.includes(project.name)
               ? "bg-[var(--bg-active)]/50 text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
@@ -1230,9 +1279,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             {twoLine ? (
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="flex min-w-0 items-center gap-3">{identity}</span>
-                <span className="mt-px truncate text-[10px] leading-[13px] text-[var(--text-muted)]">
-                  {secondLine}
-                </span>
+                <SidebarRowExtraLines lines={lines.slice(1)} {...detailProps} />
               </span>
             ) : (
               identity
@@ -1339,7 +1386,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
       const row = renderProjectRow(child, indented, peerRowFor?.(child));
       const body = connector ? (
         <div className="relative">
-          {connector(endsBlock && i === lastIndex, hasNoteLine(child))}
+          {connector(endsBlock && i === lastIndex, rowIsTall(child, false, inPeerSection))}
           {row}
         </div>
       ) : (
@@ -1611,11 +1658,11 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         {body.map((it, i) => {
           if (it.kind === "deck") return renderDeck(it, rowConnector, i === lastProjectIndex);
           if (it.kind !== "project") return renderRow(it);
-          // A member whose deck is folded, or which carries a note, stands two
-          // lines tall, so its elbow meets line 1. A deck always follows its
-          // parent in `items`.
+          // A member with anything under its name, a folded deck's rollup
+          // included, stands taller, so its elbow meets line 1. A deck always
+          // follows its parent in `items`.
           const next = body[i + 1];
-          const twoLine = (next?.kind === "deck" && next.collapsed) || hasNoteLine(it.project);
+          const twoLine = rowIsTall(it.project, next?.kind === "deck" && next.collapsed);
           return renderRow(it, rowConnector(i === lastProjectIndex, twoLine));
         })}
       </div>
@@ -1678,7 +1725,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
               return renderDeck({ ...it, folderId: group.id }, rowConnector, i === last, peerRowFor);
             }
             const next = rows[i + 1];
-            const twoLine = (next?.kind === "deck" && next.collapsed) || hasNoteLine(it.project);
+            const twoLine = rowIsTall(it.project, next?.kind === "deck" && next.collapsed, true);
             return renderPeerProject(it.project, peerRowFor(it.project), rowConnector(i === last, twoLine));
           })}
       </div>
@@ -1767,13 +1814,16 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             {allSelected ? "Select none" : "Select all"}
           </button>
         ) : (
-          <button
-            onClick={onAddProject}
-            className="-mr-[5px] flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] [&_svg]:h-3.5 [&_svg]:w-3.5"
-            title="Add project"
-          >
-            <PlusIcon />
-          </button>
+          <div className="-mr-[5px] flex items-center gap-1">
+            <SidebarRowLayoutButton />
+            <button
+              onClick={onAddProject}
+              className="flex h-5 w-5 items-center justify-center rounded text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] [&_svg]:h-3.5 [&_svg]:w-3.5"
+              title="Add project"
+            >
+              <PlusIcon />
+            </button>
+          </div>
         )}
       </div>
 

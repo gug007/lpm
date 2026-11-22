@@ -74,7 +74,7 @@ fn busy_terminals(ptys: &PtyState) -> Vec<(String, String)> {
             });
             at_prompt == Some(false) && !crate::agentexit::resumes(&sess.id)
         })
-        .map(|sess| (sess.project_name.clone(), sess.id.clone()))
+        .map(|sess| (sess.project(), sess.id.clone()))
         .collect()
 }
 

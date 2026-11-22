@@ -46,6 +46,7 @@ final class LpmClient: NSObject {
     var onWeeklyRecap: ((_ pick: RecapPick, _ recap: WeeklyRecap?, _ error: String?) -> Void)?
     var onLimitsChanged: ((_ snapshot: LimitsSnapshot) -> Void)?
     var onLimitReminders: ((_ reminders: [LimitReminder], _ error: String?) -> Void)?
+    var onReadUsage: ((_ account: String, _ error: String?) -> Void)?
     var onGenerateRequests: ((_ requests: [GenerateRequest]) -> Void)?
     var onAnswerGenerate: ((_ id: String, _ error: String?) -> Void)?
     var onWake: ((_ ok: Bool) -> Void)?
@@ -291,12 +292,14 @@ final class LpmClient: NSObject {
     static let actionPromptFeature = "actionPrompt"
     static let listDirFeature = "listDir"
     static let tabMenuFeature = "tabMenu"
+    static let moveTabFeature = "moveTab"
     static let tabAccountFeature = "tabAccount"
     static let answerAgentFeature = "answerAgent"
     static let liveActivityFeature = "liveActivity"
     static let weeklyRecapFeature = "weeklyRecap"
     static let recapMonthFeature = "recapMonth"
     static let limitRemindersFeature = "limitReminders"
+    static let readUsageFeature = "readUsage"
     static let generateApprovalFeature = "generateApproval"
     static let wakeFeature = "wake"
     static let agentArchiveFeature = "agentArchive"
@@ -561,9 +564,10 @@ final class LpmClient: NSObject {
                 "features": [ChunkedUpload.feature, Self.serviceLogsWatchFeature, Self.agentAnswersFeature,
                              Self.restartTerminalFeature, Self.agentLaunchFeature, Self.agentSessionsFeature,
                              Self.actionPromptFeature, Self.listDirFeature, Self.tabMenuFeature,
+                             Self.moveTabFeature,
                              Self.tabAccountFeature,
                              Self.weeklyRecapFeature, Self.recapMonthFeature, Self.agentArchiveFeature,
-                             Self.limitRemindersFeature, Self.projectPinsFeature, Self.gitHistoryFeature,
+                             Self.limitRemindersFeature, Self.readUsageFeature, Self.projectPinsFeature, Self.gitHistoryFeature,
                              Self.keepAwakeFeature, Self.powerFeature, Self.lpmCommandsFeature, Self.lpmOtherSkillsFeature, Self.lpmNestedFoldersFeature,
                              Self.gitChecksFeature, Self.gitCommitChecksFeature, Self.gitMergeFeature,
                              Self.ciFixLoopFeature,
@@ -938,6 +942,7 @@ final class LpmClient: NSObject {
     }
     func requestLimits() { send(Wire.limits()) }
     func requestLimitReminders() { send(Wire.limitReminders()) }
+    func requestReadUsage(_ account: String) { send(Wire.readUsage(account)) }
     func requestGenerateRequests() { send(Wire.generateRequests()) }
     func answerGenerate(id: String, decision: String, prompt: String?, key: String?) {
         send(Wire.answerGenerate(id: id, decision: decision, prompt: prompt, key: key))
@@ -1078,6 +1083,9 @@ final class LpmClient: NSObject {
         send(Wire.dismissLimitStop(project: project, id: id))
     }
     func forkTerminalCopy(project: String, id: String) { send(Wire.forkTerminalCopy(project: project, id: id)) }
+    func moveTerminal(project: String, id: String, to: String) {
+        send(Wire.moveTerminal(project: project, id: id, to: to))
+    }
     func titleTerminal(project: String, id: String) { send(Wire.titleTerminal(project: project, id: id)) }
     func closeOtherTerminals(project: String, id: String) {
         send(Wire.closeOtherTerminals(project: project, id: id))
@@ -1573,6 +1581,7 @@ final class LpmClient: NSObject {
             case .weeklyRecap(let pick, let recap, let error): self.onWeeklyRecap?(pick, recap, error)
             case .limitsChanged(let snapshot): self.onLimitsChanged?(snapshot)
             case .limitReminders(let reminders, let error): self.onLimitReminders?(reminders, error)
+            case .readUsage(let account, let error): self.onReadUsage?(account, error)
             case .generateRequests(let requests): self.onGenerateRequests?(requests)
             case .answerGenerate(let id, let error): self.onAnswerGenerate?(id, error)
             case .wake(let ok): self.onWake?(ok)

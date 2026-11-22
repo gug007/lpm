@@ -200,6 +200,7 @@
 {"at": 3200, "frame": {"t": "in", "id": "demo-storefront-1", "d": "echo hello world\r"}}
 {"at": 3200, "frame": {"t": "clearLimitReminder", "limit": "nope", "window": "weekly"}}
 {"at": 3250, "frame": {"t": "in", "id": "demo-storefront-1", "d": "foo bar\r"}}
+{"at": 3250, "frame": {"t": "readUsage", "account": "work"}}
 {"at": 3300, "frame": {"t": "in", "id": "demo-storefront-1", "d": "git log\r"}}
 {"at": 3300, "frame": {"t": "keepAwake"}}
 {"at": 3350, "frame": {"t": "in", "id": "demo-storefront-1", "d": "git push\r"}}
@@ -733,4 +734,6 @@
 {"at": 79500, "frame": {"t": "closeOtherTerminals", "project": "storefront", "id": "nope"}}
 {"at": 79500, "frame": {"t": "closeOtherTerminals", "project": "storefront", "id": "demo-storefront-1"}}
 {"at": 79600, "frame": {"t": "terminals", "project": "storefront"}}
+{"at": 79700, "frame": {"t": "moveTerminal", "project": "storefront", "id": "demo-storefront-1", "to": "blog"}}
+{"at": 79700, "frame": {"t": "moveTerminal", "project": "storefront", "id": "nope", "to": "blog"}}
 {"at": 80000}

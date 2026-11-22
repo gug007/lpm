@@ -107,6 +107,7 @@ abstract class LpmClientCallbacks {
     )? = null
     var onLimitsChanged: ((snapshot: LimitsSnapshot) -> Unit)? = null
     var onLimitReminders: ((reminders: List<LimitReminder>, error: String?) -> Unit)? = null
+    var onReadUsage: ((account: String, error: String?) -> Unit)? = null
     var onGenerateRequests: ((requests: List<GenerateRequest>) -> Unit)? = null
     var onAnswerGenerate: ((id: String, error: String?) -> Unit)? = null
     var onWake: ((ok: Boolean) -> Unit)? = null

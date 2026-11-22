@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { sameTitles, useSavedTabTitles } from "./savedTabTitles";
 
 // What each mounted project's tab strip is showing, published for the sidebar,
 // which has no tree of its own to read: the name of every tab, and which one
@@ -22,26 +23,19 @@ interface TerminalTitlesState {
   clearProject: (project: string) => void;
 }
 
-// Order counts: dragging a tab leaves every name untouched and only moves the
-// keys, and the sidebar reads its order from them.
-function same(a: Record<string, string>, b: Record<string, string>): boolean {
-  const keys = Object.keys(a);
-  const others = Object.keys(b);
-  if (keys.length !== others.length) return false;
-  return keys.every((key, i) => key === others[i] && a[key] === b[key]);
-}
-
 export const useTerminalTitles = create<TerminalTitlesState>((set) => ({
   byProject: {},
   focusedByProject: {},
   onScreenByProject: {},
 
-  setProjectTitles: (project, titles) =>
+  setProjectTitles: (project, titles) => {
+    useSavedTabTitles.getState().remember(project, titles);
     set((s) => {
       const prev = s.byProject[project];
-      if (prev && same(prev, titles)) return s;
+      if (sameTitles(prev, titles)) return s;
       return { byProject: { ...s.byProject, [project]: titles } };
-    }),
+    });
+  },
 
   setProjectFocus: (project, terminalId, onScreen) =>
     set((s) => {
@@ -64,3 +58,9 @@ export const useTerminalTitles = create<TerminalTitlesState>((set) => ({
       return { byProject, focusedByProject, onScreenByProject };
     }),
 }));
+
+// A project's tab names: live while it is open in this window, else as it last
+// showed them.
+export function knownTabTitles(project: string): Record<string, string> | undefined {
+  return useTerminalTitles.getState().byProject[project] ?? useSavedTabTitles.getState().byProject[project];
+}

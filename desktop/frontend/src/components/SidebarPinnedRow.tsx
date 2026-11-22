@@ -10,6 +10,12 @@ import { SidebarAgentSummary } from "./SidebarAgentSummary";
 import { SidebarSendLaterMark } from "./SidebarSendLaterMark";
 import { SidebarWindowMark } from "./SidebarWindowMark";
 import { projectNoteLine } from "./projectNoteLine";
+import { SidebarRowExtraLines } from "./SidebarRowExtraLines";
+import { SidebarRowSide } from "./SidebarRowSide";
+import { useRowDataOf } from "../hooks/useRowDataOf";
+import { useSidebarRowLayout } from "../hooks/useSidebarRowLayout";
+import { detailShows } from "../sidebarRowDetails";
+import { visibleLines } from "../sidebarRowLayout";
 import { WorkStatusMark } from "./WorkStatusMark";
 import { DONE_STYLE, ROW_BASE_CLASS, ROW_TWO_LINE_CLASS, rowTrailing } from "./sidebarRowClass";
 
@@ -54,7 +60,17 @@ export function SidebarPinnedRow({
   const name = <ProjectNameDisplay project={project} parent={parent} />;
   const work = project.workStatus;
   const noteLine = projectNoteLine(project);
-  const twoLine = noteLine !== null;
+  const layout = useSidebarRowLayout();
+  const data = useRowDataOf(layout)(project);
+  // The pinned copy of a row leaves origin to the row in the list below.
+  const builtIns = { alert: alert !== null, status: noteLine !== null, origin: false };
+  const lines = visibleLines(layout.lines, (d) => detailShows(d, data, builtIns, layout));
+  const detailProps = {
+    data,
+    layout,
+    builtIns: { alert: alert && <SidebarAgentSummary agent={alert} />, status: noteLine },
+  };
+  const twoLine = lines.length > 1;
   const controlTop = twoLine ? "top-[14px]" : "top-1/2";
   const trailing = rowTrailing(canExpand, false);
 
@@ -70,10 +86,11 @@ export function SidebarPinnedRow({
       </span>
       <SidebarSendLaterMark projectName={project.name} />
       {opensIn !== "here" && <SidebarWindowMark opensIn={opensIn} />}
-      {alert && <SidebarAgentSummary agent={alert} />}
+      <SidebarRowSide details={lines[0].left} place="firstLeft" {...detailProps} />
+      <SidebarRowSide details={lines[0].right} place="firstRight" {...detailProps} />
       {shortcut && (
         <span
-          className={`ml-auto shrink-0 pl-2 text-[11px] tabular-nums text-[var(--text-muted)] ${
+          className={`${lines[0].right.length ? "" : "ml-auto"} shrink-0 pl-2 text-[11px] tabular-nums text-[var(--text-muted)] ${
             menuOpen ? "invisible" : "group-hover:invisible"
           }`}
         >
@@ -106,9 +123,7 @@ export function SidebarPinnedRow({
         {twoLine ? (
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="flex min-w-0 items-center gap-3">{identity}</span>
-            <span className="mt-px truncate text-[10px] leading-[13px] text-[var(--text-muted)]">
-              {noteLine}
-            </span>
+            <SidebarRowExtraLines lines={lines.slice(1)} {...detailProps} />
           </span>
         ) : (
           identity

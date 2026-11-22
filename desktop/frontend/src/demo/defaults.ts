@@ -97,7 +97,7 @@ const EMPTY_STRING: string[] = [
   "claude_limits_account", "create_agent_skill", "create_pull_request", "export_config",
   "generate_action_yaml", "generate_branch_name", "generate_claude_statusline",
   "generate_pr_description", "generate_pr_title", "generate_project_config", "get_platform",
-  "get_version", "wsl_home", "message_history_save_draft", "git_diff", "git_diff_branch", "git_show_prefix", "git_show_commit", "media_http_base",
+  "get_version", "move_terminal", "wsl_home", "message_history_save_draft", "git_diff", "git_diff_branch", "git_show_prefix", "git_show_commit", "media_http_base",
   "notes_read_attachment", "notes_save_attachment", "notes_save_attachment_data",
   "openai_tts_speak", "peer_update_mac", "peer_upload_file", "pick_audio_file", "pick_image_file",
   "preview_claude_statusline", "read_branch_name_instructions", "read_clipboard_text",

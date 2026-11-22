@@ -8,10 +8,19 @@ data class UsageCard(
     val key: String,
     val data: ProviderLimits,
     val title: String,
-    val subtitle: String?
+    val subtitle: String?,
+    /** The Claude account the card reads ("default" for the main login). */
+    val account: String = CLAUDE_MAIN_LOGIN,
+    /** The earlier account this one shares a login with, which speaks for it. */
+    val sameAsTitle: String? = null,
+    val email: String? = null
 ) {
     val id: String get() = key
 }
+
+/** A Claude account's card title: its name on the Mac, or its id. */
+fun claudeTitle(id: String, accounts: List<ClaudeAccountInfo>): String =
+    if (id == CLAUDE_MAIN_LOGIN) "Claude" else accounts.firstOrNull { it.id == id }?.name ?: id
 
 /**
  * The Claude cards, one per account, ordered by title then key so the list does not
@@ -29,17 +38,25 @@ fun claudeCards(snapshot: LimitsSnapshot, accounts: List<ClaudeAccountInfo>): Li
             val id = data.accountId?.ifEmpty { null } ?: CLAUDE_MAIN_LOGIN
             val account = accounts.firstOrNull { it.id == id }
             val email = account?.email?.ifEmpty { null }
-            if (id == CLAUDE_MAIN_LOGIN) {
-                UsageCard(key, data, title = "Claude", subtitle = email)
-            } else {
-                val name = account?.name
-                UsageCard(
-                    key,
-                    data,
-                    title = name ?: id,
-                    subtitle = email ?: if (name == null) null else id
-                )
+            val also = accounts.filter { it.sameAs == id }.map { claudeTitle(it.id, accounts) }
+            val withAlso = { text: String? ->
+                if (also.isEmpty()) {
+                    text
+                } else {
+                    listOfNotNull(text, "also on ${also.joinToString(", ")}").joinToString(" · ")
+                }
             }
+            val sameAsTitle = account?.sameAs?.let { claudeTitle(it, accounts) }
+            val named = id != CLAUDE_MAIN_LOGIN && account?.name != null
+            UsageCard(
+                key,
+                data,
+                title = claudeTitle(id, accounts),
+                subtitle = withAlso(email ?: if (named) id else null),
+                account = id,
+                sameAsTitle = sameAsTitle,
+                email = email
+            )
         }
         .sortedWith { lhs, rhs ->
             collator.compare(lhs.title, rhs.title).takeIf { it != 0 }

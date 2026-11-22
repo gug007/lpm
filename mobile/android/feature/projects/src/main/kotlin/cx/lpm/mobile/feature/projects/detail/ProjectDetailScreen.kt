@@ -55,6 +55,7 @@ class ProjectDetailActions(
     val rename: (TerminalInfo) -> Unit = {},
     val close: (TerminalInfo) -> Unit = {},
     val useTitle: (TerminalInfo) -> Unit = {},
+    val moveTo: (TerminalInfo, String) -> Unit = { _, _ -> },
     val fork: (TerminalInfo) -> Unit = {},
     val forkCopy: (TerminalInfo) -> Unit = {},
     val closeOthers: (TerminalInfo) -> Unit = {},
@@ -298,14 +299,20 @@ private fun tabMenuExtras(
     val claudeAccount: @Composable ColumnScope.() -> Unit = {
         claudeAccountMenu(term, tab.agent?.state == AgentState.Working)
     }
-    if (!state.canUseTabMenu) return TabMenuExtras(claudeAccount = claudeAccount)
+    val moveTo: (@Composable ColumnScope.() -> Unit)? = state.moveDestinations.takeIf {
+        it.isNotEmpty()
+    }?.let {
+        { TabMoveToMenu(it) { p -> actions.moveTo(term, p.name) } }
+    }
+    if (!state.canUseTabMenu) return TabMenuExtras(claudeAccount = claudeAccount, moveTo = moveTo)
     val others = tabs.any { it.terminal.id != term.id && !it.terminal.pinned }
     return TabMenuExtras(
         useTitle = { actions.useTitle(term) }.takeIf { term.canTitle },
         fork = { actions.fork(term) }.takeIf { term.canFork },
         forkCopy = { actions.forkCopy(term) }.takeIf { term.canForkCopy },
         closeOthers = { actions.closeOthers(term) }.takeIf { others },
-        claudeAccount = claudeAccount
+        claudeAccount = claudeAccount,
+        moveTo = moveTo
     )
 }
 

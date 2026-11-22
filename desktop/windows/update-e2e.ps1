@@ -3,11 +3,14 @@
 End-to-end test of lpm updating itself on Windows. Installs -Installer, a
 release build stamped as an old version, for this user, then checks that:
 
-  1. the same installer, run again as a silent upgrade, ends the running lpm
+  1. a No to the installer's usage-data question turns the daily usage count
+     and crash reports off before lpm's first start sends either, and that
+     start still gets the first-launch defaults;
+  2. the same installer, run again as a silent upgrade, ends the running lpm
      and replaces it (the running-app check in packaging/windows/hooks.nsh);
-  2. `lpm update --now` downloads the latest release's installer, quits lpm,
+  3. `lpm update --now` downloads the latest release's installer, quits lpm,
      installs it and opens lpm again, as the Update button does;
-  3. lpm is back on that release, from the install folder, and a service
+  4. lpm is back on that release, from the install folder, and a service
      started before the update is still running and still listed.
 
 Meant for a throwaway machine (CI): it uses the default data directory, since
@@ -129,6 +132,7 @@ $Cfg = @{
     Project   = Join-Path $tempRoot 'proj'
     Artifacts = $ArtifactsDir
     DataDir   = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.lpm'
+    ChoiceKey = 'HKCU:\Software\lpm'
     Cli       = ''
 }
 $Results = [System.Collections.Generic.List[object]]::new()
@@ -153,12 +157,29 @@ try {
     if ($State.Installed) {
         $Cfg.Cli = Join-Path $tempRoot 'lpm.exe'
         Copy-Item -LiteralPath (Join-Path $State.Dir 'lpm-cli.exe') -Destination $Cfg.Cli -Force
+        # What the installer leaves when its usage-data question is answered No
+        # (hooks.nsh); a silent install never asks.
+        New-Item -Path $Cfg.ChoiceKey -Force | Out-Null
+        New-ItemProperty -Path $Cfg.ChoiceKey -Name 'SendUsageData' -PropertyType DWord -Value 0 -Force | Out-Null
     }
 
     $State.Up = Invoke-SmokeCheck -Results $Results -Name 'lpm starts and answers the CLI' -SkipReason (Get-Skip 'Installed') -Test {
         $null = Start-Lpm -Label 'first'
         $version = Wait-LpmVersion
         @{ Pass = ($version -eq $State.OldVersion); Detail = "running $version" }
+    }
+
+    $null = Invoke-SmokeCheck -Results $Results -Name "the installer's No turns usage data off and keeps the first-launch defaults" -SkipReason (Get-Skip 'Up') -Test {
+        $settingsPath = Join-Path $Cfg.DataDir 'settings.json'
+        $settings = Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
+        $left = Get-ItemProperty -Path $Cfg.ChoiceKey -Name 'SendUsageData' -ErrorAction SilentlyContinue
+        $global = Join-Path $Cfg.DataDir 'global.yml'
+        $seeded = (Test-Path -LiteralPath $global) -and ((Get-Content -LiteralPath $global -Raw) -match '(?m)^\s+claude:')
+        $dated = (Get-Item -LiteralPath $settingsPath).LastWriteTimeUtc.Year -lt 2001
+        @{
+            Pass   = ($settings.dailyPing -eq $false -and $settings.crashReports -eq $false -and -not $left -and $seeded)
+            Detail = "dailyPing=$($settings.dailyPing) crashReports=$($settings.crashReports) registry value left: $([bool]$left) global.yml seeded: $seeded settings.json backdated: $dated"
+        }
     }
 
     $State.Replaced = Invoke-SmokeCheck -Results $Results -Name 'a silent upgrade ends the running lpm and replaces it' -SkipReason (Get-Skip 'Up') -Test {

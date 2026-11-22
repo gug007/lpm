@@ -3,6 +3,10 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("./terminal/TabMoveToSubmenu", () => ({ TabMoveToSubmenu: () => null }));
+vi.mock("../hooks/useAgentRowDrag", () => ({
+  useAgentRowDrag: () => ({ dropLine: null, onPointerDownCapture: () => {}, onClickCapture: () => {} }),
+}));
 vi.mock("./SidebarAgentAsk", () => ({ SidebarAgentAsk: () => null }));
 vi.mock("./SidebarSendLaterMark", () => ({ SidebarSendLaterMark: () => null }));
 

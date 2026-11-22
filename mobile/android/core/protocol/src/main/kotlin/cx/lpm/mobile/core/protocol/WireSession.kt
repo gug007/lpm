@@ -246,6 +246,9 @@ sealed interface WireSession {
 
     fun limits(): String = frame("limits")
 
+    /** A Usage card's "Read it now", only for a Mac whose `features` has "readUsage". */
+    fun readUsage(account: String): String = frame("readUsage") { put("account", account) }
+
     /** Limit reminders, only for a Mac whose `features` has "limitReminders". */
     fun limitReminders(): String = frame("limitReminders")
 

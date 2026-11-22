@@ -137,6 +137,9 @@ sealed interface Inbound {
     // change was refused.
     data class LimitReminders(val reminders: List<LimitReminder>, val error: String?) : Inbound
 
+    // The answer to `readUsage`; the reading itself arrives as `limits-changed`.
+    data class ReadUsage(val account: String, val error: String?) : Inbound
+
     // The `lpm generate` requests waiting for a yes, as a reply or after any change;
     // and the answer to one of them.
     data class GenerateRequests(val requests: List<GenerateRequest>) : Inbound

@@ -153,23 +153,23 @@ pub fn on_input(app: &AppHandle, sess: &PtySession, input: &[u8]) {
         crate::claude_turn::stop_key(&sess.id, now);
     }
     crate::approvalgrace::answered(&sess.id);
-    let project = &sess.project_name;
+    let project = sess.project();
     let seen: Vec<StatusEntry> = app
         .state::<Arc<StatusStore>>()
-        .live_agent_entries_on(project, &sess.id)
+        .live_agent_entries_on(&project, &sess.id)
         .into_iter()
-        .filter(|e| concerns(key, e) && !idle_key(key, project, e))
+        .filter(|e| concerns(key, e) && !idle_key(key, &project, e))
         .collect();
     if key == Key::CtrlC {
-        for e in seen.iter().filter(|e| crate::donehold::idle(project, &e.key)) {
-            crate::agentchildren::forget(project, &e.key);
+        for e in seen.iter().filter(|e| crate::donehold::idle(&project, &e.key)) {
+            crate::agentchildren::forget(&project, &e.key);
         }
     }
     if seen.is_empty() {
         return;
     }
     let watch = Watch {
-        project: sess.project_name.clone(),
+        project,
         since: now,
         seen,
         click: key == Key::Click,

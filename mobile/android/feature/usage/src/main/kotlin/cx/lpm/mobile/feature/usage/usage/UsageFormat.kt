@@ -93,6 +93,23 @@ fun resetAbsolute(resetsAt: Long, zone: ZoneId = ZoneId.systemDefault()): String
         at.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
 }
 
+/**
+ * A reading older than this says its age in place of the number: the 5-hour window
+ * may have turned over since, and a reset can't reach the Mac until Claude replies on
+ * that account again. The desktop's `OLD_MS`.
+ */
+const val OLD_MS = 60.0 * 60 * 1000
+
+/** "Last read 3 hours ago", in place of an old reading's meters. */
+fun lastReadText(updatedAt: Long, now: Double): String {
+    val mins = maxOf(1L, ((now - updatedAt) / 60_000).roundToLong())
+    if (mins < 60) return "Last read $mins minute${if (mins == 1L) "" else "s"} ago"
+    val hours = (mins / 60.0).roundToLong()
+    if (hours < 24) return "Last read $hours hour${if (hours == 1L) "" else "s"} ago"
+    val days = (hours / 24.0).roundToLong()
+    return "Last read $days day${if (days == 1L) "" else "s"} ago"
+}
+
 /** How long ago the tool last reported. `updatedAt` is unix MILLIS. */
 fun updatedText(updatedAt: Long, now: Double): String {
     val mins = ((now - updatedAt) / 60_000).roundToLong()

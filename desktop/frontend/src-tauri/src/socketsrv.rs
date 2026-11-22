@@ -263,7 +263,13 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         return "ERROR: empty command".into();
     }
     let command = parts[0].to_lowercase();
-    let args = &parts[1..];
+    let rehomed = rehomed(
+        &command,
+        &parts[1..],
+        |pane| store.current_pane(pane),
+        |pane| crate::pty::project_of(&app.state::<crate::pty::PtyState>(), pane),
+    );
+    let args = rehomed.as_deref().unwrap_or(&parts[1..]);
     match command.as_str() {
         "ping" => "PONG".into(),
         "set_status" => cmd_set_status(args, store, app),
@@ -1084,6 +1090,46 @@ fn opt_or_positional(
         .or_else(|| positional.get(index).cloned())
 }
 
+/// An agent in a tab moved to another project still names the project it
+/// started in; what it reports belongs to the project its terminal is in now
+/// (`home_of`). The arguments with that project in place of the one named,
+/// when they differ.
+fn rehomed(
+    command: &str,
+    args: &[String],
+    current_pane: impl Fn(&str) -> String,
+    home_of: impl Fn(&str) -> Option<String>,
+) -> Option<Vec<String>> {
+    if !matches!(command, "set_status" | "clear_status" | "set_resume" | "agent_child") {
+        return None;
+    }
+    let (slots, options) = scan_args(args);
+    let positional: Vec<String> = slots.iter().map(|&i| args[i].clone()).collect();
+    let project = positional.first()?;
+    let pane = match (command, options.get("pane")) {
+        ("set_resume", _) => positional.get(1)?.clone(),
+        (_, Some(pane)) if !pane.is_empty() => pane.clone(),
+        _ => {
+            let key = opt_or_positional(&options, "key", &positional, 1)?;
+            let agent = crate::agentkind::AgentKind::of_key(&key)?;
+            key.strip_prefix(agent.key_prefix())?.to_string()
+        }
+    };
+    let home = home_of(&current_pane(&pane)).filter(|home| home != project)?;
+    let mut out = args.to_vec();
+    out[slots[0]] = home;
+    Some(out)
+}
+
+/// The project a report about `pane_id` belongs to: its terminal's, which
+/// moves with the tab, else the one the report names.
+fn home_of(app: &AppHandle, project: &str, pane_id: &str) -> String {
+    if pane_id.is_empty() {
+        return project.to_string();
+    }
+    crate::pty::project_of(&app.state::<crate::pty::PtyState>(), pane_id).unwrap_or_else(|| project.to_string())
+}
+
 /// A key naming the pane rather than a session is one the tab's own agent
 /// reports under too: some agents' hooks always key that way, and the others
 /// fall back to it for a payload carrying no session id. Retiring such an entry
@@ -1263,6 +1309,8 @@ fn speaks_for_the_turn(entry: &StatusEntry, answered: Option<&str>, options: &Ha
 /// Store a report and tell everyone who listens: the status-changed event, the
 /// chime, the banner. Returns whether anything changed.
 pub(crate) fn publish(app: &AppHandle, store: &StatusStore, project: &str, entry: StatusEntry) -> bool {
+    let home = home_of(app, project, &entry.pane_id);
+    let project = home.as_str();
     let watched = crate::status::is_live(&entry.value) || entry.agent_pid > 0;
     let retired = store.retire_other_sessions(project, &entry.key, &entry.pane_id);
     let Some(held) = store.store(project, entry) else {
@@ -1408,6 +1456,12 @@ fn shell_split(s: &str) -> Vec<String> {
 /// (order preserved). Mirrors socket.go parseOptions, then resolves the
 /// `--<name>-hex` transport (see [`decode_hex_options`]) so every verb gets it.
 pub(crate) fn parse_options(args: &[String]) -> (Vec<String>, HashMap<String, String>) {
+    let (slots, options) = scan_args(args);
+    (slots.into_iter().map(|i| args[i].clone()).collect(), options)
+}
+
+/// `parse_options` with each positional's index in `args` instead of its text.
+fn scan_args(args: &[String]) -> (Vec<usize>, HashMap<String, String>) {
     let mut positional = Vec::new();
     let mut options = HashMap::new();
     let mut i = 0;
@@ -1423,7 +1477,7 @@ pub(crate) fn parse_options(args: &[String]) -> (Vec<String>, HashMap<String, St
                 options.insert(key.to_string(), String::new());
             }
         } else {
-            positional.push(arg.clone());
+            positional.push(i);
         }
         i += 1;
     }
@@ -1477,6 +1531,33 @@ mod tests {
         assert!(!runs("duplicate_project", "--count=2 --prompt=hi"));
         assert!(!runs("duplicate_project", "--run-action="));
         assert!(!runs("run_task", "--run-action=claude"));
+    }
+
+    #[test]
+    fn a_moved_tabs_reports_name_the_project_it_moved_to() {
+        let args = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let rehome = |command: &str, a: &[&str]| {
+            rehomed(command, &args(a), |p| p.to_string(), |p| (p == "p1").then(|| "api".to_string()))
+        };
+        assert_eq!(
+            rehome("set_status", &["bowen", "claude:x", "Running", "--pane=p1"]),
+            Some(args(&["api", "claude:x", "Running", "--pane=p1"]))
+        );
+        assert_eq!(
+            rehome("set_status", &["--icon", "x", "bowen", "k", "Done", "--pane", "p1"]),
+            Some(args(&["--icon", "x", "api", "k", "Done", "--pane", "p1"]))
+        );
+        assert_eq!(
+            rehome("set_resume", &["bowen", "p1", "sess-1", "--provider=claude"]),
+            Some(args(&["api", "p1", "sess-1", "--provider=claude"]))
+        );
+        assert_eq!(
+            rehome("clear_status", &["bowen", "claude_code_p1"]),
+            Some(args(&["api", "claude_code_p1"]))
+        );
+        assert_eq!(rehome("set_status", &["bowen", "k", "Done", "--pane=p2"]), None);
+        assert_eq!(rehome("set_status", &["api", "k", "Done", "--pane=p1"]), None);
+        assert_eq!(rehome("start_project", &["bowen"]), None);
     }
 
     #[test]

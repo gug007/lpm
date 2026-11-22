@@ -15,6 +15,12 @@ internal fun DemoServer.registerLimitsHandlers() {
         pushAfter(6.0) { limitsPayload(t = "limits-changed", ok = null, advanced = true) }
     }
     register("limitReminders") { pushReminders() }
+    // "Read it now": the account answers, and its reading is fresh.
+    register("readUsage") { o ->
+        val account = o.string("account") ?: "default"
+        pushAfter(0.8) { mapOf("t" to "readUsage", "ok" to true, "account" to account) }
+        pushAfter(0.8) { limitsPayload(t = "limits-changed", ok = null, advanced = true) }
+    }
     register("setLimitReminder") { o ->
         val limit = o.string("limit").orEmpty()
         val window = o.string("window").orEmpty()

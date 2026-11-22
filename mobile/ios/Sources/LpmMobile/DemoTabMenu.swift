@@ -26,6 +26,18 @@ extension DemoServer {
                 self.push(["t": "projects-changed"])
             }
         }
+        // The tab goes to the other project as it is, still running.
+        register("moveTerminal") { [weak self] o in
+            guard let self, let project = o["project"] as? String, let id = o["id"] as? String,
+                  let to = o["to"] as? String, self.world.projects.contains(where: { $0.name == to }) else { return }
+            self.push(["t": "moveTerminal", "ok": true])
+            guard let index = self.world.terminals[project]?.firstIndex(where: { $0.id == id }),
+                  var tab = self.world.terminals[project]?.remove(at: index) else { return }
+            tab.project = to
+            self.world.terminals[to, default: []].append(tab)
+            self.push(self.world.terminalsPayload(project))
+            self.push(self.world.terminalsPayload(to))
+        }
         register("titleTerminal") { [weak self] o in
             guard let self, let project = o["project"] as? String, let id = o["id"] as? String else { return }
             self.push(["t": "titleTerminal", "ok": true])

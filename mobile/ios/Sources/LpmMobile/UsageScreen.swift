@@ -69,17 +69,29 @@ struct UsageScreen: View {
         let claude = snapshot.claudeEnabled
             ? claudeCards(snapshot, accounts: model.claudeAccounts?.accounts ?? []) : []
 
+        if let note = model.usage.note {
+            Text(note)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
         ForEach(claude, id: \.key) { card in
-            UsageProviderCardView(
-                data: card.data,
-                now: now,
-                macNow: macNow,
-                title: card.title,
-                subtitle: card.subtitle,
-                reminder: { window, win in
-                    model.usage.reminder(limit: card.key, window: window, win: win, name: card.title, now: now)
-                }
-            )
+            if let sameAsTitle = card.sameAsTitle {
+                UsageSameLoginCardView(title: card.title, email: card.email, sameAsTitle: sameAsTitle)
+            } else {
+                UsageProviderCardView(
+                    data: card.data,
+                    now: now,
+                    macNow: macNow,
+                    title: card.title,
+                    subtitle: card.subtitle,
+                    reminder: { window, win in
+                        model.usage.reminder(limit: card.key, window: window, win: win, name: card.title, now: now)
+                    },
+                    reader: model.usage.reader(for: card.account)
+                )
+            }
         }
 
         if claude.isEmpty {

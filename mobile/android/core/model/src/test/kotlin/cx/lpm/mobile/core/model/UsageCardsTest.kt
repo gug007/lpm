@@ -42,6 +42,25 @@ class UsageCardsTest {
     }
 
     @Test
+    fun `an account signed in as an earlier one says so, and that card names it`() {
+        val shared = accounts + ClaudeAccountInfo(
+            "zed",
+            "Zed",
+            "Zed",
+            true,
+            "you@example.com",
+            "max",
+            true,
+            sameAs = "default"
+        )
+        val cards = claudeCards(readings, shared)
+        val main = cards.first { it.account == "default" }
+        assertEquals("you@example.com · also on Zed", main.subtitle)
+        assertNull(main.sameAsTitle)
+        assertEquals("Claude", cards.first { it.account == "zed" }.sameAsTitle)
+    }
+
+    @Test
     fun `claude reporting off shows no cards`() {
         val off = snapshot("""{"limits": {"claude:default": {"provider": "claude"}}}""")
         assertEquals(emptyList<UsageCard>(), claudeCards(off, accounts))

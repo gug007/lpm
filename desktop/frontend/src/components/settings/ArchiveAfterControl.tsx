@@ -5,17 +5,11 @@ import {
   DEFAULT_ARCHIVE_AFTER,
   formatArchiveAfter,
   parseArchiveAfter,
+  UNIT_LABEL,
   type ArchiveAfter,
   type ArchiveUnit,
 } from "../../archiveAfter";
 import { SettingsSelect } from "../SettingsSelect";
-
-const UNIT_LABEL: Record<ArchiveUnit, [one: string, many: string]> = {
-  m: ["minute", "minutes"],
-  h: ["hour", "hours"],
-  d: ["day", "days"],
-  w: ["week", "weeks"],
-};
 
 const NEVER = "never";
 

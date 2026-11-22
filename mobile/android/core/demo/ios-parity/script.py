@@ -496,6 +496,8 @@ at(48600, 'git', project='storefront')
 at(79500, 'closeOtherTerminals', project='storefront', id='nope')
 at(79500, 'closeOtherTerminals', project='storefront', id='demo-storefront-1')
 at(79600, 'terminals', project='storefront')
+at(79700, 'moveTerminal', project='storefront', id='demo-storefront-1', to='blog')
+at(79700, 'moveTerminal', project='storefront', id='nope', to='blog')
 at(2150, 'weeklyRecap', week='last'); at(2150, 'weeklyRecap', week='this', fresh=True)
 at(2150, 'weeklyRecap')
 at(2150, 'weeklyRecap', week='last', period='month')
@@ -507,6 +509,8 @@ at(2600, 'setLimitReminder', limit='claude:work', window='fiveHour', resetsAt=17
 at(2800, 'setLimitReminder', limit='codex', window='weekly', resetsAt=1792400000, name='Codex')
 at(3000, 'clearLimitReminder', limit='claude:work', window='fiveHour')
 at(3200, 'clearLimitReminder', limit='nope', window='weekly')
+# read it now
+at(3250, 'readUsage', account='work')
 # keep awake
 at(3300, 'keepAwake')
 at(3400, 'keepAwakeSet', mode='timed', minutes=90)

@@ -26,6 +26,7 @@ import { AppTabView } from "../popup/AppTabView";
 import { findActionByPath } from "../actionTree";
 import { TabClaudeAccountSubmenu } from "./terminal/TabClaudeAccountSubmenu";
 import { TabContinueOnSubmenu } from "./terminal/TabContinueOnSubmenu";
+import { TabMoveToSubmenu } from "./terminal/TabMoveToSubmenu";
 import { ClaudeSwitchOverlay } from "./terminal/ClaudeSwitchOverlay";
 import { useClaudeSwitches } from "../store/claudeSwitches";
 import { isClaudeTab } from "../claudeTab";
@@ -1187,6 +1188,15 @@ function PaneViewImpl(props: PaneViewProps) {
                 <TabContinueOnSubmenu
                   projectName={projectName}
                   onPick={(target) => onContinueSessionOn(tab.id, target)}
+                  onClose={() => setTabMenu(null)}
+                />
+              ) : undefined
+            }
+            moveMenu={
+              isTerminalTab(tab) && !IS_MIRROR_WINDOW ? (
+                <TabMoveToSubmenu
+                  projectName={projectName}
+                  terminalId={tab.id}
                   onClose={() => setTabMenu(null)}
                 />
               ) : undefined

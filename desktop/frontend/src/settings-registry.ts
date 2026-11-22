@@ -165,6 +165,15 @@ export const ROWS = {
     description: "Double-click a project in the sidebar to start it, or stop it if it's running",
     keywords: ["toggle", "run"],
   },
+  "general.sidebarRows": {
+    kind: "row",
+    tab: "general",
+    id: "general.sidebarRows",
+    reach: "attended",
+    label: "Project rows",
+    description: "Choose what each project in the sidebar shows: branch, changes, pull request, checks and more",
+    keywords: ["sidebar", "branch", "diff", "pull request", "pr", "checks", "ports", "version", "lines", "details", "layout"],
+  },
   "general.defaultDir": {
     kind: "row",
     tab: "general",

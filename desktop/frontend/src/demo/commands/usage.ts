@@ -1,4 +1,5 @@
 import type { CommandMap } from "../backend";
+import { emitEvent } from "../ipc";
 import { omittedProjects, seedData } from "./state";
 
 const stats = (days: unknown) => seedData().stats(Number(days) || 0, omittedProjects());
@@ -10,4 +11,12 @@ export const usageCommands: CommandMap = {
   agent_limits: () => seedData().usage.limits,
   claude_accounts_status: () => seedData().usage.accountsStatus ?? { statuses: [] },
   claude_account_usage: () => seedData().usage.accountUsage,
+  // "Read it now": the account answers at once, and its reading is fresh.
+  claude_read_usage: ({ account }) => {
+    const limits = seedData().usage.limits as Record<string, { updatedAt: number }>;
+    const reading = limits[`claude:${String(account)}`];
+    if (reading) reading.updatedAt = Date.now();
+    emitEvent("agent-limits-changed", limits);
+    return null;
+  },
 };

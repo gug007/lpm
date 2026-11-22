@@ -37,6 +37,12 @@ export interface SidebarAgentRow {
   seenAt?: number;
 }
 
+/** Whether one of these rows is the tab on screen. That row then carries the
+ *  selection, and the project's row above it doesn't. */
+export function agentOnScreen(rows: readonly SidebarAgentRow[], terminalId: string | null | undefined): boolean {
+  return terminalId != null && rows.some((r) => r.terminalId === terminalId);
+}
+
 /** Where a tab sits in its project's strip, for ordering rows the way it reads.
  *  A tab this window can't name trails behind the rest. */
 export function tabRankIn(tabTitles: Record<string, string>): (paneID: string | null | undefined) => number {
@@ -64,6 +70,8 @@ export function projectAgentRows(
   project: Pick<ProjectInfo, "statusEntries">,
   now: number,
   tabTitles: Record<string, string> = {},
+  // Names by status key for agents whose tab is gone (pastTabNames.ts).
+  pastNames: Record<string, string> = {},
 ): SidebarAgentRow[] {
   const rank = tabRankIn(tabTitles);
   const tabRank = (entry: StatusEntry) => rank(entry.paneID);
@@ -80,7 +88,7 @@ export function projectAgentRows(
     return {
       key: entry.key,
       state: agentStateOf(entry.value),
-      title: tabTitles[entry.paneID ?? ""] || provider,
+      title: tabTitles[entry.paneID ?? ""] || (!entry.paneID && pastNames[entry.key]) || provider,
       provider,
       terminalId: entry.paneID || null,
       since: turn?.since ?? null,

@@ -90,7 +90,7 @@ fn ident_from(bytes: &[u8]) -> Ident {
 
 /// Where Claude Code keeps an account's `.claude.json`: inside the account's
 /// config dir, or beside `~/.claude` for the main login.
-fn claude_json_path(id: &str) -> PathBuf {
+pub(crate) fn claude_json_path(id: &str) -> PathBuf {
     if id == MAIN_LOGIN {
         let base = std::env::var_os(crate::config::CLAUDE_CONFIG_DIR_ENV)
             .filter(|v| !v.is_empty())

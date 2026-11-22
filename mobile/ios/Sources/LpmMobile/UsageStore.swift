@@ -77,6 +77,45 @@ final class UsageStore {
 
     func applyToday(_ stats: AgentStats) { today = stats }
 
+    // MARK: read it now
+
+    /// Accounts a "Read it now" is running for, and why the last one failed.
+    private(set) var reading: Set<String> = []
+    private(set) var readErrors: [String: String] = [:]
+    /// What a pull-to-refresh found when nothing had moved on.
+    private(set) var note: String?
+    @ObservationIgnored private var compareTo: LimitsSnapshot?
+
+    var readUsageSupported: Bool {
+        client?.hostFeatures.contains(LpmClient.readUsageFeature) == true
+    }
+
+    /// The card's "Read it now", or nil on a Mac that can't answer it.
+    func reader(for account: String) -> UsageReader? {
+        guard readUsageSupported else { return nil }
+        return UsageReader(busy: reading.contains(account), error: readErrors[account]) { [weak self] in
+            self?.readUsage(account)
+        }
+    }
+
+    func readUsage(_ account: String) {
+        guard !reading.contains(account) else { return }
+        reading.insert(account)
+        readErrors[account] = nil
+        client?.requestReadUsage(account)
+        timeout.arm("read:\(account)", seconds: 120) { [weak self] in
+            guard let self, self.reading.contains(account) else { return }
+            self.reading.remove(account)
+            self.readErrors[account] = "Your Mac didn't answer."
+        }
+    }
+
+    func applyRead(_ account: String, error: String?) {
+        timeout.cancel("read:\(account)")
+        reading.remove(account)
+        readErrors[account] = error
+    }
+
     // MARK: screen lifecycle
 
     /// The cards are titled by the names accounts were given on the Mac, so the
@@ -90,6 +129,8 @@ final class UsageStore {
 
     /// Pull-to-refresh: re-request when live, else nudge the link back up.
     func refresh() async {
+        compareTo = snapshot
+        note = nil
         if case .ready = model?.connection { load() }
         else { model?.reconnectIfNeeded() }
         try? await Task.sleep(nanoseconds: 500_000_000)
@@ -117,6 +158,10 @@ final class UsageStore {
         timeout.cancel("limits")
         loading = false
         if let snapshot {
+            if let before = compareTo {
+                note = readingsMoved(before, snapshot) ? nil : usageNothingNew
+            }
+            compareTo = nil
             adopt(snapshot)
         } else {
             self.error = error ?? usageGenericError
@@ -178,4 +223,13 @@ final class UsageStore {
         self.reminders = reminders
         if let error { model?.actionError = error }
     }
+}
+
+/// What a refresh that found nothing new says: the desktop's `NOTHING_NEW`.
+let usageNothingNew =
+    "Nothing new to read. Claude reports usage only when it replies on an account; use Read it now on a card to check one."
+
+/// Whether any reading moved on between two snapshots.
+func readingsMoved(_ before: LimitsSnapshot, _ after: LimitsSnapshot) -> Bool {
+    after.entries.contains { key, reading in (before.entries[key]?.updatedAt ?? 0) < reading.updatedAt }
 }

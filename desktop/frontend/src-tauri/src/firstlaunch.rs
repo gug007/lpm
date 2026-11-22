@@ -62,12 +62,18 @@ fn seed_at(dir: &Path, lesson: bool) -> std::io::Result<bool> {
         DEFAULT_GLOBAL_YML.as_bytes(),
         crate::fsatomic::Mode::Preserve(0o644),
     )?;
-    std::fs::File::options()
-        .write(true)
-        .open(&path)?
-        .set_modified(UNIX_EPOCH + Duration::from_secs(SEEDED_MTIME_SECS))?;
+    backdate(&path)?;
     std::fs::write(dir.join(MARKER), b"")?;
     Ok(true)
+}
+
+/// Dates a file lpm wrote at first launch before any real config, so the first
+/// sync with another computer keeps that computer's copy.
+pub(crate) fn backdate(path: &Path) -> std::io::Result<()> {
+    std::fs::File::options()
+        .write(true)
+        .open(path)?
+        .set_modified(UNIX_EPOCH + Duration::from_secs(SEEDED_MTIME_SECS))
 }
 
 fn is_fresh_install(dir: &Path) -> bool {

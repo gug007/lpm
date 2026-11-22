@@ -157,6 +157,21 @@ export function useTabCreation({
     [addTerminal],
   );
 
+  // A tab moved here from another project (tabMove.ts): the same tab, its pty
+  // still running, added behind the one on screen. It keeps the folder it
+  // started in unless that is this project's own.
+  const takeInTerminal = useCallback(
+    async (tab: TerminalInstance, root: string) => {
+      if (IS_MIRROR_WINDOW) return;
+      await restoreSettled.current;
+      const current = treeRef.current;
+      if (current && collectTerminals(current).some((t) => t.id === tab.id)) return;
+      const { cwd, ...rest } = tab;
+      addTerminal(cwd && cwd !== root ? { ...rest, cwd } : rest, undefined, true);
+    },
+    [addTerminal],
+  );
+
   const createTerminalWithCmd = useCallback(
     async (label: string, cmd: string, opts?: TerminalStartOpts) => {
       if (IS_MIRROR_WINDOW)
@@ -504,6 +519,7 @@ export function useTabCreation({
   return {
     createTerminal,
     adoptTerminal,
+    takeInTerminal,
     createTerminalWithCmd,
     resumeFromHistory,
     forkTerminal,

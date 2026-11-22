@@ -28,6 +28,7 @@ struct ProjectTabsSection: View {
                         renameButton(t)
                         TabMenuExtras(term: t, onSpawned: onSpawned, forkingIntoCopy: $forkingIntoCopy)
                         TabClaudeAccountMenu(term: t, working: agents[t.id]?.state == .working)
+                        TabMoveToMenu(term: t)
                         closeButton(t)
                         CloseOtherTabsButton(term: t, closingOthers: $closingOthers)
                     }

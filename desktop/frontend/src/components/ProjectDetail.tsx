@@ -7,6 +7,7 @@ import { ConfigEditor } from "./ConfigEditor";
 import { NotesView } from "./NotesView";
 import { ProjectAIInstructions } from "./ProjectAIInstructions";
 import { type TerminalViewHandle } from "./TerminalView";
+import { useRemoteTerminalOps } from "../hooks/terminals/useRemoteTerminalOps";
 import { ConfigErrorView } from "./project-detail/ConfigErrorView";
 import { Controls } from "./project-detail/Controls";
 import { ActionWizard } from "./project-detail/ActionWizard";
@@ -371,36 +372,7 @@ export function ProjectDetail({
     } else switchDetailView(view);
   }, [pendingDetailView, selectedProject, project.name, switchDetailView, clearPendingDetailView]);
 
-  // A phone or a paired Mac closes / renames / pins / reorders / forks a tab, addressed
-  // by id. Applied where the project is, on screen or not, so the person at this
-  // Mac keeps their view. Same nonce ref-latch as run-action so StrictMode can't
-  // double-fire.
-  const pendingRemoteTerminalOp = useAppStore((s) => s.pendingRemoteTerminalOp);
-  const clearPendingRemoteTerminalOp = useAppStore((s) => s.clearPendingRemoteTerminalOp);
-  const remoteTerminalOpConsumed = useRef(0);
-  useEffect(() => {
-    if (
-      !pendingRemoteTerminalOp ||
-      pendingRemoteTerminalOp.projectName !== project.name ||
-      remoteTerminalOpConsumed.current === pendingRemoteTerminalOp.nonce
-    ) {
-      return;
-    }
-    remoteTerminalOpConsumed.current = pendingRemoteTerminalOp.nonce;
-    const { op, id, label, emoji, order, account } = pendingRemoteTerminalOp;
-    clearPendingRemoteTerminalOp();
-    if (op === "close") terminalRef.current?.remoteCloseTerminal(id);
-    else if (op === "rename") terminalRef.current?.remoteRenameTerminal(id, label, emoji);
-    else if (op === "title") terminalRef.current?.remoteRestoreTitle(id);
-    else if (op === "pin") terminalRef.current?.remoteTogglePin(id);
-    else if (op === "reorder") terminalRef.current?.remoteReorderTerminals(order);
-    else if (op === "restart") terminalRef.current?.remoteRestartTerminal(id);
-    else if (op === "fork") terminalRef.current?.remoteForkTerminal(id);
-    else if (op === "forkCopy") terminalRef.current?.remoteForkIntoCopy(id);
-    else if (op === "closeOthers") terminalRef.current?.remoteCloseOthers(id);
-    else if (op === "copyAnswer") terminalRef.current?.copyLastAnswer(id);
-    else if (op === "account" && account) terminalRef.current?.remoteSwitchClaudeAccount(id, account);
-  }, [pendingRemoteTerminalOp, project.name, clearPendingRemoteTerminalOp]);
+  useRemoteTerminalOps(project.name, terminalRef);
 
   // A cross-project view asked to put one of our terminals on screen. The store
   // selected+mounted us; focus the tab once per nonce.

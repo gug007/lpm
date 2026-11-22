@@ -14,6 +14,7 @@ macro_rules! all_command_handlers {
         tauri::generate_handler![
             ack_terminal_data,
             agent_limits,
+            claude_read_usage,
             claude_limits_account,
             limit_reminders,
             set_limit_reminder,
@@ -226,6 +227,7 @@ macro_rules! all_command_handlers {
             git_mark_conflict_resolved,
             git_continue_merge,
             git_origin_status,
+            project_row_stats,
             watch_origin_refs,
             git_auto_pull,
             git_auto_pull_last,
@@ -454,6 +456,7 @@ macro_rules! all_command_handlers {
             login_item_set,
             remote_set_terminal_labels,
             terminal_tab_op,
+            move_terminal,
             remote_take_restore_requests,
             remote_start_pairing,
             remote_take_run_actions,

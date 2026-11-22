@@ -35,6 +35,19 @@ internal fun DemoServer.registerTabMenuHandlers() {
             push(mapOf("t" to "projects-changed"))
         }
     }
+    // The tab goes to the other project as it is, still running.
+    register("moveTerminal") { o ->
+        val project = o.string("project") ?: return@register
+        val id = o.string("id") ?: return@register
+        val to = o.string("to")?.takeIf { world.project(it) != null } ?: return@register
+        push(mapOf("t" to "moveTerminal", "ok" to true))
+        val list = world.terminals[project] ?: return@register
+        val index = list.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: return@register
+        val tab = list.removeAt(index).apply { this.project = to }
+        world.terminals.getOrPut(to) { mutableListOf() }.add(tab)
+        push(world.terminalsPayload(project))
+        push(world.terminalsPayload(to))
+    }
     register("titleTerminal") { o ->
         val project = o.string("project") ?: return@register
         val id = o.string("id") ?: return@register

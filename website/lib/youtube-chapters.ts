@@ -369,4 +369,14 @@ export const LESSON_CHAPTERS: Record<YouTubeLessonId, LessonChapters> = {
       [72, "On your phone"],
     ],
   },
+  "project-rows": {
+    seconds: 82,
+    chapters: [
+      [0, "What a project row can show"],
+      [10, "Open the row builder"],
+      [24, "Start from a preset"],
+      [37, "Arrange the details"],
+      [63, "Fine-tune and finish"],
+    ],
+  },
 };

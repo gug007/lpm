@@ -123,6 +123,9 @@ fun LpmClient.restartTerminal(project: String, id: String) = send(Wire.restartTe
 
 fun LpmClient.forkTerminal(project: String, id: String) = send(Wire.forkTerminal(project, id))
 
+fun LpmClient.moveTerminal(project: String, id: String, to: String) =
+    send(Wire.moveTerminal(project, id, to))
+
 fun LpmClient.forkTerminalCopy(project: String, id: String) =
     send(Wire.forkTerminalCopy(project, id))
 
@@ -200,6 +203,8 @@ fun LpmClient.sendPushToken(p: PushRegistration) = send(
 )
 
 fun LpmClient.requestLimitReminders() = send(Wire.limitReminders())
+
+fun LpmClient.requestReadUsage(account: String) = send(Wire.readUsage(account))
 
 fun LpmClient.requestGenerateRequests() = send(Wire.generateRequests())
 

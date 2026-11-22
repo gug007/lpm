@@ -364,6 +364,9 @@ class LpmClient internal constructor(
         // `closeOtherTerminals`.
         const val TAB_MENU_FEATURE = "tabMenu"
 
+        // `moveTerminal`: a tab to another project on the Mac.
+        const val MOVE_TAB_FEATURE = "moveTab"
+
         // `switchTerminalAccount`, and each terminal's Claude account fields.
         const val TAB_ACCOUNT_FEATURE = "tabAccount"
 
@@ -382,6 +385,9 @@ class LpmClient internal constructor(
 
         // `limitReminders`, `setLimitReminder` and `clearLimitReminder`.
         const val LIMIT_REMINDERS_FEATURE = "limitReminders"
+
+        // `readUsage`: a fresh usage reading of one Claude account.
+        const val READ_USAGE_FEATURE = "readUsage"
 
         // `generateRequests` and `answerGenerate`, and the `generateRequests` push.
         const val GENERATE_APPROVAL_FEATURE = "generateApproval"

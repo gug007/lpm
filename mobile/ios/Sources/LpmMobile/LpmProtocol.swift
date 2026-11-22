@@ -53,6 +53,8 @@ enum Wire {
         return json(o)
     }
     static func limits() -> String { json(["t": "limits"]) }
+    /// A Usage card's "Read it now", only for a Mac whose `features` has "readUsage".
+    static func readUsage(_ account: String) -> String { json(["t": "readUsage", "account": account]) }
     /// Limit reminders, only for a Mac whose `features` has "limitReminders".
     static func limitReminders() -> String { json(["t": "limitReminders"]) }
     /// `lpm generate` requests waiting on the Mac, only for a Mac whose `features`
@@ -275,6 +277,10 @@ enum Wire {
     /// has "tabMenu".
     static func forkTerminal(project: String, id: String) -> String {
         json(["t": "forkTerminal", "project": project, "id": id])
+    }
+    /// A tab to another project on the Mac, only when `features` has "moveTab".
+    static func moveTerminal(project: String, id: String, to: String) -> String {
+        json(["t": "moveTerminal", "project": project, "id": id, "to": to])
     }
     static func forkTerminalCopy(project: String, id: String) -> String {
         json(["t": "forkTerminalCopy", "project": project, "id": id])
@@ -761,6 +767,8 @@ enum Wire {
         // The Mac's limit reminders, as a reply or after any change; `error` when
         // a change was refused.
         case limitReminders([LimitReminder], error: String?)
+        // The answer to `readUsage`; the reading itself arrives as `limitsChanged`.
+        case readUsage(account: String, error: String?)
         // The `lpm generate` requests waiting for a yes, as a reply or after any
         // change; and the answer to one of them.
         case generateRequests([GenerateRequest])
@@ -1065,6 +1073,10 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .limits(ok ? LimitsSnapshot(obj) : nil,
                                error: ok ? nil : (obj["error"] as? String ?? usageGenericError))
+            case "readUsage":
+                let ok = obj["ok"] as? Bool ?? false
+                return .readUsage(account: obj["account"] as? String ?? claudeMainLogin,
+                                  error: ok ? nil : (obj["error"] as? String ?? "Couldn't read this account."))
             case "limitReminders":
                 let refused = obj["ok"] as? Bool == false
                 return .limitReminders((obj["reminders"] as? [[String: Any]] ?? []).compactMap(LimitReminder.init),

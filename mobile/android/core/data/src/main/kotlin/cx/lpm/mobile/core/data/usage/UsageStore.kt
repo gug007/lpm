@@ -6,6 +6,7 @@ import cx.lpm.mobile.core.data.client.clearLimitReminder
 import cx.lpm.mobile.core.data.client.requestClaudeAccounts
 import cx.lpm.mobile.core.data.client.requestLimitReminders
 import cx.lpm.mobile.core.data.client.requestLimits
+import cx.lpm.mobile.core.data.client.requestReadUsage
 import cx.lpm.mobile.core.data.client.requestStats
 import cx.lpm.mobile.core.data.client.setLimitReminder
 import cx.lpm.mobile.core.data.session.GenerationTimeout
@@ -39,7 +40,14 @@ data class UsageState(
     val clockOffsetMs: Double = 0.0,
     /** The Mac's limit reminders, kept in step as the desktop or any phone changes them. */
     val reminders: List<LimitReminder> = emptyList(),
-    val remindersSupported: Boolean = false
+    val remindersSupported: Boolean = false,
+    /** The Mac answers `readUsage`, so an old card offers "Read it now". */
+    val readSupported: Boolean = false,
+    /** Accounts a "Read it now" is running for, and why the last one failed. */
+    val reading: Set<String> = emptySet(),
+    val readErrors: Map<String, String> = emptyMap(),
+    /** What a pull-to-refresh found when nothing had moved on. */
+    val note: String? = null
 ) {
     fun reminderSet(limit: String, window: String): Boolean =
         reminders.any { it.limit == limit && it.window == window }
@@ -77,7 +85,14 @@ class UsageStore(private val session: MacSession) : SessionStore {
         client.onLimits = { snapshot, error -> apply(snapshot, error) }
         client.onLimitsChanged = ::applyPush
         client.onLimitReminders = { reminders, error -> applyReminders(reminders, error) }
+        client.onReadUsage = ::applyRead
     }
+
+    private val readSupported: Boolean
+        get() = session.client?.hostFeatures?.contains(LpmClient.READ_USAGE_FEATURE) == true
+
+    // The snapshot a pull-to-refresh started from, to tell whether anything moved on.
+    private var compareTo: LimitsSnapshot? = null
 
     private val remindersSupported: Boolean
         get() = session.client?.hostFeatures?.contains(LpmClient.LIMIT_REMINDERS_FEATURE) == true
@@ -157,6 +172,8 @@ class UsageStore(private val session: MacSession) : SessionStore {
 
     /** Pull-to-refresh: re-request when live, else nudge the link back up. */
     suspend fun refresh() {
+        compareTo = state.value.snapshot
+        mutable.update { it.copy(note = null) }
         if (session.state.value.isReady) load() else session.reconnectIfNeeded()
         delay(REFRESH_SETTLE_MS)
     }
@@ -182,6 +199,11 @@ class UsageStore(private val session: MacSession) : SessionStore {
         timeout.cancel(LIMITS)
         mutable.update { it.copy(loading = false) }
         if (snapshot != null) {
+            compareTo?.let { before ->
+                val note = if (readingsMoved(before, snapshot)) null else USAGE_NOTHING_NEW
+                mutable.update { it.copy(note = note) }
+            }
+            compareTo = null
             adopt(snapshot)
         } else {
             mutable.update { it.copy(error = error ?: USAGE_GENERIC_ERROR) }
@@ -210,7 +232,41 @@ class UsageStore(private val session: MacSession) : SessionStore {
                 snapshot = snapshot,
                 error = null,
                 clockOffsetMs = offset,
-                remindersSupported = remindersSupported
+                remindersSupported = remindersSupported,
+                readSupported = readSupported
+            )
+        }
+    }
+
+    // MARK: read it now
+
+    fun readUsage(account: String) {
+        if (account in state.value.reading) return
+        mutable.update {
+            it.copy(
+                reading = it.reading + account,
+                readErrors =
+                    it.readErrors - account
+            )
+        }
+        session.client?.requestReadUsage(account)
+        timeout.arm(READ + account, READ_TIMEOUT_MS) {
+            if (account in state.value.reading) applyRead(account, "Your Mac didn't answer.")
+        }
+    }
+
+    fun applyRead(account: String, error: String?) {
+        timeout.cancel(READ + account)
+        mutable.update { s ->
+            s.copy(
+                reading = s.reading - account,
+                readErrors = if (error ==
+                    null
+                ) {
+                    s.readErrors - account
+                } else {
+                    s.readErrors + (account to error)
+                }
             )
         }
     }
@@ -242,8 +298,21 @@ class UsageStore(private val session: MacSession) : SessionStore {
 
     private companion object {
         const val LIMITS = "limits"
+        const val READ = "read:"
+        const val READ_TIMEOUT_MS = 120_000L
         const val LIMITS_TIMEOUT_MS = 20_000L
         const val EXTRAS_INTERVAL_MS = 30_000L
         const val REFRESH_SETTLE_MS = 500L
     }
 }
+
+/** What a refresh that found nothing new says: the desktop's `NOTHING_NEW`. */
+const val USAGE_NOTHING_NEW =
+    "Nothing new to read. Claude reports usage only when it replies on an account; " +
+        "use Read it now on a card to check one."
+
+/** Whether any reading moved on between two snapshots. */
+fun readingsMoved(before: LimitsSnapshot, after: LimitsSnapshot): Boolean =
+    after.entries.any { (key, reading) ->
+        (before.entries[key]?.updatedAt ?: 0L) < reading.updatedAt
+    }

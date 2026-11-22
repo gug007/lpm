@@ -859,6 +859,7 @@ pub(crate) fn run_duplicate(
         let _ = std::fs::remove_dir_all(new_root);
         return Err(e);
     }
+    crate::claude_trust::carry_trust(source_root, new_root);
     crate::lpm_commands_shared::refresh(&plan.new_name);
     let _ = app.emit("projects-changed", ());
 
@@ -912,6 +913,7 @@ fn run_worktree_duplicate(
     for failure in crate::worktree_files::bring(&plan.original, source_root, &plan.new_root) {
         eprintln!("worktree {}: couldn't bring {failure}", plan.new_name);
     }
+    crate::claude_trust::carry_trust(source_root, &plan.new_root);
     crate::lpm_commands_shared::refresh(&plan.new_name);
     let _ = app.emit("projects-changed", ());
 

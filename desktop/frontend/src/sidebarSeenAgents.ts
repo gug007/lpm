@@ -7,6 +7,11 @@ export function canArchive(row: SidebarAgentRow): boolean {
   return row.state === "done" || row.state === "error";
 }
 
+/** Why Archive is out of reach for a row `canArchive` turns down. */
+export function archiveBlocked(row: SidebarAgentRow): string {
+  return row.state === "needs-you" ? "Answer it first" : "Available once the turn ends";
+}
+
 /** The rows the sidebar lists under a project: its agents as `projectAgentRows`
  *  gives them, plus the finished ones the user already opened (`seenEntries`),
  *  muted, in their tabs' places. A tab has one row, so a seen agent on a tab
@@ -17,6 +22,7 @@ export function sidebarAgentRows(
   now: number,
   tabTitles: Record<string, string> = {},
   hidden: ReadonlySet<string> = new Set(),
+  pastNames: Record<string, string> = {},
 ): SidebarAgentRow[] {
   const shown = (e: StatusEntry) => !hidden.has(e.key);
   const live = (project.statusEntries ?? []).filter(shown);
@@ -24,10 +30,10 @@ export function sidebarAgentRows(
   const seen = (project.seenEntries ?? []).filter(
     (e) => shown(e) && !(e.paneID && livePanes.has(e.paneID)),
   );
-  const rows = projectAgentRows({ statusEntries: live }, now, tabTitles);
+  const rows = projectAgentRows({ statusEntries: live }, now, tabTitles, pastNames);
   if (seen.length === 0) return rows;
   const seenAt = new Map(seen.map((e) => [e.key, e.seenAt ?? 0]));
-  const seenRows = projectAgentRows({ statusEntries: seen }, now, tabTitles).map((row) => ({
+  const seenRows = projectAgentRows({ statusEntries: seen }, now, tabTitles, pastNames).map((row) => ({
     ...row,
     holdsError: false,
     seenAt: Math.max(...row.keys.map((key) => seenAt.get(key) ?? 0)),

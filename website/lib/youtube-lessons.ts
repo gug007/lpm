@@ -240,6 +240,13 @@ const LESSONS = {
       "Mini apps in lpm turn your project's data into a page of your own that opens in a tab with one click: peek at it from the button's hover card, open the full page, refresh its data, keep it running while you switch tabs, ask Claude Code to build a new one, and open it full screen in lpm Link on your phone.",
     uploadDate: "2026-11-21T09:00:00+00:00",
   },
+  "project-rows": {
+    id: "4wywPQufylo",
+    name: "Customize Project Rows in lpm: Branch, PR and Changes at a Glance",
+    description:
+      "Choose what each project row in lpm's sidebar shows: the Git branch, the pull request and its checks, lines changed, the last commit, unpushed commits, ports and more. Drag details onto a real copy of the row, on up to four lines, left or right.",
+    uploadDate: "2026-11-22T09:00:00+00:00",
+  },
 } as const;
 
 export type YouTubeLessonId = keyof typeof LESSONS;

@@ -4,7 +4,8 @@ import { EventsOn } from "../bridge/runtime";
 import { toast } from "./notifications/toast";
 import { useAppStore } from "./store/app";
 import { seedLaunchpad } from "./store/launchpadSeed";
-import { useTerminalTargets } from "./store/terminalTargets";
+import { useTerminalTargets, type TerminalTargetInfo } from "./store/terminalTargets";
+import { GLOBAL_TERMINALS_KEY } from "./terminals";
 
 // What an `lpm://` link asks for, as openlink.rs parses it.
 export interface OpenLink {
@@ -31,20 +32,23 @@ export function copyLink(link: string): Promise<void> {
   return copyText(link, "Link copied");
 }
 
-function tabOf(projectName: string, historyKey: string) {
-  return useTerminalTargets.getState().byProject[projectName]?.find((t) => t.historyKey === historyKey);
-}
-
-// A project that wasn't open this session has no tabs to show until it opens:
-// the link waits for its tab to come back, and says so if it never does.
-function openTab(projectName: string, label: string, historyKey: string): void {
+// Puts the tab `match` finds in `projectName` on screen. A project that wasn't
+// open this session has no tabs to show until it opens, so this waits for its
+// tab to come back; `onMissing` runs if it never does.
+export function showTab(
+  projectName: string,
+  match: (tab: TerminalTargetInfo) => boolean,
+  onMissing?: () => void,
+): void {
   const app = useAppStore.getState();
-  const now = tabOf(projectName, historyKey);
+  const find = () => useTerminalTargets.getState().byProject[projectName]?.find(match);
+  const now = find();
   if (now) {
     app.focusProjectTerminal(projectName, now.id);
     return;
   }
-  app.selectProject(projectName);
+  if (projectName === GLOBAL_TERMINALS_KEY) app.setView("terminals");
+  else app.selectProject(projectName);
   let done = false;
   const finish = () => {
     done = true;
@@ -52,7 +56,7 @@ function openTab(projectName: string, label: string, historyKey: string): void {
     window.clearTimeout(timer);
   };
   const unsubscribe = useTerminalTargets.subscribe(() => {
-    const tab = done ? undefined : tabOf(projectName, historyKey);
+    const tab = done ? undefined : find();
     if (!tab) return;
     finish();
     useAppStore.getState().focusProjectTerminal(projectName, tab.id);
@@ -60,8 +64,16 @@ function openTab(projectName: string, label: string, historyKey: string): void {
   const timer = window.setTimeout(() => {
     if (done) return;
     finish();
-    toast(`That tab is closed, so ${label} opened without it.`);
+    onMissing?.();
   }, TAB_WAIT_MS);
+}
+
+export function openTab(projectName: string, label: string, historyKey: string): void {
+  showTab(
+    projectName,
+    (tab) => tab.historyKey === historyKey,
+    () => toast(`That tab is closed, so ${label} opened without it.`),
+  );
 }
 
 export function openLink(link: OpenLink): void {

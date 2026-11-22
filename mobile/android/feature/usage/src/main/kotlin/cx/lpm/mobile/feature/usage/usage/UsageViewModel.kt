@@ -45,7 +45,9 @@ sealed interface UsageBody {
         /** A refresh failed with these cards still on screen. */
         val refreshError: String?,
         /** A reload in flight dims the cards rather than blanking them. */
-        val dimmed: Boolean
+        val dimmed: Boolean,
+        /** What a refresh that found nothing new says. */
+        val note: String? = null
     ) : UsageBody
 }
 
@@ -54,6 +56,10 @@ data class UsageUiState(
     /** The Mac's limit reminders; empty from a Mac that keeps none. */
     val reminders: List<LimitReminder> = emptyList(),
     val remindersSupported: Boolean = false,
+    /** The Mac answers "Read it now"; the accounts being read and why a read failed. */
+    val readSupported: Boolean = false,
+    val reading: Set<String> = emptySet(),
+    val readErrors: Map<String, String> = emptyMap(),
     /** Unix millis on the phone's clock, for the windows the tools stamped. */
     val now: Double = 0.0,
     /** The same moment on the Mac's clock, for the `updatedAt` it stamped. */
@@ -97,7 +103,8 @@ class UsageViewModel @AssistedInject constructor(
                 claudeEnabled = snapshot.claudeEnabled,
                 codex = codexEntry(snapshot),
                 refreshError = error,
-                dimmed = s.loading
+                dimmed = s.loading,
+                note = s.note
             )
 
             s.loading -> UsageBody.Loading
@@ -110,6 +117,9 @@ class UsageViewModel @AssistedInject constructor(
             body = body,
             reminders = s.reminders,
             remindersSupported = s.remindersSupported,
+            readSupported = s.readSupported,
+            reading = s.reading,
+            readErrors = s.readErrors,
             now = now.toDouble(),
             macNow = s.macMillis(now)
         )
@@ -129,6 +139,10 @@ class UsageViewModel @AssistedInject constructor(
 
     fun retry() {
         viewModelScope.launch { refresh() }
+    }
+
+    fun readUsage(account: String) {
+        usage?.readUsage(account)
     }
 
     fun toggleReminder(limit: String, window: String, win: LimitWindow, name: String) {

@@ -20,6 +20,8 @@ export interface PersistedTab {
   actionName?: string;
   // A plain terminal's shell (see TerminalInstance).
   shell?: string;
+  // The folder a tab moved from another project keeps (see TerminalInstance).
+  cwd?: string;
   pinned?: boolean;
   emoji?: string;
   color?: string;

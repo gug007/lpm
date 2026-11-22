@@ -52,6 +52,20 @@ func resetAbsolute(_ resetsAt: Int) -> String {
         .formatted(.dateTime.month(.abbreviated).day().hour().minute())
 }
 
+/// A reading older than this says its age in place of the number: the 5-hour
+/// window may have turned over since, and a reset can't reach the Mac until
+/// Claude replies on that account again. The desktop's `OLD_MS`.
+let oldMs = 60.0 * 60 * 1000
+
+func lastReadText(_ updatedAt: Int, now: Double) -> String {
+    let mins = max(1, Int(((now - Double(updatedAt)) / 60_000).rounded()))
+    if mins < 60 { return "Last read \(mins) minute\(mins == 1 ? "" : "s") ago" }
+    let hours = Int((Double(mins) / 60).rounded())
+    if hours < 24 { return "Last read \(hours) hour\(hours == 1 ? "" : "s") ago" }
+    let days = Int((Double(hours) / 24).rounded())
+    return "Last read \(days) day\(days == 1 ? "" : "s") ago"
+}
+
 /// How long ago the tool last reported. `updatedAt` is unix MILLIS.
 func updatedText(_ updatedAt: Int, now: Double) -> String {
     let mins = Int(((now - Double(updatedAt)) / 60_000).rounded())

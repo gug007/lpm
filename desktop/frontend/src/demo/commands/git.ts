@@ -26,6 +26,15 @@ function gitChanged(p: Project): void {
   emitEvent("git-changed", { path: p.root, files: null });
 }
 
+function manifestVersion(text: string | undefined): string {
+  try {
+    const version = text ? (JSON.parse(text) as { version?: unknown }).version : undefined;
+    return typeof version === "string" ? version : "";
+  } catch {
+    return "";
+  }
+}
+
 const commitMessage = (p: Project) => {
   const files = p.git.changes.map((c) => c.path.split("/").pop()).join(", ");
   return `Update ${files}\n\nTouches ${p.git.changes.length} file${p.git.changes.length === 1 ? "" : "s"} on ${p.git.branch}.`;
@@ -60,6 +69,20 @@ export const gitCommands: CommandMap = {
     };
   },
   git_default_branch: () => "main",
+  project_row_stats: ({ cwd }) => {
+    const p = repo(cwd);
+    const counts = (p?.git.changes ?? []).map(lineCounts);
+    const age = p?.git.branches.find((b) => b.name === p.git.branch && !b.remote)?.ageMs ?? 3_600_000;
+    return {
+      branch: p?.git.branch ?? "",
+      defaultBranch: p ? "main" : "",
+      insertions: counts.reduce((n, c) => n + c.added, 0),
+      deletions: counts.reduce((n, c) => n + c.removed, 0),
+      files: p?.git.changes.length ?? 0,
+      lastCommitAt: p ? Math.floor((now() - age) / 1000) : 0,
+      version: manifestVersion(p?.files["package.json"]),
+    };
+  },
   git_merge_state: () => ({ merging: false, source: "", files: [] }),
   list_branches: ({ cwd }) => {
     const branches = repo(cwd)?.git.branches ?? [];

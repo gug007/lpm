@@ -1,4 +1,5 @@
 import { peerRawName } from "../peer/markers";
+import { GLOBAL_TERMINALS_KEY, GLOBAL_TERMINALS_LABEL } from "../terminals";
 import { type ProjectInfo } from "../types";
 
 interface ProjectNameDisplayProps {
@@ -38,6 +39,11 @@ export function displayNameForProjectName(
   // A project of a computer that isn't connected is no longer listed.
   if (!project) return peerRawName(name);
   return projectDisplayName(project, findParentProject(project, projects));
+}
+
+// Where a tab lives, as people read it: its project's name, or the Terminals.
+export function tabHomeName(name: string, projects: ProjectInfo[]): string {
+  return name === GLOBAL_TERMINALS_KEY ? GLOBAL_TERMINALS_LABEL : displayNameForProjectName(name, projects);
 }
 
 export function ProjectNameDisplay({ project, parent }: ProjectNameDisplayProps) {

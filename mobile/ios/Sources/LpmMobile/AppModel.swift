@@ -2971,6 +2971,7 @@ final class AppModel {
         c.onLimits = { [weak self] snapshot, error in self?.usage.apply(snapshot, error: error) }
         c.onLimitsChanged = { [weak self] snapshot in self?.usage.applyPush(snapshot) }
         c.onLimitReminders = { [weak self] reminders, error in self?.usage.applyReminders(reminders, error: error) }
+        c.onReadUsage = { [weak self] account, error in self?.usage.applyRead(account, error: error) }
     }
 
     private func wireTerminals(_ c: LpmClient) {

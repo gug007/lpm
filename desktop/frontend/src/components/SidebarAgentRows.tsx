@@ -1,4 +1,4 @@
-import { Fragment, memo, useRef, useState } from "react";
+import { Fragment, lazy, memo, Suspense, useEffect, useRef, useState } from "react";
 import { archiveAgents, markAgentSeen, markAgentUnread } from "../agentArchive";
 import { edgeAgentsOfRow } from "../sidebarAgentEdges";
 import type { SidebarAgentRow } from "../sidebarAgents";
@@ -10,6 +10,13 @@ import { SidebarAgentAsk } from "./SidebarAgentAsk";
 import { SidebarAgentFold } from "./SidebarAgentFold";
 import { SidebarAgentLine } from "./SidebarAgentLine";
 import { SidebarAgentMenu, type AgentTabAction } from "./SidebarAgentMenu";
+import { useAgentRowDrag } from "../hooks/useAgentRowDrag";
+
+// Loaded when first opened: the panel reaches into Settings and paired
+// computers, which the sidebar has no other need of.
+const SidebarAgentSettings = lazy(() =>
+  import("./SidebarAgentSettings").then((m) => ({ default: m.SidebarAgentSettings })),
+);
 
 export interface SidebarAgentRowsProps {
   projectName: string;
@@ -55,7 +62,11 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
 }: SidebarAgentRowsProps) {
   const lead = indented ? "pl-[25px]" : underNav ? "pl-3" : "pl-2.5";
   const [menu, setMenu] = useState<{ agent: SidebarAgentRow; x: number; y: number } | null>(null);
+  const [settings, setSettings] = useState<{ key: string; anchor: HTMLElement; trigger: HTMLElement | null } | null>(
+    null,
+  );
   const listRef = useRef<HTMLDivElement>(null);
+  const drag = useAgentRowDrag(projectName, agents, listRef);
   const limit = useSettingsStore((s) => s.seenAgentsShown ?? DEFAULT_SEEN_SHOWN);
   const keepsSeen = useSettingsStore((s) => s.keepFinishedAgents ?? DEFAULT_KEEP_FINISHED_AGENTS);
   const expanded = useExpandedSeenAgents((s) => s.collapsed.has(projectName));
@@ -65,6 +76,23 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
   const visible = expanded ? agents : shown;
   // A paired machine's terminals take input over its own link, not this one.
   const canAnswer = !isPeerName(projectName);
+  // Read from the rows as they are now, so the panel speaks for the row's
+  // latest state and goes away with it.
+  const settingsAgent = settings ? visible.find((a) => a.key === settings.key) : undefined;
+  useEffect(() => {
+    if (settings && !settingsAgent) setSettings(null);
+  }, [settings, settingsAgent]);
+
+  const lineOf = (agent: SidebarAgentRow) =>
+    [...(listRef.current?.querySelectorAll<HTMLElement>("[data-agent-row]") ?? [])].find(
+      (el) => el.dataset.agentRow === agent.key,
+    );
+
+  // From the row's menu: beside the row, as its own button would open it.
+  const openSettings = (agent: SidebarAgentRow) => {
+    const anchor = lineOf(agent)?.parentElement;
+    if (anchor) setSettings({ key: agent.key, anchor, trigger: anchor.querySelector("[data-agent-settings]") });
+  };
 
   const open = (agent: SidebarAgentRow) => {
     if (agent.seenAt !== undefined) markAgentSeen(projectName, agent);
@@ -80,7 +108,19 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
   };
 
   return (
-    <div ref={listRef} className="mb-0.5 flex flex-col">
+    <div
+      ref={listRef}
+      className="relative mb-0.5 flex flex-col"
+      onPointerDownCapture={drag.onPointerDownCapture}
+      onClickCapture={drag.onClickCapture}
+    >
+      {drag.dropLine !== null && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-2 right-2 z-10 h-0.5 -translate-y-1/2 rounded-full bg-[var(--accent-cyan)]"
+          style={{ top: drag.dropLine }}
+        />
+      )}
       {visible.map((agent) => (
         <Fragment key={agent.key}>
           <SidebarAgentLine
@@ -92,6 +132,10 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
             onOpen={() => open(agent)}
             onMenu={(at) => setMenu({ agent, ...at })}
             onArchive={canArchive(agent) ? (viaKeyboard) => archive(agent, viaKeyboard) : undefined}
+            onSettings={({ anchor, trigger }) =>
+              setSettings((open) => (open?.key === agent.key ? null : { key: agent.key, anchor, trigger }))
+            }
+            settingsOpen={settingsAgent?.key === agent.key}
           />
           {canAnswer && agent.state === "needs-you" && agent.terminalId && agent.terminalId !== onScreen && (
             <SidebarAgentAsk terminalId={agent.terminalId} lead={lead} onOpen={() => open(agent)} />
@@ -127,8 +171,20 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
           onMarkUnread={
             menu.agent.seenAt !== undefined ? () => markAgentUnread(projectName, menu.agent) : undefined
           }
+          onSettings={() => openSettings(menu.agent)}
           onClose={() => setMenu(null)}
         />
+      )}
+      {settings && settingsAgent && (
+        <Suspense fallback={null}>
+          <SidebarAgentSettings
+            projectName={projectName}
+            agent={settingsAgent}
+            anchor={settings.anchor}
+            trigger={settings.trigger}
+            onClose={() => setSettings(null)}
+          />
+        </Suspense>
       )}
     </div>
   );

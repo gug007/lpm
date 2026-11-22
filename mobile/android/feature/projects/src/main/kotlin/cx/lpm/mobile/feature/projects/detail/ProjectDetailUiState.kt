@@ -80,6 +80,8 @@ data class ProjectDetailUiState(
     val canLaunchAgents: Boolean = false,
     /** The Mac takes the tab menu's fork / title / close-others (`tabMenu`). */
     val canUseTabMenu: Boolean = false,
+    /** The projects a tab here can move to, on the same Mac (`moveTab`). */
+    val moveDestinations: List<Project> = emptyList(),
     /** A tab closed here that Undo can still bring back. */
     val pendingClose: PendingTabClose? = null,
     /** The first tip this screen has something to point at, at the top of the list. */
@@ -122,6 +124,7 @@ data class DetailInputs(
     val canStopServices: Boolean = false,
     val canLaunchAgents: Boolean = false,
     val canUseTabMenu: Boolean = false,
+    val canMoveTabs: Boolean = false,
     val pendingClose: PendingTabClose? = null,
     val now: Long = 0,
     /** The ids of the tips closed on this phone. */
@@ -190,6 +193,11 @@ fun ProjectsState.detail(
         hasBackgroundRuns = inputs.hasBackgroundRuns,
         canLaunchAgents = inputs.canLaunchAgents,
         canUseTabMenu = inputs.canUseTabMenu,
+        moveDestinations = if (inputs.canMoveTabs && !project.isRemote) {
+            projects.filter { it.name != name && !it.isRemote }.sortedBy { it.label.lowercase() }
+        } else {
+            emptyList()
+        },
         pendingClose = inputs.pendingClose,
         // None until the tabs have loaded, so the actions tip doesn't flash before the tab tip.
         tip = terminals?.let { tabs ->

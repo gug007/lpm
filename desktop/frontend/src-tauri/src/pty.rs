@@ -44,8 +44,9 @@ pub struct PtySession {
     // to a project, so we stash it at spawn rather than re-resolving.
     pub ssh: Option<config::SshSettings>,
     // Owning project + its declared service ports — for the remote port sniffer
-    // (flush() scans output for localhost URLs to auto-forward / suggest).
-    pub project_name: String,
+    // (flush() scans output for localhost URLs to auto-forward / suggest). The
+    // project changes when the tab is moved to another one (move_terminal).
+    project_name: RwLock<String>,
     pub declared: HashSet<u16>,
     /// The Claude account this terminal's shell was started for (`default` for
     /// the main login); None for remote panes and the login pane.
@@ -79,6 +80,10 @@ pub struct PtySession {
 const RECENT_OUTPUTS: usize = 16;
 
 impl PtySession {
+    pub fn project(&self) -> String {
+        self.project_name.read().unwrap().clone()
+    }
+
     pub fn last_output(&self) -> i64 {
         self.last_output.load(Ordering::Relaxed)
     }
@@ -234,7 +239,25 @@ pub fn project_has_live_sessions(state: &PtyState, project_name: &str) -> bool {
         .lock()
         .unwrap()
         .values()
-        .any(|s| s.project_name == project_name && !*s.closed.read().unwrap())
+        .any(|s| s.project() == project_name && !*s.closed.read().unwrap())
+}
+
+/// The project a live terminal belongs to now; it moves with its tab.
+pub fn project_of(state: &PtyState, id: &str) -> Option<String> {
+    state.sessions.lock().unwrap().get(id).map(|s| s.project())
+}
+
+/// Hands a live local terminal to another project, returning the one it left.
+/// Its shell keeps running where it is; what it reports from now on is filed
+/// under the new project.
+pub fn move_to_project(state: &PtyState, id: &str, to: &str) -> Result<String, String> {
+    let sessions = state.sessions.lock().unwrap();
+    let sess = sessions.get(id).ok_or("That terminal isn't running.")?;
+    if sess.remote {
+        return Err("A terminal on a remote host can't move to another project.".into());
+    }
+    let mut project = sess.project_name.write().unwrap();
+    Ok(std::mem::replace(&mut *project, to.to_string()))
 }
 
 /// True when a pane id maps to a live PTY session. Guards the status socket:
@@ -358,14 +381,15 @@ fn emit_output(bytes: &[u8], app: &AppHandle, sess: &Arc<PtySession>) {
     // Mirror the same chunk to any connected mobile client (no-op when the
     // remote server is off). Kept off the emit/ack path so it can never stall
     // the reader — it only appends to a bounded ring + non-blocking client queues.
-    crate::remote::tee_output(app, &sess.id, &sess.project_name, &text);
+    let project = sess.project();
+    crate::remote::tee_output(app, &sess.id, &project, &text);
     // Same chunk to any connected peer Mac (separate hub + ring; no-op when the
     // peer host server is off). Mobile behavior above is untouched.
-    crate::peer::tee_output(app, &sess.id, &sess.project_name, &text);
+    crate::peer::tee_output(app, &sess.id, &project, &text);
     // Remote panes: sniff localhost URLs in output to auto-forward declared
     // ports / surface undeclared ones (port poller's no-poll-needed path).
     if sess.remote {
-        crate::portforward::sniff_pane_output(app, &sess.project_name, &sess.declared, &text);
+        crate::portforward::sniff_pane_output(app, &project, &sess.declared, &text);
     } else {
         sess.command_marks
             .lock()
@@ -466,7 +490,7 @@ fn spawn_io_threads(
         sessions.lock().unwrap().remove(&sess.id);
         crate::peer::tee_exit(&app, &sess.id, code);
         // Its tab can stay, but phones list running terminals only.
-        let _ = app.emit(crate::remote::TERMINALS_CHANGED_EVENT, &sess.project_name);
+        let _ = app.emit(crate::remote::TERMINALS_CHANGED_EVENT, sess.project());
     });
 }
 
@@ -724,7 +748,7 @@ fn spawn_with_builder(
         id: id.clone(),
         remote: is_remote,
         ssh,
-        project_name: project_name.to_string(),
+        project_name: RwLock::new(project_name.to_string()),
         declared: if is_remote {
             config::declared_service_ports(project_name)
         } else {
@@ -1066,8 +1090,9 @@ fn close_session(app: &AppHandle, state: &PtyState, id: &str) -> Option<i32> {
     // handlers, so close paths that never touch the webview (peer stop) can't
     // leave an orphaned sidebar badge behind.
     let store = app.state::<Arc<crate::status::StatusStore>>();
-    if store.clear_pane(&sess.project_name, id) {
-        let _ = app.emit("status-changed", &sess.project_name);
+    let project = sess.project();
+    if store.clear_pane(&project, id) {
+        let _ = app.emit("status-changed", &project);
     }
     {
         let mut f = sess.flow.lock().unwrap();
@@ -1109,7 +1134,7 @@ pub fn stop_project_terminals(app: &AppHandle, project_name: &str) {
         .lock()
         .unwrap()
         .values()
-        .filter(|s| s.project_name == project_name)
+        .filter(|s| s.project() == project_name)
         .map(|s| s.id.clone())
         .collect();
     let roots: Vec<i32> = ids
@@ -1234,10 +1259,10 @@ pub fn remote_terminals(state: &PtyState, project: &str) -> Vec<RemoteTerminal> 
         .lock()
         .unwrap()
         .values()
-        .filter(|s| s.project_name == project && !*s.closed.read().unwrap())
+        .filter(|s| s.project() == project && !*s.closed.read().unwrap())
         .map(|s| RemoteTerminal {
             id: s.id.clone(),
-            project: s.project_name.clone(),
+            project: s.project(),
             cols: s.cols.load(Ordering::Relaxed),
             rows: s.rows.load(Ordering::Relaxed),
             remote: s.remote,

@@ -20,8 +20,11 @@ struct UsageProviderCardView: View {
     var fiveHourFirst = false
     /// The bell for a window, by its reminder name (`fiveHour` or `weekly`).
     var reminder: ((_ window: String, _ win: LimitWindow?) -> MeterReminder?)? = nil
+    /// Reads the account again, for a card whose reading is old.
+    var reader: UsageReader? = nil
 
     private var stale: Bool { macNow - Double(data.updatedAt) > staleMs }
+    private var old: Bool { macNow - Double(data.updatedAt) > oldMs }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -29,15 +32,19 @@ struct UsageProviderCardView: View {
 
             Divider().padding(.vertical, 12)
 
-            VStack(spacing: 18) {
-                if data.noFiveHour {
-                    weeklyMeter
-                } else if fiveHourFirst {
-                    fiveHourMeter
-                    weeklyMeter
-                } else {
-                    weeklyMeter
-                    fiveHourMeter
+            if old {
+                UsageOldReadingView(data: data, macNow: macNow, reader: reader)
+            } else {
+                VStack(spacing: 18) {
+                    if data.noFiveHour {
+                        weeklyMeter
+                    } else if fiveHourFirst {
+                        fiveHourMeter
+                        weeklyMeter
+                    } else {
+                        weeklyMeter
+                        fiveHourMeter
+                    }
                 }
             }
 

@@ -60,6 +60,7 @@ import { useFilesFocus, type FilesView } from "../store/filesFocus";
 import { useFilesView } from "../store/filesView";
 import { forgetComposerDraft } from "../store/composerDrafts";
 import { useTerminalTitles } from "../store/terminalTitles";
+import { useTakeIns } from "../hooks/terminals/useTakeIns";
 import { isClaudeTab } from "../claudeTab";
 import { useClaudeTabMoveRequests } from "../store/claudeTabMoves";
 import { usePublishProjectClaudeTabs } from "../store/projectClaudeTabs";
@@ -81,6 +82,7 @@ import { useCommandsOpen } from "../store/commandsOpen";
 import { useToolkitOpen } from "../store/toolkitOpen";
 import { blockingDialogOpen } from "./ui/blockingDialog";
 import { isPendingClose } from "../pendingClose";
+import { takeMoving } from "../movingTabs";
 import type { SavedLayoutNode } from "../savedLayouts";
 import { useClaudeSwitches } from "../store/claudeSwitches";
 import { DEFAULT_SHELL } from "../shells";
@@ -148,6 +150,8 @@ export interface TerminalViewHandle {
   remoteCloseOthers(id: string): void;
   // A peer Mac closed this terminal — drop its tab (no second stop_terminal).
   removeAdoptedTerminal(id: string): void;
+  // Hands a running tab to another project (tabMove.ts).
+  moveTerminalOut(id: string, dest: string): Promise<void>;
   remoteRenameTerminal(id: string, label: string, emoji?: string): void;
   remoteRestoreTitle(id: string): void;
   remoteTogglePin(id: string): void;
@@ -247,6 +251,8 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     createTerminal,
     createTerminalWithCmd,
     adoptTerminal,
+    takeInTerminal,
+    moveTerminalOut,
     resumeFromHistory,
     forkTerminal,
     forkTerminalIntoCopy,
@@ -460,7 +466,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
         // A tab held open behind an "Undo" toast has left the tree but its
         // session must survive so undo can reattach it; its teardown runs
         // later when the toast resolves.
-        if (isPendingClose(id)) continue;
+        if (isPendingClose(id) || takeMoving(id)) continue;
         dropTerminalSession(id);
       }
     }
@@ -1212,6 +1218,8 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     [focusedComposerTerminalId, submitInputToTerminal],
   );
 
+  useTakeIns(projectName, takeInTerminal);
+
   useImperativeHandle(
     ref,
     () => ({
@@ -1229,6 +1237,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       remoteForkIntoCopy,
       remoteCloseOthers,
       removeAdoptedTerminal,
+      moveTerminalOut,
       remoteRenameTerminal,
       remoteRestoreTitle,
       remoteTogglePin,
@@ -1258,6 +1267,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       remoteForkIntoCopy,
       remoteCloseOthers,
       removeAdoptedTerminal,
+      moveTerminalOut,
       remoteRenameTerminal,
       remoteRestoreTitle,
       remoteTogglePin,

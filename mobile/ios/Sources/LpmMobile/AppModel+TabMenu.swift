@@ -69,6 +69,29 @@ extension AppModel {
         reloadTerminalsSoon(term.project)
     }
 
+    /// The Mac moves a tab to another of its projects (`moveTab`).
+    var canMoveTabs: Bool {
+        client?.hostFeatures.contains(LpmClient.moveTabFeature) == true
+    }
+
+    /// The projects a tab can move to: the Mac's others, on the Mac itself, as
+    /// the desktop's Move To lists them.
+    func moveDestinations(_ term: TerminalInfo) -> [Project] {
+        guard let from = projects.first(where: { $0.name == term.project }), !from.isRemote else { return [] }
+        return projects
+            .filter { $0.name != term.project && !$0.isRemote }
+            .sorted { $0.label.localizedCompare($1.label) == .orderedAscending }
+    }
+
+    /// Hand the tab to another project. It keeps running where it is; the Mac
+    /// lists it there, with its agent, from now on.
+    func moveTerminal(_ term: TerminalInfo, to project: Project) {
+        guard canMoveTabs else { return }
+        client?.moveTerminal(project: term.project, id: term.id, to: project.name)
+        reloadTerminalsSoon(term.project)
+        reloadTerminalsSoon(project.name)
+    }
+
     /// The unpinned tabs Close Other Tabs would close.
     func otherClosableTerminals(_ term: TerminalInfo) -> [TerminalInfo] {
         (terminals[term.project] ?? []).filter { $0.id != term.id && !$0.pinned }

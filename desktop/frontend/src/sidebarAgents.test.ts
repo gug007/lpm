@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { projectAgentRows, sidebarProjectAlert, type SidebarAgentRow } from "./sidebarAgents";
+import { agentOnScreen, projectAgentRows, sidebarProjectAlert, type SidebarAgentRow } from "./sidebarAgents";
 import {
   STATUS_DONE,
   STATUS_ERROR,
@@ -218,3 +218,17 @@ describe("sidebarProjectAlert", () => {
   });
 });
 
+
+describe("agentOnScreen", () => {
+  const rows = [{ terminalId: "t1" }, { terminalId: null }] as SidebarAgentRow[];
+
+  it("finds the row whose tab is on screen", () => {
+    expect(agentOnScreen(rows, "t1")).toBe(true);
+  });
+
+  it("leaves the selection with the project when no row's tab is on screen", () => {
+    expect(agentOnScreen(rows, "t2")).toBe(false);
+    expect(agentOnScreen(rows, null)).toBe(false);
+    expect(agentOnScreen(rows, undefined)).toBe(false);
+  });
+});
