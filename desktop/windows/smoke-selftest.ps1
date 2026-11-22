@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 $failures = [System.Collections.Generic.List[string]]::new()
 $checks = 0
 
-foreach ($file in 'smoke.ps1', 'smoke-lib.ps1', 'smoke-system.ps1', 'smoke-app.ps1', 'smoke-window.ps1', 'smoke-selftest.ps1') {
+foreach ($file in 'smoke.ps1', 'smoke-lib.ps1', 'smoke-system.ps1', 'smoke-app.ps1', 'smoke-window.ps1', 'smoke-selftest.ps1', 'update-e2e.ps1') {
     $tokens = $null
     $parseErrors = $null
     [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot $file), [ref]$tokens, [ref]$parseErrors)

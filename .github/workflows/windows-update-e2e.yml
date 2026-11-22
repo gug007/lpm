@@ -1,0 +1,92 @@
+name: Windows update e2e
+
+# Builds this commit's installer stamped as an old version (0.0.1), installs
+# it, and has lpm update itself to the latest published release the way the
+# Update button does: desktop/windows/update-e2e.ps1 checks that lpm comes back
+# on that release with a service still running. Run it by hand before a release
+# that changes the updater or the installer; it builds a release installer, so
+# it takes a while.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: windows-2025
+    timeout-minutes: 120
+    env:
+      AWS_LC_SYS_PREBUILT_NASM: "1"
+      LPM_CLI_TARGET: x86_64-pc-windows-msvc
+      OLD_VERSION: "0.0.1"
+    steps:
+      - name: Keep LF line endings
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@v7
+
+      # OpenSSL's configure (rusqlite's vendored SQLCipher) needs Strawberry
+      # Perl; Git for Windows' perl lacks its modules and can come first on PATH.
+      - name: Use Strawberry Perl for OpenSSL
+        run: |
+          $perl = 'C:\Strawberry\perl\bin\perl.exe'
+          if (Test-Path $perl) { "OPENSSL_SRC_PERL=$perl" >> $env:GITHUB_ENV }
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/frontend/package-lock.json
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: tailnet/go.mod
+          cache-dependency-path: |
+            tailnet/go.mod
+            tailnet/go.sum
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # The release build's dependency cache, which cache-warm.yml keeps warm.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            desktop/frontend/src-tauri
+            cli
+          shared-key: release-x86_64-pc-windows-msvc
+          save-if: false
+
+      - name: Install dependencies
+        working-directory: desktop/frontend
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Build an installer stamped as an old version
+        working-directory: desktop/frontend
+        env:
+          LPM_VERSION: ${{ env.OLD_VERSION }}
+        run: |
+          $config = Join-Path $env:RUNNER_TEMP 'tauri.e2e.json'
+          Set-Content -LiteralPath $config -Value (ConvertTo-Json @{ version = $env:OLD_VERSION } -Compress)
+          npx tauri build --config $config
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Hosted runners start at 1024x768.
+      - name: Set display resolution
+        continue-on-error: true
+        shell: powershell
+        run: Set-DisplayResolution -Width 1920 -Height 1080 -Force
+
+      - name: Update end to end
+        run: |
+          $setup = Get-ChildItem desktop/frontend/src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
+          ./desktop/windows/update-e2e.ps1 -Installer $setup.FullName -ArtifactsDir (Join-Path $env:RUNNER_TEMP 'update-e2e')
+
+      - name: Upload artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-update-e2e
+          path: ${{ runner.temp }}/update-e2e
+          if-no-files-found: ignore
+          retention-days: 7
