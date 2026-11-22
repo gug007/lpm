@@ -34,6 +34,7 @@ import {
 } from "./reviewSource";
 import { DiffPoolRow, type ConflictResolution } from "./DiffPoolRow";
 import { createDiffRowsStore, DEFAULT_SLOT_HEIGHT, type DiffRowState } from "./diffPoolRows";
+import { disposeDiffEditor } from "./disposeDiffEditor";
 import { syncModelText } from "./modelText";
 import { StackLayout } from "./stackLayout";
 
@@ -915,16 +916,8 @@ export const MonacoDiffPool = forwardRef<MonacoDiffPoolHandle, MonacoDiffPoolPro
           s.disposed = true;
           s.subs.forEach((d) => d.dispose());
           s.subs = [];
-          try {
-            // Detach the diff model first so hideUnchangedRegions tears down its
-            // autoruns before dispose; otherwise they fire against a dead editor.
-            s.editor.setModel(null);
-            s.viewModel?.dispose();
-            s.viewModel = null;
-            s.editor.dispose();
-          } catch {
-            // Monaco can throw mid-teardown of its diff observables; ignore.
-          }
+          disposeDiffEditor(s.editor, s.viewModel);
+          s.viewModel = null;
           s.host.remove();
         });
         slotsRef.current = [];

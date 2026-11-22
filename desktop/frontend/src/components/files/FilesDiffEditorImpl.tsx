@@ -9,6 +9,7 @@ import {
   observeMonacoTheme,
 } from "../../monaco-theme";
 import { useSettingsStore } from "../../store/settings";
+import { disposeDiffEditor } from "../review/disposeDiffEditor";
 import { syncModelText } from "../review/modelText";
 import { makeDiffModels, type DiffModels } from "../review/reviewSource";
 
@@ -110,13 +111,7 @@ export function FilesDiffEditor({
       disposeTheme();
       host.removeEventListener("beforeinput", beforeInput, true);
       sub.dispose();
-      try {
-        editor.setModel(null);
-        viewModel.dispose();
-        editor.dispose();
-      } catch {
-        // Monaco can throw mid-teardown of its diff observables.
-      }
+      disposeDiffEditor(editor, viewModel);
       models.original.dispose();
       models.modified.dispose();
       editorRef.current = null;
