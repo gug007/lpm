@@ -18,7 +18,8 @@ function toggleTabOnScreen(): void {
 }
 
 /** The main window's mini views, in its bottom-right corner above the composer
- *  and footer. A view hides while its own tab is on screen. */
+ *  and footer, with toasts stacking above them. A view hides while its own tab
+ *  is on screen. */
 export function MiniViewHost() {
   const views = useMiniViews((s) => s.views);
   const onScreen = useTerminalTitles((s) => s.onScreenByProject);
@@ -26,7 +27,7 @@ export function MiniViewHost() {
   const shown = views.filter((v) => onScreen[v.project] !== v.termId);
   if (shown.length === 0) return null;
   return (
-    <div className="pointer-events-none fixed bottom-[148px] right-4 z-[35] flex flex-col items-end gap-2">
+    <div data-toast-floor className="pointer-events-none fixed bottom-[148px] right-4 z-[35] flex flex-col items-end gap-2">
       {shown.map((view) => (
         <MiniViewCard key={view.termId} view={view} />
       ))}

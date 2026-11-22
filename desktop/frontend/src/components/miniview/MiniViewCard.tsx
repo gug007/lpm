@@ -1,7 +1,9 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useAgentDialog } from "../../agentDialogScreen";
 import { statusProvider, providerMeta } from "../../agentStatus";
+import { useMiniViewResize } from "../../hooks/useMiniViewResize";
 import { useMiniViewScreen } from "../../hooks/useMiniViewScreen";
+import { MINI_VIEW_DEFAULT_SIZE, miniViewRows } from "../../miniViewSize";
 import { projectAgentRows } from "../../sidebarAgents";
 import { useAppStore } from "../../store/app";
 import { useMiniViews, type MiniView } from "../../store/miniViews";
@@ -12,8 +14,7 @@ import { TerminalIcon, XIcon } from "../icons";
 import { SidebarAgentElapsed } from "../SidebarAgentElapsed";
 import { AgentGlyph } from "../terminal/AgentGlyph";
 import { MiniViewReply } from "./MiniViewReply";
-
-const ROWS = 6;
+import { MiniViewResizeEdges } from "./MiniViewResizeEdges";
 
 const BORDER = {
   "needs-you": "border-[var(--accent-amber)]/60",
@@ -25,7 +26,10 @@ const BORDER = {
 export function MiniViewCard({ view }: { view: MiniView }) {
   const project = useAppStore((s) => s.projects.find((p) => p.name === view.project));
   const title = useTerminalTitles((s) => s.byProject[view.project]?.[view.termId]) || view.label;
-  const { lines, alive } = useMiniViewScreen(view.termId, ROWS);
+  const size = view.size ?? MINI_VIEW_DEFAULT_SIZE;
+  const cardRef = useRef<HTMLDivElement>(null);
+  const resize = useMiniViewResize(view.termId, size, cardRef);
+  const { lines, alive } = useMiniViewScreen(view.termId, miniViewRows(size.height));
   const dialog = useAgentDialog(view.termId);
   const drop = useMiniViews((s) => s.drop);
 
@@ -49,11 +53,14 @@ export function MiniViewCard({ view }: { view: MiniView }) {
 
   return (
     <div
+      ref={cardRef}
       data-mini-view={view.termId}
       onClick={open}
       title={`Open ${title}`}
-      className={`pointer-events-auto w-[320px] cursor-pointer overflow-hidden rounded-xl border bg-[var(--bg-secondary)] shadow-2xl transition-colors hover:border-[var(--text-muted)] ${tone}`}
+      style={{ width: size.width }}
+      className={`pointer-events-auto relative max-w-[calc(100vw-32px)] cursor-pointer overflow-hidden rounded-xl border bg-[var(--bg-secondary)] shadow-2xl transition-colors hover:border-[var(--text-muted)] ${tone}`}
     >
+      <MiniViewResizeEdges onStart={resize.start} onReset={resize.reset} />
       <div className="flex items-center gap-1.5 border-b border-[var(--border)] px-2.5 py-1.5 text-[11.5px]">
         <button
           type="button"
@@ -89,7 +96,10 @@ export function MiniViewCard({ view }: { view: MiniView }) {
           <XIcon />
         </button>
       </div>
-      <div className="flex h-[96px] flex-col justify-end overflow-hidden bg-[var(--terminal-bg)] px-2.5 py-1.5 font-mono text-[10.5px] leading-[15px] text-[var(--text-secondary)]">
+      <div
+        style={{ height: size.height }}
+        className="flex max-h-[calc(100vh-240px)] flex-col justify-end overflow-hidden bg-[var(--terminal-bg)] px-2.5 py-1.5 font-mono text-[10.5px] leading-[15px] text-[var(--text-secondary)]"
+      >
         {lines.map((line, i) => (
           <div key={i} className="shrink-0 whitespace-pre-wrap break-words">
             {line || " "}

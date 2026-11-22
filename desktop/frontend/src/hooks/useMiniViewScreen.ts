@@ -24,8 +24,9 @@ export function useMiniViewScreen(terminalId: string, rows: number): { lines: st
       const at = interactivePaneOutputAt(terminalId);
       if (!term || at === seen) return;
       seen = at;
+      // A view taller than the pane reaches back into what scrolled off it.
       const top = term.buffer.active.baseY;
-      const next = miniViewLines(bufferLines(term, top, top + term.rows), rows);
+      const next = miniViewLines(bufferLines(term, Math.max(0, top - rows), top + term.rows), rows);
       setLines((prev) => (sameLines(prev, next) ? prev : next));
     };
     read();

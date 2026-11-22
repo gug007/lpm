@@ -35,6 +35,19 @@ describe("toastFloor", () => {
     expect(toastFloor(12, document, VIEWPORT)).toBe(44 + 12);
   });
 
+  it("clears the mini views in the corner", () => {
+    floor(856, 260, 1440, 44);
+    floor(780, 260, 1440, 76);
+    floor(520, 1104, 1424, 232);
+    expect(toastFloor(12, document, VIEWPORT)).toBe(900 - 520 + 12);
+  });
+
+  it("keeps a toast on screen when the floor reaches the window top", () => {
+    floor(856, 260, 1440, 44);
+    floor(40, 1104, 1424, 668);
+    expect(toastFloor(12, document, VIEWPORT)).toBe(900 - 160);
+  });
+
   it("skips hidden elements and falls back to the window edge", () => {
     floor(0, 0, 0, 0);
     expect(toastFloor(12, document, VIEWPORT)).toBe(12);

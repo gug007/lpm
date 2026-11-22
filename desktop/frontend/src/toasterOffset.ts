@@ -1,5 +1,7 @@
 export const TOAST_EDGE = 12;
 const TOAST_WIDTH = 356;
+// A floor reaching higher than this still leaves a toast this much window above it.
+const TOAST_ROOM = 160;
 
 // Close-with-undo toasts keep to the footer row's left end, clear of every
 // pane's composer and its Send button.
@@ -7,9 +9,9 @@ export const FOOTER_TOASTER_ID = "footer";
 export const FOOTER_TOASTER_OFFSET = { bottom: 4, left: 12 };
 
 /** Toasts stack up from the bottom right, just above whatever the window keeps
- *  under them there — the footer row and, in a pane that has one, the composer
- *  — so a toast never covers Send or the Git buttons that raised it. Elements
- *  that count are marked `data-toast-floor`. */
+ *  under them there — the footer row, the composer in a pane that has one, and
+ *  the mini views — so a toast never covers Send, the Git buttons that raised
+ *  it, or a kept tab. Elements that count are marked `data-toast-floor`. */
 export function toastFloor(
   right: number,
   root: ParentNode = document,
@@ -22,5 +24,5 @@ export function toastFloor(
     if (r.width === 0 || r.height === 0 || r.right <= left || r.left >= viewport.width - right) continue;
     top = Math.min(top, r.top);
   }
-  return Math.round(viewport.height - top) + TOAST_EDGE;
+  return Math.min(Math.round(viewport.height - top) + TOAST_EDGE, viewport.height - TOAST_ROOM);
 }

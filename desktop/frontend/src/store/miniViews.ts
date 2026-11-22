@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { rememberedMiniViewSize, type MiniViewSize } from "../miniViewSize";
 import type { AICLI } from "../types";
 
 // Tabs kept in a mini view: a small live view of a terminal in the corner of
@@ -11,6 +12,8 @@ export interface MiniView {
   label: string;
   // The agent the tab runs, from its command, for when no status names it.
   agent?: AICLI | null;
+  // Set when the view is kept, from the size last dragged to.
+  size?: MiniViewSize;
 }
 
 export const MAX_MINI_VIEWS = 2;
@@ -21,6 +24,7 @@ interface MiniViewsState {
   // one kept longest; that one is returned so the caller can say so.
   toggle: (view: MiniView) => { kept: boolean; replaced: MiniView | null };
   drop: (termId: string) => void;
+  resize: (termId: string, size: MiniViewSize) => void;
 }
 
 export const useMiniViews = create<MiniViewsState>((set, get) => ({
@@ -32,9 +36,12 @@ export const useMiniViews = create<MiniViewsState>((set, get) => ({
       return { kept: false, replaced: null };
     }
     const full = views.length >= MAX_MINI_VIEWS;
-    set({ views: [...(full ? views.slice(1) : views), view] });
+    const kept = { ...view, size: view.size ?? rememberedMiniViewSize() };
+    set({ views: [...(full ? views.slice(1) : views), kept] });
     return { kept: true, replaced: full ? views[0] : null };
   },
   drop: (termId) =>
     set((s) => (s.views.some((v) => v.termId === termId) ? { views: s.views.filter((v) => v.termId !== termId) } : s)),
+  resize: (termId, size) =>
+    set((s) => ({ views: s.views.map((v) => (v.termId === termId ? { ...v, size } : v)) })),
 }));

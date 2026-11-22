@@ -54,7 +54,7 @@ describe("useMiniViews", () => {
     const { toggle } = useMiniViews.getState();
     expect(toggle(view("a"))).toEqual({ kept: true, replaced: null });
     toggle(view("b"));
-    expect(toggle(view("c"))).toEqual({ kept: true, replaced: view("a") });
+    expect(toggle(view("c"))).toEqual({ kept: true, replaced: expect.objectContaining(view("a")) });
     expect(useMiniViews.getState().views.map((v) => v.termId)).toEqual(["b", "c"]);
     expect(useMiniViews.getState().views).toHaveLength(MAX_MINI_VIEWS);
   });
