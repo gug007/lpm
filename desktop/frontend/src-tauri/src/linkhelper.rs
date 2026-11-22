@@ -35,6 +35,25 @@ const MAX_CLIENTS: usize = 4;
 static CLIENTS: AtomicUsize = AtomicUsize::new(0);
 static LAUNCHING: Mutex<()> = Mutex::new(());
 
+/// The TCP socket under a WebSocket's stream. `launch` shortens the read timeout
+/// on this one, the socket the WebSocket reads: set through a clone of it, the
+/// reads never timed out on Windows.
+pub(crate) trait Tcp {
+    fn tcp(&self) -> &TcpStream;
+}
+
+impl Tcp for TcpStream {
+    fn tcp(&self) -> &TcpStream {
+        self
+    }
+}
+
+impl Tcp for rustls::StreamOwned<rustls::ServerConnection, TcpStream> {
+    fn tcp(&self) -> &TcpStream {
+        self.get_ref()
+    }
+}
+
 /// Where the helper listens for an app listening on `lpm_port`.
 pub(crate) fn launcher_port(lpm_port: u16) -> u16 {
     lpm_port.saturating_add(PORT_OFFSET)
@@ -90,7 +109,6 @@ fn connection(stream: TcpStream, lpm_port: u16) -> Result<(), String> {
     stream
         .set_write_timeout(Some(HANDSHAKE_TIMEOUT))
         .map_err(|e| e.to_string())?;
-    let tcp = stream.try_clone().map_err(|e| e.to_string())?;
     let conn = rustls::ServerConnection::new(crate::remotetls::server_config())
         .map_err(|e| e.to_string())?;
     let ws =
@@ -105,7 +123,6 @@ fn connection(stream: TcpStream, lpm_port: u16) -> Result<(), String> {
     });
     session(
         ws,
-        &tcp,
         &cfg.devices,
         ready,
         || lpm_answers(lpm_port),
@@ -116,9 +133,8 @@ fn connection(stream: TcpStream, lpm_port: u16) -> Result<(), String> {
 /// One phone: `auth` first, then `launchLpm`. Anything else it sends meanwhile
 /// (presence, pings) is ignored, apart from `ping`, which keeps its client's
 /// watchdog fed.
-pub(crate) fn session<S: Read + Write>(
+pub(crate) fn session<S: Read + Write + Tcp>(
     mut ws: WebSocket<S>,
-    tcp: &TcpStream,
     devices: &[Device],
     ready: Value,
     up: impl Fn() -> bool,
@@ -139,16 +155,15 @@ pub(crate) fn session<S: Read + Write>(
             _ => {}
         }
     }
-    let reply = launch(&mut ws, tcp, up, open);
+    let reply = launch(&mut ws, up, open);
     send(&mut ws, reply)?;
     let _ = ws.close(None);
     Ok(())
 }
 
 /// Starts lpm unless it already answers, then waits until it does.
-fn launch<S: Read + Write>(
+fn launch<S: Read + Write + Tcp>(
     ws: &mut WebSocket<S>,
-    tcp: &TcpStream,
     up: impl Fn() -> bool,
     open: impl FnOnce() -> Result<(), String>,
 ) -> Value {
@@ -159,7 +174,7 @@ fn launch<S: Read + Write>(
     if let Err(error) = open() {
         return json!({ "t": "launchLpm", "ok": false, "error": error });
     }
-    let _ = tcp.set_read_timeout(Some(TICK));
+    let _ = ws.get_ref().tcp().set_read_timeout(Some(TICK));
     let deadline = Instant::now() + READY_WAIT;
     while Instant::now() < deadline {
         if up() {

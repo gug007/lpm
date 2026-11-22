@@ -45,13 +45,14 @@ fn finds_the_app_bundle_an_executable_sits_in() {
     assert_eq!(bundle_of(Path::new("/repo/target/debug/lpm-desktop")), None);
 }
 
+const CLIENT_GIVES_UP: Duration = Duration::from_secs(30);
+
 /// Runs one session on a local socket and returns what the phone heard.
 fn exchange(frames: &[Value], up_after: usize, opens: Arc<AtomicBool>) -> Vec<Value> {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     let server = std::thread::spawn(move || {
         let (tcp, _) = listener.accept().unwrap();
-        let clone = tcp.try_clone().unwrap();
         let ws = tungstenite::accept(tcp).unwrap();
         let checks = AtomicUsize::new(0);
         let up = || checks.fetch_add(1, Ordering::SeqCst) >= up_after;
@@ -60,9 +61,10 @@ fn exchange(frames: &[Value], up_after: usize, opens: Arc<AtomicBool>) -> Vec<Va
             Ok(())
         };
         let ready = json!({ "t": "ready", "features": [LAUNCH_FEATURE] });
-        let _ = session(ws, &clone, &[device("phone", "secret")], ready, up, open);
+        let _ = session(ws, &[device("phone", "secret")], ready, up, open);
     });
     let tcp = TcpStream::connect(addr).unwrap();
+    tcp.set_read_timeout(Some(CLIENT_GIVES_UP)).unwrap();
     let (mut client, _) = tungstenite::client(format!("ws://{addr}/"), tcp).unwrap();
     for frame in frames {
         client.send(Message::text(frame.to_string())).unwrap();
@@ -73,6 +75,9 @@ fn exchange(frames: &[Value], up_after: usize, opens: Arc<AtomicBool>) -> Vec<Va
             heard.push(serde_json::from_str(&text).unwrap());
         }
     }
+    // Hanging up ends a server still waiting to read, so a stuck session fails
+    // its test instead of holding LAUNCHING for every test after it.
+    drop(client);
     server.join().unwrap();
     heard
 }
