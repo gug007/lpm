@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Every check on the branch, with the desktop menu's ways on: fixing them with any
-/// agent the project's New Tab sheet offers, in a new tab, running the failed jobs
-/// again, and the checks on GitHub.
+/// agent the project's New Tab sheet offers, in a new tab (once, or until CI is
+/// green), running the failed jobs again, and the checks on GitHub.
 struct GitChecksSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -21,8 +21,10 @@ struct GitChecksSheet: View {
     }
 
     @State private var gauntlet = ActionRunGauntlet()
-    /// The fixing option whose inputs or confirmation are up, and what it's told.
-    @State private var fixing: (option: LaunchpadOption, prompt: String)?
+    /// The fixing option whose inputs or confirmation are up, what it's told, and
+    /// whether Keep fixing until green follows it.
+    @State private var fixing: (option: LaunchpadOption, prompt: String, loops: Bool)?
+    @State private var keepFixing = false
     /// The failed checks opened to their logs.
     @State private var openLogs: Set<String> = []
 
@@ -53,7 +55,7 @@ struct GitChecksSheet: View {
             if merged != nil { Haptics.success() }
         }
         .actionRunGauntlet($gauntlet) { action, values in
-            if let fixing { run(fixing.option, action, values, fixing.prompt) }
+            if let fixing { run(fixing.option, action, values, fixing.prompt, loops: fixing.loops) }
         }
     }
 
@@ -111,9 +113,19 @@ struct GitChecksSheet: View {
                 if let note = checks.unpushedNote(ahead: ahead) { Text(note) }
             }
 
+            let looping = model.gitChecks.loops[name]?.running == true
+            if model.gitChecks.canKeepFixing, model.canLaunchAgents {
+                CiFixLoopSection(project: name, canFix: checks.failed > 0 && checks.fixPrompt != nil,
+                                 keepFixing: $keepFixing)
+            }
             Section {
-                if checks.failed > 0, let prompt = checks.fixPrompt, model.canLaunchAgents {
-                    CiFixRows(tabs: tabs) { fix($0, prompt) }
+                if checks.failed > 0, let prompt = checks.fixPrompt, model.canLaunchAgents, !looping {
+                    let loops = keepFixing && model.gitChecks.canKeepFixing
+                    CiFixRows(tabs: tabs, detail: loops
+                        ? "Opens a new tab with the failing checks, then sends each new failure until CI is green"
+                        : "Opens a new tab with the failing checks") {
+                        fix($0, loops ? checks.fixLoopPrompt ?? prompt : prompt, loops: loops)
+                    }
                 }
                 if !checks.failingRunIds.isEmpty {
                     Button {
@@ -135,7 +147,7 @@ struct GitChecksSheet: View {
                     Button {
                         openURL(url)
                     } label: {
-                        Label("Open checks on GitHub", systemImage: "arrow.up.right.square")
+                        Label("Open checks on \(checks.pr?.site ?? "GitHub")", systemImage: "arrow.up.right.square")
                     }
                 }
             } footer: {
@@ -150,15 +162,18 @@ struct GitChecksSheet: View {
         if openLogs.remove(check.id) == nil { openLogs.insert(check.id) }
     }
 
-    private func fix(_ option: LaunchpadOption, _ prompt: String) {
-        fixing = (option, prompt)
+    private func fix(_ option: LaunchpadOption, _ prompt: String, loops: Bool = false) {
+        fixing = (option, prompt, loops)
         if let action = option.action, gauntlet.begin(action) { return }
-        run(option, option.action, [:], prompt)
+        run(option, option.action, [:], prompt, loops: loops)
     }
 
-    /// Start the agent with the failing checks as its first prompt.
-    private func run(_ option: LaunchpadOption, _ action: Action?, _ values: [String: String], _ prompt: String) {
+    /// Start the agent with the failing checks as its first prompt. A loop is
+    /// armed first: the Mac follows the next tab the project opens.
+    private func run(_ option: LaunchpadOption, _ action: Action?, _ values: [String: String], _ prompt: String,
+                     loops: Bool) {
         let spawned = onSpawnedTerminal
+        if loops { model.gitChecks.startLoop(name, agent: option.label) }
         dismiss()
         model.startFix(name, option: option, action: action, values: values, prompt: prompt) { spawned?($0) }
     }

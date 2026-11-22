@@ -10,6 +10,8 @@ fn main() {
     // a process that has already spawned threads copies only the caller.
     match std::env::args().nth(1).as_deref() {
         Some(lpm_desktop_lib::DAEMON_ARG) => lpm_desktop_lib::run_session_daemon(),
+        // lpm Link's login helper: answers a paired phone while lpm is closed.
+        Some(lpm_desktop_lib::LINK_HELPER_ARG) => lpm_desktop_lib::run_link_helper(),
         // Uninstall's "stop everything on this machine", which needs no app and
         // no CLI — the binary being removed can end its own work.
         Some(lpm_desktop_lib::STOP_SESSIONS_ARG) => {

@@ -42,6 +42,12 @@ export function reachHeadline(r: ReachInput, thisMachine: string): { tone: Remot
 
 export type KeepAwakeStatus = "unsupported" | "off" | "paused" | "failed" | "awake" | "battery";
 
+/** Whether lpm's login helper can open lpm here for a phone, and whether it's on. */
+export interface OpenFromPhone {
+  supported: boolean;
+  on: boolean;
+}
+
 /** What the keep-awake row says under its switch. */
 export function keepAwakeText(status: KeepAwakeStatus, thisMachine: string): string {
   switch (status) {

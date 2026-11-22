@@ -1,12 +1,16 @@
 import { useRef, useState, type ReactNode } from "react";
 import { CircleCheck, CircleMinus, CircleX, ExternalLink, LoaderCircle, RotateCcw } from "lucide-react";
-import { RerunFailedChecks } from "../../bridge/commands";
+import { CancelCiFixLoop, RerunFailedChecks, StartCiFixLoop } from "../../bridge/commands";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { toast } from "../notifications/toast";
 import { startFix } from "../ciFix";
+import { useCiFixLoop } from "../hooks/useCiFixLoop";
+import { fixLoopRunning } from "../store/ciFixLoop";
 import type { LaunchpadOption } from "../launchpadAgentActions";
 import { failingRunIds, sortedChecks, type ChecksSummary } from "../prChecks";
 import type { PrCheck, PrCheckState } from "../types";
+import { CiFixLoopStatus } from "./CiFixLoopStatus";
+import { CiFixLoopSwitch } from "./CiFixLoopSwitch";
 import { FixWithAgentItems } from "./FixWithAgentItems";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
@@ -35,6 +39,8 @@ interface ChecksButtonProps {
   note?: string;
   title: string;
   githubUrl: string;
+  /** Where the checks live: "GitHub", or "GitLab" for a merge request. */
+  site?: string;
   /** What a Fix with … agent is told; the items show only with one. */
   fixPrompt?: string;
   onRerun: (runIds: string[]) => void;
@@ -54,19 +60,34 @@ export function ChecksButton({
   note,
   title,
   githubUrl,
+  site = "GitHub",
   fixPrompt,
   onRerun,
   className,
   children,
 }: ChecksButtonProps) {
   const [open, setOpen] = useState(false);
+  const [keepFixing, setKeepFixing] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const sorted = sortedChecks(checks);
   const runIds = failingRunIds(checks);
+  const loop = useCiFixLoop(projectName, open);
+  const looping = fixLoopRunning(loop);
+  const lastLoop = loop && !looping && loop.state !== "cancelled" ? loop.detail : undefined;
 
   const fix = (option: LaunchpadOption) => {
     setOpen(false);
-    if (fixPrompt) startFix(projectName, option, fixPrompt);
+    if (!fixPrompt) return;
+    if (!keepFixing) {
+      startFix(projectName, option, fixPrompt);
+      return;
+    }
+    // Armed first: the loop takes the next tab the project opens as the fix tab.
+    StartCiFixLoop(projectName, option.label, fixPrompt)
+      .then((prompt) => startFix(projectName, option, prompt || fixPrompt))
+      .catch((err: unknown) =>
+        toast.error("Couldn't keep fixing until green", { description: String(err) }),
+      );
   };
 
   const rerun = () => {
@@ -133,15 +154,31 @@ export function ChecksButton({
               ))}
             </div>
             <ContextMenuSeparator />
-            {summary.failed > 0 && fixPrompt && (
-              <FixWithAgentItems projectName={projectName} onFix={fix} description="Opens a new tab with the failing checks" />
+            {looping && loop ? (
+              <CiFixLoopStatus loop={loop} onStop={() => void CancelCiFixLoop(projectName).catch(() => {})} />
+            ) : (
+              summary.failed > 0 &&
+              fixPrompt && (
+                <>
+                  <CiFixLoopSwitch checked={keepFixing} onChange={setKeepFixing} note={lastLoop} />
+                  <FixWithAgentItems
+                    projectName={projectName}
+                    onFix={fix}
+                    description={
+                      keepFixing
+                        ? "Opens a new tab with the failing checks, then sends each new failure until CI is green"
+                        : "Opens a new tab with the failing checks"
+                    }
+                  />
+                </>
+              )
             )}
             {runIds.length > 0 && (
               <ContextMenuItem icon={<RotateCcw size={12} />} label="Re-run failed jobs" onClick={rerun} />
             )}
             <ContextMenuItem
               icon={<ExternalLink size={12} />}
-              label="Open checks on GitHub"
+              label={`Open checks on ${site}`}
               onClick={() => {
                 setOpen(false);
                 BrowserOpenURL(githubUrl);

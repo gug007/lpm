@@ -17,7 +17,7 @@ import {
   type RemoteAction,
   type RemoteFailure,
 } from "../remoteStatus";
-import { canReachAway, type KeepAwakeStatus } from "../mobile/reachStatus";
+import { canReachAway, type KeepAwakeStatus, type OpenFromPhone } from "../mobile/reachStatus";
 import { anyOverTailscale, type PhoneDevice } from "../mobile/phoneStatus";
 import { peerCommands } from "./settings/machineCommands";
 import { useMachineWords } from "./settings/useMachineWords";
@@ -33,6 +33,7 @@ interface RemoteStateShape {
   tailscale: boolean;
   keepAwake: boolean;
   keepAwakeStatus: KeepAwakeStatus;
+  openFromPhone: OpenFromPhone;
   running: boolean;
   host: string | null;
   tailscaleHost: string | null;
@@ -50,6 +51,7 @@ const DEFAULT_STATE: RemoteStateShape = {
   tailscale: true,
   keepAwake: false,
   keepAwakeStatus: "off",
+  openFromPhone: { supported: false, on: false },
   running: false,
   host: null,
   tailscaleHost: null,
@@ -205,6 +207,16 @@ export function MobileSettingsPane() {
         onUseApp={(v) => void apply({ tailscale: v }, "tailscale")}
         onPort={(port) => void apply({ port }, "server")}
         onKeepAwake={(v) => void run("keepAwake", { keepAwake: v }, () => mobile.setKeepAwake(v))}
+        onOpenFromPhone={
+          mobile.setOpenFromPhone && state.openFromPhone.supported
+            ? (v) =>
+                void run(
+                  "openFromPhone",
+                  { openFromPhone: { ...state.openFromPhone, on: v } },
+                  () => mobile.setOpenFromPhone!(v),
+                )
+            : undefined
+        }
       />
 
       {(failure?.slot === "server" || failure?.slot === "network") && (

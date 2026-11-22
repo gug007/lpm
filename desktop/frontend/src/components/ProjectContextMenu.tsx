@@ -3,6 +3,7 @@ import type { SidebarAgentRow } from "../sidebarAgents";
 import { ProjectArchiveMenuItems } from "./ProjectArchiveMenuItems";
 import { Archive, Link2, Pin, PinOff } from "lucide-react";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
+import { CopySpaceMenuItem } from "./CopySpaceMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
 import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
@@ -220,6 +221,7 @@ export function ProjectContextMenu(props: ProjectContextMenuProps) {
         onClick={close(onWorktree)}
         disabled={duplicateDisabled}
       />
+      {!sshRemote && <CopySpaceMenuItem projectName={projectName} onClose={onClose} />}
       {onSyncHere && (
         <ContextMenuItem
           label={`Sync to ${MACHINE.ThisMachineTitle}…`}

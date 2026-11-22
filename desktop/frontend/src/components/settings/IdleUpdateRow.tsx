@@ -1,5 +1,6 @@
 import { Clock } from "lucide-react";
 import type { ReactNode } from "react";
+import { MACHINE } from "../../machineWords";
 import { rowProps } from "../../settings-registry";
 import { useSettingsStore } from "../../store/settings";
 import { useUpdateCheck } from "../../store/updateCheck";
@@ -7,7 +8,7 @@ import { useUpdateInstallState } from "../../store/updateInstall";
 import { SettingsRow } from "../SettingsRow";
 import { Toggle } from "../ui/Toggle";
 
-// Settings › General › Updates: this Mac installs its own updates while nobody
+// Settings › General › Updates: this machine installs its own updates while nobody
 // is using it. Off unless chosen, since the install restarts lpm.
 export function IdleUpdateRow() {
   const enabled = useSettingsStore((s) => s.installUpdatesWhenIdle ?? false);
@@ -35,7 +36,7 @@ export function IdleUpdateRow() {
         <>
           <p>lpm looks for a new version every hour and installs it once:</p>
           <ul className="list-disc space-y-0.5 pl-4">
-            <li>nobody has used this Mac for 10 minutes</li>
+            <li>nobody has used {MACHINE.thisMachine} for 10 minutes</li>
             <li>no agent is working or waiting for you</li>
             <li>no action is running</li>
             <li>every terminal is back at its prompt</li>

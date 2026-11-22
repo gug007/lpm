@@ -59,12 +59,20 @@ pub fn busy(app: &AppHandle, with_terminals: bool) -> Vec<Busy> {
 /// (project, pane) of each local terminal whose shell has a job in front of it
 /// that won't come back by itself.
 fn busy_terminals(ptys: &PtyState) -> Vec<(String, String)> {
-    ptys.sessions
-        .lock()
-        .unwrap()
-        .values()
+    let sessions: Vec<_> = ptys.sessions.lock().unwrap().values().cloned().collect();
+    #[cfg(windows)]
+    let table = crate::procwin::snapshot();
+    sessions
+        .into_iter()
         .filter(|sess| {
-            sess.shell_at_prompt() == Some(false) && !crate::agentexit::resumes(&sess.id)
+            let at_prompt = sess.shell_at_prompt();
+            // Windows has no foreground group: a job is a program under the shell.
+            #[cfg(windows)]
+            let at_prompt = at_prompt.or_else(|| {
+                let shell = crate::pty::local_session_pid(ptys, &sess.id)? as u32;
+                Some(crate::procwin::foreground(&table, shell, crate::procwin::created) == shell)
+            });
+            at_prompt == Some(false) && !crate::agentexit::resumes(&sess.id)
         })
         .map(|sess| (sess.project_name.clone(), sess.id.clone()))
         .collect()

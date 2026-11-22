@@ -1590,6 +1590,14 @@ fn running_since(key: &str) -> Option<u64> {
     active_runs().lock().unwrap().get(key).copied()
 }
 
+/// Every automation running in this process right now, by key.
+pub(crate) fn running_keys() -> std::collections::BTreeSet<String> {
+    let mut keys: std::collections::BTreeSet<String> =
+        inflight().lock().unwrap().keys().cloned().collect();
+    keys.extend(active_runs().lock().unwrap().keys().cloned());
+    keys
+}
+
 struct Outcome {
     result: &'static str,
     copy: Option<String>,

@@ -19,7 +19,38 @@ static QUIT_HEARD: AtomicU64 = AtomicU64::new(0);
 /// a hung or still-loading window can never keep ⌘Q from working.
 const QUIT_HEARD_WITHIN: Duration = Duration::from_secs(2);
 
-/// Quit for real: runs the RunEvent::Exit teardown in lib.rs.
+/// Everything quitting ends, run on RunEvent::Exit. Services live in the session
+/// daemon and keep running. `farewell` tells phones lpm is closing; an update
+/// leaves it out, since they expect lpm back.
+pub fn teardown(app: &AppHandle, farewell: bool) {
+    use crate::{
+        agentexit, autosync, gitfollow, ignoredkeep, keepawake, mainwindow, peer, peerclient,
+        portforward, pty, remote, socketsrv, sshsync, statusfwd, tailnet, telegrampoll, tts,
+    };
+    use tauri::Manager;
+    mainwindow::persist_now(app); // capture the final window bounds before teardown
+    agentexit::stop(); // the agents dying below are not the user quitting them
+    if farewell {
+        remote::farewell(&app.state::<remote::RemoteHub>(), "quit"); // before the terminals end
+    }
+    pty::kill_all_trees(&app.state::<pty::PtyState>()); // reap in-app terminal trees (services stay up)
+    tts::stop_on_exit(app); // kill any suspended python TTS child
+    portforward::stop_on_exit(app); // kill ssh -L tunnels + pollers
+    statusfwd::stop_all(app); // kill ssh -R status forwards
+    sshsync::stop_all_sync_watchers(app); // drop rsync mirror watchers
+    remote::stop(&app.state::<remote::RemoteHub>()); // retire the mobile server threads
+    app.state::<autosync::Engine>().stop(); // retire the auto-sync scheduler
+    app.state::<gitfollow::Engine>().stop(); // retire the follow scheduler
+    app.state::<ignoredkeep::Engine>().stop(); // stop keeping files in step
+    peer::stop(&app.state::<peer::PeerHub>()); // retire the peer host threads
+    peerclient::stop(&app.state::<peerclient::PeerClientHub>()); // drop peer client conns
+    tailnet::stop(); // take the built-in Tailscale node offline
+    keepawake::release(); // let this machine sleep again
+    telegrampoll::stop(); // stop reading Telegram for answers
+    socketsrv::release();
+}
+
+/// Quit for real: runs `teardown` through RunEvent::Exit.
 #[tauri::command]
 pub fn quit_app(app: AppHandle) {
     app.exit(0);

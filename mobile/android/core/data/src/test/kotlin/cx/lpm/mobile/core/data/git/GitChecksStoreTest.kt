@@ -109,5 +109,58 @@ class GitChecksStoreTest {
     fun `a Mac without gitMerge can't merge`() = runTest {
         val (store, _) = connected(listOf(LpmClient.GIT_CHECKS_FEATURE))
         assertFalse(store.canMerge)
+        assertFalse(store.canKeepFixing)
     }
+
+    @Test
+    fun `keep fixing names the agent, follows every change and asks again at the end`() = runTest {
+        val (store, socket) = connected(
+            listOf(LpmClient.GIT_CHECKS_FEATURE, LpmClient.CI_FIX_LOOP_FEATURE)
+        )
+        assertTrue(store.canKeepFixing)
+        store.startLoop("storefront", "Claude Code")
+        val on = socket.sentOf("ciFixLoop").single()
+        assertEquals(JsonPrimitive(true), on["on"])
+        assertEquals(JsonPrimitive("Claude Code"), on["agent"])
+
+        socket.receive(
+            loopFrame("watching", "Claude Code pushed 7c41e2a · watching the new run")
+        )
+        testScheduler.runCurrent()
+        val watching = store.state.value.loops["storefront"]!!
+        assertTrue(watching.running)
+        assertEquals("Round 2 of 3", watching.roundLabel)
+
+        val checksBefore = socket.sentOf("gitChecks").size
+        socket.receive(loopFrame("passed", "CI passed after 2 rounds"))
+        testScheduler.runCurrent()
+        assertFalse(store.state.value.loops["storefront"]!!.running)
+        assertEquals(checksBefore + 1, socket.sentOf("gitChecks").size)
+
+        store.stopLoop("storefront")
+        val off = socket.sentOf("ciFixLoop").last()
+        assertEquals(JsonPrimitive(false), off["on"])
+        assertNull(off["agent"])
+    }
+
+    @Test
+    fun `a loop the Mac refused says why`() = runTest {
+        val (store, socket) = connected(
+            listOf(LpmClient.GIT_CHECKS_FEATURE, LpmClient.CI_FIX_LOOP_FEATURE)
+        )
+        socket.receive(
+            """{"t":"ciFixLoop","project":"storefront","ok":false,""" +
+                """"error":"This branch isn't pushed to GitHub."}"""
+        )
+        testScheduler.runCurrent()
+        assertEquals(
+            "This branch isn't pushed to GitHub.",
+            store.state.value.loopErrors["storefront"]
+        )
+    }
+
+    private fun loopFrame(state: String, detail: String) =
+        """{"t":"ciFixLoop","project":"storefront","ok":true,"loop":{"project":"storefront",""" +
+            """"agent":"Claude Code","branch":"feat/x","round":2,"maxRounds":3,""" +
+            """"state":"$state","sha":"7c41e2a","detail":"$detail","progress":0.55}}"""
 }

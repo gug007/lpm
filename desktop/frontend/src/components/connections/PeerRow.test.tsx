@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   setEnabled: vi.fn(() => Promise.resolve()),
   updateHost: vi.fn(() => Promise.resolve()),
   updateMac: vi.fn(() => new Promise(() => {})),
+  invoke: vi.fn((): Promise<unknown> => Promise.resolve(null)),
 }));
 
 vi.mock("../../../bridge/commands", () => ({
@@ -20,6 +21,7 @@ vi.mock("../../../bridge/commands", () => ({
   PeerUpdateMac: mocks.updateMac,
   PeerCancelMacUpdate: vi.fn(() => Promise.resolve(true)),
   GetVersion: vi.fn(() => Promise.resolve("1.43.0")),
+  PeerInvoke: mocks.invoke,
 }));
 
 const { PeerRow } = await import("./PeerRow");
@@ -214,5 +216,21 @@ describe("PeerRow", () => {
     render(peer({ platform: "macos", version: "1.42.0", connected: true }));
     await act(async () => {});
     expect(button("Update to 1.43.0")).toBeUndefined();
+  });
+
+  it("shows a connected host's free space, amber once it runs low", async () => {
+    const GB = 1024 ** 3;
+    mocks.invoke.mockResolvedValueOnce({ free: 6 * GB, total: 100 * GB, clones: false });
+    render(peer({ platform: "linux", version: "1.0.0", connected: true }));
+    await act(async () => {});
+    expect(mocks.invoke).toHaveBeenCalledWith("abcd1234", "machine_disk_space", {});
+    expect(container.textContent).toContain("Low on space: 6 GB free of 100 GB");
+  });
+
+  it("asks nothing of a host that's offline", async () => {
+    mocks.invoke.mockClear();
+    render(peer({ platform: "linux", connected: false }));
+    await act(async () => {});
+    expect(mocks.invoke).not.toHaveBeenCalled();
   });
 });

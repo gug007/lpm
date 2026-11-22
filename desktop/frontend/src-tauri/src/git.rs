@@ -24,6 +24,11 @@ pub(crate) fn tool_command(
     args: &[&str],
     envs: &[(&str, &str)],
 ) -> Command {
+    // A WSL folder's git is the distro's, which reads its own files natively.
+    #[cfg(windows)]
+    if let Some(target) = crate::wsl::parse(cwd) {
+        return crate::wsl::tool_command(&target, program, args, envs);
+    }
     match crate::sshexec::remote_project_for_path(cwd) {
         Some(ssh) => crate::sshexec::remote_command(&ssh, cwd, program, args, envs),
         None => {
@@ -1332,25 +1337,36 @@ pub fn git_commit_count(cwd: String, from: String, to: String) -> i64 {
 
 #[tauri::command(async)]
 pub fn git_commit(cwd: String, message: String, files: Vec<String>) -> Result<(), String> {
+    commit_files(&cwd, &message, &files, false).map_err(crate::githook::Stopped::into_message)
+}
+
+/// Stage exactly `files` and commit them with `message`; `skip_hooks` passes
+/// `--no-verify`. A hook that stops the commit is told apart from other errors.
+pub(crate) fn commit_files(
+    cwd: &str,
+    message: &str,
+    files: &[String],
+    skip_hooks: bool,
+) -> Result<(), crate::githook::Stopped> {
     let message = message.trim();
     if message.is_empty() {
-        return Err("commit message required".into());
+        return Err("commit message required".to_string().into());
     }
     if files.is_empty() {
-        return Err("no files selected".into());
+        return Err("no files selected".to_string().into());
     }
-    crate::gitconflict::check_commit(&cwd, &files)?;
-    let removals = crate::gitstage::Removals::staged(&cwd);
+    crate::gitconflict::check_commit(cwd, files)?;
+    let removals = crate::gitstage::Removals::staged(cwd);
     // A mixed reset drops MERGE_HEAD, and the commit would then lose the merged
     // branch as a parent. Git refuses a partial commit mid-merge anyway.
-    if !crate::gitresolve::merging(&cwd) {
-        let _ = git_out(&cwd, &["reset", "HEAD"]); // clear stage; ignore (initial commit)
+    if !crate::gitresolve::merging(cwd) {
+        let _ = git_out(cwd, &["reset", "HEAD"]); // clear stage; ignore (initial commit)
     }
     let committed = removals
-        .add(&cwd, &files)
-        .map_err(|e| format!("staging files: {e}"))
-        .and_then(|()| git_out(&cwd, &["commit", "-m", message]).map(|_| ()));
-    removals.keep(&cwd, &files);
+        .add(cwd, files)
+        .map_err(|e| crate::githook::Stopped::Other(format!("staging files: {e}")))
+        .and_then(|()| crate::githook::commit(cwd, &["commit", "-m", message], skip_hooks, files));
+    removals.keep(cwd, files);
     committed
 }
 
@@ -1449,6 +1465,10 @@ pub fn create_pull_request(
         .map_err(|e| format!("failed to get current branch: {e}"))?;
     git_out(&cwd, &["push", "-u", "origin", &branch]).map_err(|e| format!("push failed: {e}"))?;
 
+    if let Some(repo) = crate::githost::gitlab(&cwd) {
+        let draft = draft.unwrap_or(false);
+        return crate::gitlab_mr::create(&cwd, &repo, &branch, &title, &body, &base, draft);
+    }
     let mut args: Vec<&str> = vec!["pr", "create", "--title", &title, "--body", &body];
     if !base.is_empty() {
         args.push("--base");

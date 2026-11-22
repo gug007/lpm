@@ -23,20 +23,22 @@ internal class MacErrand(
 ) {
     /**
      * `exchange` sends on the ready client and calls `done` with the outcome. Null
-     * covers unreachable, refused and timed out alike.
+     * covers unreachable, refused and timed out alike. `port` reaches something else
+     * on the Mac than lpm itself: its login helper.
      */
     suspend fun <T : Any> run(
         mac: MacRecord,
         timeoutMs: Long,
+        port: Int = mac.port,
         onIdentity: (serverId: String?, serverName: String?, platform: String?) -> Unit =
             { _, _, _ -> },
         exchange: (client: LpmClient, done: (T) -> Unit) -> Unit
     ): T? {
         val credential = credentials.load(mac.localId) ?: return null
-        val host = reach(mac) ?: return null
+        val host = reach(mac, port) ?: return null
         val result = CompletableDeferred<T?>()
         val c = clients.create(
-            LpmClient.Endpoint(host, mac.port),
+            LpmClient.Endpoint(host, port),
             credential,
             deviceName,
             pinProvider = { credentials.loadPin(mac.localId) }
@@ -66,9 +68,9 @@ internal class MacErrand(
         }
     }
 
-    private suspend fun reach(mac: MacRecord): String? = prober.firstReachable(
+    private suspend fun reach(mac: MacRecord, port: Int): String? = prober.firstReachable(
         mac.hosts,
-        mac.port,
+        port,
         HostProber.Identity(pin = credentials.loadPin(mac.localId))
     )
 }

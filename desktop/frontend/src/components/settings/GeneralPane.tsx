@@ -5,6 +5,7 @@ import { SettingsSection } from "../SettingsSection";
 import { Toggle } from "../ui/Toggle";
 import { AboutSection } from "./AboutSection";
 import { DefaultDirectoryRow } from "./DefaultDirectoryRow";
+import { InterfaceSizeRow } from "./InterfaceSizeRow";
 import { KeepAwakeSection } from "./KeepAwakeSection";
 import { OpenAtLoginSection } from "./OpenAtLoginSection";
 import { PeerAboutSection } from "./PeerAboutSection";
@@ -39,6 +40,7 @@ export function GeneralPane() {
               ))}
             </div>
           </SettingsRow>
+          {shows("general.interfaceSize") && <InterfaceSizeRow />}
         </SettingsSection>
       )}
 

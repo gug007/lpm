@@ -59,6 +59,8 @@ interface SidebarFooterNavProps {
   showSettings: boolean;
   onSettings: () => void;
   onFeedback: () => void;
+  /** Installs the release a check found, the way the sidebar's update row does. */
+  onUpdate: () => void;
   /** Paired computers, whose Keep awake the footer's menu offers too. */
   peers?: PeerClient[];
 }
@@ -91,6 +93,7 @@ export function SidebarFooterNav({
   showSettings,
   onSettings,
   onFeedback,
+  onUpdate,
   peers = NO_PEERS,
 }: SidebarFooterNavProps) {
   const inSidebar = useSettingsStore((s) => s.sidebarNavInSidebar ?? DEFAULT_SIDEBAR_NAV);
@@ -287,6 +290,7 @@ export function SidebarFooterNav({
             isDefault={isDefault}
             onMove={(id) => move(id, true)}
             onReset={reset}
+            onUpdate={onUpdate}
           />
         )}
         {menuIds.includes("awake") && keepAwake.cup(FOOTER_ICON_CLASS)}

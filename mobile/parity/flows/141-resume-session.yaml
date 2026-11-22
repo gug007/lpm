@@ -1,6 +1,6 @@
-# Resume Session from the project's "…" menu: the past Claude Code and Codex
-# conversations grouped by day, filtered to one agent, one continued in a new
-# tab the phone opens.
+# Resume Session from the project's "…" menu: the past Claude Code, Codex,
+# Gemini, OpenCode and Cursor conversations grouped by day, filtered to one
+# agent, one continued in a new tab the phone opens.
 appId: cx.lpm.mobile
 name: 141-resume-session
 tags: [demo, terminal, agents]
@@ -25,7 +25,16 @@ tags: [demo, terminal, agents]
 - waitForAnimationToEnd:
     timeout: 3000
 - takeScreenshot: 1-sessions
-# The segmented control filters to one agent's conversations.
+# More agents than Claude and Codex have sessions here, so the filter is a row
+# of chips, one per agent.
+- tapOn: "Gemini"
+- extendedWaitUntil:
+    notVisible: "Fix checkout tax rounding"
+    timeout: 5000
+- assertVisible: "Add rate limits to the API"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-gemini
 - tapOn: "Codex"
 - extendedWaitUntil:
     notVisible: "Fix checkout tax rounding"
@@ -33,7 +42,7 @@ tags: [demo, terminal, agents]
 - assertVisible: "Write e2e tests for coupons"
 - waitForAnimationToEnd:
     timeout: 3000
-- takeScreenshot: 2-codex
+- takeScreenshot: 3-codex
 - tapOn: "Migrate cart store to Zustand"
 - extendedWaitUntil:
     notVisible: "Search conversations"

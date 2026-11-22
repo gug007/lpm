@@ -28,7 +28,10 @@ type Args = {
   onStage: (stage: number) => void;
   // The visitor took the wheel: the frame drops its prompts.
   onInteract: () => void;
+  onTurnEnd?: (turn: TurnEnd) => void;
 };
+
+export type TurnEnd = Extract<AppMessage, { type: "agent" }>;
 
 function isAppMessage(data: unknown): data is AppMessage {
   return (
@@ -57,11 +60,12 @@ export function useDemoFrame({
   onTour,
   onStage,
   onInteract,
+  onTurnEnd,
 }: Args) {
   const [ready, setReady] = useState(false);
   const [downloaded, setDownloaded] = useState(0);
   const [opened, setOpened] = useState(!tour?.opening);
-  const hooksRef = useRef({ onTour, onStage, onInteract });
+  const hooksRef = useRef({ onTour, onStage, onInteract, onTurnEnd });
   // Read when the app asks for it rather than on every render: a page hands
   // the same tour in for the life of the frame.
   const tourConfigRef = useRef(tour);
@@ -73,7 +77,7 @@ export function useDemoFrame({
   const pendingRunRef = useRef<number | null>(null);
 
   useLayoutEffect(() => {
-    hooksRef.current = { onTour, onStage, onInteract };
+    hooksRef.current = { onTour, onStage, onInteract, onTurnEnd };
     tourConfigRef.current = tour;
   });
 
@@ -93,6 +97,10 @@ export function useDemoFrame({
       const message = event.data;
       if (message.type === "progress") {
         setDownloaded(message.fraction);
+        return;
+      }
+      if (message.type === "agent") {
+        hooksRef.current.onTurnEnd?.(message);
         return;
       }
       if (message.type === "state") {

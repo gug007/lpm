@@ -23,6 +23,7 @@ import { IS_MIRROR_WINDOW } from "../../mirror";
 import { tellHost } from "../../peer/tellHost";
 import { nextId } from "./util";
 import { detachTab, moveTabToNewPane, type PaneEdge } from "../../paneMoves";
+import { DEFAULT_SHELL } from "../../shells";
 
 interface UsePaneOpsProps {
   projectName: string;
@@ -265,7 +266,7 @@ export function usePaneOps({
       if (!treeRef.current || !findPane(treeRef.current, paneId)) return;
       let newId: string;
       try {
-        newId = await StartTerminal(projectName);
+        newId = await StartTerminal(projectName, undefined, undefined, undefined, undefined, DEFAULT_SHELL);
       } catch (err) {
         terminalStartFailed(err);
         return;
@@ -280,7 +281,7 @@ export function usePaneOps({
       const newPaneId = nextId("pane");
       const newPane = makePaneLeaf(
         newPaneId,
-        [makeTerminal(newId, pickTerminalLabel(current))],
+        [makeTerminal(newId, pickTerminalLabel(current), { shell: DEFAULT_SHELL })],
         0,
       );
       applyTree(splitAtPane(current, paneId, direction, newPane), newPaneId);

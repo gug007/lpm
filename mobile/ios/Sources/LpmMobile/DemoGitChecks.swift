@@ -3,7 +3,9 @@ import Foundation
 /// Demo CI: storefront's open pull request with one failing test, api-gateway's
 /// main passing, the rest without CI. Running the failed jobs again shows them
 /// running for a few seconds, then passing, and the pull request ready to merge;
-/// merging it leaves storefront without CI. Mirrored in the Android demo.
+/// merging it leaves storefront without CI. Keep fixing until green plays two
+/// rounds over 28 seconds and ends with the checks passing. Mirrored in the
+/// Android demo.
 extension DemoServer {
     private static let rerunSeconds: TimeInterval = 6
 
@@ -20,6 +22,16 @@ extension DemoServer {
             self.world.ciRerunAt[project] = Date()
             self.pushAfter(0.4) { ["t": "gitChecksRerun", "project": project, "ok": true] }
         }
+        register("ciFixLoop") { [weak self] o in
+            guard let self, let project = o["project"] as? String else { return }
+            if o["on"] as? Bool == true {
+                self.startDemoFixLoop(project, agent: o["agent"] as? String ?? "")
+            } else {
+                self.world.ciFixLoops[project]?.cancelledAt = Date()
+                self.push(["t": "ciFixLoop", "project": project, "ok": true,
+                           "loop": self.demoFixLoop(project).map { $0 as Any } ?? NSNull()])
+            }
+        }
         register("gitMergePr") { [weak self] o in
             guard let self, let project = o["project"] as? String else { return }
             let number = o["number"] as? Int ?? 0
@@ -32,13 +44,45 @@ extension DemoServer {
         }
     }
 
+    private func startDemoFixLoop(_ project: String, agent: String) {
+        let id = world.ciFixLoopNextId
+        world.ciFixLoopNextId += 1
+        world.ciFixLoops[project] = DemoFixLoop(id: id, agent: agent.isEmpty ? "The agent" : agent, startedAt: Date())
+        for (index, step) in DemoFixLoop.steps.enumerated() {
+            pushAfter(index == 0 ? 0.2 : step.at + 0.05) { [weak self] in
+                guard let self, let run = self.world.ciFixLoops[project], run.id == id, run.cancelledAt == nil,
+                      let loop = self.demoFixLoop(project) else { return nil }
+                return ["t": "ciFixLoop", "project": project, "ok": true, "loop": loop]
+            }
+        }
+    }
+
+    /// The project's loop as the Mac would say it now, or nil with none.
+    private func demoFixLoop(_ project: String) -> [String: Any]? {
+        guard let run = world.ciFixLoops[project] else { return nil }
+        let step = run.step(at: Date())
+        var loop: [String: Any] = ["project": project, "agent": run.agent, "branch": world.git[project]?.branch ?? "",
+                                   "round": step.round, "maxRounds": 3, "state": step.state, "sha": step.sha,
+                                   "progress": step.progress]
+        switch step.state {
+        case "starting": loop["detail"] = "Opening the \(run.agent) tab…"
+        case "fixing": loop["detail"] = "\(run.agent) is fixing \(step.sha)"
+        case "watching": loop["detail"] = "\(run.agent) pushed \(step.sha) · watching the new run"
+        case "passed": loop["detail"] = "CI passed after 2 rounds"
+        default: loop["detail"] = "Stopped"
+        }
+        return loop
+    }
+
     private func demoChecksReply(_ project: String) -> [String: Any] {
         var reply: [String: Any] = ["t": "gitChecks", "project": project, "ok": true,
                                     "branch": world.git[project]?.branch ?? "", "pr": NSNull(), "commit": NSNull()]
         switch project {
         case "storefront" where !world.ciMerged.contains(project):
             let rerun = world.ciRerunAt[project].map { Date().timeIntervalSince($0) }
-            let testState = rerun.map { $0 < Self.rerunSeconds ? "pending" : "pass" } ?? "fail"
+            let loop = world.ciFixLoops[project].map { $0.step(at: Date()).state }
+            let testState = loop == "passed" ? "pass" : loop == "watching" ? "pending"
+                : rerun.map { $0 < Self.rerunSeconds ? "pending" : "pass" } ?? "fail"
             let checks: [[String: Any]] = [
                 ["name": "test (ubuntu-latest)", "workflow": "CI", "state": testState,
                  "url": "https://github.com/example/storefront/actions/runs/7001/job/1"],
@@ -60,6 +104,7 @@ extension DemoServer {
 
                 Find out why with `gh pr checks 42` and `gh run view 7001 --log-failed`, fix the cause, and run the same checks locally where you can to confirm the fix.
                 """
+                reply["fixLoopPrompt"] = (reply["fixPrompt"] as? String ?? "") + "\n\nWhen it's fixed, commit and push. lpm is watching CI on this branch and will send you any check that still fails (round 1 of 3)."
             }
         case "api-gateway":
             reply["commit"] = [
@@ -75,6 +120,39 @@ extension DemoServer {
         default:
             break
         }
+        if let loop = demoFixLoop(project) { reply["fixLoop"] = loop }
         return reply
+    }
+}
+
+/// A demo Keep fixing until green run: two rounds, then green.
+struct DemoFixLoop {
+    struct Step {
+        let at: TimeInterval
+        let state: String
+        let round: Int
+        let sha: String
+        let progress: Double
+    }
+
+    static let steps: [Step] = [
+        Step(at: 0, state: "starting", round: 1, sha: "4b8e2f1", progress: 0),
+        Step(at: 2, state: "fixing", round: 1, sha: "4b8e2f1", progress: 1.0 / 9),
+        Step(at: 9, state: "watching", round: 1, sha: "7c41e2a", progress: 2.0 / 9),
+        Step(at: 18, state: "fixing", round: 2, sha: "7c41e2a", progress: 4.0 / 9),
+        Step(at: 22, state: "watching", round: 2, sha: "9a3d0be", progress: 5.0 / 9),
+        Step(at: 28, state: "passed", round: 2, sha: "9a3d0be", progress: 1),
+    ]
+
+    let id: Int
+    let agent: String
+    let startedAt: Date
+    var cancelledAt: Date?
+
+    func step(at now: Date) -> Step {
+        let elapsed = (cancelledAt ?? now).timeIntervalSince(startedAt)
+        let reached = Self.steps.last { $0.at <= elapsed } ?? Self.steps[0]
+        guard cancelledAt != nil, reached.state != "passed" else { return reached }
+        return Step(at: elapsed, state: "cancelled", round: reached.round, sha: reached.sha, progress: 1)
     }
 }

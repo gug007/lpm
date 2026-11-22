@@ -25,7 +25,7 @@ vi.mock("./originActions", () => ({ recheckOrigin: mocks.recheck, showOriginDone
 vi.mock("./store/settings", () => ({ getSettings: () => mocks.settings }));
 vi.mock("./store/app", () => ({ useAppStore: { getState: () => ({ projects: mocks.projects }) } }));
 vi.mock("./sidebarAgents", () => ({
-  projectAgentRows: (p: ProjectInfo) => (mocks.busy.has(p.name) ? [{ state: "working" }] : []),
+  agentBusy: (p: ProjectInfo) => mocks.busy.has(p.name),
 }));
 
 type Run = typeof import("./autoPullRun");

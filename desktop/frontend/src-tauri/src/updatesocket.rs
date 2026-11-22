@@ -82,8 +82,11 @@ fn progress_lines(sink: UnixStream) -> Observer {
     })
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 fn plan(app: &AppHandle, target: Target, now: bool) -> Result<Plan, String> {
+    if !crate::updates::replaces_itself() {
+        return notice(target);
+    }
     if crate::updates::current_version() == "dev" {
         return Err(crate::updates::DEV_BUILD.into());
     }
@@ -99,15 +102,20 @@ fn plan(app: &AppHandle, target: Target, now: bool) -> Result<Plan, String> {
     Ok(Plan::Install(version))
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 fn plan(_app: &AppHandle, target: Target, _now: bool) -> Result<Plan, String> {
+    notice(target)
+}
+
+/// Where lpm doesn't replace itself: says where the new release is.
+fn notice(target: Target) -> Result<Plan, String> {
     let info = crate::updates::check_for_update()?;
     if target == Target::Stable || !info.update_avail {
         return Ok(Plan::Current(info.current_version));
     }
     Err(match info.download_url {
         Some(url) => format!(
-            "lpm installs updates by itself only on macOS. Download lpm {} from {url}",
+            "This lpm doesn't install updates by itself. Download lpm {} from {url}",
             info.latest_version
         ),
         None => format!(

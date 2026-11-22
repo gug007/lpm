@@ -28,6 +28,13 @@ function play(action: SeedAction | undefined, onLine: (line: string) => void): P
   return new Promise((resolve) => setTimeout(resolve, end + 50));
 }
 
+function page(projectName: unknown, actionName: unknown, otherwise: string) {
+  const seeded = find(project(String(projectName))?.actions, String(actionName))?.page;
+  return seeded
+    ? { refresh: 0, html: seeded.html, data: seeded.data, updatedAt: Date.now() }
+    : { refresh: 0, data: null, updatedAt: Date.now(), error: otherwise };
+}
+
 export const actionCommands: CommandMap = {
   run_action: ({ projectName, actionName, runId }) => {
     const action = start(projectName, actionName);
@@ -51,17 +58,10 @@ export const actionCommands: CommandMap = {
     return null;
   },
   stop_command: () => null,
-  // A popup's commands would run on a real Mac, so the sample says so instead.
-  action_popup: () => ({
-    refresh: 0,
-    data: null,
-    updatedAt: Date.now(),
-    error: "Popups run their commands on your own Mac.",
-  }),
-  action_app: () => ({
-    refresh: 0,
-    data: null,
-    updatedAt: Date.now(),
-    error: "Apps run their commands on your own Mac.",
-  }),
+  // A seeded page shows with the data its command would print; any other
+  // page's commands would run on a real Mac, so the sample says so instead.
+  action_popup: ({ projectName, actionName }) =>
+    page(projectName, actionName, "Popups run their commands on your own Mac."),
+  action_app: ({ projectName, actionName }) =>
+    page(projectName, actionName, "Apps run their commands on your own Mac."),
 };

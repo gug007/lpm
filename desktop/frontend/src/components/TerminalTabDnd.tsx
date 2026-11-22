@@ -22,13 +22,17 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   collectPanes,
+  isTerminalTab,
   terminalDisplayLabel,
   type PaneLeaf,
   type PaneNode,
 } from "../paneTree";
 import type { PaneEdge } from "../paneMoves";
 import { HeaderTab } from "./terminal/HeaderTab";
-import { isEdgeDropId, isStripDropId, parseEdgeDropId, stripDropPaneId, tabStripDropId } from "./tabDropIds";
+import { MINI_VIEW_DROP_ID, isEdgeDropId, isStripDropId, parseEdgeDropId, stripDropPaneId, tabStripDropId } from "./tabDropIds";
+import { MiniViewDropZone } from "./miniview/MiniViewDropZone";
+import { detectAICLI } from "../slashCommands";
+import type { AICLI } from "../types";
 
 // Tab droppables and strip droppables overlap: every tab's rect sits
 // inside its strip's rect, so corner- and center-based collision
@@ -49,7 +53,9 @@ const tabPreferringCollision: CollisionDetection = (args) => {
   }
   return rectIntersection({
     ...args,
-    droppableContainers: args.droppableContainers.filter((c) => !isEdgeDropId(String(c.id))),
+    droppableContainers: args.droppableContainers.filter(
+      (c) => !isEdgeDropId(String(c.id)) && c.id !== MINI_VIEW_DROP_ID,
+    ),
   });
 };
 
@@ -57,6 +63,8 @@ interface ActiveDrag {
   termId: string;
   label: string;
   fromPaneId: string;
+  // A terminal of its own, which a mini view can show.
+  terminal: boolean;
 }
 
 // `useDroppable`'s `isOver` alone can't drive the drop indicator: tabs
@@ -85,10 +93,13 @@ interface TerminalTabDndProps {
   onReorder: (paneId: string, order: string[]) => void;
   onMove: (fromPaneId: string, termId: string, toPaneId: string, toIdx?: number) => void;
   onMoveToNewPane: (fromPaneId: string, termId: string, targetPaneId: string, edge: PaneEdge) => void;
+  // A terminal tab dropped on the corner, to keep in a mini view; absent where
+  // there are none (a detached window).
+  onDropToMiniView?: (termId: string, label: string, agent: AICLI | null) => void;
   children: ReactNode;
 }
 
-export function TerminalTabDnd({ tree, onReorder, onMove, onMoveToNewPane, children }: TerminalTabDndProps) {
+export function TerminalTabDnd({ tree, onReorder, onMove, onMoveToNewPane, onDropToMiniView, children }: TerminalTabDndProps) {
   const [active, setActive] = useState<ActiveDrag | null>(null);
   const [overPaneId, setOverPaneId] = useState<string | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
@@ -167,6 +178,7 @@ export function TerminalTabDnd({ tree, onReorder, onMove, onMoveToNewPane, child
         termId: id,
         label: terminalDisplayLabel(tab),
         fromPaneId: pane.id,
+        terminal: isTerminalTab(tab),
       });
     }
   };
@@ -187,6 +199,14 @@ export function TerminalTabDnd({ tree, onReorder, onMove, onMoveToNewPane, child
     const termId = String(e.active.id);
     const fromPane = byTermId.get(termId);
     if (!fromPane) return;
+
+    if (e.over?.id === MINI_VIEW_DROP_ID) {
+      const tab = fromPane.tabs.find((t) => t.id === termId);
+      if (tab && isTerminalTab(tab)) {
+        onDropToMiniView?.(termId, terminalDisplayLabel(tab), detectAICLI(tab.startCmd ?? tab.resumeCmd));
+      }
+      return;
+    }
 
     const edge = e.over ? parseEdgeDropId(String(e.over.id)) : null;
     if (edge) {
@@ -224,6 +244,7 @@ export function TerminalTabDnd({ tree, onReorder, onMove, onMoveToNewPane, child
     >
       <DndHoverContext.Provider value={hoverState}>
         {children}
+        {active?.terminal && onDropToMiniView && <MiniViewDropZone />}
         {/* pointer-events-none lands on the position:fixed wrapper dnd-kit
             hit-tests, so the overlay can never swallow clicks aimed at the
             tabs beneath it. */}

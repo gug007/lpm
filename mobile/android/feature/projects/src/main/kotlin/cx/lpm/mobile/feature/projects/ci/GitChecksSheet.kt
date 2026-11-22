@@ -16,6 +16,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -58,6 +59,9 @@ import cx.lpm.mobile.feature.projects.newtab.ActionInputsSlot
  */
 internal class CiFixActions(
     val start: (LaunchpadOption) -> Boolean,
+    /** [start] with Keep fixing until green following it. */
+    val startUntilGreen: (LaunchpadOption) -> Boolean = start,
+    val stopLoop: () -> Unit = {},
     val resolve: (LaunchpadOption) -> Boolean = { false },
     val submitInputs: (Map<String, String>) -> Boolean,
     val confirm: () -> Unit,
@@ -66,10 +70,10 @@ internal class CiFixActions(
 
 /**
  * Every check on the branch (iOS `GitChecksSheet`), with the desktop menu's ways on:
- * fixing them with any agent the project's New Tab sheet offers, in a new tab, running
- * the failed jobs again, and the checks on GitHub; above them, merging the pull request
- * once it's ready ([merge]). [actionInputs] asks for an agent action's inputs before it
- * runs.
+ * fixing them with any agent the project's New Tab sheet offers, in a new tab (once, or
+ * until CI is green), running the failed jobs again, and the checks on GitHub; above them,
+ * merging the pull request once it's ready ([merge]). [actionInputs] asks for an agent
+ * action's inputs before it runs.
  */
 @Composable
 internal fun GitChecksSheet(
@@ -100,8 +104,8 @@ internal fun GitChecksSheet(
                         checks != null -> ChecksList(
                             state,
                             checks,
-                            onFix = { if (fix.start(it)) fixing() },
-                            onResolve = { if (fix.resolve(it)) fixing() },
+                            fix = fix,
+                            onStart = fixing,
                             onRerun,
                             merge,
                             logs
@@ -150,8 +154,8 @@ private fun MergedHaptic(merged: MergedPullRequest?) {
 private fun ChecksList(
     state: GitChecksUiState,
     checks: GitChecks,
-    onFix: (LaunchpadOption) -> Unit,
-    onResolve: (LaunchpadOption) -> Unit,
+    fix: CiFixActions,
+    onStart: () -> Unit,
     onRerun: () -> Unit,
     merge: CiMergeActions,
     logs: CheckLogs
@@ -159,6 +163,13 @@ private fun ChecksList(
     val uri = LocalUriHandler.current
     val colors = LpmTheme.colors
     var openLogs by remember { mutableStateOf(emptySet<String>()) }
+    var keepFixing by rememberSaveable { mutableStateOf(false) }
+    val looping = state.fixLoop?.running == true
+    val loopsNext = keepFixing && state.canKeepFixing
+    val onFix: (LaunchpadOption) -> Unit = {
+        if ((if (loopsNext) fix.startUntilGreen else fix.start)(it)) onStart()
+    }
+    val onResolve: (LaunchpadOption) -> Unit = { if (fix.resolve(it)) onStart() }
     Column(Modifier.verticalScroll(rememberScrollState())) {
         state.merged?.let { GitMergedSection(it) }
         GitMergeSection(state, checks, merge)
@@ -210,9 +221,27 @@ private fun ChecksList(
                 }
             }
         }
+        if (state.canKeepFixing && state.canFix) {
+            CiFixLoopSection(
+                loop = state.fixLoop,
+                error = state.fixLoopError,
+                canFix = checks.failed > 0 && checks.fixPrompt != null,
+                keepFixing = keepFixing,
+                onKeepFixing = { keepFixing = it },
+                onStop = fix.stopLoop
+            )
+        }
         ListSection(footer = state.rerunError, footerColor = colors.red) {
-            if (checks.failed > 0 && checks.fixPrompt != null && state.canFix) {
-                CiFixRows(state.fixTabs, onFix)
+            if (checks.failed > 0 && checks.fixPrompt != null && state.canFix && !looping) {
+                CiFixRows(
+                    state.fixTabs,
+                    onFix,
+                    detail = if (loopsNext) {
+                        R.string.ci_keep_fixing_description
+                    } else {
+                        R.string.ci_fix_description
+                    }
+                )
             }
             if (checks.failingRunIds.isNotEmpty()) {
                 ListRow(
@@ -235,7 +264,7 @@ private fun ChecksList(
             }
             checks.githubUrl?.let { url ->
                 ButtonRow(
-                    text = stringResource(R.string.ci_open_github),
+                    text = stringResource(R.string.ci_open_github, checks.pr?.site ?: "GitHub"),
                     onClick = { uri.openUri(url) },
                     icon = painterResource(DesignR.drawable.ic_open_in_new)
                 )

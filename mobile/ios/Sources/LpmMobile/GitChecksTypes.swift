@@ -40,11 +40,12 @@ struct CiCheck: Equatable, Identifiable {
         [workflow, commit.map { "on \($0)" } ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
-    /// A failed GitHub Actions job, whose log the Mac can read.
+    /// A failed GitHub Actions or GitLab CI job, whose log the Mac can read.
     var hasLog: Bool { state == .fail && runId != nil }
 
+    /// The GitHub Actions run, or the GitLab job, the Mac runs again.
     var runId: String? {
-        guard let range = url.range(of: "/actions/runs/") else { return nil }
+        guard let range = url.range(of: "/actions/runs/") ?? url.range(of: "/-/jobs/") else { return nil }
         let id = url[range.upperBound...].prefix { $0.isNumber }
         return id.isEmpty ? nil : String(id)
     }
@@ -70,13 +71,15 @@ struct CiCheck: Equatable, Identifiable {
 /// How a project's branch stands on CI (`gitChecks`): its open pull request's
 /// checks, else those of the commit it last pushed.
 struct GitChecks: Equatable {
-    struct PullRequest: Equatable {
+    struct PullRequest: Equatable, ForgeRef {
         let number: Int
         let url: String
         let title: String
         var isDraft = false
         /// How GitHub stands on merging it; nil from a Mac that can't merge.
         var merge: GitMergeOffer?
+
+        var isGitLab: Bool { url.contains("/-/merge_requests/") }
     }
 
     struct Commit: Equatable {
@@ -91,12 +94,18 @@ struct GitChecks: Equatable {
     let commit: Commit?
     var checks: [CiCheck]
     let fixPrompt: String?
+    /// `fixPrompt` asking for a push, for an agent Keep fixing until green follows.
+    var fixLoopPrompt: String?
+    /// The project's Keep fixing until green loop, running or lately ended.
+    var fixLoop: CiFixLoop?
     /// What an agent is told to resolve the pull request's conflicts.
     var resolvePrompt: String?
 
     init?(_ o: [String: Any]) {
         branch = o["branch"] as? String ?? ""
         fixPrompt = (o["fixPrompt"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        fixLoopPrompt = (o["fixLoopPrompt"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        fixLoop = (o["fixLoop"] as? [String: Any]).flatMap(CiFixLoop.init)
         resolvePrompt = (o["resolvePrompt"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         if let p = o["pr"] as? [String: Any], let number = p["number"] as? Int {
             pr = PullRequest(number: number, url: p["url"] as? String ?? "", title: p["title"] as? String ?? "",
@@ -159,7 +168,7 @@ struct GitChecks: Equatable {
     }
 
     var heading: String {
-        if let pr { return "Checks on #\(pr.number)" }
+        if let pr { return "Checks on \(pr.ref)" }
         return "Checks on \(branch) · \(commit?.short ?? "")"
     }
 
@@ -167,7 +176,7 @@ struct GitChecks: Equatable {
 
     var githubURL: URL? {
         let base = pr?.url ?? commit?.url ?? ""
-        return base.isEmpty ? nil : URL(string: base + "/checks")
+        return base.isEmpty ? nil : URL(string: base + (pr?.isGitLab == true ? "/pipelines" : "/checks"))
     }
 
     /// The failed jobs of `runIds` running again, until the Mac says how they went.
@@ -187,4 +196,49 @@ struct GitChecks: Equatable {
         let count = ahead == 1 ? "1 commit" : "\(ahead) commits"
         return "\(count) not pushed yet. These checks are for \(commit.short), the last one you pushed."
     }
+}
+
+/// Keep fixing until green on a project (`ciFixLoop`): the agent a Fix with …
+/// opened gets each new failure after it pushes, until the checks pass.
+struct CiFixLoop: Equatable {
+    let project: String
+    let agent: String
+    let branch: String
+    let round: Int
+    let maxRounds: Int
+    /// "starting", "fixing", "watching", then "passed", "stopped" or "cancelled".
+    let state: String
+    let sha: String
+    /// Where it stands, in one line, as the Mac words it.
+    let detail: String
+    let progress: Double
+
+    var running: Bool { ["starting", "fixing", "watching"].contains(state) }
+    var roundLabel: String { "Round \(round) of \(maxRounds)" }
+
+    init?(_ o: [String: Any]) {
+        guard let project = o["project"] as? String, !project.isEmpty,
+              let state = o["state"] as? String, !state.isEmpty else { return nil }
+        self.project = project
+        self.state = state
+        agent = o["agent"] as? String ?? ""
+        branch = o["branch"] as? String ?? ""
+        round = o["round"] as? Int ?? 1
+        maxRounds = o["maxRounds"] as? Int ?? 3
+        sha = o["sha"] as? String ?? ""
+        detail = o["detail"] as? String ?? ""
+        progress = (o["progress"] as? NSNumber)?.doubleValue ?? 0
+    }
+}
+
+/// A pull request as its forge names it: a GitLab merge request goes by !N.
+protocol ForgeRef {
+    var number: Int { get }
+    var isGitLab: Bool { get }
+}
+
+extension ForgeRef {
+    var ref: String { isGitLab ? "!\(number)" : "#\(number)" }
+    var site: String { isGitLab ? "GitLab" : "GitHub" }
+    var noun: String { isGitLab ? "merge request" : "pull request" }
 }

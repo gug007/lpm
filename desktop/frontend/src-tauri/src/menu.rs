@@ -21,6 +21,9 @@ const ID_SELECT_ALL: &str = "lpm-menu-select-all";
 const ID_UNDO: &str = "lpm-menu-undo";
 const ID_REDO: &str = "lpm-menu-redo";
 const ID_QUIT: &str = "lpm-menu-quit";
+const ID_BIGGER: &str = "lpm-menu-bigger";
+const ID_SMALLER: &str = "lpm-menu-smaller";
+const ID_ACTUAL_SIZE: &str = "lpm-menu-actual-size";
 
 // Installed on macOS only. On Linux/Windows it would be an in-window menubar
 // whose Ctrl accelerators (Ctrl+A, Ctrl+,) take keys from the terminal; the app
@@ -94,6 +97,17 @@ pub fn build_and_set(app: &AppHandle) -> tauri::Result<()> {
         .item(&select_all)
         .build()?;
 
+    // The interface size, as Settings › General offers it. No keys: ⌘+ and ⌘−
+    // already size the terminal text.
+    let bigger = MenuItemBuilder::with_id(ID_BIGGER, "Bigger").build(app)?;
+    let smaller = MenuItemBuilder::with_id(ID_SMALLER, "Smaller").build(app)?;
+    let actual_size = MenuItemBuilder::with_id(ID_ACTUAL_SIZE, "Actual Size").build(app)?;
+    let view = SubmenuBuilder::new(app, "View")
+        .item(&bigger)
+        .item(&smaller)
+        .item(&actual_size)
+        .build()?;
+
     let window = SubmenuBuilder::new(app, "Window")
         .minimize()
         .maximize()
@@ -104,6 +118,7 @@ pub fn build_and_set(app: &AppHandle) -> tauri::Result<()> {
     let menu = MenuBuilder::new(app)
         .item(&app_menu)
         .item(&edit)
+        .item(&view)
         .item(&window)
         .build()?;
     app.set_menu(menu)?;
@@ -130,6 +145,9 @@ pub fn handle_event(app: &AppHandle, event: MenuEvent) {
             let _ = app.emit("menu-redo", ());
         }
         ID_QUIT => crate::lifecycle::request_quit(app),
+        ID_BIGGER => size_step(app, 1),
+        ID_SMALLER => size_step(app, -1),
+        ID_ACTUAL_SIZE => size_step(app, 0),
         ID_CHECK_UPDATES => {
             show_main(app);
             let app2 = app.clone();
@@ -146,6 +164,11 @@ fn show_main(app: &AppHandle) {
         let _ = win.show();
         let _ = win.set_focus();
     }
+}
+
+/// The main window keeps the setting, so it takes the step and saves it.
+fn size_step(app: &AppHandle, step: i32) {
+    let _ = app.emit_to("main", "menu-interface-size", step);
 }
 
 fn show_and_emit(app: &AppHandle, event: &str) {

@@ -47,6 +47,7 @@ final class DemoServer {
         registerNotesHandlers()
         registerLimitsHandlers()
         registerKeepAwakeHandlers()
+        registerPowerHandlers()
         registerUploadHandlers()
         registerAgentHandlers()
         registerFilesHandlers()

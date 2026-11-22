@@ -124,6 +124,8 @@ export const GLOBAL_PEER_EVENTS = new Set<string>([
   "git-changed",
   // A pull request armed to merge once its checks pass: { path: projectRoot, … }.
   "pr-merge-watch",
+  // Keep fixing until green on a host project: { project: hostProjectName, … }.
+  "ci-fix-loop",
   "ports-changed",
   "port-auto-forwarded",
   "port-forward-failed",
@@ -426,6 +428,14 @@ export function translatePeerEventPayload(
         const p = payload as { path?: unknown };
         if (typeof p.path === "string") {
           return { ...(payload as object), path: prefixRoot(slug, p.path) };
+        }
+      }
+      return payload;
+    case "ci-fix-loop":
+      if (payload && typeof payload === "object") {
+        const p = payload as { project?: unknown };
+        if (typeof p.project === "string") {
+          return { ...(payload as object), project: prefixName(slug, p.project) };
         }
       }
       return payload;

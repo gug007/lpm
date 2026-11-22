@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { forgeWords, useGitHost } from "../gitForge";
 import { toast } from "../notifications/toast";
 import { AutoPullMenuItems } from "./AutoPullMenuItems";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
@@ -142,6 +143,7 @@ function GitSubmenuItems({
   status,
   loading,
 }: GitSubmenuItemsProps) {
+  const words = forgeWords(useGitHost(projectPath ?? "", Boolean(projectPath))?.kind);
   if (loading) {
     return <Hint>Loading…</Hint>;
   }
@@ -245,7 +247,7 @@ function GitSubmenuItems({
         disabled={noChanges}
         title={noChanges ? "No changes to commit" : undefined}
       />
-      <ContextMenuItem label="Create PR…" icon={<PRIcon />} onClick={close(onCreatePR)} />
+      <ContextMenuItem label={`Create ${words.short}…`} icon={<PRIcon />} onClick={close(onCreatePR)} />
       <ContextMenuItem label="History" icon={<HistoryIcon />} onClick={close(onHistory)} />
       <ContextMenuSeparator />
       <Tooltip content={status.branch || "Detached HEAD"} align="start" triggerClassName="flex w-full">

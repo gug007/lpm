@@ -30,13 +30,13 @@ const REQUIREMENTS: Requirement[] = [
   {
     icon: "windows",
     title: "Windows",
-    body: "Windows 11 on an x64 PC; there is no ARM64 build. Install Git for Windows first: terminals, services, and agents run in its Git Bash.",
+    body: "Windows 11 on an x64 PC; there is no ARM64 build. Install Git for Windows first: terminals, services, and agents run in its Git Bash. Voice dictation and the Video button are Mac-only.",
     beta: true,
   },
   {
     icon: "linux",
     title: "Linux",
-    body: "A 64-bit x86 (amd64) desktop with glibc 2.35 or newer, such as Ubuntu 22.04 and up; there is no ARM build. Choose the .deb, .rpm, or AppImage; with the AppImage, install Git, SSH, and a clipboard tool (wl-clipboard or xclip) yourself.",
+    body: "A 64-bit x86 (amd64) desktop with glibc 2.35 or newer, such as Ubuntu 22.04 and up; there is no ARM build. Choose the .deb, .rpm, or AppImage; with the AppImage, install Git, SSH, and a clipboard tool (wl-clipboard or xclip) yourself. Voice dictation and the Video button are Mac-only.",
     beta: true,
   },
   {

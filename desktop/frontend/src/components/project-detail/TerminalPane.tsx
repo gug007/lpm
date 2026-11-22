@@ -43,7 +43,7 @@ interface TerminalPaneProps {
   onActionContextMenu?: (e: MouseEvent, action: ActionInfo) => void;
   onZoneContextMenu?: (e: MouseEvent, zone: ZoneInfo) => void;
   onFooterContextMenu?: (e: MouseEvent<HTMLDivElement>) => void;
-  onNewTerminal: () => void;
+  onNewTerminal: (shell?: string) => void;
   onEditService: (serviceName: string) => void;
   onResumeSession?: () => void;
   // The empty state's recent conversations, and how one of them resumes.
@@ -128,7 +128,7 @@ export function TerminalPane({
           hiddenSessions={hiddenSessions}
           onResumeRow={onResumeRow}
           onNewTerminal={onNewTerminal}
-          onRunCommand={(command) => terminalRef.current?.runCommand(command)}
+          onRunCommand={(command, shell) => terminalRef.current?.runCommand(command, shell)}
           onOpenAgent={(launch) => terminalRef.current?.openAgent(launch)}
           onOpenLayout={(root) => terminalRef.current?.openLayout(root)}
           onRunAction={onRunAction}

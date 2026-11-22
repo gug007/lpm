@@ -137,6 +137,7 @@ extension AppModel {
         case .details: link.sheetOpen = true
         case .enterNewCode: break
         case .wake: wakeActiveMac()
+        case .openLpm: openLpmOnActiveMac()
         }
     }
 

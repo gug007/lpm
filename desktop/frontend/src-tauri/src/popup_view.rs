@@ -119,12 +119,11 @@ pub fn popup_view_open(
         LogicalSize::new(rect.width.max(1.0), rect.height.max(1.0)),
     )
     .map_err(|e| format!("add_child: {e}"))?;
+    let webview = app.get_webview(&label).ok_or("popup webview missing")?;
+    crate::interface_size::zoom_new(&webview);
     // Tauri only loads a `data:` page by navigating to it; the about:blank the
     // webview starts on never reports a load.
-    app.get_webview(&label)
-        .ok_or("popup webview missing")?
-        .navigate(page)
-        .map_err(|e| e.to_string())?;
+    webview.navigate(page).map_err(|e| e.to_string())?;
     std::thread::spawn(move || {
         std::thread::sleep(LOAD_WITHIN);
         give_up_unless_loaded(&app, &label);

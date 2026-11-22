@@ -408,6 +408,8 @@ final class AppModel {
     var macUpdate = MacUpdateStore()
     // Keep awake on the live Mac (`model.keepAwake`), same split.
     var keepAwake = KeepAwakeStore()
+    // Lock or sleep the live Mac (`model.power`), same split.
+    var power = PowerStore()
     // The `lpm generate` requests waiting on the live Mac (`model.generate`), same split.
     var generate = GenerateStore()
     // The weekly recap card (`model.weeklyRecap`), same split.
@@ -509,6 +511,7 @@ final class AppModel {
         tokenActivity.model = self
         macUpdate.model = self
         keepAwake.model = self
+        power.model = self
         generate.model = self
         weeklyRecap.model = self
         agentLaunch.model = self
@@ -1468,6 +1471,8 @@ final class AppModel {
         macUpdate.model = self
         keepAwake = KeepAwakeStore()
         keepAwake.model = self
+        power = PowerStore()
+        power.model = self
         generate = GenerateStore()
         generate.model = self
         weeklyRecap = WeeklyRecapStore()
@@ -2729,6 +2734,7 @@ final class AppModel {
         wireMachines(c)
         wireMacUpdate(c)
         wireKeepAwake(c)
+        wirePower(c)
         wireGenerate(c)
         wireAutoPull(c)
         wireAgentArchive(c)
@@ -2793,6 +2799,7 @@ final class AppModel {
                 c.requestDuplicateDefaults()
                 c.requestJobs()
                 self.keepAwake.noteReady(features: c.hostFeatures)
+                self.power.noteReady(features: c.hostFeatures)
                 self.generate.noteReady(features: c.hostFeatures)
                 // Demo Mode has no APNs identity and no relay — skip push registration.
                 if !self.demoMode && !self.isVisit {
@@ -2828,6 +2835,9 @@ final class AppModel {
         }
         c.onWakeTargets = { [weak self] serverId, targets in
             self?.rememberWakeTargets(serverId: serverId, targets: targets)
+        }
+        c.onLauncher = { [weak self] serverId, port in
+            self?.rememberLauncher(serverId: serverId, port: port)
         }
         c.onFarewell = { [weak self, weak c] reason, at in
             guard let self, let c, c === self.client else { return }

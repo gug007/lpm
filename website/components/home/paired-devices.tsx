@@ -35,15 +35,15 @@ const COPY = {
     eyebrow: "Across devices",
     title: "The same terminal, on your Mac and in your pocket",
     description:
-      "When Claude Code, Codex or Gemini CLI needs you, your iPhone gets a notification. Answer from the phone, then take control back at your desk — one session, running on your Mac the whole time.",
+      "When Claude Code, Codex or Gemini CLI needs you, your iPhone gets a notification. Allow, deny or reply right from it, or open the terminal there — one session, running on your Mac the whole time.",
     summary:
-      "An illustration of one Claude Code session on a Mac and an iPhone. The agent tightens a login rate limiter in lpm on the Mac, then stops to ask before committing, and the locked iPhone gets a notification. Opening it brings up the same terminal on the phone, which takes control, so the Mac shows “Active in iPhone” with a Take control button. From the phone you answer “yes — commit & open the PR” and the agent carries on. Then the Mac takes control back and the phone shows the terminal is active there.",
+      "An illustration of one Claude Code session on a Mac and an iPhone. The agent tightens a login rate limiter in lpm on the Mac, then stops to ask before committing, and the locked iPhone gets a notification with the question. It opens to show Reply, Review Changes and Open Tab. Open Tab brings up the same terminal on the phone, which takes control, so the Mac shows “Active in iPhone” with a Take control button. From the phone you answer “yes — commit & open the PR” and the agent carries on. Then the Mac takes control back and the phone shows the terminal is active there.",
   },
   // The home copy for Windows and Linux visitors.
   homePc: {
     title: "The same terminal, on your computer and in your pocket",
     description:
-      "When Claude Code, Codex or Gemini CLI needs you, your iPhone gets a notification. Answer from the phone, then take control back at your desk — one session, running on your computer the whole time.",
+      "When Claude Code, Codex or Gemini CLI needs you, your iPhone gets a notification. Allow, deny or reply right from it, or open the terminal there — one session, running on your computer the whole time.",
   },
   computer: {
     title: "Your other computers, in the same sidebar",
@@ -61,7 +61,7 @@ const COPY = {
     description:
       "A Claude Code turn stops for approval on the Mac, the push lands on your iPhone, and you answer there. The Mac then takes the terminal back; the session itself never leaves the Mac.",
     summary:
-      "An animation of one Claude Code session handed between a Mac and an iPhone. The agent pauses before it commits, and a push reaches the locked phone. Tapping it moves the terminal to the phone, so the Mac tab reads “Active in iPhone” and offers Take control. The reply goes in from the phone, the agent keeps working, and then the Mac takes the terminal back.",
+      "An animation of one Claude Code session handed between a Mac and an iPhone. The agent pauses before it commits, and a push with its question reaches the locked phone, with Reply, Review Changes and Open Tab under it. Open Tab moves the terminal to the phone, so the Mac tab reads “Active in iPhone” and offers Take control. The reply goes in from the phone, the agent keeps working, and then the Mac takes the terminal back.",
   },
 };
 

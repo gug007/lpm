@@ -35,6 +35,7 @@ services:
 | `claudeAccounts` | Ordered Claude account ids that new sessions take turns on; see [Claude account](#claude-account). |
 | `autoPull` | `true` or `false`: whether the app fast-forwards this project from origin by itself; omit to follow the parent or the Settings mode. See [Auto pull](#auto-pull). |
 | `work_status` | Status badge written by the app's status menu. Keep it as returned; do not author it. |
+| `terminal` | `shell`: what this project's plain terminals open in on this computer; see [Terminal shell](#terminal-shell). |
 | `extends` | Bare template names whose actions sit under this file's; see `sharing.md`. |
 | `services` | Long-running commands. |
 | `actions` | One-shot commands and buttons. |
@@ -80,6 +81,20 @@ autoPull: true
 - The app only fast-forwards a branch that tracks origin and is behind it, with no unpushed commits, no uncommitted changes to tracked files, no merge or rebase in progress, and no agent working in the project. A pull can be undone from the app.
 - When origin moves in one project (a push from lpm or a terminal, or a fetch), the app fetches the other copies of that repository on that branch, here and on connected computers, so the ones set to auto pull catch up within seconds rather than at their next background check.
 - Set or clear it with `lpm auto-pull <project> --set on|off|default` (see `lpm-cli`; needs the app running). The app writes the project's own file, so it also works on a duplicate, where `--layer project` would write the parent's.
+
+## Terminal shell
+
+New plain terminals open in the login shell unless Settings › Terminal › Shell picks another. A project can pick its own, in its project file only (never `.lpm.yml`, since the shell is this computer's):
+
+```yaml
+terminal:
+  shell: fish
+```
+
+- `shell` is a name or a path: `zsh`, `bash`, `fish`, `nu`, `/opt/homebrew/bin/fish`; on Windows `pwsh`, `powershell`, `cmd`, `bash` (Git Bash), or `wsl` (the default distro; `wsl:Ubuntu` names one).
+- It changes plain terminals only. Services, actions, and agent tabs keep the login shell, so commands stay portable.
+- A shell this computer doesn't have opens the login shell. A duplicate without its own `terminal` uses its parent's.
+- An SSH project's terminals run the server's login shell, so the key does nothing there.
 
 ## Services
 
@@ -190,7 +205,7 @@ worktreeFiles:
 
 Without `worktreeFiles`, worktrees copy the ignored files that look like local configuration (`.env*` other than templates, `*.local`, keys); `worktreeFiles: {}` brings none. The New worktree dialog's Options write this key, and a worktree of a worktree uses the original project's choice.
 
-The parent must exist and load successfully. Every duplicate inherits the parent’s services, actions, zones, profiles, and Claude account choice (`claudeAccount` or `claudeAccounts`) without per-entry overrides, and follows the parent's `autoPull` unless it sets its own. A duplicate's own file may hold only `name`, `root`, `label`, `parent_name`, `worktree`, `claudeAccount`, `claudeAccounts`, `autoPull`, and `work_status`; the validator rejects `extends`, `ssh`, `services`, `actions`, `terminals`, `profiles`, and `zones` there.
+The parent must exist and load successfully. Every duplicate inherits the parent’s services, actions, zones, profiles, and Claude account choice (`claudeAccount` or `claudeAccounts`) without per-entry overrides, and follows the parent's `autoPull` unless it sets its own. A duplicate's own file may hold only `name`, `root`, `label`, `parent_name`, `worktree`, `claudeAccount`, `claudeAccounts`, `autoPull`, `terminal`, and `work_status`; the validator rejects `extends`, `ssh`, `services`, `actions`, `terminals`, `profiles`, and `zones` there.
 
 `lpm config get` and `lpm config apply` with `--layer project --project <duplicate>` read and write the parent's file, so a change there reaches the parent and every copy.
 

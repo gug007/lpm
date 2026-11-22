@@ -82,6 +82,15 @@
     <string name="keep_awake_menu_always">Until Turned Off</string>
     <string name="keep_awake_selected">Selected</string>
     <string name="keep_awake_kept">Kept awake</string>
+    <string name="power_menu">Lock or Sleep</string>
+    <string name="power_armed">Sleeps when agents finish</string>
+    <string name="power_lock">Lock Screen</string>
+    <string name="power_sleep_now">Sleep Now</string>
+    <string name="power_sleep_when_idle">Sleep When Agents Finish</string>
+    <string name="power_sleep_when_idle_on">On · tap to cancel</string>
+    <string name="power_sleep_confirm_title">Put %1$s to sleep?</string>
+    <string name="power_sleep_confirm_message">lpm Link reconnects once it wakes.</string>
+    <string name="power_cancel">Cancel</string>
     <string name="keep_awake_your_mac">your Mac</string>
     <!-- lpm generate: an agent asking for an image or audio -->
     <string name="generate_paste_key">Paste key</string>

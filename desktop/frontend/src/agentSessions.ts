@@ -1,6 +1,5 @@
 import { ListAgentSessions } from "../bridge/commands";
-import type { AgentSessionProvider } from "./agentSession";
-import { agentSessionRefOf } from "./agentSession";
+import { RESUMABLE_PROVIDERS, resumableSessionRefOf, type ResumableProvider } from "./agentSession";
 import { providerMeta } from "./agentStatus";
 import type { SessionTitleSource } from "./paneTree";
 import { cleanPrompt } from "./sessionText";
@@ -8,7 +7,7 @@ import type { PersistedHistoryEntry } from "./terminals";
 
 // One past conversation as the agent's own store knows it.
 export interface AgentSessionSummary {
-  provider: AgentSessionProvider;
+  provider: ResumableProvider;
   sessionId: string;
   title?: string | null;
   preview?: string | null;
@@ -30,7 +29,7 @@ export type TitleOrigin = "named" | "prompt" | "tab";
 // A row in the picker: a conversation plus everything needed to relaunch it.
 export interface SessionRow {
   key: string;
-  provider: AgentSessionProvider | null;
+  provider: ResumableProvider | null;
   sessionId: string | null;
   title: string;
   titleOrigin: TitleOrigin;
@@ -70,9 +69,19 @@ export async function listAgentSessions(
 // launched. Options the original run carried are lost either way — resume
 // replaces them — so the bare form is what a manual resume would type.
 export function resumeCmdFor(session: AgentSessionSummary): string {
-  return session.provider === "codex"
-    ? `codex resume ${session.sessionId}`
-    : `claude --resume ${session.sessionId}`;
+  const id = session.sessionId;
+  switch (session.provider) {
+    case "codex":
+      return `codex resume ${id}`;
+    case "gemini":
+      return `gemini --resume ${id}`;
+    case "opencode":
+      return `opencode --session ${id}`;
+    case "cursor":
+      return `cursor-agent --resume ${id}`;
+    default:
+      return `claude --resume ${id}`;
+  }
 }
 
 function historyLabel(entry: PersistedHistoryEntry): string {
@@ -127,7 +136,7 @@ export function mergeSessionRows({
   const rows: SessionRow[] = [];
 
   for (const entry of history) {
-    const ref = agentSessionRefOf(entry.resumeCmd);
+    const ref = resumableSessionRefOf(entry.resumeCmd);
     if (ref && !byId.has(ref.sessionId)) byId.set(ref.sessionId, entry);
   }
 
@@ -159,7 +168,7 @@ export function mergeSessionRows({
 
   const seen = new Set(rows.map((row) => row.sessionId));
   for (const entry of history) {
-    const ref = agentSessionRefOf(entry.resumeCmd);
+    const ref = resumableSessionRefOf(entry.resumeCmd);
     if (ref && seen.has(ref.sessionId)) continue;
     rows.push({
       key: `history:${entry.resumeCmd}`,
@@ -196,10 +205,17 @@ export function mergeSessionRows({
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
-export type SessionFilter = "all" | AgentSessionProvider;
+export type SessionFilter = "all" | ResumableProvider;
 
 export function filterByProvider(rows: SessionRow[], filter: SessionFilter): SessionRow[] {
   return filter === "all" ? rows : rows.filter((row) => row.provider === filter);
+}
+
+// The agents the rows hold conversations from, in a fixed order, so the
+// filter offers one choice per agent that has something to show.
+export function providersIn(rows: SessionRow[]): ResumableProvider[] {
+  const present = new Set(rows.map((row) => row.provider));
+  return RESUMABLE_PROVIDERS.filter((provider) => present.has(provider));
 }
 
 const DAY_MS = 86_400_000;

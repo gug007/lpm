@@ -80,6 +80,8 @@ import { HeldCommandsBar } from "./project-detail/HeldCommandsBar";
 import { CloseColumnButton } from "./project-detail/CloseColumnButton";
 import { useFollowState } from "../hooks/useFollowState";
 import { peerSlugOf } from "../peer/markers";
+import { isWindows } from "../platform";
+import { wslDistroOf } from "../wslPath";
 import { peerAlias, usePeerState } from "../peer/usePeerState";
 import { liveServices } from "../serviceExit";
 import { useBrowserRequests } from "../hooks/useBrowserRequests";
@@ -194,9 +196,9 @@ export function ProjectDetail({
     keysActive,
   });
 
-  const handleNewTerminal = useCallback(() => {
+  const handleNewTerminal = useCallback((shell?: string) => {
     switchDetailView("terminal");
-    terminalRef.current?.createTerminal();
+    terminalRef.current?.createTerminal(false, shell);
   }, [switchDetailView]);
   // With no pane for ⌘T's popup to open on, the empty state shows it.
   const [newTabAsked, setNewTabAsked] = useState(false);
@@ -868,6 +870,7 @@ export function ProjectDetail({
           <Header
             projectName={displayName}
             machineName={machineName}
+            wslDistro={isWindows ? wslDistroOf(project.root) : null}
             showProjectName={showProjectName}
             sidebarCollapsed={sidebarCollapsed}
             rowRef={headerRowRef}

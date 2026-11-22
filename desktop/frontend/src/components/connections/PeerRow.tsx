@@ -2,6 +2,7 @@ import { Server } from "lucide-react";
 import { PeerSetEnabled } from "../../../bridge/commands";
 import type { PeerClient } from "../../peer/usePeerState";
 import { Toggle } from "./Toggle";
+import { HostDiskLine } from "./HostDiskLine";
 import { Row } from "./GroupedList";
 import { LaptopIcon } from "./LaptopIcon";
 import { RowMenu } from "./RowMenu";
@@ -46,6 +47,7 @@ export function PeerRow({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-[var(--text-primary)]">{name}</p>
           {status}
+          <HostDiskLine slug={peer.slug} connected={peer.connected} />
         </div>
         {quickAction}
         <RowMenu ariaLabel={`Options for ${name}`} items={menu} />

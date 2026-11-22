@@ -7,7 +7,7 @@ import { BuiltInTailscaleRow } from "./BuiltInTailscaleRow";
 import { ReachOptions } from "./ReachOptions";
 import { SECONDARY_BUTTON } from "./styles";
 import { REMOTE_TONE_STYLE } from "../../remoteStatus";
-import { reachHeadline, type KeepAwakeStatus } from "../../mobile/reachStatus";
+import { reachHeadline, type KeepAwakeStatus, type OpenFromPhone } from "../../mobile/reachStatus";
 import type { Tailnet } from "../../hooks/useTailnetState";
 import { builtInReachable } from "../../tailnetStatus";
 import { useMachineWords } from "../settings/useMachineWords";
@@ -22,6 +22,7 @@ export interface ReachState {
   bindError: string | null;
   keepAwake: boolean;
   keepAwakeStatus: KeepAwakeStatus;
+  openFromPhone?: OpenFromPhone;
   identityCode: string;
 }
 
@@ -36,6 +37,7 @@ export function ReachCard({
   onUseApp,
   onPort,
   onKeepAwake,
+  onOpenFromPhone,
 }: {
   reach: ReachState;
   tailnet: Tailnet;
@@ -47,6 +49,8 @@ export function ReachCard({
   onUseApp: (on: boolean) => void;
   onPort: (port: number) => void;
   onKeepAwake: (on: boolean) => void;
+  /** Absent where the login helper isn't offered. */
+  onOpenFromPhone?: (on: boolean) => void;
 }) {
   const words = useMachineWords();
   const headline = reachHeadline(
@@ -134,6 +138,8 @@ export function ReachCard({
           keepAwake={reach.keepAwake}
           keepAwakeStatus={reach.keepAwakeStatus}
           onKeepAwake={onKeepAwake}
+          openFromPhone={reach.openFromPhone?.on ?? false}
+          onOpenFromPhone={onOpenFromPhone}
           identityCode={reach.identityCode}
         />
       </div>

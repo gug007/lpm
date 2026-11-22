@@ -15,15 +15,15 @@ use tauri::AppHandle;
 /// client never sends the frames to a host without it.
 pub(crate) const SELF_UPDATE_FEATURE: &str = "selfUpdate";
 
-/// Only the macOS build replaces itself; elsewhere lpm is updated the way it was
-/// installed, so the feature is not offered at all.
+/// Only a build that replaces itself offers it; elsewhere lpm is updated the
+/// way it was installed, so the feature is not offered at all.
 pub(crate) fn advertised() -> bool {
-    cfg!(target_os = "macos")
+    crate::updates::replaces_itself()
 }
 
 pub(crate) fn handle_start(app: &AppHandle, out: &SyncSender<String>, v: &Value) {
     let req_id = v.get("reqId").cloned().unwrap_or(Value::Null);
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     {
         let app = app.clone();
         let out = out.clone();
@@ -42,13 +42,13 @@ pub(crate) fn handle_start(app: &AppHandle, out: &SyncSender<String>, v: &Value)
             let _ = out.try_send(frame);
         });
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", windows)))]
     {
         let _ = app;
         let _ = out.try_send(result_frame(
             &req_id,
             false,
-            Value::String("lpm updates itself only on macOS.".into()),
+            Value::String("This lpm doesn't update itself.".into()),
         ));
     }
 }
@@ -62,7 +62,7 @@ pub(crate) fn handle_cancel(app: &AppHandle, out: &SyncSender<String>, v: &Value
 
 /// One install step as the frame the asking Mac reads: `update-status` becomes
 /// `phase`, `update-progress` becomes `progress` (whole percent).
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
 fn progress_frame(req_id: &Value, event: &str, payload: Value) -> Option<String> {
     let field = match event {
         "update-status" => "phase",
@@ -107,6 +107,7 @@ mod tests {
 
     #[test]
     fn offered_only_where_lpm_replaces_itself() {
-        assert_eq!(advertised(), cfg!(target_os = "macos"));
+        assert_eq!(advertised(), crate::updates::replaces_itself());
+        assert!(advertised() || !cfg!(target_os = "macos"));
     }
 }

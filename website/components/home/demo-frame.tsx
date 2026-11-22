@@ -5,7 +5,7 @@ import { DemoHintPill } from "./demo-hint-pill";
 import { DemoInvite } from "./demo-invite";
 import { WINDOW_FRAME } from "./demo-window";
 import type { Tour, TourHandle, TourState } from "./tour";
-import { useDemoFrame } from "./use-demo-frame";
+import { useDemoFrame, type TurnEnd } from "./use-demo-frame";
 import { useParked } from "./use-parked";
 import { useHintExpiry, useTourHint } from "./use-tour-hint";
 
@@ -23,6 +23,7 @@ type Props = {
   placeholder?: (progress: number) => ReactNode;
   // Takes over the window while the app carries on underneath.
   cover?: ReactNode;
+  onTurnEnd?: (turn: TurnEnd) => void;
 };
 
 function appUrl(tour?: Tour) {
@@ -42,6 +43,7 @@ export function DemoFrame({
   onTour,
   placeholder,
   cover,
+  onTurnEnd,
 }: Props) {
   const frameRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -56,6 +58,7 @@ export function DemoFrame({
     parked,
     tourRef,
     onTour,
+    onTurnEnd,
     onStage: (stage) => {
       pill.advance(stage);
       if (stage > opening) setInvited(false);

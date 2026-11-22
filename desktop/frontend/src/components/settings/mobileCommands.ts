@@ -4,6 +4,7 @@ import {
   RemoteRevokeDevice,
   RemoteSetConfig,
   RemoteSetKeepAwake,
+  RemoteSetOpenFromPhone,
   RemoteStartPairing,
   RemoteState,
   TailnetSetEnabled,
@@ -18,6 +19,9 @@ export interface MobileCommands {
   state: () => Promise<unknown>;
   setConfig: (enabled: boolean, port: number, tailscale: boolean) => Promise<unknown>;
   setKeepAwake: (enabled: boolean) => Promise<unknown>;
+  // Starts lpm's login helper so a phone can open lpm here while it's closed.
+  // Absent for a connected machine: its phones reach it through this one.
+  setOpenFromPhone?: (enabled: boolean) => Promise<unknown>;
   renameDevice: (id: string, name: string) => Promise<unknown>;
   revokeDevice: (id: string) => Promise<unknown>;
   startPairing: () => Promise<unknown>;
@@ -37,6 +41,7 @@ export const LOCAL_MOBILE: MobileCommands = {
   state: () => RemoteState(),
   setConfig: (enabled, port, tailscale) => RemoteSetConfig(enabled, port, tailscale),
   setKeepAwake: (enabled) => RemoteSetKeepAwake(enabled),
+  setOpenFromPhone: (enabled) => RemoteSetOpenFromPhone(enabled),
   renameDevice: (id, name) => RemoteRenameDevice(id, name),
   revokeDevice: (id) => RemoteRevokeDevice(id),
   startPairing: () => RemoteStartPairing(),

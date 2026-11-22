@@ -15,6 +15,7 @@ import { CopyMacSelect, type CopyTargetOption } from "./CopyMacSelect";
 import { ShellCommandInput } from "./ShellCommandInput";
 import { SwitchRow } from "./SwitchRow";
 import { WorktreeFilesRow } from "./WorktreeFilesRow";
+import { DuplicateSpaceLine } from "./DuplicateSpaceLine";
 import { SideBySideOption } from "./SideBySideOption";
 import { CollapsibleSection } from "./CollapsibleSection";
 import { SegmentedControl } from "./ui/SegmentedControl";
@@ -398,6 +399,10 @@ export function BulkDuplicateDialog({
   // one it falls back to the source-level `remote` prop.
   const targetOf = (c: CopyDraft) => c.target || sourceName;
   const anyRemoteCopy = showTargets ? copies.some((c) => isPeerName(targetOf(c))) : remote;
+  const spaceTarget = copies[0] ? targetOf(copies[0]) : sourceName;
+  const spaceWhere = isPeerName(spaceTarget)
+    ? (targets.find((t) => t.name === spaceTarget)?.label ?? MACHINE.otherMachine)
+    : MACHINE.thisMachine;
   // A copy can go in a folder of the machine it is made on: this Mac, or a
   // paired one that shares its folders.
   const copyFolders = (c: CopyDraft) => {
@@ -1031,6 +1036,13 @@ export function BulkDuplicateDialog({
       </div>
 
       <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--border)] px-6 pb-6 pt-4">
+        <DuplicateSpaceLine
+          project={spaceTarget}
+          worktree={isWorktree}
+          count={count}
+          noun={noun}
+          where={spaceWhere}
+        />
         <button
           type="button"
           onClick={onCancel}

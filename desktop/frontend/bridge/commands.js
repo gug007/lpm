@@ -111,6 +111,12 @@ export function AttachProject(projectName) {
 export function BrowseFolder(defaultDir) {
   return invoke("browse_folder", { defaultDir });
 }
+export function WslDistros() {
+  return invoke("wsl_distros");
+}
+export function WslHome(distro) {
+  return invoke("wsl_home", { distro });
+}
 export function CancelAIGenerate(genId) {
   return invoke("cancel_ai_generate", { genId });
 }
@@ -271,6 +277,9 @@ export function StartDuplicateWorktreeProject(name, label, reinstallDeps, folder
 export function DuplicateStatus(name) {
   return invoke("duplicate_status", { name });
 }
+export function GitHostInfo(cwd) {
+  return invoke("git_host_info", { cwd });
+}
 export function BranchPullRequest(cwd) {
   return invoke("branch_pull_request", { cwd });
 }
@@ -301,6 +310,15 @@ export function CancelPullRequestMerge(cwd) {
 }
 export function PullRequestMergeWatch(cwd) {
   return invoke("pull_request_merge_watch", { cwd });
+}
+export function StartCiFixLoop(projectName, agent, prompt) {
+  return invoke("start_ci_fix_loop", { projectName, agent, prompt });
+}
+export function CancelCiFixLoop(projectName) {
+  return invoke("cancel_ci_fix_loop", { projectName });
+}
+export function CiFixLoopState(projectName) {
+  return invoke("ci_fix_loop_state", { projectName });
 }
 export function CreatePullRequest(cwd, title, body, base, draft) {
   return invoke("create_pull_request", { cwd, title, body, base, draft });
@@ -457,6 +475,9 @@ export function GitChangedFilesStaged(cwd) {
 }
 export function GitCommit(cwd, message, files) {
   return invoke("git_commit", { cwd, message, files });
+}
+export function GitCommitChecked(cwd, message, files, amend, skipHooks) {
+  return invoke("git_commit_checked", { cwd, message, files, amend, skipHooks });
 }
 export function GitAmendCommit(cwd, message, files, hash) {
   return invoke("git_amend_commit", { cwd, message, files, hash });
@@ -885,6 +906,9 @@ export function RemoteRenameDevice(id, name) {
 export function RemoteSetKeepAwake(enabled) {
   return invoke("remote_set_keep_awake", { enabled });
 }
+export function RemoteSetOpenFromPhone(enabled) {
+  return invoke("remote_set_open_from_phone", { enabled });
+}
 export function KeepAwakeState() {
   return invoke("keep_awake_state");
 }
@@ -1114,6 +1138,18 @@ export function ProjectSizeBreakdown(name) {
 export function FreeProjectSpace(name) {
   return invoke("free_project_space", { name });
 }
+export function DuplicateSpace(name, worktree) {
+  return invoke("duplicate_space", { name, worktree });
+}
+export function CopySpace(name) {
+  return invoke("copy_space", { name });
+}
+export function FreeCopySpace(name) {
+  return invoke("free_copy_space", { name });
+}
+export function MachineDiskSpace() {
+  return invoke("machine_disk_space");
+}
 export function RemoveProject(name) {
   return invoke("remove_project", { name });
 }
@@ -1220,6 +1256,9 @@ export function SaveTextFile(defaultName, content) {
 export function SaveWindowSize(width, height) {
   return invoke("save_window_size", { width, height });
 }
+export function SetInterfaceSize(size) {
+  return invoke("set_interface_size", { size });
+}
 export function SearchBranches(cwd, query) {
   return invoke("search_branches", { cwd, query });
 }
@@ -1283,8 +1322,13 @@ export function StartService(projectName, paneIndex) {
 // `tab` ({ label, emoji, color, actionName }) names the tab for another Mac that
 // runs the terminal, which adopts it as a tab of its own; locally it's unused.
 // `account`: the Claude account the user moved the tab to.
-export function StartTerminal(projectName, sessionId, fixedAccount, tab, account) {
-  return invoke("start_terminal", { projectName, sessionId, fixedAccount, tab, account });
+// `shell`: a plain terminal's shell, an id from ListShells or "default" (the
+// project's, else this machine's); left out, the login shell every agent uses.
+export function StartTerminal(projectName, sessionId, fixedAccount, tab, account, shell) {
+  return invoke("start_terminal", { projectName, sessionId, fixedAccount, tab, account, shell });
+}
+export function ListShells(projectName) {
+  return invoke("list_shells", { projectName });
 }
 export function StartTerminalForConfig(projectName, terminalName, fixedAccount, tab) {
   return invoke("start_terminal_for_config", { projectName, terminalName, fixedAccount, tab });

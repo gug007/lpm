@@ -41,9 +41,10 @@ fun TerminalConnectionBanner(
     macLabel: String,
     device: String,
     onAction: (IssueAction) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    canOpenLpm: Boolean = false
 ) {
-    val copy = issue.issueCopy(macLabel, device)
+    val copy = issue.issueCopy(macLabel, device, canOpenLpm = canOpenLpm)
     val action = copy.actions.firstOrNull { it != IssueAction.Details }
     val style = LpmTheme.typography.footnote
     Row(
@@ -100,6 +101,7 @@ fun TerminalConnectionBannerRoute(
         issue = issue,
         macLabel = state.view.macLabel,
         device = state.device,
+        canOpenLpm = state.canOpenLpm,
         modifier = modifier,
         onAction = { context.performIssueAction(it, issue, viewModel::perform) }
     )

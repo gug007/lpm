@@ -99,11 +99,11 @@ internal fun GitMergeSection(state: GitChecksUiState, checks: GitChecks, actions
         val haptics = LocalHapticFeedback.current
         val confirmRisky = LocalConfirmRisky.current
         ProminentButton(
-            text = stringResource(R.string.ci_merge_button, pr.number),
+            text = stringResource(R.string.ci_merge_button, pr.ref),
             onClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
                 val deletes = offer?.deletesBranch == true || deleteBranch
-                confirmRisky.confirm("Merge pull request #${pr.number}") {
+                confirmRisky.confirm("Merge ${pr.noun} ${pr.ref}") {
                     actions.merge(method, deletes)
                 }
             },
@@ -152,16 +152,14 @@ private fun MergeStatusRow(status: GitMergeStatus) {
 @Composable
 internal fun GitMergedSection(merged: MergedPullRequest) {
     ListSection(
-        footer = stringResource(
-            if (merged.deletedBranch) {
-                R.string.ci_merged_branch_deleted
-            } else {
-                R.string.ci_merged_branch_kept
-            }
-        )
+        footer = if (merged.deletedBranch) {
+            stringResource(R.string.ci_merged_branch_deleted, merged.site)
+        } else {
+            stringResource(R.string.ci_merged_branch_kept)
+        }
     ) {
         MergeRow(
-            title = stringResource(R.string.ci_merged, merged.number),
+            title = stringResource(R.string.ci_merged, merged.ref),
             detail = merged.title.takeIf { it.isNotEmpty() },
             leading = { StatusIcon(DesignR.drawable.ic_verified_fill, LpmTheme.colors.green) }
         )

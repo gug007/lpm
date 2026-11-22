@@ -56,7 +56,9 @@ export type AppMessage =
   | { source: typeof SOURCE; type: "ready" }
   // How many steps have happened, whoever did them, and whether the mimed
   // tour is still doing them.
-  | { source: typeof SOURCE; type: "state"; stage: number; playing: boolean };
+  | { source: typeof SOURCE; type: "state"; stage: number; playing: boolean }
+  // An agent's turn ended: finished, or waiting for an answer.
+  | { source: typeof SOURCE; type: "agent"; project: string; agent: string; state: "done" | "waiting" };
 
 // The iframe's URL picks its data: `?seed=sample` for the sample workspace
 // (`&omit=a,b` leaves projects out so a tour can add them), `?config=preview`

@@ -54,7 +54,12 @@ sealed interface GitMergeStatus {
 }
 
 /** A pull request this phone just merged, shown until the sheet closes. */
-data class MergedPullRequest(val number: Int, val title: String, val deletedBranch: Boolean)
+data class MergedPullRequest(
+    override val number: Int,
+    val title: String,
+    val deletedBranch: Boolean,
+    override val isGitLab: Boolean = false
+) : ForgeRef
 
 /** GitHub can't merge the open pull request because it conflicts with its base. */
 val GitChecks.conflicts: Boolean
@@ -73,7 +78,8 @@ val GitChecks.mergeStatus: GitMergeStatus?
         val offer = pr.merge ?: return null
         if (pr.isDraft || offer.state == "DRAFT") {
             return GitMergeStatus.Blocked(
-                "Draft pull requests can't be merged. Mark it ready for review on GitHub."
+                "Draft ${pr.noun}s can't be merged. " +
+                    "Mark it ready for review on ${pr.site}."
             )
         }
         when (verdict) {

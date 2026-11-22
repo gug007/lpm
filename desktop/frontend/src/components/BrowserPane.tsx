@@ -17,6 +17,7 @@ import { useBrowserUrls } from "../store/browserUrls";
 import { getSettings, saveSettings } from "../store/settings";
 import { isDarkTheme } from "../theme";
 import { isLinux, isWindows } from "../platform";
+import { toWindowPoints } from "../interfaceZoom";
 import { toast } from "../notifications/toast";
 import { projectAddress } from "../peer/projectPorts";
 import { toTarget } from "./browserTarget";
@@ -79,7 +80,7 @@ function EmbeddedBrowserPane({ id, projectName, projectLabel, active, services =
       const el = holeRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
-      const rect = { x: r.left, y: r.top, w: r.width, h: r.height };
+      const rect = toWindowPoints({ x: r.left, y: r.top, w: r.width, h: r.height });
       const last = lastRectRef.current;
       if (last && last.x === rect.x && last.y === rect.y && last.w === rect.w && last.h === rect.h) {
         return; // unchanged — skip the IPC (e.g. unrelated scrolling)
@@ -148,7 +149,7 @@ function EmbeddedBrowserPane({ id, projectName, projectLabel, active, services =
       return;
     }
     const r = holeRef.current?.getBoundingClientRect();
-    const rect = r ? { x: r.left, y: r.top, w: r.width, h: r.height } : { x: 0, y: 0, w: 1, h: 1 };
+    const rect = r ? toWindowPoints({ x: r.left, y: r.top, w: r.width, h: r.height }) : { x: 0, y: 0, w: 1, h: 1 };
     lastRectRef.current = rect;
     openedRef.current = true;
     OpenBrowser(id, target, rect.x, rect.y, rect.w, rect.h);

@@ -90,8 +90,8 @@ export function GlobalTerminalsView({
     [actions],
   );
 
-  const handleNewTerminal = useCallback(() => {
-    terminalRef.current?.createTerminal();
+  const handleNewTerminal = useCallback((shell?: string) => {
+    terminalRef.current?.createTerminal(false, shell);
   }, []);
   // With no pane for ⌘T's popup to open on, the empty state shows it.
   const [newTabAsked, setNewTabAsked] = useState(false);
@@ -104,7 +104,7 @@ export function GlobalTerminalsView({
     [],
   );
   const runCommand = useCallback(
-    (command: string) => terminalRef.current?.runCommand(command),
+    (command: string, shell?: string) => terminalRef.current?.runCommand(command, shell),
     [],
   );
   useKeyboardShortcut({ key: "t", meta: true }, handleNewTab, visible);

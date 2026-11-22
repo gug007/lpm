@@ -35,6 +35,7 @@ import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
 import cx.lpm.mobile.core.model.MacBuild
 import cx.lpm.mobile.core.model.MacKeepAwake
+import cx.lpm.mobile.core.model.MacPower
 import cx.lpm.mobile.core.model.MacUpdateCheck
 import cx.lpm.mobile.core.model.MacUpdateStep
 import cx.lpm.mobile.core.model.MachinePairOffer
@@ -92,7 +93,8 @@ sealed interface Inbound {
         val platform: String?,
         val build: MacBuild?,
         val features: Set<String>,
-        val wake: List<WakeTarget> = emptyList()
+        val wake: List<WakeTarget> = emptyList(),
+        val launcher: Int? = null
     ) : Inbound
 
     // The Mac is about to close this connection on purpose: "sleep", "quit" or "off".
@@ -339,6 +341,13 @@ sealed interface Inbound {
 
     data class GitChecksRerun(val project: String, val error: String?) : Inbound
 
+    /** Keep fixing until green, as a reply or as any change after it. */
+    data class CiFixLoop(
+        val project: String,
+        val loop: cx.lpm.mobile.core.model.CiFixLoop?,
+        val error: String?
+    ) : Inbound
+
     /** The open pull request merged, and whether its branch went with it. */
     data class GitMergePr(
         val project: String,
@@ -540,6 +549,15 @@ sealed interface Inbound {
     // answer to a change asked for here (`state` rides a refusal too).
     data class KeepAwake(val state: MacKeepAwake?) : Inbound
     data class KeepAwakeSet(val state: MacKeepAwake?, val error: String?) : Inbound
+
+    // Lock or sleep: what the Mac can do and whether it sleeps once its agents
+    // finish, and the answer to lockScreen / sleepNow / sleepWhenIdle.
+    data class Power(val state: MacPower) : Inbound
+    data class PowerSet(val action: MacPower.Action, val state: MacPower?, val error: String?) :
+        Inbound
+
+    // The login helper's answer to launchLpm: null once lpm answers, else why not.
+    data class LaunchLpm(val error: String?) : Inbound
     data object Pong : Inbound
 
     companion object {

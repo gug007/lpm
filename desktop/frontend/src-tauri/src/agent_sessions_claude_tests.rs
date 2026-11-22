@@ -1,11 +1,16 @@
 use super::*;
+use crate::agent_sessions::{scan_page, StorePage};
 use serde_json::json;
 use std::fs;
-use std::time::Duration;
+use std::time::{Duration, UNIX_EPOCH};
 use tempfile::TempDir;
 
 const SESSION_A: &str = "019fac59-0da4-7160-b104-5b8429ba1054";
 const SESSION_B: &str = "019fac59-0da4-7160-b104-5b8429ba1055";
+
+fn summaries(candidates: &[Candidate], needle: &str, limit: usize) -> StorePage {
+    scan_page(candidates, needle, limit, summary)
+}
 
 fn transcript(dir: &Path, session_id: &str, lines: &[Value]) -> PathBuf {
     let path = dir.join(format!("{session_id}.jsonl"));
@@ -201,9 +206,9 @@ fn summaries_stop_at_the_page_size_without_a_search() {
         SESSION_B,
     );
 
-    let (page, scanned) = summaries(&[a, b], "", 1);
-    assert_eq!(page.len(), 1);
-    assert_eq!(scanned, 1);
+    let page = summaries(&[a, b], "", 1);
+    assert_eq!(page.rows.len(), 1);
+    assert!(page.more, "the second transcript wasn't opened");
 }
 
 #[test]
@@ -226,10 +231,10 @@ fn summaries_keep_scanning_for_a_search_match() {
         SESSION_B,
     );
 
-    let (page, scanned) = summaries(&[a, b], "resume", 10);
-    assert_eq!(page.len(), 1);
-    assert_eq!(page[0].session_id, SESSION_B);
-    assert_eq!(scanned, 2);
+    let page = summaries(&[a, b], "resume", 10);
+    assert_eq!(page.rows.len(), 1);
+    assert_eq!(page.rows[0].session_id, SESSION_B);
+    assert!(!page.more, "both transcripts were opened");
 }
 
 /// lpm's own generators run `claude -p` in the project directory, so their
@@ -241,7 +246,7 @@ fn summaries_drop_headless_runs() {
     headless["entrypoint"] = json!("sdk-cli");
     let candidate = candidate(transcript(dir.path(), SESSION_A, &[headless]), SESSION_A);
 
-    assert!(summaries(&[candidate], "", 10).0.is_empty());
+    assert!(summaries(&[candidate], "", 10).rows.is_empty());
 }
 
 #[test]
@@ -256,5 +261,5 @@ fn summaries_drop_transcripts_with_nothing_to_show() {
         SESSION_A,
     );
 
-    assert!(summaries(&[empty], "", 10).0.is_empty());
+    assert!(summaries(&[empty], "", 10).rows.is_empty());
 }

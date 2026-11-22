@@ -1,6 +1,8 @@
 import { firstLine } from "./autoPR";
 import { toast } from "./notifications/toast";
-import { GitCommit, GitPushRebasing } from "../bridge/commands";
+import { GitPushRebasing } from "../bridge/commands";
+import { commitChecked } from "./commitHook";
+import { showCommitHookToast } from "./commitHookToast";
 import { getSettings } from "./store/settings";
 import { DEFAULT_PUSH_CONFIG, pushFlags } from "./gitOptions";
 
@@ -10,6 +12,8 @@ export async function runAutoCommit(opts: {
   paths: string[];
   andPush: boolean;
   generate: () => Promise<string>;
+  /** Commit with `--no-verify`: only from a hook failure's Commit without hooks. */
+  skipHooks?: boolean;
 }): Promise<void> {
   const { projectName, projectPath, paths, andPush, generate } = opts;
   const title = `${andPush ? "Committing and pushing" : "Committing"} ${projectName}`;
@@ -19,7 +23,13 @@ export async function runAutoCommit(opts: {
     const msg = (await generate())?.trim();
     if (!msg) throw new Error("empty commit message");
     toast.loading(title, { id, description: "Committing", progress: { step: 1, steps } });
-    await GitCommit(projectPath, msg, paths);
+    const failure = await commitChecked({ cwd: projectPath, message: msg, files: paths, skipHooks: opts.skipHooks });
+    if (failure) {
+      showCommitHookToast(id, { projectName, message: msg, paths, failure }, (skipHooks) =>
+        void runAutoCommit({ ...opts, generate: async () => msg, skipHooks }),
+      );
+      return;
+    }
     if (!andPush) {
       toast.success(`${projectName}: committed`, { id, description: firstLine(msg) });
       return;

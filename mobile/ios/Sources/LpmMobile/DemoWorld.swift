@@ -89,6 +89,8 @@ struct DemoWorld {
     // Keep awake: the demo Mac starts kept awake while its agents work.
     var keepAwakeMode = "agents"
     var keepAwakeEndsAt: Date?
+    // Lock or Sleep: whether the demo Mac sleeps once its agents finish.
+    var powerArmed = false
     // lpm commands: the global list, and each project's own once it's asked for.
     var commandsGlobal = DemoWorld.globalCommandsSeed
     var commandsByProject: [String: CommandList] = [:]
@@ -224,6 +226,8 @@ struct DemoWorld {
     var gitAutoNextId = 1
     var ciRerunAt: [String: Date] = [:] // project -> when its failed CI jobs were run again
     var ciMerged: Set<String> = [] // projects whose pull request was merged from the phone
+    var ciFixLoops: [String: DemoFixLoop] = [:] // project -> its Keep fixing until green run
+    var ciFixLoopNextId = 1
     var gitDiscardNextId = 1
     // Terminals whose sample question was answered: they wait on no dialog since.
     var answeredDialogs: Set<String> = []

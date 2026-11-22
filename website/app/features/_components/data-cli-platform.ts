@@ -113,8 +113,8 @@ export const PLATFORM_AREA: FeatureArea = {
   features: [
     {
       title: "Built-in updates",
-      body: "lpm checks for a new version at launch and daily. On macOS, click Update and it relaunches in place while your services keep running.",
-      note: "On Windows and Linux, the update notice opens the new download in your browser for you to install.",
+      body: "lpm checks for a new version at launch and daily. On macOS and Windows, click Update and it relaunches in place while your services keep running.",
+      note: "On Linux, the update notice opens the new download in your browser for you to install.",
     },
     {
       title: "Clean uninstall",

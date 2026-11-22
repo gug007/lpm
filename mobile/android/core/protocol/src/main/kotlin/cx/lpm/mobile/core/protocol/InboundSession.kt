@@ -7,6 +7,7 @@ import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
 import cx.lpm.mobile.core.model.MacBuild
 import cx.lpm.mobile.core.model.MacKeepAwake
+import cx.lpm.mobile.core.model.MacPower
 import cx.lpm.mobile.core.model.MacUpdateCheck
 import cx.lpm.mobile.core.model.MacUpdateStep
 import cx.lpm.mobile.core.model.MachinePairOffer
@@ -15,6 +16,7 @@ import cx.lpm.mobile.core.model.USAGE_GENERIC_ERROR
 import cx.lpm.mobile.core.model.WakeTarget
 import cx.lpm.mobile.core.model.WeeklyRecap
 import cx.lpm.mobile.core.model.bool
+import cx.lpm.mobile.core.model.int
 import cx.lpm.mobile.core.model.list
 import cx.lpm.mobile.core.model.long
 import cx.lpm.mobile.core.model.obj
@@ -48,7 +50,8 @@ internal val sessionParsers = parsers {
             platform = o.string("platform"),
             build = MacBuild.parse(o),
             features = o.strings("features").orEmpty().toSet(),
-            wake = o.objects("wake").orEmpty().mapNotNull(WakeTarget::parse)
+            wake = o.objects("wake").orEmpty().mapNotNull(WakeTarget::parse),
+            launcher = o.int("launcher")
         )
     }
     put("bye") { o -> Inbound.Bye(reason = o.str("reason"), at = o.long("at")) }
@@ -129,5 +132,16 @@ internal val sessionParsers = parsers {
             state = o.obj("state")?.let(MacKeepAwake::parse),
             error = o.failure("That change didn't go through.")
         )
+    }
+    put("launchLpm") { o -> Inbound.LaunchLpm(error = o.failure("lpm didn't start.")) }
+    put("power") { o -> Inbound.Power(o.obj("state")?.let(MacPower::parse) ?: MacPower()) }
+    for (action in MacPower.Action.entries) {
+        put(action.rawValue) { o ->
+            Inbound.PowerSet(
+                action = action,
+                state = o.obj("state")?.let(MacPower::parse),
+                error = o.failure(action.failure)
+            )
+        }
     }
 }

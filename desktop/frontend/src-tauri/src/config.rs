@@ -124,6 +124,15 @@ pub fn ensure_dirs() -> Result<(), String> {
     Ok(())
 }
 
+/// Delete a folder without leaving it half emptied: on Windows a folder in use
+/// is left as it was (dirdelete.rs). Missing path is success.
+pub fn remove_folder(p: &std::path::Path) -> Result<(), String> {
+    #[cfg(windows)]
+    return crate::dirdelete::remove(p);
+    #[cfg(not(windows))]
+    remove_dir_all_retry(p)
+}
+
 /// Recursive delete with backoff for transiently-held files (e.g. a process
 /// still flushing inside the tree). Missing path is success.
 pub fn remove_dir_all_retry(p: &std::path::Path) -> Result<(), String> {

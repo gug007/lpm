@@ -11,6 +11,28 @@ export interface AgentSessionRef {
   sessionId: string;
 }
 
+// Every agent whose past conversations Resume session lists. Claude and Codex
+// also report the conversation a live tab runs; the others are only known by
+// the command a tab resumed one with.
+export type ResumableProvider = AgentSessionProvider | "gemini" | "opencode" | "cursor";
+
+export const RESUMABLE_PROVIDERS: readonly ResumableProvider[] = [
+  "claude",
+  "codex",
+  "gemini",
+  "opencode",
+  "cursor",
+];
+
+export interface ResumableRef {
+  provider: ResumableProvider;
+  sessionId: string;
+}
+
+export function isResumableProvider(value: string): value is ResumableProvider {
+  return (RESUMABLE_PROVIDERS as readonly string[]).includes(value);
+}
+
 export interface ParsedAgentCommand {
   tokens: string[];
   programIdx: number;
@@ -43,7 +65,7 @@ export function agentProviderOfCommand(
   return program === "claude" || program === "codex" ? program : null;
 }
 
-function validRef(provider: AgentSessionProvider, sessionId: string | undefined) {
+function validRef<P extends ResumableProvider>(provider: P, sessionId: string | undefined) {
   return sessionId && isValidAgentSessionId(sessionId)
     ? { provider, sessionId }
     : null;
@@ -53,9 +75,10 @@ export function agentSessionRefOf(
   resumeCmd: string | undefined,
 ): AgentSessionRef | null {
   const parsed = parseAgentCommand(resumeCmd);
-  if (!parsed) return null;
-  const { tokens, programIdx, program } = parsed;
+  return parsed ? claudeOrCodexRef(parsed) : null;
+}
 
+function claudeOrCodexRef({ tokens, programIdx, program }: ParsedAgentCommand): AgentSessionRef | null {
   if (program === "codex" && tokens[programIdx + 1] === "resume") {
     return validRef("codex", tokens[programIdx + 2]);
   }
@@ -69,6 +92,43 @@ export function agentSessionRefOf(
     return validRef("claude", tokens[programIdx + 2]);
   }
   return null;
+}
+
+// The value a flag carries, as `--flag value` or `--flag=value`.
+function flagValue(tokens: string[], from: number, names: string[]): string | undefined {
+  for (let i = from; i < tokens.length; i++) {
+    if (names.includes(tokens[i])) return tokens[i + 1];
+    const eq = tokens[i].indexOf("=");
+    if (eq > 0 && names.includes(tokens[i].slice(0, eq))) return tokens[i].slice(eq + 1);
+  }
+  return undefined;
+}
+
+// The conversation a command resumes, for any agent Resume session lists:
+// `gemini --resume <id>`, `opencode --session <id>`, `cursor-agent --resume
+// <id>`, and Claude's and Codex's own forms. Gemini also takes `latest` or a
+// list position, which name no conversation.
+export function resumableSessionRefOf(resumeCmd: string | undefined): ResumableRef | null {
+  const parsed = parseAgentCommand(resumeCmd);
+  if (!parsed) return null;
+  const ref = claudeOrCodexRef(parsed);
+  if (ref) return ref;
+  const { tokens, programIdx, program } = parsed;
+  const from = programIdx + 1;
+  if (program === "gemini") {
+    const id = flagValue(tokens, from, ["--resume", "-r"]);
+    return id === "latest" || /^\d+$/.test(id ?? "") ? null : validRef("gemini", id);
+  }
+  if (program === "opencode") return validRef("opencode", flagValue(tokens, from, ["--session", "-s"]));
+  if (program === "cursor-agent" || program === "agent") {
+    return validRef("cursor", flagValue(tokens, from, ["--resume"]));
+  }
+  return null;
+}
+
+// The conversation a tab holds, for Resume session's "already open" check.
+export function resumableSessionOf(tab: TerminalInstance): ResumableRef | null {
+  return agentSessionOf(tab) ?? resumableSessionRefOf(tab.resumeCmd);
 }
 
 // The Claude conversation a launch command continues, if any. A terminal

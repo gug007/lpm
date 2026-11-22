@@ -6,6 +6,7 @@ import { MoreHorizontalIcon, UndoIcon } from "./icons";
 import { SidebarNavRowMenu } from "./SidebarNavRowMenu";
 import { SidebarNavRow, type RowMenuAnchor, type SidebarNavEntry } from "./SidebarNavRow";
 import { SidebarNavSubmenuRow } from "./SidebarNavSubmenuRow";
+import { SidebarUpdateCheckRow } from "./SidebarUpdateCheckRow";
 import { MENU_PANEL_CLASS } from "./ui/ContextMenuShell";
 
 interface SidebarFooterMoreProps {
@@ -13,6 +14,7 @@ interface SidebarFooterMoreProps {
   isDefault: boolean;
   onMove: (id: NavItemId) => void;
   onReset: () => void;
+  onUpdate: () => void;
 }
 
 interface RowMenu {
@@ -21,7 +23,7 @@ interface RowMenu {
   y: number;
 }
 
-export function SidebarFooterMore({ entries, isDefault, onMove, onReset }: SidebarFooterMoreProps) {
+export function SidebarFooterMore({ entries, isDefault, onMove, onReset, onUpdate }: SidebarFooterMoreProps) {
   const [open, setOpen] = useState(false);
   const [rowMenu, setRowMenu] = useState<RowMenu | null>(null);
   // The row menu renders inside this boundary, so opening one is not an outside
@@ -93,6 +95,13 @@ export function SidebarFooterMore({ entries, isDefault, onMove, onReset }: Sideb
               )}
             </div>
           ))}
+          <SidebarUpdateCheckRow
+            divider={dividerAt < 0}
+            onUpdate={() => {
+              close();
+              onUpdate();
+            }}
+          />
           {!isDefault && (
             <>
               <div className="my-1 h-px bg-[var(--border)]" />

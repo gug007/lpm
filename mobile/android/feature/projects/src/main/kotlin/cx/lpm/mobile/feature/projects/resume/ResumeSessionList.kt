@@ -32,7 +32,6 @@ import cx.lpm.mobile.core.designsystem.component.ListSection
 import cx.lpm.mobile.core.designsystem.component.ListSectionSpacing
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
 import cx.lpm.mobile.core.designsystem.component.SearchField
-import cx.lpm.mobile.core.designsystem.component.SegmentedControl
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.AgentSession
 import cx.lpm.mobile.feature.projects.R
@@ -41,7 +40,7 @@ import cx.lpm.mobile.feature.projects.R
 @Immutable
 class ResumeSessionActions(
     val search: (String) -> Unit = {},
-    val filter: (ProviderFilter) -> Unit = {},
+    val filter: (String?) -> Unit = {},
     val open: (AgentSession) -> Unit = {},
     val older: () -> Unit = {},
     val retry: () -> Unit = {}
@@ -71,15 +70,11 @@ fun ResumeSessionList(
             placeholder = stringResource(R.string.resume_search),
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)
         )
-        SegmentedControl(
-            options = listOf(
-                stringResource(R.string.resume_all),
-                stringResource(R.string.resume_claude),
-                stringResource(R.string.resume_codex)
-            ),
-            selectedIndex = state.filter.ordinal,
-            onSelect = { actions.filter(ProviderFilter.entries[it]) },
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 10.dp)
+        SessionProviderFilter(
+            providers = state.providers,
+            selection = state.filter,
+            onSelect = actions.filter,
+            modifier = Modifier.padding(top = 8.dp, bottom = 10.dp)
         )
         Box(
             Modifier

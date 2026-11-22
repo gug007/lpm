@@ -3,6 +3,7 @@ import { DOCS_PAGES, docsPath } from "./docs-pages";
 import { COMPARE_LABELS, FOOTER_GROUPS } from "./footer-links";
 import {
   CHANGELOG_PATH,
+  CODE_SIGNING_PATH,
   DOCS_PATH,
   FEATURES_PATH,
   LESSONS_PATH,
@@ -74,6 +75,7 @@ export function buildLlmsTxt(): string {
     item("Changelog", url(CHANGELOG_PATH), "notes for every release, newest first"),
     item("Download stats", url(STATS_PATH)),
     item("Security", url(SECURITY_PATH), "signing, notarization and checksums"),
+    item("Code signing policy", url(CODE_SIGNING_PATH), "who signs the Windows installer and who approves a release"),
     "",
   ].join("\n");
 }

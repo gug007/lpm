@@ -223,6 +223,13 @@
 {"at": 3900, "frame": {"t": "keepAwakeSet", "mode": "off"}}
 {"at": 4000, "frame": {"t": "sub", "id": "demo-storefront-claude"}}
 {"at": 4000, "frame": {"t": "keepAwakeSet", "mode": "agents"}}
+{"at": 4100, "frame": {"t": "power"}}
+{"at": 4150, "frame": {"t": "lockScreen"}}
+{"at": 4200, "frame": {"t": "sleepWhenIdle", "on": true}}
+{"at": 4250, "frame": {"t": "sleepWhenIdle", "on": false}}
+{"at": 4300, "frame": {"t": "sleepWhenIdle"}}
+{"at": 4350, "frame": {"t": "sleepNow"}}
+{"at": 4400, "frame": {"t": "power"}}
 {"at": 4500, "frame": {"t": "in", "id": "demo-storefront-claude", "d": "hi there\u007f\u007f\u007fe\r"}}
 {"at": 5000, "frame": {"t": "serviceLogsUnwatch", "project": "storefront", "paneIndex": 1}}
 {"at": 5000, "frame": {"t": "start", "name": "api-gateway", "profile": ""}}
@@ -281,6 +288,7 @@
 {"at": 17500, "frame": {"t": "jobLiveOutput", "project": "storefront", "jobId": "nightly-tests"}}
 {"at": 20000, "frame": {"t": "jobLiveOutput", "project": "storefront", "jobId": "nightly-tests"}}
 {"at": 20000, "frame": {"t": "gitAuto", "project": "work-copy", "kind": "commitPush", "nonce": "wc1"}}
+{"at": 20000, "frame": {"t": "ciFixLoop", "project": "blog", "on": true, "agent": "Claude Code"}}
 {"at": 21000, "frame": {"t": "backgroundRuns", "project": "mobile-app"}}
 {"at": 21000, "frame": {"t": "actionBgOutput", "project": "api-gateway", "runId": "run-4"}}
 {"at": 24500, "frame": {"t": "git", "project": "work-copy"}}
@@ -324,9 +332,13 @@
 {"at": 36000, "frame": {"t": "runJob", "project": "storefront", "jobId": "hourly"}}
 {"at": 36000, "frame": {"t": "runJob", "project": "", "jobId": "window"}}
 {"at": 36100, "frame": {"t": "runJob", "project": "storefront", "jobId": "hourly"}}
+{"at": 40000, "frame": {"t": "ciFixLoop", "project": "api-gateway", "on": true, "agent": "Codex"}}
 {"at": 42000, "frame": {"t": "in", "id": "demo-storefront-claude", "d": "\u001b[200~Add tests\rand docs\u001b[201~"}}
 {"at": 42100, "frame": {"t": "in", "id": "demo-storefront-claude", "d": "\r"}}
 {"at": 42500, "frame": {"t": "in", "id": "demo-storefront-claude", "d": "queued\r"}}
+{"at": 43000, "frame": {"t": "ciFixLoop", "project": "api-gateway", "on": false}}
+{"at": 43500, "frame": {"t": "gitChecks", "project": "api-gateway"}}
+{"at": 43500, "frame": {"t": "ciFixLoop", "project": "nope", "on": false}}
 {"at": 44400, "frame": {"t": "agentDialog", "project": "storefront", "terminalId": "demo-storefront-claude"}}
 {"at": 44400, "frame": {"t": "agentDialog", "project": "storefront", "terminalId": "demo-storefront-1", "reqId": "d1"}}
 {"at": 44400, "frame": {"t": "agentDialog", "project": "nope", "terminalId": "x"}}
@@ -364,6 +376,7 @@
 {"at": 49000, "frame": {"t": "gitCreateBranch", "project": "storefront", "name": " feat/new thing "}}
 {"at": 49000, "frame": {"t": "gitCreateBranch", "project": "storefront", "name": ""}}
 {"at": 49000, "frame": {"t": "gitCreateBranch", "project": "storefront", "name": "main"}}
+{"at": 49000, "frame": {"t": "gitChecks", "project": "blog"}}
 {"at": 50000, "frame": {"t": "gitBranches", "project": "storefront"}}
 {"at": 50000, "frame": {"t": "gitAutoPullUndo", "project": "api-gateway"}}
 {"at": 50000, "frame": {"t": "gitAutoPullUndo", "project": "blog"}}

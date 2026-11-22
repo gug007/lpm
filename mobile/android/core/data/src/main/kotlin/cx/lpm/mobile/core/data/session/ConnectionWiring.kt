@@ -48,6 +48,7 @@ internal class ConnectionWiring(private val s: MacSession) {
         c.onAdvertisedHosts =
             { serverId, hosts -> s.savedMacs.mergeAdvertisedHosts(serverId, hosts) }
         c.onWakeTargets = { serverId, targets -> s.wake.rememberTargets(serverId, targets) }
+        c.onLauncher = { serverId, port -> s.openLpm.remember(serverId, port) }
         c.onFarewell = { reason, at -> if (c === s.client) s.upkeep.noteFarewell(reason, at) }
         c.onFarewellWithdrawn = { if (c === s.client) s.upkeep.withdrawFarewell() }
         c.onListFrame = { text ->

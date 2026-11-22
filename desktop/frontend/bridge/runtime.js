@@ -7,6 +7,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { subscribePeerGlobalEvent, GLOBAL_PEER_EVENTS } from "../src/peer/route";
 import { isMac, isWindows } from "../src/platform";
+import { interfaceZoom } from "../src/interfaceZoom";
 import { installWebviewGuards } from "../src/webviewGuards";
 
 // Tauri's listen() is async (returns Promise<UnlistenFn>) but callers expect a
@@ -79,9 +80,12 @@ export async function WindowGetSize() {
 let fileDropHandler = null;
 let dragSubscribed = false;
 
+// A drop's position as a page point. Windows reports physical pixels, and its
+// devicePixelRatio already holds the interface size; elsewhere the position is
+// in window points, which the interface size zooms the page past.
 function toLogical(position) {
   if (!position) return { x: 0, y: 0 };
-  const scale = isWindows ? window.devicePixelRatio || 1 : 1;
+  const scale = isWindows ? window.devicePixelRatio || 1 : interfaceZoom();
   return { x: Math.round(position.x / scale), y: Math.round(position.y / scale) };
 }
 

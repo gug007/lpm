@@ -18,7 +18,8 @@ enum class IssueAction {
     PhoneSettings,
     Details,
     EnterNewCode,
-    Wake;
+    Wake,
+    OpenLpm;
 
     fun label(issue: ConnectionIssue): String = when (this) {
         Retry -> if (issue is ConnectionIssue.Farewell) "Try now" else "Try again"
@@ -32,6 +33,7 @@ enum class IssueAction {
         Details -> "Details"
         EnterNewCode -> "Enter a new code"
         Wake -> "Wake"
+        OpenLpm -> "Open lpm"
     }
 }
 
@@ -54,7 +56,8 @@ data class IssueCopy(
 fun ConnectionIssue.issueCopy(
     mac: String,
     device: String,
-    zone: ZoneId = ZoneId.systemDefault()
+    zone: ZoneId = ZoneId.systemDefault(),
+    canOpenLpm: Boolean = false
 ): IssueCopy {
     val capMac = if (mac.startsWith("your ")) "Your " + mac.removePrefix("your ") else mac
     val waiting = IssueCopy.Tone.Waiting
@@ -144,7 +147,7 @@ fun ConnectionIssue.issueCopy(
             listOf(IssueAction.PairAgain)
         )
 
-        is ConnectionIssue.Farewell -> farewellCopy(farewell, mac, capMac, zone)
+        is ConnectionIssue.Farewell -> farewellCopy(farewell, mac, capMac, zone, canOpenLpm)
 
         is ConnectionIssue.PairUnreachable -> IssueCopy(
             "$capMac isn't answering",
@@ -259,7 +262,8 @@ private fun farewellCopy(
     farewell: MacFarewell,
     mac: String,
     capMac: String,
-    zone: ZoneId
+    zone: ZoneId,
+    canOpenLpm: Boolean
 ): IssueCopy {
     val time = DateTimeFormatter.ofLocalizedTime(
         FormatStyle.SHORT
@@ -276,10 +280,14 @@ private fun farewellCopy(
 
         MacFarewell.Reason.Quit -> IssueCopy(
             "lpm was closed on $mac",
-            "Open lpm on the Mac to keep going.",
+            if (canOpenLpm) {
+                "Open it from here to keep going."
+            } else {
+                "Open lpm on the Mac to keep going."
+            },
             "app.dashed",
             waiting,
-            listOf(IssueAction.Retry)
+            listOfNotNull(IssueAction.OpenLpm.takeIf { canOpenLpm }, IssueAction.Retry)
         )
 
         MacFarewell.Reason.Off -> IssueCopy(

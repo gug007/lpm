@@ -31,9 +31,12 @@ function skippedDetail(id: AutoPRStepId, state: AutoPRRepoState | null): string 
 export function AutoPRStepList({
   steps,
   repoState,
+  noun = "pull request",
 }: {
   steps: Record<AutoPRStepId, AutoPRStep>;
   repoState: AutoPRRepoState | null;
+  // "merge request" on GitLab.
+  noun?: string;
 }) {
   return (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] py-1">
@@ -55,7 +58,7 @@ export function AutoPRStepList({
                   dim ? "text-[var(--text-muted)]" : "text-[var(--text-primary)]"
                 }`}
               >
-                {STEP_LABELS[id]}
+                {id === "pr" ? `Open ${noun}` : STEP_LABELS[id]}
               </span>
               {detail && (
                 <span

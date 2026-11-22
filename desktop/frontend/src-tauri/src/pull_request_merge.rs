@@ -66,10 +66,25 @@ fn settings(root: &str) -> RepoSettings {
             return settings.clone();
         }
     }
-    let Ok(json) = gh_out(root, &["repo", "view", "--json", REPO_FIELDS]) else {
-        return RepoSettings::default();
+    let settings = match crate::githost::gitlab(root) {
+        Some(repo) => {
+            let Some((merge, squash)) = crate::gitlab_merge::methods_allowed(root, &repo) else {
+                return RepoSettings::default();
+            };
+            RepoSettings {
+                squash_merge_allowed: squash,
+                merge_commit_allowed: merge,
+                rebase_merge_allowed: false,
+                delete_branch_on_merge: false,
+            }
+        }
+        None => {
+            let Ok(json) = gh_out(root, &["repo", "view", "--json", REPO_FIELDS]) else {
+                return RepoSettings::default();
+            };
+            serde_json::from_str::<RepoSettings>(&json).unwrap_or_default()
+        }
     };
-    let settings = serde_json::from_str::<RepoSettings>(&json).unwrap_or_default();
     cache()
         .lock()
         .unwrap()
@@ -97,6 +112,9 @@ fn bypass_cache() -> &'static Mutex<HashMap<(String, u64), (bool, Instant)>> {
 /// Whether GitHub lets whoever `gh` is signed in as bypass the rules that hold
 /// pull request `number` back (its "Bypass requirements"); false when it can't say.
 pub fn can_bypass(root: &str, number: u64) -> bool {
+    if crate::githost::gitlab(root).is_some() {
+        return false;
+    }
     let key = (root.to_string(), number);
     if let Some((allowed, at)) = bypass_cache().lock().unwrap().get(&key) {
         if at.elapsed() < BYPASS_FOR {
@@ -139,9 +157,12 @@ pub fn held_by_rules(readiness: &MergeReadiness) -> bool {
 /// What an agent is told to resolve the conflicts of a pull request GitHub
 /// can't merge into its base; None while it merges cleanly.
 pub fn resolve_prompt(pr: &PullRequestInfo) -> Option<String> {
-    pr.merge
-        .conflicts()
-        .then(|| crate::ci_prompt::for_conflicts(pr.number, &pr.url, &pr.merge.base))
+    pr.merge.conflicts().then(|| match pr.host {
+        Some(crate::gitlab_mr::HOST) => {
+            crate::gitlab_mr::conflicts_prompt(pr.number, &pr.url, &pr.merge.base)
+        }
+        _ => crate::ci_prompt::for_conflicts(pr.number, &pr.url, &pr.merge.base),
+    })
 }
 
 /// The current branch's open pull request with how GitHub stands on merging it
@@ -194,6 +215,11 @@ pub fn merge(
 ) -> Result<bool, String> {
     if number == 0 {
         return Err("No pull request to merge".into());
+    }
+    if let Some(repo) = crate::githost::gitlab(root) {
+        let deleted = crate::gitlab_merge::merge(root, &repo, number, method, head, delete_branch)?;
+        crate::gitmoved::announce(root);
+        return Ok(deleted);
     }
     let number = number.to_string();
     gh_out(root, &merge_args(&number, method, head, bypass)?)?;

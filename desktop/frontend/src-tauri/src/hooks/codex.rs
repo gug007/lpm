@@ -33,9 +33,9 @@ const REMOTE_CODEX_HOME: &str = "\"${CODEX_HOME:-$HOME/.codex}\"";
 /// Returns whether the host is now installed. A missing remote ~/.codex is not
 /// (the dir is never created, but Codex may be installed there later), and
 /// neither is an unreachable host or a failed read/write; the caller retries.
-fn install_remote_codex_hooks(ssh: &crate::config::SshSettings) -> bool {
+fn install_remote_codex_hooks(ssh: &dyn crate::remoteshell::RemoteShell) -> bool {
     let read = |script: &str| {
-        crate::sshexec::remote_login_script(ssh, script)
+        ssh.login_script(script)
             .output()
             .ok()
             .filter(|o| o.status.success())
@@ -66,7 +66,11 @@ fn install_remote_codex_hooks(ssh: &crate::config::SshSettings) -> bool {
     ) else {
         return false;
     };
-    let hooks_path = Path::new(String::from_utf8_lossy(&codex_home).trim()).join("hooks.json");
+    // Joined with `/` whatever this machine's separator: the path is the host's.
+    let hooks_path = PathBuf::from(format!(
+        "{}/hooks.json",
+        String::from_utf8_lossy(&codex_home).trim().trim_end_matches('/')
+    ));
     let key = crate::codexfeature::key_for(&String::from_utf8_lossy(&version));
     match merge_codex_config(&String::from_utf8_lossy(&config), &hooks_path, &hooks, key) {
         Some(new) => write_remote_file(ssh, &config_file, new.as_bytes()),

@@ -13,6 +13,8 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { ContextMenuItem } from "./ui/ContextMenuItem";
 import { ContextMenuSeparator } from "./ui/ContextMenuSeparator";
 import { ContextMenuShell } from "./ui/ContextMenuShell";
+import { ContextMenuSubmenu } from "./ui/ContextMenuSubmenu";
+import { stepInterfaceSize } from "../interfaceSizeMenu";
 import { Tooltip } from "./ui/Tooltip";
 
 interface AppMenuButtonProps {
@@ -34,10 +36,11 @@ async function checkForUpdates() {
   }
 }
 
-/** Linux/Windows stand-in for the macOS app menu: Settings, About, updates and
- *  Quit, plus their Ctrl+, and Ctrl+Shift+Q keys. Quit by key asks first, since
- *  it stops every terminal and agent; a second deliberate press confirms. With
- *  agents mid-task, the question lists them (QuitGuardHost). */
+/** Linux/Windows stand-in for the macOS app menu: Settings, About, updates,
+ *  the interface size and Quit, plus their Ctrl+, and Ctrl+Shift+Q keys. Quit
+ *  by key asks first, since it stops every terminal and agent; a second
+ *  deliberate press confirms. With agents mid-task, the question lists them
+ *  (QuitGuardHost). */
 export function AppMenuButton({ onSettings, onFeedback }: AppMenuButtonProps) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -104,6 +107,13 @@ export function AppMenuButton({ onSettings, onFeedback }: AppMenuButtonProps) {
           <ContextMenuItem label="Star lpm on GitHub" onClick={pick(() => BrowserOpenURL(GITHUB_REPO_URL))} />
           <ContextMenuItem label="Check for Updates…" onClick={pick(() => void checkForUpdates())} />
           <ContextMenuItem label="About lpm" onClick={pick(() => setAboutOpen(true))} />
+          <ContextMenuSeparator />
+          {/* The macOS View menu's sizes, with no keys: the zoom keys size terminal text. */}
+          <ContextMenuSubmenu label="Interface size">
+            <ContextMenuItem label="Bigger" onClick={pick(() => void stepInterfaceSize(1))} />
+            <ContextMenuItem label="Smaller" onClick={pick(() => void stepInterfaceSize(-1))} />
+            <ContextMenuItem label="Actual Size" onClick={pick(() => void stepInterfaceSize(0))} />
+          </ContextMenuSubmenu>
           <ContextMenuSeparator />
           <ContextMenuItem label="Quit lpm" shortcut={QUIT_LABEL} onClick={pick(requestQuit)} />
         </ContextMenuShell>

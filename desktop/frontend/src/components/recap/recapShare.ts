@@ -1,5 +1,6 @@
 import { CopyPngImage, SavePngImage, SharePngImage } from "../../../bridge/commands";
 import { BrowserOpenURL } from "../../../bridge/runtime";
+import { toWindowPoints } from "../../interfaceZoom";
 import type { RecapTheme } from "./recapCardTheme";
 import { recapImage } from "./recapImage";
 import { recapCaption, type RecapView } from "./weeklyRecapModel";
@@ -50,7 +51,7 @@ export async function shareRecapImage(
   theme: RecapTheme,
   from: DOMRect,
 ): Promise<void> {
-  const anchor = { x: from.x, y: from.y, width: from.width, height: from.height };
+  const anchor = toWindowPoints({ x: from.x, y: from.y, width: from.width, height: from.height });
   await SharePngImage(await base64(await recapImage(view, theme)), fileName(view), anchor);
 }
 

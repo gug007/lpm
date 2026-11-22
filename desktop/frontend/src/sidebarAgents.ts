@@ -100,3 +100,10 @@ export function sidebarProjectAlert(agents: SidebarAgentRow[]): SidebarAgentRow 
   // wait on the same tab outranks — a problem still gets its word.
   return agents.find((agent) => agent.holdsError) ?? null;
 }
+
+// An agent mid-task, or stopped on a question, is working from the files it read.
+export function agentBusy(project: Pick<ProjectInfo, "statusEntries">): boolean {
+  return projectAgentRows(project, Date.now()).some(
+    (row) => row.state === "working" || row.state === "needs-you",
+  );
+}

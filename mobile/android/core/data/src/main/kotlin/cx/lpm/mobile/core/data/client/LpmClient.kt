@@ -404,8 +404,17 @@ class LpmClient internal constructor(
         // `gitMergePr`, and `merge` on `gitChecks`' pull request.
         const val GIT_MERGE_FEATURE = "gitMerge"
 
+        // `ciFixLoop`, and `fixLoop` / `fixLoopPrompt` on `gitChecks`.
+        const val CI_FIX_LOOP_FEATURE = "ciFixLoop"
+
         // `keepAwake` and `keepAwakeSet`, and the `keepAwake` push.
         const val KEEP_AWAKE_FEATURE = "keepAwake"
+
+        // `power`, `lockScreen`, `sleepNow` and `sleepWhenIdle`, and the `power` push.
+        const val POWER_FEATURE = "power"
+
+        // Only lpm's login helper answers `launchLpm`: its `ready` names nothing else.
+        const val LAUNCH_LPM_FEATURE = "launchLpm"
 
         // The `lpmCommand*` verbs, and lpm commands in the `slash` reply.
         const val LPM_COMMANDS_FEATURE = "lpmCommands"

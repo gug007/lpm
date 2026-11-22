@@ -7,6 +7,7 @@ import {
   PopupViewReply,
 } from "../../bridge/commands";
 import { EventsOn } from "../../bridge/runtime";
+import { toWindowPoints, useInterfaceZoom } from "../interfaceZoom";
 import { isWindows } from "../platform";
 import { popupDocument } from "./popupDocument";
 import { hexColor } from "./popupTheme";
@@ -73,7 +74,7 @@ export function NativePopupFrame({
     PopupViewOpen(
       id,
       popupDocument(html, { ...first, post: PAGE_POST + id }, base),
-      shownRef.current ? rect : parked(rect),
+      toWindowPoints(shownRef.current ? rect : parked(rect)),
       hexColor(first.theme.colors.bg),
     ).then(
       () => live && setOpened(id),
@@ -90,7 +91,7 @@ export function NativePopupFrame({
 
   useEffect(() => {
     if (opened && !shown && sizeRef.current) {
-      void PopupViewPlace(opened, parked(sizeRef.current)).catch(() => {});
+      void PopupViewPlace(opened, toWindowPoints(parked(sizeRef.current))).catch(() => {});
     }
   }, [opened, shown]);
 
@@ -98,11 +99,19 @@ export function NativePopupFrame({
     (rect: Rect) => {
       if (!opened || !shown || rect.width === 0 || rect.height === 0) return;
       sizeRef.current = rect;
-      void PopupViewPlace(opened, rect).catch(() => {});
+      void PopupViewPlace(opened, toWindowPoints(rect)).catch(() => {});
     },
     [opened, shown],
   );
   useFollowRect(holeRef, follow);
+  // A new interface size moves the page under the same box.
+  const zoom = useInterfaceZoom((s) => s.zoom);
+  const zoomRef = useRef(zoom);
+  useEffect(() => {
+    if (zoomRef.current === zoom) return;
+    zoomRef.current = zoom;
+    if (sizeRef.current) follow(sizeRef.current);
+  }, [zoom, follow]);
 
   return <div ref={holeRef} style={{ width, height }} />;
 }

@@ -140,6 +140,14 @@ export const ROWS = {
     description: `System follows ${MACHINE.thisMachine}'s light or dark mode`,
     keywords: ["appearance", "dark", "light", "mode", "color"],
   },
+  "general.interfaceSize": {
+    kind: "row",
+    tab: "general",
+    id: "general.interfaceSize",
+    label: "Interface size",
+    description: "Sidebar, menus and dialogs. Terminal text has its own size",
+    keywords: ["zoom", "scale", "scaling", "bigger", "smaller", "larger", "text size", "font size", "ui size", "accessibility", "display", "monitor", "4k", "hidpi"],
+  },
   "general.openAtLogin": {
     kind: "row",
     tab: "general",
@@ -383,6 +391,15 @@ export const ROWS = {
     label: "Follow app appearance",
     description: "One terminal theme for dark mode and one for light, switching with the app",
     keywords: ["theme", "light", "dark", "system", "auto", "match", "mode", "color"],
+  },
+  "terminal.shell": {
+    kind: "row",
+    tab: "terminal",
+    id: "terminal.shell",
+    reach: "attended",
+    label: "New terminals open",
+    description: "For plain terminals. Services, actions and agents keep the login shell",
+    keywords: ["shell", "zsh", "bash", "fish", "nushell", "powershell", "pwsh", "cmd", "command prompt", "git bash", "wsl", "default shell"],
   },
   "terminal.openInDefaultApp": {
     kind: "row",

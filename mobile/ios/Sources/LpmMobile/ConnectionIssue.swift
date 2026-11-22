@@ -47,16 +47,17 @@ enum ConnectionIssue: Equatable {
     }
 
     /// A tap on this iPhone can fix it, so it earns a bar of its own. The rest
-    /// only need waiting, and the line under the Mac's name says so.
-    var needsYou: Bool {
-        copy(mac: "your Mac").actions.contains { $0 != .retry && $0 != .details }
+    /// only need waiting, and the line under the Mac's name says so. Opening
+    /// lpm from here is a fix this phone may have too.
+    func needsYou(canOpenLpm: Bool = false) -> Bool {
+        copy(mac: "your Mac", canOpenLpm: canOpenLpm).actions.contains { $0 != .retry && $0 != .details }
     }
 }
 
 /// A button an issue offers. The view decides how each is carried out.
 enum IssueAction: Equatable {
     case retry, pairAgain, compareCode, turnOnTailscale, signInTailscale
-    case tailscaleSettings, openAdmin, phoneSettings, details, enterNewCode, wake
+    case tailscaleSettings, openAdmin, phoneSettings, details, enterNewCode, wake, openLpm
 
     func label(for issue: ConnectionIssue) -> String {
         switch self {
@@ -73,6 +74,7 @@ enum IssueAction: Equatable {
         case .details: return "Details"
         case .enterNewCode: return "Enter a new code"
         case .wake: return "Wake"
+        case .openLpm: return "Open lpm"
         }
     }
 }
@@ -89,8 +91,9 @@ struct IssueCopy: Equatable {
 
 extension ConnectionIssue {
     /// `mac` is how the machine is named in a sentence ("MacBook Pro", or "your
-    /// Mac" while its name is still an address).
-    func copy(mac: String) -> IssueCopy {
+    /// Mac" while its name is still an address). `canOpenLpm`: its login helper
+    /// can start lpm from here.
+    func copy(mac: String, canOpenLpm: Bool = false) -> IssueCopy {
         let Mac = mac.hasPrefix("your ") ? "Your " + mac.dropFirst(5) : mac
         switch self {
         case .connecting(let reason):
@@ -173,8 +176,9 @@ extension ConnectionIssue {
                                  icon: "moon.fill", tone: .waiting, actions: [.wake, .retry])
             case .quit:
                 return IssueCopy(title: "lpm was closed on \(mac)",
-                                 message: "Open lpm on the Mac to keep going.",
-                                 icon: "app.dashed", tone: .waiting, actions: [.retry])
+                                 message: canOpenLpm ? "Open it from here to keep going." : "Open lpm on the Mac to keep going.",
+                                 icon: "app.dashed", tone: .waiting,
+                                 actions: canOpenLpm ? [.openLpm, .retry] : [.retry])
             case .off:
                 return IssueCopy(title: "Remote control is off on \(mac)",
                                  message: "Turn it on in lpm: click + above your projects, then Phone.",

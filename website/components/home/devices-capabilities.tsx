@@ -11,7 +11,7 @@ const SCREENS: { src: string; title: string; body: string; alt: string }[] = [
   {
     src: "/lpm-link/agent.jpg",
     title: "Answer an agent",
-    body: "A push opens the session. Reply, then pick it up at your desk.",
+    body: "Allow, deny or reply from the push, or open the session.",
     alt: "A Claude Code session in lpm Link, waiting for a reply, with the composer at the bottom",
   },
   {

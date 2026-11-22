@@ -40,6 +40,7 @@ function actionInfo(a: SeedAction, position: number | undefined, path = a.name):
     reuse: a.reuse ?? false,
     position,
     popup: a.popup,
+    app: a.app,
     children: a.children?.map((c) => actionInfo(c, c.position, `${path}:${c.name}`)),
   };
 }

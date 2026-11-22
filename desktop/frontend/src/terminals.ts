@@ -18,6 +18,8 @@ export interface PersistedTab {
   // Its agent was quit: restore opens a plain shell (see TerminalInstance).
   agentEnded?: boolean;
   actionName?: string;
+  // A plain terminal's shell (see TerminalInstance).
+  shell?: string;
   pinned?: boolean;
   emoji?: string;
   color?: string;

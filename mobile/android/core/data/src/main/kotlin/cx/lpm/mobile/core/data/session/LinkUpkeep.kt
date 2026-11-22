@@ -202,6 +202,8 @@ internal class LinkUpkeep(private val s: MacSession) {
 
             IssueAction.Wake -> s.wake.wakeActive()
 
+            IssueAction.OpenLpm -> s.openLpm.openActive()
+
             IssueAction.OpenAdmin, IssueAction.PhoneSettings, IssueAction.EnterNewCode -> Unit
         }
     }

@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   keepAwakeLid: vi.fn(),
   peerInvoke: vi.fn(),
   githubStarred: vi.fn(),
+  getVersion: vi.fn(),
+  checkForUpdate: vi.fn(),
 }));
 
 vi.mock("../../bridge/commands", () => ({
@@ -24,6 +26,8 @@ vi.mock("../../bridge/commands", () => ({
   KeepAwakeLid: mocks.keepAwakeLid,
   GithubStarred: mocks.githubStarred,
   PeerInvoke: mocks.peerInvoke,
+  GetVersion: mocks.getVersion,
+  CheckForUpdate: mocks.checkForUpdate,
 }));
 vi.mock("../../bridge/runtime", () => ({
   EventsOn: vi.fn(() => () => {}),
@@ -72,6 +76,7 @@ function renderNav(overrides: Partial<Parameters<typeof SidebarFooterNav>[0]> = 
         showSettings={false}
         onSettings={noop}
         onFeedback={noop}
+        onUpdate={noop}
         {...overrides}
       />,
     );
@@ -118,6 +123,7 @@ beforeEach(() => {
   mocks.keepAwakeSetPrefs.mockResolvedValue(KEEP_AWAKE);
   mocks.keepAwakeLid.mockResolvedValue({ lid: "none", onPower: true });
   mocks.peerInvoke.mockRejectedValue(new Error("no peer"));
+  mocks.getVersion.mockResolvedValue("0.7.66");
   useGlobalAgentStatus.setState({ entries: [] });
   useTerminalTitles.setState({ byProject: {}, focusedByProject: {} });
   useCollapsedAgents.setState({ collapsed: new Set() });

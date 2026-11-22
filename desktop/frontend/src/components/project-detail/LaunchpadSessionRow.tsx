@@ -12,7 +12,7 @@ export function LaunchpadSessionRow({ row, onResume }: { row: SessionRow; onResu
       onClick={() => onResume(row)}
       className="group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
     >
-      {row.provider ? (
+      {row.provider && row.provider !== "cursor" ? (
         <AgentGlyph agent={row.provider} />
       ) : (
         <span aria-hidden className="grid h-4 w-4 shrink-0 place-items-center">

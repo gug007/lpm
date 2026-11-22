@@ -23,6 +23,9 @@ pub struct PullRequestInfo {
     /// What a Fix with … agent is told while an open PR's checks fail.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fix_prompt: Option<String>,
+    /// "gitlab" for a GitLab merge request (gitlab_mr.rs); absent on GitHub.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<&'static str>,
 }
 
 /// How GitHub stands on merging the pull request, in its own words.
@@ -115,6 +118,9 @@ pub(crate) fn branch_pull_request_with_merge(cwd: &str) -> Option<PullRequestInf
 }
 
 fn view_pull_request(cwd: &str, fields: &str) -> Option<PullRequestInfo> {
+    if let Some(repo) = crate::githost::gitlab(cwd) {
+        return crate::gitlab_mr::branch_merge_request(cwd, &repo);
+    }
     gh_out(cwd, &["pr", "view", "--json", fields])
         .ok()
         .and_then(|json| parse_pull_request(&json))
@@ -160,6 +166,7 @@ fn parse_pull_request(json: &str) -> Option<PullRequestInfo> {
             base: pr.base_ref_name,
         },
         fix_prompt,
+        host: None,
     })
 }
 
@@ -252,6 +259,7 @@ mod tests {
                 checks: vec![],
                 merge: MergeReadiness::default(),
                 fix_prompt: None,
+                host: None,
             })
         );
     }

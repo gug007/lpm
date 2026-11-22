@@ -32,6 +32,7 @@ import { TerminalThemeGrid } from "./TerminalThemeGrid";
 import { TerminalThemeModeControl } from "./TerminalThemeModeControl";
 import { TerminalThemePreview } from "./TerminalThemePreview";
 import { TerminalLookImport } from "./TerminalLookImport";
+import { TerminalShellRow } from "./TerminalShellRow";
 import { useMachineList } from "./useMachineList";
 
 export function TerminalPane() {
@@ -101,6 +102,8 @@ export function TerminalPane() {
           />
         </SettingsRow>
       </SettingsSection>
+
+      <TerminalShellRow />
 
       <SettingsSection title="Text">
         <SettingsRow {...rowProps("terminal.fontFamily")}>

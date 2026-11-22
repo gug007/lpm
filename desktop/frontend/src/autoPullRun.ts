@@ -5,7 +5,7 @@ import { autoPullState, autoPullTarget, commitsText, normalizeAutoPullMode, want
 import { AutoPullRows } from "./components/AutoPullRows";
 import { displayNameForProjectName } from "./components/ProjectNameDisplay";
 import { recheckOrigin, showOriginDone } from "./originActions";
-import { projectAgentRows } from "./sidebarAgents";
+import { agentBusy } from "./sidebarAgents";
 import { useAppStore } from "./store/app";
 import { useOriginStatus } from "./store/originStatus";
 import { getSettings } from "./store/settings";
@@ -49,13 +49,6 @@ const attemptKey = (root: string) => {
 
 function nameOf(project: ProjectInfo): string {
   return displayNameForProjectName(project.name, useAppStore.getState().projects);
-}
-
-// An agent mid-task, or stopped on a question, is working from the files it read.
-export function agentBusy(project: ProjectInfo): boolean {
-  return projectAgentRows(project, Date.now()).some(
-    (row) => row.state === "working" || row.state === "needs-you",
-  );
 }
 
 export function autoPullProject(root: string): ProjectInfo | undefined {

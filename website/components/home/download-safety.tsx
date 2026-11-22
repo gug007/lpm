@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { getLatestReleaseVerification } from "@/lib/release-verification";
-import { PRIVACY_PATH, RELEASES_URL, SECURITY_PATH } from "@/lib/links";
+import { CODE_SIGNING_PATH, PRIVACY_PATH, RELEASES_URL, SECURITY_PATH } from "@/lib/links";
 import { RemoveLpm } from "@/components/remove-lpm";
 import { ReleaseChecksums } from "./release-checksums";
 import { SafetyDisclosure } from "./safety-disclosure";
@@ -88,6 +88,10 @@ export async function DownloadSafety() {
           signed under Developer ID N7S7ZCZ5P7.{" "}
           <Link href={SECURITY_PATH} className={LINK}>
             Security details
+          </Link>
+          {" · "}
+          <Link href={CODE_SIGNING_PATH} className={LINK}>
+            Code signing policy
           </Link>
         </p>
         <ul className="mt-5 grid gap-x-8 gap-y-3 sm:grid-cols-2">

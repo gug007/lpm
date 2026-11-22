@@ -5,19 +5,33 @@
 ; Either way the agent hooks go: they run the CLI beside the app by absolute
 ; path, and the next lpm start writes them again.
 !macro NSIS_HOOK_PREUNINSTALL
-  !insertmacro CheckIfAppIsRunning "${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
+  !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
   ${If} $UpdateMode = 1
   ${OrIf} $EXEDIR == $INSTDIR
     ExecWait '"$INSTDIR\${MAINBINARYNAME}.exe" --remove-agent-hooks'
     ${IfThen} $DeleteAppDataCheckboxState <> 1 ${|} StrCpy $UpdateMode 1 ${|}
   ${Else}
     ExecWait '"$INSTDIR\${MAINBINARYNAME}.exe" --uninstall'
+    DeleteRegKey HKCU "Software\lpm"
   ${EndIf}
 !macroend
 
-; Tauri's own check matches every process with the app's file name, so it
-; offered to kill a dev build or any other copy too. This one matches only the
-; exe in $INSTDIR.
+; Whoever installs lpm is told what it sends on its own and can turn that off
+; (SignPath Foundation's signing terms). A "No" is left for lpm to apply on its
+; next start (installchoices.rs). Silent, passive and update installs don't ask
+; and keep what was chosen before.
+!macro NSIS_HOOK_POSTINSTALL
+  ${IfNot} ${Silent}
+  ${AndIf} $PassiveMode <> 1
+  ${AndIf} $UpdateMode <> 1
+    MessageBox MB_YESNO|MB_ICONQUESTION "lpm sends a daily usage count, which counts computers without telling them apart, and crash reports, which leave out your code, prompts and project names.$\r$\n$\r$\nPrivacy policy: https://lpm.cx/privacy$\r$\n$\r$\nSend them? You can change this later in lpm's Settings." IDYES lpm_usage_data_done
+    WriteRegDWORD HKCU "Software\lpm" "SendUsageData" 0
+    lpm_usage_data_done:
+  ${EndIf}
+!macroend
+
+; Kills only the exe at the full path it is given, so a dev build or another
+; copy of lpm keeps running. Tauri's installer passes that path, not a file name.
 Var LpmAppExe
 Var LpmAppKill
 Var LpmAppCount
@@ -88,14 +102,14 @@ FunctionEnd
 !macroend
 
 !macroundef CheckIfAppIsRunning
-!macro CheckIfAppIsRunning executableName productName
+!macro CheckIfAppIsRunning executablePath productName
   nsis_tauri_utils::StrReplace "$(appRunning)" "{{product_name}}" "${productName}"
   Pop $R1
   nsis_tauri_utils::StrReplace "$(appRunningOkKill)" "{{product_name}}" "${productName}"
   Pop $R2
   nsis_tauri_utils::StrReplace "$(failedToKillApp)" "{{product_name}}" "${productName}"
   Pop $R3
-  StrCpy $LpmAppExe "$INSTDIR\${executableName}"
+  StrCpy $LpmAppExe "${executablePath}"
   !insertmacro LPM_APP_PROCESSES 0
   ${If} $LpmAppCount > 0
     ${IfNot} ${Silent}

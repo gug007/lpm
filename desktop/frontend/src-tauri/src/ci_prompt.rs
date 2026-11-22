@@ -1,13 +1,22 @@
 // What an agent is told when asked to fix failing CI, from the desktop's checks
 // menus, its CI toast and the phones alike: which checks fail and where, and
-// the `gh` commands that print why.
+// the `gh` (or `glab`) commands that print why.
 use crate::pull_request::PrCheck;
+
+/// The digits after `marker` in a CI job URL.
+pub(crate) fn id_after<'a>(url: &'a str, marker: &str) -> Option<&'a str> {
+    let rest = url.split(marker).nth(1)?;
+    let id = rest.split(|c: char| !c.is_ascii_digit()).next()?;
+    (!id.is_empty()).then_some(id)
+}
 
 /// The digits after `/actions/runs/` in a GitHub Actions job URL.
 pub(crate) fn run_id(url: &str) -> Option<&str> {
-    let rest = url.split("/actions/runs/").nth(1)?;
-    let id = rest.split(|c: char| !c.is_ascii_digit()).next()?;
-    (!id.is_empty()).then_some(id)
+    id_after(url, "/actions/runs/")
+}
+
+fn gh_log(url: &str) -> Option<String> {
+    run_id(url).map(|id| format!("`gh run view {id} --log-failed`"))
 }
 
 /// The failing checks, by name, as the menus list them.
@@ -17,29 +26,25 @@ fn failing(checks: &[PrCheck]) -> Vec<&PrCheck> {
     failing
 }
 
-fn prompt(
+/// `intro`, a `line` per failing check, then how to find out why: `read_first`,
+/// then each distinct `log` command the failing checks name.
+pub(crate) fn prompt(
     intro: String,
     checks: &[PrCheck],
     line: impl Fn(&PrCheck) -> String,
     read_first: Option<String>,
+    log: impl Fn(&str) -> Option<String>,
 ) -> Option<String> {
     let failing = failing(checks);
     if failing.is_empty() {
         return None;
     }
-    let mut runs: Vec<&str> = Vec::new();
-    for id in failing.iter().filter_map(|c| run_id(&c.url)) {
-        if !runs.contains(&id) {
-            runs.push(id);
+    let mut how: Vec<String> = read_first.into_iter().collect();
+    for command in failing.iter().filter_map(|c| log(&c.url)) {
+        if !how.contains(&command) {
+            how.push(command);
         }
     }
-    let how: Vec<String> = read_first
-        .into_iter()
-        .chain(
-            runs.iter()
-                .map(|id| format!("`gh run view {id} --log-failed`")),
-        )
-        .collect();
     let find = if how.is_empty() {
         "Find out why from the links above".to_string()
     } else {
@@ -54,11 +59,28 @@ fn prompt(
     Some(lines.join("\n"))
 }
 
-fn link(url: &str) -> String {
+pub(crate) fn link(url: &str) -> String {
     if url.is_empty() {
         String::new()
     } else {
         format!(" — {url}")
+    }
+}
+
+fn at(url: &str) -> String {
+    if url.is_empty() {
+        String::new()
+    } else {
+        format!(" ({url})")
+    }
+}
+
+/// `- workflow › name`, as the menus list a check.
+pub(crate) fn workflow_name(check: &PrCheck) -> String {
+    if check.workflow.is_empty() {
+        check.name.clone()
+    } else {
+        format!("{} › {}", check.workflow, check.name)
     }
 }
 
@@ -69,25 +91,40 @@ pub(crate) fn for_pull_request(number: u64, url: &str, checks: &[PrCheck]) -> Op
         checks,
         |c| format!("- {}{}", c.name, link(&c.url)),
         Some(format!("`gh pr checks {number}`")),
+        gh_log,
     )
 }
 
 /// For a pull request GitHub can't merge because it conflicts with its base.
 pub(crate) fn for_conflicts(number: u64, url: &str, base: &str) -> String {
+    conflicts(
+        &format!("Pull request #{number}"),
+        url,
+        "base",
+        base,
+        format!("its base branch (`gh pr view {number} --json baseRefName` names it)"),
+    )
+}
+
+/// `what` (at `url`) conflicts with its `side` branch: merge in `base`, else
+/// `unknown_base` when the branch isn't known.
+pub(crate) fn conflicts(
+    what: &str,
+    url: &str,
+    side: &str,
+    base: &str,
+    unknown_base: String,
+) -> String {
     let base = if base.is_empty() {
-        format!("its base branch (`gh pr view {number} --json baseRefName` names it)")
+        unknown_base
     } else {
         format!("origin/{base}")
     };
-    let at = if url.is_empty() {
-        String::new()
-    } else {
-        format!(" ({url})")
-    };
     format!(
-        "Pull request #{number}{at} has conflicts with its base branch, so it can't be merged.\n\n\
+        "{what}{} has conflicts with its {side} branch, so it can't be merged.\n\n\
          Fetch, merge {base} into this branch, resolve every conflict, run the tests, \
-         then commit the merge and push."
+         then commit the merge and push.",
+        at(url)
     )
 }
 
@@ -99,31 +136,23 @@ pub(crate) fn for_branch(
     url: &str,
     checks: &[PrCheck],
 ) -> Option<String> {
-    let at = if url.is_empty() {
-        String::new()
-    } else {
-        format!(" ({url})")
-    };
     prompt(
         format!(
-            "CI checks are failing on {branch}, whose last pushed commit is {} \"{title}\"{at}:",
-            crate::ci_checks::short_sha(sha)
+            "CI checks are failing on {branch}, whose last pushed commit is {} \"{title}\"{}:",
+            crate::ci_checks::short_sha(sha),
+            at(url)
         ),
         checks,
         |c| {
-            let workflow = if c.workflow.is_empty() {
-                String::new()
-            } else {
-                format!("{} › ", c.workflow)
-            };
             let on = c
                 .commit
                 .as_deref()
                 .map(|sha| format!(" (on {sha})"))
                 .unwrap_or_default();
-            format!("- {workflow}{}{on}{}", c.name, link(&c.url))
+            format!("- {}{on}{}", workflow_name(c), link(&c.url))
         },
         None,
+        gh_log,
     )
 }
 

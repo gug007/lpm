@@ -43,7 +43,7 @@ struct Agent {
     install: fn(),
     /// The same on an SSH host. False leaves the host to be tried again: it was
     /// unreachable, or the agent isn't installed there yet.
-    install_remote: fn(&crate::config::SshSettings) -> bool,
+    install_remote: fn(&dyn crate::remoteshell::RemoteShell) -> bool,
     /// Strips lpm's entries, keeping the user's own.
     uninstall: fn() -> Result<(), String>,
 }
@@ -230,7 +230,7 @@ fn install_json_at(path: &Path, merge: impl Fn(&[u8]) -> Option<Vec<u8>>) -> Res
 /// is one unreachable, whose file couldn't be read, or holds something other
 /// than JSON — which is never overwritten.
 fn install_remote_json(
-    ssh: &crate::config::SshSettings,
+    ssh: &dyn crate::remoteshell::RemoteShell,
     dir_expr: &str,
     file_expr: &str,
     merge: fn(&[u8]) -> Option<Vec<u8>>,
@@ -249,9 +249,9 @@ fn install_remote_json(
 
 /// A host's copy of an agent file (empty when there is none yet), or None when
 /// the host is unreachable or the agent's folder isn't there.
-fn read_remote_agent_file(ssh: &crate::config::SshSettings, dir_expr: &str, file_expr: &str) -> Option<Vec<u8>> {
+fn read_remote_agent_file(ssh: &dyn crate::remoteshell::RemoteShell, dir_expr: &str, file_expr: &str) -> Option<Vec<u8>> {
     let script = format!("[ -d {dir_expr} ] || exit 3; if [ -e {file_expr} ]; then cat {file_expr}; fi");
-    let out = crate::sshexec::remote_login_script(ssh, &script).output().ok()?;
+    let out = ssh.login_script(&script).output().ok()?;
     out.status.success().then_some(out.stdout)
 }
 
@@ -280,7 +280,7 @@ fn remove_owned_file(path: &Path) -> Result<(), String> {
 
 /// `install_owned_file` on an SSH host. Whether the host now has the file: not
 /// when it is unreachable or the agent's folder isn't there yet.
-fn install_remote_owned_file(ssh: &crate::config::SshSettings, dir_expr: &str, file_expr: &str, content: &str) -> bool {
+fn install_remote_owned_file(ssh: &dyn crate::remoteshell::RemoteShell, dir_expr: &str, file_expr: &str, content: &str) -> bool {
     match read_remote_agent_file(ssh, dir_expr, file_expr) {
         Some(current) if current == content.as_bytes() => true,
         Some(_) => write_remote_file(ssh, file_expr, content.as_bytes()),
@@ -294,12 +294,13 @@ fn install_remote_owned_file(ssh: &crate::config::SshSettings, dir_expr: &str, f
 /// `"$HOME/.claude/settings.json"`. The byte-count check keeps a connection
 /// dropped mid-pipe from renaming a truncated temp file over the real one.
 /// Returns whether the remote write succeeded.
-pub fn write_remote_file(ssh: &crate::config::SshSettings, path_expr: &str, bytes: &[u8]) -> bool {
+pub fn write_remote_file(ssh: &dyn crate::remoteshell::RemoteShell, path_expr: &str, bytes: &[u8]) -> bool {
     let script = format!(
         "mkdir -p \"$(dirname {path_expr})\" && t={path_expr}.lpmtmp && cat > \"$t\" && [ \"$(wc -c < \"$t\")\" -eq {} ] && mv -f \"$t\" {path_expr}",
         bytes.len()
     );
-    let child = crate::sshexec::remote_login_script(ssh, &script)
+    let child = ssh
+        .login_script(&script)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
@@ -342,6 +343,17 @@ fn done_key(agent: &Agent, host: &str) -> String {
 /// installs for one host at once.
 pub fn install_remote_agent_hooks_once(ssh: &crate::config::SshSettings) {
     let host = format!("{}@{}:{}", ssh.user, ssh.host, ssh.port);
+    install_once(host, std::sync::Arc::new(ssh.clone()));
+}
+
+/// The same for a WSL distro, whose agents run in its own Linux home.
+#[cfg(windows)]
+pub fn install_wsl_agent_hooks_once(distro: &str) {
+    let shell = crate::remoteshell::Wsl(distro.to_string());
+    install_once(format!("wsl:{distro}"), std::sync::Arc::new(shell));
+}
+
+fn install_once(host: String, shell: std::sync::Arc<dyn crate::remoteshell::RemoteShell>) {
     let pending: Vec<&'static Agent> = {
         let mut st = hook_install_state().lock().unwrap();
         let pending: Vec<_> = AGENTS
@@ -355,11 +367,10 @@ pub fn install_remote_agent_hooks_once(ssh: &crate::config::SshSettings) {
         st.tried.insert(host.clone(), std::time::Instant::now());
         pending
     };
-    let ssh = ssh.clone();
     std::thread::spawn(move || {
         let installed: Vec<String> = pending
             .into_iter()
-            .filter(|agent| (agent.install_remote)(&ssh))
+            .filter(|agent| (agent.install_remote)(shell.as_ref()))
             .map(|agent| done_key(agent, &host))
             .collect();
         let mut st = hook_install_state().lock().unwrap();

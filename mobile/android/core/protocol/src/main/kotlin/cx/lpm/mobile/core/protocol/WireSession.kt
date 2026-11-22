@@ -298,4 +298,14 @@ sealed interface WireSession {
         put("mode", mode)
         if (minutes != null) put("minutes", minutes)
     }
+
+    fun power(): String = frame("power")
+
+    fun lockScreen(): String = frame("lockScreen")
+
+    fun sleepNow(): String = frame("sleepNow")
+
+    fun sleepWhenIdle(on: Boolean): String = frame("sleepWhenIdle") { put("on", on) }
+
+    fun launchLpm(): String = frame("launchLpm")
 }

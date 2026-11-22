@@ -49,8 +49,10 @@ export const useBranchPr = create<BranchPrState>((set) => ({
 export function prFromCreatedUrl(url: string, title: string, isDraft = false): PullRequestInfo | null {
   const trimmed = url.trim();
   const match = /\/pull\/(\d+)\/?$/.exec(trimmed);
-  if (!match) return null;
-  return { number: Number(match[1]), url: trimmed, state: "OPEN", title, isDraft };
+  if (match) return { number: Number(match[1]), url: trimmed, state: "OPEN", title, isDraft };
+  const mr = /\/-\/merge_requests\/(\d+)\/?$/.exec(trimmed);
+  if (!mr) return null;
+  return { number: Number(mr[1]), url: trimmed, state: "OPEN", title, isDraft, host: "gitlab" };
 }
 
 export function rememberCreatedPr(

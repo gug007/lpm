@@ -17,6 +17,7 @@ import {
   type MergeMode,
 } from "../prMerge";
 import { afterMerge } from "../prMergeDone";
+import { prWords } from "../gitForge";
 import { usePrMergeWatch } from "../store/prMergeWatch";
 import type { PrMergeMethod, PrMergeWatch, PullRequestMergeInfo } from "../types";
 import { PrMergeArmed } from "./PrMergeArmed";
@@ -56,6 +57,7 @@ export function PrMergeBody({
     };
   }, []);
 
+  const words = prWords(info);
   const methods = allowedMethods(info.merge.methods);
   const status = mergeStatus(info);
   const mode = mergeMode(status, picked);
@@ -66,9 +68,9 @@ export function PrMergeBody({
   const hasMenu = methods.length > 1 || (status.wait && status.now) || status.bypass;
 
   const fail = (err: unknown) => {
-    const message = String(err).trim() || "GitHub didn't merge it.";
+    const message = String(err).trim() || `${words.site} didn't merge it.`;
     if (!mounted.current) {
-      toast.error(`Couldn't merge #${info.number}`, { description: message });
+      toast.error(`Couldn't merge ${words.ref(info.number)}`, { description: message });
       return;
     }
     setBusy(false);
@@ -136,7 +138,14 @@ export function PrMergeBody({
     return (
       <>
         {lines}
-        <PrMergeArmed watch={armed} base={base} url={info.url} projectPath={projectPath} onClose={onClose} />
+        <PrMergeArmed
+          watch={armed}
+          base={base}
+          url={info.url}
+          site={words.site}
+          projectPath={projectPath}
+          onClose={onClose}
+        />
       </>
     );
   }
@@ -191,7 +200,7 @@ export function PrMergeBody({
           )}
         </div>
         <span className="ml-auto">
-          <PrOpenOnGitHub url={info.url} onClose={onClose} />
+          <PrOpenOnGitHub url={info.url} onClose={onClose} site={words.site} />
         </span>
       </div>
       {choosing && (
@@ -207,7 +216,7 @@ export function PrMergeBody({
         />
       )}
       {info.merge.deletesBranch ? (
-        <p className="mt-2 text-[11px] text-[var(--text-muted)]">GitHub deletes the branch once it's merged.</p>
+        <p className="mt-2 text-[11px] text-[var(--text-muted)]">{words.site} deletes the branch once it's merged.</p>
       ) : (
         <label className="mt-2 flex w-fit cursor-pointer items-center gap-1.5 text-[11px] text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]">
           <input
@@ -217,7 +226,7 @@ export function PrMergeBody({
             disabled={busy}
             className="h-3 w-3 accent-[var(--accent-blue)]"
           />
-          Delete the branch on GitHub
+          Delete the branch on {words.site}
         </label>
       )}
     </>

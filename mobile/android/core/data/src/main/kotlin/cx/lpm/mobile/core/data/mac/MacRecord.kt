@@ -28,7 +28,12 @@ data class MacRecord(
     /** Set for a machine opened through another saved Mac instead of paired here. */
     val via: MacVia? = null,
     /** The network cards it can be woken through, as it last said in `ready`. */
-    val wake: List<WakeTarget>? = null
+    val wake: List<WakeTarget>? = null,
+    /**
+     * The port lpm's login helper answers on, which can open lpm while it's closed, as
+     * the Mac last said in `ready`; null while it's off there.
+     */
+    val launcher: Int? = null
 ) {
     val id: String get() = localId
 

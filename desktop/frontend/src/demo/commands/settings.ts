@@ -47,6 +47,9 @@ export const settingsCommands: CommandMap = {
     return { registered: quickTerminalOn, problem: null };
   },
   quick_terminal_status: () => ({ registered: quickTerminalOn, problem: null }),
+  // A browser page has no webview zoom to set, so it stays drawn at 100%; the
+  // browser's own zoom does the job here.
+  set_interface_size: () => 1,
   quick_terminal_cwd: () => "~",
   hide_quick_terminal: () => null,
   login_item_state: () => loginItem(),

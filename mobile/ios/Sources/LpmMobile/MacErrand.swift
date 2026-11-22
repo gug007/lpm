@@ -27,11 +27,12 @@ final class MacErrand {
 
     /// Dial `mac`, hand the ready client to `work`, and finish when `work` calls
     /// its `done` — or on a failed connection or the timeout, with false.
-    static func run(to mac: MacRecord, deviceName: String, timeout: TimeInterval,
+    /// `port` reaches something else on the Mac than lpm itself: its login helper.
+    static func run(to mac: MacRecord, port: Int? = nil, deviceName: String, timeout: TimeInterval,
                     onIdentity: ((_ serverId: String?, _ serverName: String?, _ platform: String?) -> Void)? = nil,
                     work: @escaping (LpmClient, @escaping (Bool) -> Void) -> Void) async -> Bool {
         guard let credential = Keychain.load(for: mac.localId) else { return false }
-        let port = Int(mac.port)
+        let port = port ?? Int(mac.port)
         guard let host = await HostProbe.firstReachable(mac.hosts, port: port, timeout: probeTimeout)
         else { return false }
         let errand = MacErrand()
@@ -87,6 +88,7 @@ final class MacErrand {
         client?.onApnsToken = nil
         client?.onAnswerAgent = nil
         client?.onLiveActivity = nil
+        client?.onLaunchLpm = nil
         client?.shutdown()
         client = nil
         completion(ok)

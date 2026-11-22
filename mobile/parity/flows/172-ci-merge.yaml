@@ -10,6 +10,9 @@ tags: [demo, projects, git]
 - extendedWaitUntil:
     visible: "CI on #42.*"
     timeout: 10000
+# The Git section's rows settle as their answers land; tap once they have.
+- waitForAnimationToEnd:
+    timeout: 3000
 - tapOn: "CI on #42.*"
 - extendedWaitUntil:
     visible: "test \\(ubuntu-latest\\)"

@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { checksLabel, checksSummary } from "../prChecks";
 import { prLook } from "../prLook";
+import { prWords } from "../gitForge";
 import { useBranchPr } from "../store/branchPr";
 import type { PullRequestInfo } from "../types";
 import { ChecksButton, checkStateIcon } from "./ChecksButton";
@@ -22,6 +23,7 @@ interface BranchPrLinkProps {
 // second half saying how they stand.
 export function BranchPrLink({ pr, branch, projectName, projectPath }: BranchPrLinkProps) {
   const look = prLook(pr);
+  const words = prWords(pr);
   const summary = checksSummary(pr);
   const markRerun = useBranchPr((s) => s.markRerun);
   const [open, setOpen] = useState(false);
@@ -35,11 +37,13 @@ export function BranchPrLink({ pr, branch, projectName, projectPath }: BranchPrL
         onClick={() => (isOpen ? setOpen((v) => !v) : BrowserOpenURL(pr.url))}
         aria-haspopup={isOpen ? "dialog" : undefined}
         aria-expanded={isOpen ? open : undefined}
-        title={`${look.label} pull request #${pr.number}: ${pr.title}`}
+        title={`${look.label} ${words.noun} ${words.ref(pr.number)}: ${pr.title}`}
         className={`${FOOTER_PILL_CLASS} ${summary ? "rounded-l-md" : "rounded-md"} ${open ? "bg-[var(--composer-hover-bg)] text-[var(--composer-fg)]" : ""}`}
       >
         <look.Icon size={12} style={{ color: look.color }} />
-        <span className="tabular-nums">PR #{pr.number}</span>
+        <span className="tabular-nums">
+          {words.short} {words.ref(pr.number)}
+        </span>
       </button>
       {open && isOpen && buttonRef.current && (
         <ContextMenuShell anchor={buttonRef.current} align="end" side="top" minWidth={300} onClose={() => setOpen(false)}>
@@ -64,9 +68,10 @@ export function BranchPrLink({ pr, branch, projectName, projectPath }: BranchPrL
         projectPath={projectPath}
         checks={pr.checks ?? []}
         summary={summary}
-        heading={`Checks on #${pr.number}`}
-        title={`Checks on #${pr.number}: ${label}`}
-        githubUrl={`${pr.url}/checks`}
+        heading={`Checks on ${words.ref(pr.number)}`}
+        title={`Checks on ${words.ref(pr.number)}: ${label}`}
+        githubUrl={`${pr.url}/${words.checksPath}`}
+        site={words.site}
         fixPrompt={pr.fixPrompt}
         onRerun={(runIds) => markRerun(projectPath, runIds)}
         className={`${FOOTER_PILL_CLASS} -ml-px rounded-r-md px-2`}

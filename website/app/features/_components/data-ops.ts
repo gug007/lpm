@@ -55,6 +55,11 @@ export const AUTOMATIONS_AREA: FeatureArea = {
       body: "See the week's schedule on a calendar board, with unread badges, a Running marker, and system notifications when lpm is in the background.",
     },
     {
+      title: "Results in Telegram",
+      body: "Send each automation's result to a Telegram chat, group, or channel through a bot of your own. Create the bot with BotFather, paste its reply into lpm, and pick the chat; your other Macs share the setup.",
+      since: "0.7.4",
+    },
+    {
       title: "Agent, model, and access per job",
       body: "Pick the agent, model, and effort for each prompt job, and full or read-only access. Full access is the default, so choose read-only for review jobs.",
       note: "OpenCode jobs always run with full access.",

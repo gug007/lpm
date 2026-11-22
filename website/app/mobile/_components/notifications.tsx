@@ -1,7 +1,8 @@
-import { BellRing, Lock, Navigation, type LucideIcon } from "lucide-react";
+import { BellRing, Lock, Reply, type LucideIcon } from "lucide-react";
 import { FeatureCard } from "@/components/feature-card";
 import { SectionHeader } from "@/components/section-header";
 import { STATUS_AGENT_CHOICES } from "@/lib/app-facts";
+import NotificationAnswers from "./notification-answers";
 
 const CARDS: { icon: LucideIcon; title: string; body: string }[] = [
   {
@@ -15,9 +16,9 @@ const CARDS: { icon: LucideIcon; title: string; body: string }[] = [
     body: "Every alert is sealed with a per-device AES-256 key that only your phone and your Mac share. The delivery relay passes along an opaque blob it can't read, and your phone decrypts it on arrival.",
   },
   {
-    icon: Navigation,
-    title: "Tap to jump straight in",
-    body: "Tapping a notification opens the exact terminal or automation that needs you, ready to answer. Handle it on your Mac instead and the notification withdraws itself, so you're never chasing an alert that's already done.",
+    icon: Reply,
+    title: "Answer from the notification",
+    body: "Allow or Deny a Claude Code or Codex permission prompt, or Reply when an agent finishes, without opening the app. Tap the alert to open that terminal instead. Handle it on your Mac and the notification withdraws itself.",
   },
 ];
 
@@ -38,6 +39,7 @@ export default function Notifications() {
             </FeatureCard>
           ))}
         </div>
+        <NotificationAnswers />
       </div>
     </section>
   );

@@ -25,6 +25,45 @@ const DEFAULT_LIMIT: u64 = 40;
 const MAIN_LOGIN: &str = "default";
 const UNTITLED: &str = "Untitled session";
 
+/// Live terminal id -> the past conversation its tab holds, for every agent
+/// the list shows (`resumable` in the tab report). Claude's and Codex's are
+/// also known from their live sessions; Gemini's, OpenCode's and Cursor's only
+/// from the command the tab resumed them with.
+fn resumable() -> &'static Mutex<HashMap<String, String>> {
+    static TABS: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+    TABS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Records what each tab the desktop just reported holds.
+pub fn note_tabs(labels: &[Value]) {
+    let mut tabs = resumable().lock().unwrap();
+    for item in labels {
+        let Some(id) = item.get("id").and_then(Value::as_str).filter(|s| !s.is_empty()) else {
+            continue;
+        };
+        match item
+            .get("resumable")
+            .and_then(Value::as_str)
+            .filter(|s| !s.is_empty())
+        {
+            Some(session) => tabs.insert(id.to_string(), session.to_string()),
+            None => tabs.remove(id),
+        };
+    }
+}
+
+/// `open` (session id -> terminal id) plus what the project's live tabs
+/// `ids` hold that their live sessions don't say.
+pub fn with_resumed(mut open: HashMap<String, String>, ids: &[String]) -> HashMap<String, String> {
+    let tabs = resumable().lock().unwrap();
+    for id in ids {
+        if let Some(session) = tabs.get(id) {
+            open.entry(session.clone()).or_insert_with(|| id.clone());
+        }
+    }
+    open
+}
+
 fn reported() -> &'static Mutex<Value> {
     static AGENTS: OnceLock<Mutex<Value>> = OnceLock::new();
     AGENTS.get_or_init(|| Mutex::new(json!([])))

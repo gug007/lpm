@@ -8,17 +8,20 @@
 // a Beta build going back. In dev there is no enclosing .app, so both
 // error early (before any destructive step).
 //
-// The download-and-swap flow is .app/DMG-shaped and therefore macOS-only. A
-// Linux or Windows desktop gets a notice instead: the same check picks this
-// machine's installer (updatenotice.rs) and InstallUpdate opens its download in
-// the browser. A headless Linux host is updated by whatever installed it
-// (package manager, tarball, image rebuild), so there the commands stay
-// registered — the peer protocol must look identical from a Mac client — but
-// refuse, and no auto-check thread is started.
+// Windows downloads its installer the same way and runs it in place
+// (updates_windows.rs). A Linux desktop, or a Windows copy the installer didn't
+// put there, gets a notice instead: the same check picks this machine's
+// installer (updatenotice.rs) and InstallUpdate opens its download in the
+// browser. A headless Linux host is updated by whatever installed it (package
+// manager, tarball, image rebuild), so there the commands stay registered — the
+// peer protocol must look identical from a Mac client — but refuse, and no
+// auto-check thread is started.
 #![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 
 use crate::updatechannel::{Asset, Channel, Choice, Found};
 use crate::updatejob::UpdateJob;
+#[cfg(windows)]
+use crate::updates_windows::install;
 use serde::Serialize;
 use serde_json::Value;
 use std::io::Read;
@@ -29,7 +32,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::time::SystemTime;
 use tauri::Emitter;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 use tauri::Manager;
 use tauri::{AppHandle, State};
 
@@ -62,8 +65,8 @@ pub struct UpdateInfo {
 }
 
 /// A check's answer, and where the releases it names are downloaded from.
-struct Check {
-    info: UpdateInfo,
+pub(crate) struct Check {
+    pub(crate) info: UpdateInfo,
     newest_url: String,
     stable_url: String,
 }
@@ -78,7 +81,7 @@ pub(crate) enum Target {
 
 impl Check {
     /// The version and download `target` installs, or why there is none.
-    fn target(self, target: Target) -> Result<(String, String), String> {
+    pub(crate) fn target(self, target: Target) -> Result<(String, String), String> {
         match target {
             Target::Newest if self.info.update_avail => {
                 Ok((self.info.latest_version, self.newest_url))
@@ -127,8 +130,16 @@ pub(crate) fn newer(latest: &str, current: &str) -> bool {
 }
 
 #[cfg(not(target_os = "macos"))]
-const UNSUPPORTED: &str =
-    "lpm updates itself only on macOS — update this host the way you installed it.";
+const UNSUPPORTED: &str = "This lpm doesn't update itself — update it the way you installed it.";
+
+/// Whether this build replaces itself with a new release: every macOS build,
+/// and a Windows one the lpm installer put in place.
+pub(crate) fn replaces_itself() -> bool {
+    #[cfg(windows)]
+    return crate::updates_windows::installed();
+    #[cfg(not(windows))]
+    cfg!(target_os = "macos")
+}
 
 #[tauri::command(async)]
 pub fn check_for_update() -> Result<UpdateInfo, String> {
@@ -171,6 +182,8 @@ pub fn start_auto_check(app: AppHandle) {
         return;
     }
     std::thread::spawn(move || {
+        #[cfg(windows)]
+        crate::updates_windows::sweep_leftovers();
         let mut next_check = SystemTime::now();
         loop {
             if SystemTime::now() >= next_check && check_and_emit(&app).is_ok() {
@@ -196,7 +209,7 @@ pub(crate) fn run_off_worker<T: Send + 'static>(
 /// ask: GitHub answers 60 logged-out checks an hour per network, and a test
 /// harness or `tauri dev` relaunching the app would spend them for everyone
 /// behind the same address.
-fn do_check() -> Result<Check, String> {
+pub(crate) fn do_check() -> Result<Check, String> {
     let current = current_version().trim_start_matches('v').to_string();
     if current == "dev" {
         return Err(DEV_BUILD.into());
@@ -278,20 +291,9 @@ fn command_failure(out: &std::process::Output) -> String {
 /// Walk up from the current executable to the enclosing `*.app` bundle.
 pub(crate) fn app_bundle_path() -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let mut dir = exe.parent();
-    while let Some(d) = dir {
-        if d.as_os_str().is_empty() || d == Path::new("/") {
-            break;
-        }
-        if d.extension().and_then(|e| e.to_str()) == Some("app") {
-            return Ok(d.to_path_buf());
-        }
-        dir = d.parent();
-    }
-    Err(format!(
-        "could not determine .app bundle path from {}",
-        exe.display()
-    ))
+    crate::linkhelper::bundle_of(&exe)
+        .map(Path::to_path_buf)
+        .ok_or_else(|| format!("could not determine .app bundle path from {}", exe.display()))
 }
 
 #[tauri::command(async)]
@@ -305,11 +307,11 @@ pub fn rollback_update(app: AppHandle, state: State<'_, UpdateState>) -> Result<
     install_command(&app, &state, Target::Stable)
 }
 
-/// Linux/Windows: open the installer's download in the browser. Returns Err
-/// even then, so a caller waiting for the app to restart stops waiting and
-/// shows what to do next.
+/// Linux, and a Windows copy the installer didn't put in place: open the
+/// installer's download in the browser. Returns Err even then, so a caller
+/// waiting for the app to restart stops waiting and shows what to do next.
 #[cfg(not(target_os = "macos"))]
-fn install_command(app: &AppHandle, _state: &UpdateState, target: Target) -> Result<(), String> {
+fn install_command(app: &AppHandle, state: &UpdateState, target: Target) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
     if crate::sys::headless() {
         return Err(UNSUPPORTED.into());
@@ -317,6 +319,11 @@ fn install_command(app: &AppHandle, _state: &UpdateState, target: Target) -> Res
     if current_version() == "dev" {
         return Err(DEV_BUILD.into());
     }
+    #[cfg(windows)]
+    if replaces_itself() {
+        return install_in_place(app, state, target);
+    }
+    let _ = state;
     let (version, url) = do_check()?.target(target)?;
     app.opener()
         .open_url(url, None::<String>)
@@ -326,8 +333,6 @@ fn install_command(app: &AppHandle, _state: &UpdateState, target: Target) -> Res
     ))
 }
 
-/// Returns Ok only when cancel_update stopped it: a finished install relaunches
-/// the app instead of returning.
 #[cfg(target_os = "macos")]
 fn install_command(app: &AppHandle, state: &UpdateState, target: Target) -> Result<(), String> {
     // No enclosing .app in dev — bail with a product-terms message instead of
@@ -335,6 +340,13 @@ fn install_command(app: &AppHandle, state: &UpdateState, target: Target) -> Resu
     if current_version() == "dev" {
         return Err(DEV_BUILD.into());
     }
+    install_in_place(app, state, target)
+}
+
+/// Returns Ok only when cancel_update stopped it: a finished install relaunches
+/// the app instead of returning.
+#[cfg(any(target_os = "macos", windows))]
+fn install_in_place(app: &AppHandle, state: &UpdateState, target: Target) -> Result<(), String> {
     let mut job = state.job.begin()?;
     let result = install(app, &mut job, &reporter(app, None), target);
     crate::remote_update::relay(app, "update-status", &Value::from("idle"));
@@ -349,7 +361,7 @@ fn install_command(app: &AppHandle, state: &UpdateState, target: Target) -> Resu
 /// too. Ok(true) when it was cancelled; a finished install restarts the app
 /// instead of returning. Either way of stopping short tells this app's windows it
 /// is over, since no install of theirs is waiting to say so.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 pub(crate) fn install_for_peer(
     app: &AppHandle,
     observer: Option<Observer>,
@@ -359,7 +371,7 @@ pub(crate) fn install_for_peer(
 
 /// [`install_for_peer`] to either target: what `lpm update` and an install
 /// waiting for idle run.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 pub(crate) fn install_observed(
     app: &AppHandle,
     observer: Option<Observer>,
@@ -386,7 +398,7 @@ pub(crate) fn install_observed(
 
 /// The version `target` would install, or None when this build is already the
 /// newest on its channel.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 pub(crate) fn pending_version(target: Target) -> Result<Option<String>, String> {
     let check = do_check()?;
     if target == Target::Newest && !check.info.update_avail {
@@ -395,7 +407,7 @@ pub(crate) fn pending_version(target: Target) -> Result<Option<String>, String> 
     check.target(target).map(|(version, _)| Some(version))
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 fn reporter(app: &AppHandle, observer: Option<Observer>) -> Observer {
     let app = app.clone();
     Arc::new(move |event, payload| {
@@ -442,42 +454,7 @@ fn install(
         .to_path_buf();
     ensure_app_dir_writable(&app_dir)?;
 
-    job.check()?;
-    report("update-status", Value::from("downloading"));
-
-    // Download the DMG to a temp file, emitting integer percent progress.
-    let tmp = tempfile::Builder::new()
-        .prefix("lpm-update-")
-        .suffix(".dmg")
-        .tempfile()
-        .map_err(|e| format!("failed to create temp file: {e}"))?;
-    let report_progress = report.clone();
-    let url_owned = url.clone();
-    let cancel = job.flag();
-    let mut out_file = tmp.as_file().try_clone().map_err(|e| e.to_string())?;
-    job.run(move || {
-        let client = reqwest::blocking::Client::builder()
-            .timeout(Duration::from_secs(300))
-            .user_agent("lpm")
-            .build()
-            .map_err(|e| e.to_string())?;
-        let mut resp = client
-            .get(&url_owned)
-            .send()
-            .map_err(|e| format!("failed to download update: {e}"))?;
-        if !resp.status().is_success() {
-            return Err(format!(
-                "download returned status {}",
-                resp.status().as_u16()
-            ));
-        }
-        let total = resp.content_length().unwrap_or(0);
-        copy_with_progress(&mut resp, &mut out_file, total, &cancel, &|pct| {
-            report_progress("update-progress", Value::from(pct));
-        })
-        .map_err(|e| format!("failed to save update: {e}"))
-    })?;
-    let dmg_path = tmp.into_temp_path();
+    let dmg_path = download_release(job, report, &url, ".dmg")?;
 
     job.commit()?;
     report("update-status", Value::from("installing"));
@@ -566,6 +543,52 @@ fn install(
     crate::socketsrv::release();
     std::thread::sleep(Duration::from_millis(300));
     std::process::exit(0);
+}
+
+/// Downloads a release into a temp file named `lpm-update-…{suffix}`, reporting
+/// whole percents. It stops wherever a cancel finds it.
+#[cfg(any(target_os = "macos", windows))]
+pub(crate) fn download_release(
+    job: &mut crate::updatejob::JobGuard,
+    report: &Observer,
+    url: &str,
+    suffix: &str,
+) -> Result<tempfile::TempPath, String> {
+    job.check()?;
+    report("update-status", Value::from("downloading"));
+
+    let tmp = tempfile::Builder::new()
+        .prefix("lpm-update-")
+        .suffix(suffix)
+        .tempfile()
+        .map_err(|e| format!("failed to create temp file: {e}"))?;
+    let report_progress = report.clone();
+    let url_owned = url.to_string();
+    let cancel = job.flag();
+    let mut out_file = tmp.as_file().try_clone().map_err(|e| e.to_string())?;
+    job.run(move || {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(300))
+            .user_agent("lpm")
+            .build()
+            .map_err(|e| e.to_string())?;
+        let mut resp = client
+            .get(&url_owned)
+            .send()
+            .map_err(|e| format!("failed to download update: {e}"))?;
+        if !resp.status().is_success() {
+            return Err(format!(
+                "download returned status {}",
+                resp.status().as_u16()
+            ));
+        }
+        let total = resp.content_length().unwrap_or(0);
+        copy_with_progress(&mut resp, &mut out_file, total, &cancel, &|pct| {
+            report_progress("update-progress", Value::from(pct));
+        })
+        .map_err(|e| format!("failed to save update: {e}"))
+    })?;
+    Ok(tmp.into_temp_path())
 }
 
 struct DetachGuard(PathBuf);

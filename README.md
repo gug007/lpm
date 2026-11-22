@@ -33,6 +33,8 @@ Download lpm from [lpm.cx](https://lpm.cx):
 - **Windows 11** (x64, beta): run the installer. Needs [Git for Windows](https://gitforwindows.org)
 - **Linux** (x86-64, beta): `.deb`, `.rpm`, or AppImage. Needs Ubuntu 22.04 or newer, or another distro with glibc 2.35+
 
+How Windows releases are signed: [Code signing policy](https://lpm.cx/code-signing).
+
 On your phone, get lpm Link from the [App Store](https://apps.apple.com/us/app/lpm-link/id6788396977) (iPhone and iPad) or [Google Play](https://play.google.com/store/apps/details?id=cx.lpm.mobile) (Android).
 
 ## See it in action

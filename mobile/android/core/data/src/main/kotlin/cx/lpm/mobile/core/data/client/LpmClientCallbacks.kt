@@ -13,6 +13,7 @@ import cx.lpm.mobile.core.model.AutomationLiveOutput
 import cx.lpm.mobile.core.model.AutomationMachine
 import cx.lpm.mobile.core.model.BackgroundRunSummary
 import cx.lpm.mobile.core.model.CiCheck
+import cx.lpm.mobile.core.model.CiFixLoop
 import cx.lpm.mobile.core.model.ClaudeAccounts
 import cx.lpm.mobile.core.model.CommitFile
 import cx.lpm.mobile.core.model.ComposerAction
@@ -36,6 +37,7 @@ import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
 import cx.lpm.mobile.core.model.MacBuild
 import cx.lpm.mobile.core.model.MacKeepAwake
+import cx.lpm.mobile.core.model.MacPower
 import cx.lpm.mobile.core.model.MacUpdateCheck
 import cx.lpm.mobile.core.model.MacUpdateStep
 import cx.lpm.mobile.core.model.MachinePairOffer
@@ -213,6 +215,9 @@ abstract class LpmClientCallbacks {
     var onGitCommitChecks: ((project: String, states: Map<String, CiCheck.State>) -> Unit)? = null
     var onGitChecksRerun: ((project: String, error: String?) -> Unit)? = null
 
+    // Keep fixing until green, as a reply or as any change after it.
+    var onCiFixLoop: ((project: String, loop: CiFixLoop?, error: String?) -> Unit)? = null
+
     // The review's extras: secrets, branch scope, the PR review, check logs, saves.
     var onGitExtras: ((frame: cx.lpm.mobile.core.protocol.Inbound) -> Unit)? = null
 
@@ -266,6 +271,10 @@ abstract class LpmClientCallbacks {
     var onIdentity: ((serverId: String?, serverName: String?, platform: String?) -> Unit)? = null
     var onAdvertisedHosts: ((serverId: String?, hosts: List<String>) -> Unit)? = null
     var onWakeTargets: ((serverId: String?, targets: List<WakeTarget>) -> Unit)? = null
+
+    /** The login helper's port that can open lpm while it's closed; null when it's off. */
+    var onLauncher: ((serverId: String?, port: Int?) -> Unit)? = null
+    var onLaunchLpm: ((error: String?) -> Unit)? = null
     var onBuild: ((build: MacBuild?) -> Unit)? = null
     var onUpdateCheck: ((check: MacUpdateCheck) -> Unit)? = null
     var onUpdateProgress: ((step: MacUpdateStep) -> Unit)? = null
@@ -274,6 +283,8 @@ abstract class LpmClientCallbacks {
 
     var onKeepAwake: ((state: MacKeepAwake) -> Unit)? = null
     var onKeepAwakeSet: ((state: MacKeepAwake?, error: String?) -> Unit)? = null
+    var onPower: ((state: MacPower) -> Unit)? = null
+    var onPowerSet: ((action: MacPower.Action, state: MacPower?, error: String?) -> Unit)? = null
     var onApnsToken: ((ok: Boolean) -> Unit)? = null
     var onPushToken: ((ok: Boolean) -> Unit)? = null
     var onAnswerAgent: ((reqId: String, error: String?) -> Unit)? = null

@@ -2,7 +2,7 @@ import { ExternalLink } from "lucide-react";
 import { BrowserOpenURL } from "../../bridge/runtime";
 import { TEXT_ACTION } from "./ui/buttons";
 
-export function PrOpenOnGitHub({ url, onClose }: { url: string; onClose: () => void }) {
+export function PrOpenOnGitHub({ url, onClose, site = "GitHub" }: { url: string; onClose: () => void; site?: string }) {
   return (
     <button
       type="button"
@@ -13,7 +13,7 @@ export function PrOpenOnGitHub({ url, onClose }: { url: string; onClose: () => v
       className={`${TEXT_ACTION} shrink-0 whitespace-nowrap`}
     >
       <ExternalLink size={11} />
-      Open on GitHub
+      Open on {site}
     </button>
   );
 }

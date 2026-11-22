@@ -25,6 +25,8 @@ import { PRCreatedView } from "./PRCreatedView";
 import { BranchPicker } from "./BranchPicker";
 import { CreatePRSplitButton } from "./CreatePRSplitButton";
 import { InstructionsChip } from "./InstructionsChip";
+import { GitCliMissing } from "./GitCliMissing";
+import { forgeWords, loadGitHost, siteName, type GitHost } from "../gitForge";
 
 type BranchCommit = main.BranchCommit;
 type Branch = main.Branch;
@@ -58,6 +60,8 @@ export function PRModal({
   const titleGen = useAIGeneration(projectName);
   const descGen = useAIGeneration(projectName);
   const [ghAvailable, setGhAvailable] = useState(true);
+  const [host, setHost] = useState<GitHost | null>(null);
+  const words = forgeWords(host?.kind);
   const ai = useAIPicker(open, projectName);
   const [branches, setBranches] = useState<Branch[]>([]);
   const excludeCurrent = useCallback(
@@ -85,13 +89,15 @@ export function PRModal({
 
     (async () => {
       try {
-        const [defaultBranch, ghOk, branchList] = await Promise.all([
+        const [defaultBranch, hostInfo, branchList] = await Promise.all([
           GitDefaultBranch(projectPath),
-          CheckGHCLI(),
+          loadGitHost(projectPath),
           ListBranches(projectPath).catch(() => [] as Branch[]),
         ]);
+        const ghOk = hostInfo ? hostInfo.cliFound : await CheckGHCLI();
         if (cancelled) return;
         setBase(defaultBranch);
+        setHost(hostInfo);
         setGhAvailable(ghOk);
         setBranches(branchList.filter((b: any) => b.name !== currentBranch));
 
@@ -233,7 +239,7 @@ export function PRModal({
     if (busy || loading || !ghAvailable) return null;
     if (noChangesReason) return noChangesReason;
     if (generating) return null;
-    if (title.trim().length === 0) return "Add a title to create the PR.";
+    if (title.trim().length === 0) return `Add a title to create the ${words.short}.`;
     return null;
   })();
 
@@ -254,7 +260,7 @@ export function PRModal({
       rememberCreatedPr(projectPath, currentBranch, url, title.trim(), asDraft);
       onCreated();
     } catch (err) {
-      toast.error(`Create PR failed: ${err}`);
+      toast.error(`Create ${words.short} failed: ${err}`);
     } finally {
       setBusy(false);
     }
@@ -279,10 +285,11 @@ export function PRModal({
         </div>
         <div className="min-w-0 flex-1">
           <h3 className="text-[15px] font-semibold leading-tight text-[var(--text-primary)]">
-            Create Pull Request
+            Create {words.title}
           </h3>
           <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
-            Open a pull request to merge your changes on GitHub.
+            Open a {words.noun} to merge your changes on{" "}
+            {siteName(host)}.
           </p>
         </div>
         <button
@@ -296,15 +303,7 @@ export function PRModal({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 pb-5">
-        {!ghAvailable && (
-          <div className="rounded-lg border border-[var(--accent-red)]/30 bg-[var(--accent-red)]/5 px-3 py-2 text-xs text-[var(--accent-red-text)]">
-            GitHub CLI (gh) not found. Install it from{" "}
-            <span className="font-medium">https://cli.github.com</span> and run{" "}
-            <code className="rounded bg-[var(--bg-hover)] px-1">
-              gh auth login
-            </code>
-          </div>
-        )}
+        {!ghAvailable && <GitCliMissing host={host} />}
 
         {prURL ? (
           <PRCreatedView
@@ -313,6 +312,7 @@ export function PRModal({
             base={base}
             url={prURL}
             draft={draft}
+            words={words}
             onSwitched={() => {
               onCreated();
               closeModal();
@@ -356,11 +356,11 @@ export function PRModal({
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
                   }}
-                  placeholder="PR title"
+                  placeholder={`${words.short} title`}
                   disabled={busy}
                   rows={1}
                   style={TITLE_MAX_HEIGHT}
-                  aria-label="Pull request title"
+                  aria-label={`${words.title} title`}
                   className="w-full resize-none overflow-hidden bg-transparent px-3.5 pt-3 pb-2 text-base font-semibold leading-[1.4] text-[var(--text-primary)] outline-none placeholder:font-normal placeholder:text-[var(--text-muted)] disabled:opacity-60"
                 />
                 <div className="mx-3.5 border-t border-[var(--border)]/70" />
@@ -375,7 +375,7 @@ export function PRModal({
                   disabled={busy}
                   rows={12}
                   style={DESC_MAX_HEIGHT}
-                  aria-label="Pull request description"
+                  aria-label={`${words.title} description`}
                   className={`w-full resize-none bg-transparent px-3.5 pt-2.5 text-sm leading-[1.6] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] disabled:opacity-60 ${
                     ai.anyAvailable ? "pb-1.5" : "pb-3"
                   }`}
@@ -489,7 +489,7 @@ export function PRModal({
             )}
             {ai.anyAvailable && !prURL && (
               <Tooltip
-                content="Auto-generate PR description on open"
+                content={`Auto-generate ${words.short} description on open`}
                 side="top"
                 align="start"
               >
@@ -505,7 +505,7 @@ export function PRModal({
               </Tooltip>
             )}
             {!prURL && (
-              <InstructionsChip projectName={projectName} target="pr" backTitle="Pull request" />
+              <InstructionsChip projectName={projectName} target="pr" backTitle={words.sentence} />
             )}
           </span>
           <div className="flex gap-2">
@@ -518,6 +518,7 @@ export function PRModal({
             </button>
             {!prURL && (
               <CreatePRSplitButton
+                short={words.short}
                 draft={draft}
                 busy={busy}
                 disabled={!canCreate}

@@ -1,4 +1,5 @@
 import { checksSummary } from "./prChecks";
+import { prWords } from "./gitForge";
 import type { PrCheckState, PrMergeMethod, PrMergeWatch, PullRequestMergeInfo } from "./types";
 
 // GitHub's merge button order.
@@ -72,7 +73,9 @@ export function mergeStatus(info: PullRequestMergeInfo): MergeStatus {
   const none = { wait: false, now: false, bypass: false };
   const bypass = !!merge.canBypass && (merge.state === "BLOCKED" || merge.state === "BEHIND");
   if (info.isDraft || merge.state === "DRAFT") {
-    return { kind: "blocked", note: "Draft pull requests can't be merged. Mark it ready for review on GitHub.", ...none };
+    const words = prWords(info);
+    const note = `Draft ${words.noun}s can't be merged. Mark it ready for review on ${words.site}.`;
+    return { kind: "blocked", note, ...none };
   }
   if (conflicts(info)) return { kind: "blocked", ...none };
   const verdict = checksSummary(info)?.verdict;
@@ -133,9 +136,13 @@ export function waitText(running: number, bypass: boolean, base: string): string
 }
 
 /** What an armed wait will do, in the card. */
-export function armedText(watch: Pick<PrMergeWatch, "method" | "bypass" | "deleteBranch">, base: string): string {
+export function armedText(
+  watch: Pick<PrMergeWatch, "method" | "bypass" | "deleteBranch">,
+  base: string,
+  site = "GitHub",
+): string {
   const bypass = watch.bypass ? bypassClause(base) : "";
-  const branch = watch.deleteBranch ? ", then delete the branch on GitHub" : "";
+  const branch = watch.deleteBranch ? `, then delete the branch on ${site}` : "";
   return `${MERGE_METHOD_LABEL[watch.method]} once the running checks pass${bypass}${branch}. Stops if a check fails.`;
 }
 

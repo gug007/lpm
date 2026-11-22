@@ -53,12 +53,12 @@ struct GitMergeSection: View {
         Button {
             Haptics.tap()
             let deletes = offer?.deletesBranch == true || deleteBranch
-            AppLock.shared.confirm("Merge pull request #\(pr.number)") {
+            AppLock.shared.confirm("Merge \(pr.noun) \(pr.ref)") {
                 store.merge(project, method: method, deleteBranch: deletes)
             }
         } label: {
             ZStack {
-                Text("Merge #\(pr.number)").fontWeight(.semibold).opacity(merging ? 0 : 1)
+                Text("Merge \(pr.ref)").fontWeight(.semibold).opacity(merging ? 0 : 1)
                 if merging { ProgressView().tint(.white) }
             }
             .frame(maxWidth: .infinity)
@@ -122,7 +122,7 @@ struct GitMergedSection: View {
             HStack(spacing: 10) {
                 Image(systemName: "checkmark.seal.fill").foregroundStyle(.green).frame(width: 22)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Merged #\(merged.number)").font(.body.weight(.semibold))
+                    Text("Merged \(merged.ref)").font(.body.weight(.semibold))
                     if !merged.title.isEmpty {
                         Text(merged.title).font(.caption).foregroundStyle(.secondary)
                     }
@@ -132,7 +132,7 @@ struct GitMergedSection: View {
             .accessibilityElement(children: .combine)
         } footer: {
             if merged.deletedBranch {
-                Text("Its branch was deleted on GitHub. The branch on your Mac is still checked out.")
+                Text("Its branch was deleted on \(merged.site). The branch on your Mac is still checked out.")
             } else {
                 Text("The branch on your Mac is still checked out.")
             }

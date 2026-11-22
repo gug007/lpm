@@ -78,6 +78,9 @@ internal fun LpmClient.dispatch(frame: Inbound) {
             onIdentity?.invoke(frame.serverId, frame.serverName, frame.platform)
             if (frame.hosts.isNotEmpty()) onAdvertisedHosts?.invoke(frame.serverId, frame.hosts)
             onWakeTargets?.invoke(frame.serverId, frame.wake)
+            if (LpmClient.LAUNCH_LPM_FEATURE !in frame.features) {
+                onLauncher?.invoke(frame.serverId, frame.launcher)
+            }
             onBuild?.invoke(frame.build)
         }
 

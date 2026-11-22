@@ -488,6 +488,12 @@ enum Wire {
     static func gitChecksRerun(project: String, runIds: [String]) -> String {
         json(["t": "gitChecksRerun", "project": project, "runIds": runIds])
     }
+    /// Keep fixing until green on (naming the fixing agent) or off; a Mac whose
+    /// `features` has "ciFixLoop".
+    static func ciFixLoop(project: String, on: Bool, agent: String) -> String {
+        on ? json(["t": "ciFixLoop", "project": project, "on": true, "agent": agent])
+            : json(["t": "ciFixLoop", "project": project, "on": false])
+    }
     /// A Mac whose `features` has "gitCommitChecks".
     static func gitCommitChecks(project: String) -> String { json(["t": "gitCommitChecks", "project": project]) }
     static func gitCommitFiles(project: String, hash: String) -> String {
@@ -538,6 +544,17 @@ enum Wire {
         if let minutes { o["minutes"] = minutes }
         return json(o)
     }
+
+    // MARK: lock or sleep (a Mac whose `features` has "power")
+
+    static func power() -> String { json(["t": "power"]) }
+    static func lockScreen() -> String { json(["t": "lockScreen"]) }
+    static func sleepNow() -> String { json(["t": "sleepNow"]) }
+    static func sleepWhenIdle(_ on: Bool) -> String { json(["t": "sleepWhenIdle", "on": on]) }
+
+    // MARK: lpm's login helper (the port a Mac's `ready` names as `launcher`)
+
+    static func launchLpm() -> String { json(["t": "launchLpm"]) }
     static func gitUnwatch(project: String) -> String { json(["t": "gitUnwatch", "project": project]) }
 
     // MARK: composer parity (AI actions, transform, service logs, rich history)
@@ -718,7 +735,7 @@ enum Wire {
         // that can't show the dialog at all), or "timeout" (no answer).
         case pairDenied(reason: String, message: String?)
         case ready(serverId: String?, serverName: String?, hosts: [String], platform: String?,
-                   build: MacBuild?, features: Set<String>, wake: [WakeTarget])
+                   build: MacBuild?, features: Set<String>, wake: [WakeTarget], launcher: Int?)
         // The Mac is about to close this connection on purpose: "sleep", "quit" or
         // "off" (remote control turned off), with when it said so (ms).
         case bye(reason: String, at: Int?)
@@ -862,6 +879,8 @@ enum Wire {
         // How the branch stands on CI (nil when it has none to show), and the
         // failed jobs run again. `error` is nil on success.
         case gitChecks(project: String, checks: GitChecks?, error: String?)
+        // Keep fixing until green, as a reply or as any change after it.
+        case ciFixLoop(project: String, loop: CiFixLoop?, error: String?)
         case gitCommitChecks(project: String, states: [String: CiCheck.State])
         case gitChecksRerun(project: String, error: String?)
         // The open pull request merged, and whether its branch went with it.
@@ -966,6 +985,12 @@ enum Wire {
         // and the answer to a change asked for here (`state` rides a refusal too).
         case keepAwake(MacKeepAwake)
         case keepAwakeSet(MacKeepAwake?, error: String?)
+        // Lock or sleep: what the Mac can do and whether it sleeps once its
+        // agents finish, and the answer to lockScreen / sleepNow / sleepWhenIdle.
+        case power(MacPower)
+        case powerSet(MacPower.Action, state: MacPower?, error: String?)
+        // The login helper's answer to launchLpm: nil once lpm answers, else why not.
+        case launchLpm(error: String?)
         case pong
         case unknown
 
@@ -997,7 +1022,8 @@ enum Wire {
                               platform: obj["platform"] as? String,
                               build: MacBuild(obj),
                               features: Set(obj["features"] as? [String] ?? []),
-                              wake: (obj["wake"] as? [[String: Any]] ?? []).compactMap(WakeTarget.init))
+                              wake: (obj["wake"] as? [[String: Any]] ?? []).compactMap(WakeTarget.init),
+                              launcher: obj["launcher"] as? Int)
             case "bye":
                 return .bye(reason: obj["reason"] as? String ?? "", at: obj["at"] as? Int)
             case "error": return .error(obj["error"] as? String ?? "error")
@@ -1308,6 +1334,11 @@ enum Wire {
                 return .gitRestoreDiscarded(project: obj["project"] as? String ?? "",
                                             error: ok ? nil : (obj["error"] as? String ?? "Couldn't restore the changes."))
             case "git-changed": return .gitChanged(project: obj["project"] as? String ?? "")
+            case "ciFixLoop":
+                let ok = obj["ok"] as? Bool ?? false
+                return .ciFixLoop(project: obj["project"] as? String ?? "",
+                                  loop: (obj["loop"] as? [String: Any]).flatMap(CiFixLoop.init),
+                                  error: ok ? nil : (obj["error"] as? String ?? "Couldn't keep fixing until green."))
             case "gitChecks":
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitChecks(project: obj["project"] as? String ?? "",
@@ -1604,6 +1635,16 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .keepAwakeSet(MacKeepAwake(obj["state"] as? [String: Any] ?? [:]),
                                      error: ok ? nil : (obj["error"] as? String ?? "That change didn't go through."))
+            case "power":
+                return .power(MacPower(obj["state"] as? [String: Any] ?? [:]))
+            case "launchLpm":
+                let ok = obj["ok"] as? Bool ?? false
+                return .launchLpm(error: ok ? nil : (obj["error"] as? String ?? "lpm didn't start."))
+            case "lockScreen", "sleepNow", "sleepWhenIdle":
+                guard let action = MacPower.Action(rawValue: t) else { return .unknown }
+                let ok = obj["ok"] as? Bool ?? false
+                return .powerSet(action, state: (obj["state"] as? [String: Any]).map(MacPower.init),
+                                 error: ok ? nil : (obj["error"] as? String ?? action.failure))
             case "pong": return .pong
             default: return .unknown
             }

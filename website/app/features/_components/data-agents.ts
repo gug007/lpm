@@ -1,6 +1,6 @@
 import { AtSign, BellRing, Bot, MessageSquareText, Radio, Slash } from "lucide-react";
 import { OTHER_STATUS_AGENT_NAMES, STATUS_AGENT_NAMES } from "@/lib/app-facts";
-import { AI_AGENTS_PATH, PROJECT_SIDEBAR_PATH } from "@/lib/links";
+import { AI_AGENTS_PATH, PROJECT_SIDEBAR_PATH, lessonPath } from "@/lib/links";
 import type { FeatureArea } from "./feature-types";
 
 export const AGENTS_AREA: FeatureArea = {
@@ -79,6 +79,13 @@ export const AGENTS_AREA: FeatureArea = {
     {
       title: "Paste screenshots for agents",
       body: "Paste an image or drop files on a terminal and lpm types the file path for the agent to read. On SSH hosts and other paired computers, files are uploaded first.",
+    },
+    {
+      title: "Images and speech from agents",
+      body: "Claude Code and Codex can make images with Nano Banana or GPT Image, and speech audio, using the keys you save in lpm. Each one waits for your approval, which you can also give from your phone, and an image opens in lpm with the model, cost, and prompt it was made with.",
+      since: "0.7.64",
+      href: lessonPath("claude-code-codex-nano-banana-images"),
+      linkLabel: "Watch the images lesson",
     },
     {
       title: "Standalone terminals",
@@ -163,6 +170,14 @@ export const COMPOSER_AREA: FeatureArea = {
       title: "Voice dictation",
       body: "On macOS, tap the mic to dictate a prompt instead of typing it.",
       note: "Uses the separate, free VoiceToText Mac app. Not available on Windows or Linux.",
+    },
+    {
+      title: "Video answers",
+      body: "Turn on Video in the composer and ask as usual: the agent answers with a short narrated video instead of text, and it plays right in lpm. Preview the narrator's voice before you pick it.",
+      note: "Needs a one-time setup the first time you turn it on.",
+      since: "0.7.63",
+      href: lessonPath("claude-code-codex-video-answers"),
+      linkLabel: "Watch the video answers lesson",
     },
     {
       title: "Your toolbar, your way",

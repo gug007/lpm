@@ -98,6 +98,9 @@ struct GhLineComment {
 /// The discussion, or None when the branch has no pull request.
 #[tauri::command(async)]
 pub fn pull_request_discussion(cwd: String) -> Result<Option<PullRequestDiscussion>, String> {
+    if let Some(repo) = crate::githost::gitlab(&cwd) {
+        return Ok(crate::gitlab_review::discussion(&cwd, &repo));
+    }
     let view = match gh_out(
         &cwd,
         &[

@@ -36,6 +36,8 @@ export interface TerminalStartOpts {
   background?: boolean;
   // The pane the tab opens in; the focused one when unset or gone.
   paneId?: string;
+  // A plain terminal's shell (shells.ts); unset, the login shell agents use.
+  shell?: string;
 }
 
 export interface UseTerminalsResult {
@@ -43,7 +45,7 @@ export interface UseTerminalsResult {
   focusedPaneId: string | null;
   // Settles once the saved tabs are back; until then `tree` is not the real one.
   restoreSettled: RefObject<Promise<void>>;
-  createTerminal: (background?: boolean) => Promise<void>;
+  createTerminal: (background?: boolean, shell?: string) => Promise<void>;
   createTerminalWithCmd: (label: string, cmd: string, opts?: TerminalStartOpts) => Promise<void>;
   adoptTerminal: (
     id: string,
@@ -53,7 +55,7 @@ export interface UseTerminalsResult {
   resumeFromHistory: (entry: PersistedHistoryEntry, background?: boolean) => Promise<void>;
   forkTerminal: (paneId: string, termId: string) => Promise<void>;
   forkTerminalIntoCopy: (paneId: string, termId: string) => Promise<void>;
-  addTerminalToPane: (paneId: string) => Promise<void>;
+  addTerminalToPane: (paneId: string, shell?: string) => Promise<void>;
   addBrowserToPane: (paneId?: string, url?: string, label?: string) => void;
   addMemoryToPane: (paneId?: string) => void;
   addToolkitToPane: (paneId?: string) => void;

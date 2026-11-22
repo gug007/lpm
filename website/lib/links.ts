@@ -11,6 +11,7 @@ export const AI_AGENTS_PATH = "/best-terminal-for-claude-code-and-codex";
 export const CLAUDE_ACCOUNTS_PATH = "/claude-code-multiple-accounts";
 export const DOCS_PATH = "/docs";
 export const SECURITY_PATH = "/security";
+export const CODE_SIGNING_PATH = "/code-signing";
 export const PRIVACY_PATH = "/privacy";
 export const TERMS_PATH = "/terms";
 export const STATS_PATH = "/stats";
@@ -42,6 +43,7 @@ export const FEATURES_PATH = "/features";
 export const AUTOMATIONS_PATH = "/schedule-claude-code-tasks";
 export const PARALLEL_PATH = "/run-claude-code-in-parallel";
 export const SHARE_TERMINAL_PATH = "/share-terminal";
+export const PORT_IN_USE_PATH = "/port-already-in-use";
 export const APP_STORE_URL =
   "https://apps.apple.com/us/app/lpm-link/id6788396977";
 export const PLAY_STORE_URL =

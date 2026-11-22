@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, Coffee, Hash, ShieldCheck } from "lucide-react";
+import { ChevronDown, Coffee, Hash, ShieldCheck, Smartphone } from "lucide-react";
 import { Toggle } from "../connections/Toggle";
 import { WayInRow } from "./WayInRow";
 import { keepAwakeText, type KeepAwakeStatus } from "../../mobile/reachStatus";
@@ -15,6 +15,8 @@ export function ReachOptions({
   keepAwake = false,
   keepAwakeStatus = "unsupported",
   onKeepAwake,
+  openFromPhone = false,
+  onOpenFromPhone,
   identityCode = "",
   settingsRow = "mobile.keepAwake",
   keepAwakeRow,
@@ -25,6 +27,9 @@ export function ReachOptions({
   keepAwake?: boolean;
   keepAwakeStatus?: KeepAwakeStatus;
   onKeepAwake?: (on: boolean) => void;
+  openFromPhone?: boolean;
+  /** Absent where lpm's login helper isn't offered (not a Mac, or a connected machine). */
+  onOpenFromPhone?: (on: boolean) => void;
   identityCode?: string;
   settingsRow?: string;
   keepAwakeRow?: string;
@@ -85,6 +90,16 @@ export function ReachOptions({
               )}
             </WayInRow>
           </div>
+        )}
+        {onOpenFromPhone && (
+          <WayInRow
+            icon={<Smartphone size={16} />}
+            title="Open lpm from your phone"
+            subtitle={`When lpm is closed, lpm Link can start it again. A small helper starts with ${words.thisMachine} and answers only your paired devices, on the same network or over the Tailscale app.`}
+            tone={openFromPhone ? "live" : "idle"}
+          >
+            <Toggle enabled={openFromPhone} onChange={onOpenFromPhone} ariaLabel="Open lpm from your phone" />
+          </WayInRow>
         )}
         {identityCode && (
           <WayInRow

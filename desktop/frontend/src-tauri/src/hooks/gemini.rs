@@ -39,7 +39,7 @@ fn install() {
     }
 }
 
-fn install_remote(ssh: &crate::config::SshSettings) -> bool {
+fn install_remote(ssh: &dyn crate::remoteshell::RemoteShell) -> bool {
     install_remote_json(ssh, REMOTE_DIR, REMOTE_SETTINGS, merge_gemini_hooks)
 }
 

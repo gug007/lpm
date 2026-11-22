@@ -17,6 +17,7 @@ type Props = {
   open: boolean;
   controlled: boolean;
   notified: boolean;
+  expanded: boolean;
   pressed: boolean;
   visible: Line[];
   status: ReactNode;
@@ -34,6 +35,7 @@ export function PhoneReplica({
   open,
   controlled,
   notified,
+  expanded,
   pressed,
   visible,
   status,
@@ -142,7 +144,11 @@ export function PhoneReplica({
                 )}
               </>
             ) : (
-              <PhoneLock notified={notified} pressed={pressed} />
+              <PhoneLock
+                notified={notified}
+                expanded={expanded}
+                pressed={pressed}
+              />
             )}
 
             {/* Home indicator */}

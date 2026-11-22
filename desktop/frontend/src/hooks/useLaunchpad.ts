@@ -23,9 +23,10 @@ export interface LaunchpadProject {
 }
 
 export interface LaunchpadTargets {
-  onNewTerminal: () => void;
+  // `shell`: picked for this one terminal (shells.ts); left out, the default.
+  onNewTerminal: (shell?: string) => void;
   // What was typed, run in a new terminal.
-  onRunCommand: (command: string) => void;
+  onRunCommand: (command: string, shell?: string) => void;
   onOpenAgent: (launch: RemoteAgentLaunch) => void;
   onRunAction: (action: ActionInfo, opts?: RunActionOpts) => void;
 }
@@ -37,6 +38,7 @@ export function useLaunchpad(project: LaunchpadProject, targets: LaunchpadTarget
   const [memory, setMemory] = useState<NewTabMemory>(loadNewTabMemory);
   const [picked, setPicked] = useState(loadLaunchpadAction);
   const [value, setValue] = useState<ComposerValue>(EMPTY_COMPOSER);
+  const [shell, setShell] = useState<string | null>(null);
 
   const tabs = useMemo(() => launchpadTabs(project.actions, project.name), [project.actions, project.name]);
   const options = useMemo(() => tabs.flatMap((t) => t.options), [tabs]);
@@ -81,8 +83,8 @@ export function useLaunchpad(project: LaunchpadProject, targets: LaunchpadTarget
     }
     saveLaunchpadAction(option?.id ?? "terminal");
     if (!option || command !== null) {
-      if (command) targets.onRunCommand(command);
-      else targets.onNewTerminal();
+      if (command) targets.onRunCommand(command, shell ?? undefined);
+      else targets.onNewTerminal(shell ?? undefined);
       return true;
     }
     const prompt = text || undefined;
@@ -98,7 +100,7 @@ export function useLaunchpad(project: LaunchpadProject, targets: LaunchpadTarget
     return true;
   };
 
-  return { tabs, option, command, pick, value, setValue, select: setPicked, changePick, start, seeded };
+  return { tabs, option, command, pick, value, setValue, select: setPicked, changePick, start, seeded, shell, setShell };
 }
 
 export type Launchpad = ReturnType<typeof useLaunchpad>;

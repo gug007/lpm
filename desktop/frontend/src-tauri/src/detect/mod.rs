@@ -7,7 +7,7 @@
 //! conventional subfolders (`backend/`, `apps/*`, …). A subfolder's service is
 //! named after the folder, which is what the user calls it.
 
-mod node;
+pub(crate) mod node;
 mod python;
 mod stacks;
 #[cfg(test)]

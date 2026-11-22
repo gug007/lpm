@@ -50,7 +50,7 @@ pub(crate) fn upstream_rollups(cwd: &str) -> Option<Vec<CommitChecksInfo>> {
     rollups(cwd, &sha, &branch).ok()
 }
 
-fn upstream_head(cwd: &str) -> Option<(String, String)> {
+pub(crate) fn upstream_head(cwd: &str) -> Option<(String, String)> {
     let out = crate::git::git_out(
         cwd,
         &[
@@ -133,6 +133,9 @@ pub fn rerun_failed_checks(cwd: String, run_ids: Vec<String>) -> Result<(), Stri
         return Err("Nothing to run again".into());
     }
     cache().lock().unwrap().retain(|(dir, _), _| *dir != cwd);
+    if let Some(repo) = crate::githost::gitlab(&cwd) {
+        return crate::gitlab_ci::retry_jobs(&cwd, &repo, &ids);
+    }
     for id in ids {
         gh_out(&cwd, &["run", "rerun", id, "--failed"])?;
     }
@@ -142,6 +145,9 @@ pub fn rerun_failed_checks(cwd: String, run_ids: Vec<String>) -> Result<(), Stri
 /// `sha` and up to `HISTORY - 1` commits before it, newest first, each with the
 /// checks GitHub ran on it for `branch`.
 fn commit_rollups(cwd: &str, sha: &str, branch: &str) -> Result<Vec<CommitChecksInfo>, String> {
+    if let Some(repo) = crate::githost::gitlab(cwd) {
+        return crate::gitlab_ci::commit_pipelines(cwd, &repo, sha, branch);
+    }
     let oid = format!("oid={sha}");
     let depth = format!("depth={HISTORY}");
     let query = format!("query={QUERY}");

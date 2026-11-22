@@ -18,6 +18,7 @@ type Frame = {
   owner: Owner;
   phoneOpen: boolean;
   notified: boolean;
+  expanded: boolean;
   tap: Tap;
 };
 
@@ -28,6 +29,7 @@ const START: Frame = {
   owner: "mac",
   phoneOpen: false,
   notified: false,
+  expanded: false,
   tap: null,
 };
 
@@ -50,8 +52,15 @@ function cycle(apply: (patch: Partial<Frame>) => void): Step[] {
     set(i === PREAMBLE + 1 ? 720 : 620, { revealed: i });
   }
   set(700, { notified: true });
+  set(1100, { expanded: true });
   set(1500, { tap: "notification" });
-  set(320, { tap: null, notified: false, phoneOpen: true, owner: "phone" });
+  set(320, {
+    tap: null,
+    notified: false,
+    expanded: false,
+    phoneOpen: true,
+    owner: "phone",
+  });
   set(900, { typing: true });
   for (let c = 1; c <= REPLY_TEXT.length; c += 1) {
     set(52, { typed: REPLY_TEXT.slice(0, c) });
@@ -74,8 +83,9 @@ export const HANDOFF_CYCLE_MS = cycle(() => {}).reduce(
 );
 
 // One terminal is live on one screen at a time, as in the app: the agent works
-// on the Mac, the phone is notified when it needs an answer, opening the
-// terminal there takes control (the Mac shows "Active in iPhone"), and the Mac
+// on the Mac, the phone is notified when it needs an answer, the push opens to
+// show the answers it takes, Open Tab brings the terminal there and takes
+// control (the Mac shows "Active in iPhone"), and the Mac
 // takes it back. Pausing freezes the current frame and resuming carries on from
 // the same beat.
 export function usePairedDevicesLoop(
@@ -153,6 +163,7 @@ export function usePairedDevicesLoop(
     owner: f.owner,
     phoneOpen: f.phoneOpen,
     notified: f.notified,
+    expanded: f.expanded,
     tap: f.tap,
   };
 }

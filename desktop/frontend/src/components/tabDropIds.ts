@@ -20,3 +20,6 @@ export function parseEdgeDropId(id: string): { paneId: string; edge: PaneEdge } 
   const edge = PANE_EDGES.find((e) => e === id.slice(at + EDGE_MARK.length));
   return edge ? { paneId: id.slice(0, at), edge } : null;
 }
+
+// The corner a tab is dropped on to keep it in a mini view (MiniViewDropZone).
+export const MINI_VIEW_DROP_ID = "mini-view:corner";

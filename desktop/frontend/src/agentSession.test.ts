@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { agentSessionRefOf, buildClaudeResumeCmd, claudeResumeSessionId } from "./agentSession";
+import {
+  agentSessionRefOf,
+  buildClaudeResumeCmd,
+  claudeResumeSessionId,
+  resumableSessionRefOf,
+} from "./agentSession";
 
 describe("agentSessionRefOf", () => {
   it("extracts Claude's resume id around other flags", () => {
@@ -67,5 +72,39 @@ describe("claudeResumeSessionId", () => {
     expect(claudeResumeSessionId(`claude --session-id ${sid}`)).toBeUndefined();
     expect(claudeResumeSessionId(`codex resume ${sid}`)).toBeUndefined();
     expect(claudeResumeSessionId(undefined)).toBeUndefined();
+  });
+});
+
+describe("resumableSessionRefOf", () => {
+  const ID = "22fcb53d-7747-4fb3-8751-2564c720e765";
+
+  it("reads Gemini, OpenCode and Cursor resume commands", () => {
+    expect(resumableSessionRefOf(`gemini --resume ${ID}`)).toEqual({ provider: "gemini", sessionId: ID });
+    expect(resumableSessionRefOf(`gemini -m pro -r ${ID}`)).toEqual({ provider: "gemini", sessionId: ID });
+    expect(resumableSessionRefOf("opencode --session ses_ed11c6601ffe1FUDxN5JO1WCAX")).toEqual({
+      provider: "opencode",
+      sessionId: "ses_ed11c6601ffe1FUDxN5JO1WCAX",
+    });
+    expect(resumableSessionRefOf(`opencode -s=${ID}`)).toEqual({ provider: "opencode", sessionId: ID });
+    expect(resumableSessionRefOf(`cursor-agent --resume ${ID}`)).toEqual({ provider: "cursor", sessionId: ID });
+    expect(resumableSessionRefOf(`FOO=1 agent --resume=${ID}`)).toEqual({ provider: "cursor", sessionId: ID });
+  });
+
+  it("still reads Claude and Codex", () => {
+    expect(resumableSessionRefOf(`claude --resume ${ID}`)).toEqual({ provider: "claude", sessionId: ID });
+    expect(resumableSessionRefOf(`codex resume ${ID}`)).toEqual({ provider: "codex", sessionId: ID });
+  });
+
+  it("names no conversation for latest, a list position, a launch or an unsafe id", () => {
+    expect(resumableSessionRefOf("gemini --resume latest")).toBeNull();
+    expect(resumableSessionRefOf("gemini --resume 3")).toBeNull();
+    expect(resumableSessionRefOf("gemini")).toBeNull();
+    expect(resumableSessionRefOf("opencode --continue")).toBeNull();
+    expect(resumableSessionRefOf("cursor-agent --resume 'x;rm -rf'")).toBeNull();
+    expect(resumableSessionRefOf("vim --resume x")).toBeNull();
+  });
+
+  it("leaves the live-session reader to Claude and Codex", () => {
+    expect(agentSessionRefOf(`gemini --resume ${ID}`)).toBeNull();
   });
 });

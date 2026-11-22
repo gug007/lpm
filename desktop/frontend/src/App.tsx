@@ -36,6 +36,7 @@ import { InstructionsDialogHost } from "./components/InstructionsDialogHost";
 import { VideoSetupModal } from "./components/VideoSetupModal";
 import { VideoSettingsModal } from "./components/videoSettings/VideoSettingsModal";
 import { TerminalDropOverlayHost } from "./components/terminal/TerminalDropOverlayHost";
+import { MiniViewHost } from "./components/miniview/MiniViewHost";
 import { AppToaster } from "./components/AppToaster";
 import { DictationOverlay } from "./components/dictation/DictationOverlay";
 import { DictationShortcut } from "./components/dictation/DictationShortcut";
@@ -72,6 +73,7 @@ import { usePeerRemovedNotices } from "./peer/usePeerRemovedNotices";
 import { useAgentFilesServedNotices } from "./peer/useAgentFilesServedNotices";
 import { useCiResultToasts } from "./hooks/useCiResultToasts";
 import { usePrMergeWatchEvents } from "./hooks/usePrMergeWatchEvents";
+import { useCiFixLoopEvents } from "./hooks/useCiFixLoopEvents";
 import { useServiceCrashAlerts } from "./hooks/useServiceCrashAlerts";
 import { useKeepAwakeHeadsUp } from "./hooks/useKeepAwakeHeadsUp";
 import { usePeerState } from "./peer/usePeerState";
@@ -196,6 +198,7 @@ export default function App() {
   useKeepAwakeHeadsUp();
   useCiResultToasts();
   usePrMergeWatchEvents();
+  useCiFixLoopEvents();
   useServiceCrashAlerts();
   useIgnoredSyncConflicts();
   useSshStatusWarnings();
@@ -447,6 +450,7 @@ export default function App() {
       <VideoSetupModal />
       <IgnoredSyncHost />
       <TerminalDropOverlayHost />
+      <MiniViewHost />
       <ProjectSwitcher
         active={switcher.active}
         list={switcher.list}

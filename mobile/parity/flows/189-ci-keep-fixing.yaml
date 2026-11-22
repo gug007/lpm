@@ -1,0 +1,75 @@
+# Keep fixing until green in the CI sheet: storefront's pull request has a failing
+# test. With the switch on, Fix with Claude Code opens its tab and the Mac follows
+# it: the sheet shows the round and where it stands in place of the Fix with …
+# rows, and the demo's two rounds end with the checks passing.
+appId: cx.lpm.mobile
+name: 189-ci-keep-fixing
+tags: [demo, projects, git]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "CI on #42.*"
+    timeout: 10000
+# The Git section's rows settle as their answers land; tap once they have.
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn: "CI on #42.*"
+- extendedWaitUntil:
+    visible: "Keep fixing until green"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-switch-off
+# iOS flips it at the switch, not its title (as a Settings switch does); Android's
+# whole row flips it.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          containsChild: "Keep fixing until green"
+          point: "92%,50%"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn: "Keep fixing until green"
+- extendedWaitUntil:
+    visible: "Each new failure goes to the same tab.*"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-switch-on
+- tapOn: "Fix with Claude Code"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 15000
+- waitForAnimationToEnd:
+    timeout: 3000
+- runFlow: subflows/back.yaml
+- extendedWaitUntil:
+    visible: "CI on #42.*"
+    timeout: 10000
+# The Git section's rows settle as their answers land; tap once they have.
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn: "CI on #42.*"
+- extendedWaitUntil:
+    visible: "Round 1 of 3.*"
+    timeout: 5000
+- assertVisible: "Stop"
+- assertNotVisible: "Fix with Claude Code"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 3-round-1
+- extendedWaitUntil:
+    visible: "Round 2 of 3.*"
+    timeout: 20000
+- takeScreenshot: 4-round-2
+- extendedWaitUntil:
+    visible: ".*CI passed after 2 rounds.*"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 5-passed

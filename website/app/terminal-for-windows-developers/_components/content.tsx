@@ -81,7 +81,7 @@ export const NOTES: OsNote[] = [
   },
   {
     title: "Installs for your user",
-    body: "The installer needs no admin rights. When a new version is out, lpm tells you and opens its download; run the installer to update.",
+    body: "The installer needs no admin rights. When a new version is out, one click installs it and reopens lpm, and your dev servers keep running.",
   },
   {
     title: "Dev servers outlive the window",
@@ -101,7 +101,7 @@ export const NOTES: OsNote[] = [
   },
   {
     title: "What isn't on Windows",
-    body: "Voice dictation in the prompt box relies on a Mac app, and there's no ARM64 build.",
+    body: "Voice dictation and the prompt box's Video button rely on Mac apps, lpm Link can't wake the PC or open lpm while it's closed, and there's no ARM64 build.",
   },
 ];
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { agentBusy } from "../autoPullRun";
+import { agentBusy } from "../sidebarAgents";
 import { mergedOfferText, offeredCopies, removeCopiesLabel } from "../mergedCopies";
 import { useMergedCopies } from "../store/mergedCopies";
 import type { ProjectInfo } from "../types";

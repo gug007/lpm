@@ -7,6 +7,7 @@ const commands = vi.hoisted(() => ({
   GitChangedFiles: vi.fn(),
   GitCommit: vi.fn(),
   GitAmendCommit: vi.fn(),
+  GitCommitChecked: vi.fn(),
   GitPush: vi.fn(),
 }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), loading: vi.fn() }));
@@ -85,7 +86,7 @@ beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   vi.clearAllMocks();
   commands.GitChangedFiles.mockResolvedValue([{ path: "README.md", status: "modified", staged: false }]);
-  commands.GitCommit.mockResolvedValue(null);
+  commands.GitCommitChecked.mockResolvedValue(null);
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -101,7 +102,7 @@ describe("Commit and Push", () => {
     commands.GitPush.mockRejectedValue("fatal: 'origin' does not appear to be a git repository");
     await commitAndPush();
 
-    expect(commands.GitCommit).toHaveBeenCalledWith("/blog", "Update readme", ["README.md"]);
+    expect(commands.GitCommitChecked).toHaveBeenCalledWith("/blog", "Update readme", ["README.md"], null, false);
     expect(toast.error).toHaveBeenCalledWith("Committed, but not pushed", {
       description: "fatal: 'origin' does not appear to be a git repository",
     });
@@ -110,7 +111,7 @@ describe("Commit and Push", () => {
   });
 
   it("keeps the dialog open when the commit itself fails", async () => {
-    commands.GitCommit.mockRejectedValue("nothing to commit");
+    commands.GitCommitChecked.mockRejectedValue("nothing to commit");
     await commitAndPush();
 
     expect(commands.GitPush).not.toHaveBeenCalled();
@@ -136,7 +137,6 @@ const headCommit = (hash: string, subject: string): HistoryCommit => ({
 
 describe("Amend last commit", () => {
   it("amends the commit it was turned on for, even after a new one lands", async () => {
-    commands.GitAmendCommit.mockResolvedValue(null);
     const render = (last: HistoryCommit) =>
       act(async () => {
         root.render(
@@ -162,6 +162,6 @@ describe("Amend last commit", () => {
     await act(async () => button("Amend").click());
     await settle();
 
-    expect(commands.GitAmendCommit).toHaveBeenCalledWith("/blog", "Fix A", ["README.md"], "a".repeat(40));
+    expect(commands.GitCommitChecked).toHaveBeenCalledWith("/blog", "Fix A", ["README.md"], "a".repeat(40), false);
   });
 });

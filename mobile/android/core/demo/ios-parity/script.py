@@ -520,6 +520,14 @@ at(3800, 'keepAwakeSet', mode='always')
 at(3850, 'keepAwakeSet', mode='extend', minutes=60)
 at(3900, 'keepAwakeSet', mode='off')
 at(4000, 'keepAwakeSet', mode='agents')
+# lock or sleep
+at(4100, 'power')
+at(4150, 'lockScreen')
+at(4200, 'sleepWhenIdle', on=True)
+at(4250, 'sleepWhenIdle', on=False)
+at(4300, 'sleepWhenIdle')
+at(4350, 'sleepNow')
+at(4400, 'power')
 # seen and archived agents
 at(74000, 'status', project='mobile-app'); at(74000, 'status', project='design-system')
 at(74000, 'terminals', project='mobile-app'); at(74000, 'terminals', project='design-system')
@@ -656,6 +664,12 @@ at(600, 'gitCheckLog', project='storefront', url='https://github.com/example/sto
 at(600, 'gitCheckLog', project='storefront', url='https://github.com/example/storefront/actions/runs/7001/job/2')
 at(600, 'gitCheckLog', project='storefront', url='')
 at(9600, 'gitPrDiscussion', project='storefront')
+# Keep fixing until green: two rounds, then green; and one stopped part-way
+at(20000, 'ciFixLoop', project='blog', on=True, agent='Claude Code')
+at(49000, 'gitChecks', project='blog')
+at(40000, 'ciFixLoop', project='api-gateway', on=True, agent='Codex')
+at(43000, 'ciFixLoop', project='api-gateway', on=False)
+at(43500, 'gitChecks', project='api-gateway'); at(43500, 'ciFixLoop', project='nope', on=False)
 # agents a new tab can start, past sessions, resuming one, and the file browser
 at(77000, 'agentOptions')
 at(77000, 'agentSessions', project='storefront', search='', limit=40)

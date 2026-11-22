@@ -111,6 +111,25 @@ pub(super) fn validate_work_status(root: &Mapping, report: &mut Report) {
     }
 }
 
+// The shell the project's plain terminals open in (the app's shells.rs): a
+// shell's name such as fish, pwsh or wsl, or its path. Services, actions and
+// agents keep the login shell, so it only lives in the project's own file.
+pub(super) fn validate_terminal(root: &Mapping, report: &mut Report) {
+    let Some(value) = root.get(Value::String("terminal".into())) else {
+        return;
+    };
+    let path = "config.terminal";
+    let Some(map) = value.as_mapping() else {
+        report.error(path, "expected a mapping such as { shell: fish }");
+        return;
+    };
+    validate_keys(map, &["shell"], path, report);
+    validate_string_field(map, "shell", &format!("{path}.shell"), report);
+    if string_at(map, "shell").is_some_and(|shell| shell.trim().is_empty()) {
+        report.error(&format!("{path}.shell"), "expected a shell's name or path");
+    }
+}
+
 // The git-ignored files new worktrees copy or link from the project. The app
 // refuses a path that would reach outside the project, so the check does too.
 pub(super) fn validate_worktree_files(root: &Mapping, report: &mut Report) {

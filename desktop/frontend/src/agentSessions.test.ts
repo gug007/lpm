@@ -3,6 +3,7 @@ import {
   filterByProvider,
   groupByDay,
   mergeSessionRows,
+  providersIn,
   resumeCmdFor,
   type AgentSessionSummary,
 } from "./agentSessions";
@@ -275,5 +276,54 @@ describe("groupByDay", () => {
 
     expect(groups).toHaveLength(2);
     expect(groups[0].rows).toHaveLength(2);
+  });
+});
+
+describe("sessions from Gemini, OpenCode and Cursor", () => {
+  const GEMINI_ID = "22fcb53d-7747-4fb3-8751-2564c720e765";
+
+  it("resume with each CLI's own command", () => {
+    expect(resumeCmdFor(session({ provider: "gemini", sessionId: GEMINI_ID }))).toBe(`gemini --resume ${GEMINI_ID}`);
+    expect(resumeCmdFor(session({ provider: "opencode", sessionId: "ses_a1" }))).toBe("opencode --session ses_a1");
+    expect(resumeCmdFor(session({ provider: "cursor", sessionId: GEMINI_ID }))).toBe(`cursor-agent --resume ${GEMINI_ID}`);
+  });
+
+  it("match the closed tab that resumed them, which keeps its name and command", () => {
+    const rows = mergeSessionRows({
+      history: [
+        historyEntry({
+          resumeCmd: `gemini --resume ${GEMINI_ID}`,
+          label: "Gemini",
+          sessionTitle: "Payments",
+          sessionTitleSource: "manual",
+        }),
+      ],
+      sessions: [session({ provider: "gemini", sessionId: GEMINI_ID, title: null })],
+      open: new Map(),
+      search: "",
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      key: `gemini:${GEMINI_ID}`,
+      provider: "gemini",
+      title: "Payments",
+      resumeCmd: `gemini --resume ${GEMINI_ID}`,
+      remembered: true,
+    });
+  });
+
+  it("are offered as filters only for agents with rows, in a fixed order", () => {
+    const rows = mergeSessionRows({
+      history: [],
+      sessions: [
+        session({ provider: "cursor", sessionId: "c1", updatedAt: 5 }),
+        session({ provider: "claude", sessionId: "a1", updatedAt: 4 }),
+        session({ provider: "gemini", sessionId: "g1", updatedAt: 3 }),
+      ],
+      open: new Map(),
+      search: "",
+    });
+    expect(providersIn(rows)).toEqual(["claude", "gemini", "cursor"]);
+    expect(filterByProvider(rows, "cursor").map((r) => r.sessionId)).toEqual(["c1"]);
   });
 });

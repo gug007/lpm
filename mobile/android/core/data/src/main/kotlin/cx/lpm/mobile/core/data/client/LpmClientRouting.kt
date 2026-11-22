@@ -223,6 +223,8 @@ private fun LpmClientCallbacks.routeGitAndMore(frame: Inbound) {
 
         is Inbound.GitChecksRerun -> onGitChecksRerun?.invoke(frame.project, frame.error)
 
+        is Inbound.CiFixLoop -> onCiFixLoop?.invoke(frame.project, frame.loop, frame.error)
+
         is Inbound.GitMergePr ->
             onGitMergePr?.invoke(frame.project, frame.number, frame.deletedBranch, frame.error)
 
@@ -254,6 +256,12 @@ private fun LpmClientCallbacks.routeGitAndMore(frame: Inbound) {
         is Inbound.KeepAwake -> frame.state?.let { onKeepAwake?.invoke(it) }
 
         is Inbound.KeepAwakeSet -> onKeepAwakeSet?.invoke(frame.state, frame.error)
+
+        is Inbound.Power -> onPower?.invoke(frame.state)
+
+        is Inbound.PowerSet -> onPowerSet?.invoke(frame.action, frame.state, frame.error)
+
+        is Inbound.LaunchLpm -> onLaunchLpm?.invoke(frame.error)
 
         is Inbound.ApnsToken -> onApnsToken?.invoke(frame.ok)
 

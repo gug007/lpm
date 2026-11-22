@@ -7,7 +7,9 @@ import {
   type TourState,
 } from "@/components/home/tour";
 import { DemoFrame } from "@/components/home/demo-frame";
+import { DemoAlertsToggle } from "@/components/home/demo-alerts-toggle";
 import { DemoSteps } from "@/components/home/demo-steps";
+import { useDemoAlerts } from "@/components/home/use-demo-alerts";
 import { DesktopOnlyPrompt } from "@/components/home/desktop-only-prompt";
 import { WINDOW_FRAME } from "@/components/home/demo-window";
 import { StartChooser, type DemoStart } from "./start-chooser";
@@ -39,6 +41,7 @@ export function DemoWorkspace() {
   const [start, setStart] = useState<DemoStart | null>(null);
   const [tour, setTour] = useState<TourState>({ stage: 0, playing: false });
   const tourRef = useRef<TourHandle>(null);
+  const alerts = useDemoAlerts();
   const runStep = useCallback(
     (index: number) => tourRef.current?.run(index),
     [],
@@ -90,12 +93,14 @@ export function DemoWorkspace() {
                 tour={HOME_TOUR}
                 tourRef={tourRef}
                 onTour={setTour}
+                onTurnEnd={alerts.onTurnEnd}
               />
             ) : (
               <DemoFrame key="empty" height={DEMO_HEIGHT} />
             )}
             {start === null && <StartChooser onPick={pick} />}
           </div>
+          {isDesktop && start === "sample" && <DemoAlertsToggle alerts={alerts} />}
           {start !== null && (
             <p className="mt-4 text-center text-[13px] text-gray-500 dark:text-gray-400">
               {start === "sample" ? (

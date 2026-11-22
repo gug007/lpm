@@ -82,7 +82,14 @@ export interface RemoteFailure {
   message: string;
 }
 
-export type RemoteAction = "server" | "tailscale" | "keepAwake" | "pair" | "revoke" | "rename";
+export type RemoteAction =
+  | "server"
+  | "tailscale"
+  | "keepAwake"
+  | "openFromPhone"
+  | "pair"
+  | "revoke"
+  | "rename";
 
 const ACTION_FAILURE: Record<RemoteAction, RemoteFailure> = {
   server: { slot: "server", message: "That change wasn't saved." },
@@ -90,6 +97,7 @@ const ACTION_FAILURE: Record<RemoteAction, RemoteFailure> = {
   pair: { slot: "devices", message: "Couldn't start pairing." },
   revoke: { slot: "devices", message: "That device wasn't revoked." },
   keepAwake: { slot: "server", message: "That change wasn't saved." },
+  openFromPhone: { slot: "server", message: "That change wasn't saved." },
   rename: { slot: "devices", message: "That name wasn't saved." },
 };
 

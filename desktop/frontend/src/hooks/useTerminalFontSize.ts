@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useInterfaceZoom } from "../interfaceZoom";
 import { useSettingsStore } from "../store/settings";
 
 export const DEFAULT_TERMINAL_FONT_SIZE = 12;
@@ -6,6 +7,8 @@ export const MIN_TERMINAL_FONT_SIZE = 8;
 export const MAX_TERMINAL_FONT_SIZE = 24;
 
 export interface UseTerminalFontSizeResult {
+  // What to draw terminal text at on the page: the setting, with the interface
+  // size taken back out, so the text keeps its own size at any interface size.
   fontSize: number;
   zoomIn: () => void;
   zoomOut: () => void;
@@ -22,6 +25,7 @@ export function steppedTerminalFontSize(fontSize: number, delta: number): number
 export function useTerminalFontSize(): UseTerminalFontSizeResult {
   const fontSize = useSettingsStore((s) => terminalFontSizeOf(s.terminalFontSize));
   const update = useSettingsStore((s) => s.update);
+  const zoom = useInterfaceZoom((s) => s.zoom);
 
   const step = useCallback(
     (delta: number) => {
@@ -34,5 +38,5 @@ export function useTerminalFontSize(): UseTerminalFontSizeResult {
   const zoomIn = useCallback(() => step(1), [step]);
   const zoomOut = useCallback(() => step(-1), [step]);
 
-  return { fontSize, zoomIn, zoomOut };
+  return { fontSize: fontSize / zoom, zoomIn, zoomOut };
 }

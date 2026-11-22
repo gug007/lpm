@@ -730,7 +730,7 @@ fn pull_latest_branch(root: &Path) -> Result<(), String> {
 
 /// Login shell (`-ilc`) so PATH and version managers (nvm/fnm/volta, corepack)
 /// resolve the binary, matching how actions run.
-fn run_install(root: &Path, pm: crate::detect::PackageManager) -> Result<(), String> {
+pub(crate) fn run_install(root: &Path, pm: crate::detect::PackageManager) -> Result<(), String> {
     let shell = crate::sys::login_shell();
     let script = format!(
         "cd {} && {} 2>&1",
@@ -1385,10 +1385,7 @@ fn remove_one(app: &AppHandle, name: &str) -> Result<(), String> {
                 &worktree_branch_name(name),
             )?;
         } else if !root.trim().is_empty() {
-            #[cfg(windows)]
-            crate::dirdelete::remove(Path::new(&root))?;
-            #[cfg(not(windows))]
-            config::remove_dir_all_retry(Path::new(&root))?;
+            config::remove_folder(Path::new(&root))?;
         }
         // Numbered duplicate names get reused; purge per-name state so the
         // next project under this name doesn't inherit the removed one's

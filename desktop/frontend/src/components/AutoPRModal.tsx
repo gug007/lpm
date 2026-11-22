@@ -4,6 +4,7 @@ import { Modal } from "./ui/Modal";
 import { XIcon } from "./icons";
 import { PRCreatedView } from "./PRCreatedView";
 import { AutoPRStepList } from "./AutoPRStepList";
+import { forgeWords, siteName, useGitHost } from "../gitForge";
 import {
   CreateBranch,
   CreatePullRequest,
@@ -73,6 +74,8 @@ export function AutoPRModal({
   onClose,
   onChanged,
 }: AutoPRModalProps) {
+  const host = useGitHost(projectPath, open);
+  const words = forgeWords(host?.kind);
   const gen = useAIGeneration(projectName);
   const [steps, setSteps] = useState(freshSteps);
   const [phase, setPhase] = useState<Phase>("running");
@@ -259,11 +262,11 @@ export function AutoPRModal({
         </div>
         <div className="min-w-0 flex-1">
           <h3 className="text-[15px] font-semibold leading-tight text-[var(--text-primary)]">
-            Auto Create PR
+            Auto Create {words.short}
           </h3>
           <p className="mt-1 text-[12px] leading-snug text-[var(--text-muted)]">
-            AI names the branch, writes the commit and pull request, then opens
-            it on GitHub.
+            AI names the branch, writes the commit and {words.noun}, then opens
+            it on {siteName(host)}.
           </p>
         </div>
         <button
@@ -283,6 +286,7 @@ export function AutoPRModal({
             branch={result.branch}
             base={result.base}
             url={result.url}
+            words={words}
             onSwitched={() => {
               onChanged();
               onClose();
@@ -290,7 +294,7 @@ export function AutoPRModal({
             onBusyChange={setSwitching}
           />
         ) : (
-          <AutoPRStepList steps={steps} repoState={repoState} />
+          <AutoPRStepList steps={steps} repoState={repoState} noun={words.noun} />
         )}
       </div>
 

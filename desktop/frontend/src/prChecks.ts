@@ -44,11 +44,13 @@ export function sortedChecks(checks: PrCheck[]): PrCheck[] {
   return [...checks].sort((a, b) => ORDER[a.state] - ORDER[b.state] || a.name.localeCompare(b.name));
 }
 
+/** The GitHub Actions run a check belongs to, or the GitLab job it is: what
+ *  "Re-run failed jobs" runs again (ci_checks.rs). */
 export function actionsRunId(url: string): string | null {
-  return /\/actions\/runs\/(\d+)/.exec(url)?.[1] ?? null;
+  return /\/actions\/runs\/(\d+)/.exec(url)?.[1] ?? /\/-\/jobs\/(\d+)/.exec(url)?.[1] ?? null;
 }
 
-/** The GitHub Actions runs the failing checks belong to, each once. */
+/** The GitHub Actions runs (or GitLab jobs) the failing checks belong to, each once. */
 export function failingRunIds(checks: PrCheck[]): string[] {
   const ids = checks.filter((check) => check.state === "fail").map((check) => actionsRunId(check.url));
   return [...new Set(ids.filter((id) => id !== null))];

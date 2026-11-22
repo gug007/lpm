@@ -8,7 +8,8 @@ use std::sync::OnceLock;
 
 /// The phone may send `gitCheckLog`.
 pub const FEATURE: &str = "gitCheckLog";
-const TAIL: usize = 40;
+/// How much of a failed step's log the phone gets.
+pub(crate) const TAIL: usize = 40;
 
 pub(super) fn handle(out: &SyncSender<String>, v: &Value) {
     let out = out.clone();
@@ -36,10 +37,10 @@ pub(super) fn handle(out: &SyncSender<String>, v: &Value) {
 }
 
 #[derive(Debug, PartialEq)]
-struct FailedLog {
-    step: String,
-    lines: Vec<String>,
-    more: bool,
+pub(crate) struct FailedLog {
+    pub step: String,
+    pub lines: Vec<String>,
+    pub more: bool,
 }
 
 /// The run and, when the URL names one, the job: `…/actions/runs/7001/job/42`.
@@ -58,6 +59,9 @@ fn ids(url: &str) -> Option<(&str, Option<&str>)> {
 }
 
 fn read(root: &str, url: &str) -> Result<FailedLog, String> {
+    if let Some(log) = crate::gitlab_ci::failed_log(root, url) {
+        return log;
+    }
     let (run, job) =
         ids(url).ok_or("This check's log isn't on GitHub Actions. Open it to see what failed.")?;
     let mut args = vec!["run", "view", run, "--log-failed"];
@@ -69,9 +73,10 @@ fn read(root: &str, url: &str) -> Result<FailedLog, String> {
         .ok_or_else(|| "GitHub has no log for this check yet. It may still be running.".into())
 }
 
-fn noise() -> &'static Regex {
+/// Color codes and carriage returns, which a log line on the phone can't show.
+pub(crate) fn noise() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\x1b\[[0-9;]*[A-Za-z]").expect("ansi pattern compiles"))
+    RE.get_or_init(|| Regex::new(r"\x1b\[[0-9;]*[A-Za-z]|\r").expect("ansi pattern compiles"))
 }
 
 fn timestamp() -> &'static Regex {

@@ -1,4 +1,5 @@
 use crate::git::git_out;
+use crate::githook::Stopped;
 use serde::Serialize;
 
 #[derive(Serialize, Debug)]
@@ -76,24 +77,38 @@ pub fn git_amend_commit(
     files: Vec<String>,
     hash: String,
 ) -> Result<(), String> {
+    amend_files(&cwd, &message, &files, &hash, false).map_err(Stopped::into_message)
+}
+
+/// The amend behind `git_amend_commit`; `skip_hooks` passes `--no-verify`, and
+/// a hook that stops it is told apart from other errors.
+pub(crate) fn amend_files(
+    cwd: &str,
+    message: &str,
+    files: &[String],
+    hash: &str,
+    skip_hooks: bool,
+) -> Result<(), Stopped> {
     let message = message.trim();
     if message.is_empty() {
-        return Err("commit message required".into());
+        return Err("commit message required".to_string().into());
     }
-    ensure_rewritable(&cwd, &hash)?;
-    if parent_count(&cwd, &hash)? > 1 {
-        return Err("A merge commit can't be amended here.".into());
+    ensure_rewritable(cwd, hash)?;
+    if parent_count(cwd, hash)? > 1 {
+        return Err("A merge commit can't be amended here.".to_string().into());
     }
     if !files.is_empty() {
-        crate::gitconflict::check_commit(&cwd, &files)?;
+        crate::gitconflict::check_commit(cwd, files)?;
     }
-    let removals = crate::gitstage::Removals::staged(&cwd);
-    git_out(&cwd, &["reset", "-q", "HEAD"])?;
+    let removals = crate::gitstage::Removals::staged(cwd);
+    git_out(cwd, &["reset", "-q", "HEAD"])?;
     let amended = removals
-        .add(&cwd, &files)
-        .map_err(|e| format!("staging files: {e}"))
-        .and_then(|()| git_out(&cwd, &["commit", "--amend", "-m", message]).map(|_| ()));
-    removals.keep(&cwd, &files);
+        .add(cwd, files)
+        .map_err(|e| Stopped::Other(format!("staging files: {e}")))
+        .and_then(|()| {
+            crate::githook::commit(cwd, &["commit", "--amend", "-m", message], skip_hooks, files)
+        });
+    removals.keep(cwd, files);
     amended
 }
 

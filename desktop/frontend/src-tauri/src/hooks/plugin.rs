@@ -59,7 +59,7 @@ impl Plugin {
         }
     }
 
-    pub fn install_remote(&self, ssh: &crate::config::SshSettings) -> bool {
+    pub fn install_remote(&self, ssh: &dyn crate::remoteshell::RemoteShell) -> bool {
         let (dir, file) = self.remote_paths();
         install_remote_owned_file(ssh, &dir, &file, &self.render(&HookForm::Shell))
     }

@@ -66,6 +66,7 @@ describe("actionsRunId", () => {
   it("reads the run id from a job URL only", () => {
     expect(actionsRunId("https://github.com/o/r/actions/runs/40115672821/job/120936319373")).toBe("40115672821");
     expect(actionsRunId("https://vercel.com/x")).toBeNull();
+    expect(actionsRunId("https://gitlab.com/t/app/-/jobs/4821")).toBe("4821");
   });
 });
 

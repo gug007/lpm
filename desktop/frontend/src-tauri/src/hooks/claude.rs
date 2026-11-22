@@ -302,13 +302,13 @@ const REMOTE_CLAUDE_SETTINGS: &str = "\"${CLAUDE_CONFIG_DIR:-$HOME/.claude}/sett
 /// caller retries — never overwrite content that couldn't be read and merged.
 /// Returns whether the host is now installed (wrote successfully, or was
 /// already up to date).
-fn install_remote_claude_hooks(ssh: &crate::config::SshSettings) -> bool {
+fn install_remote_claude_hooks(ssh: &dyn crate::remoteshell::RemoteShell) -> bool {
     // `cat` failing on an EXISTING file (perms) must fail the script, so it is
     // distinguishable from "missing" — only a missing file may become `{}`.
     let script = format!(
         "if [ -e {REMOTE_CLAUDE_SETTINGS} ]; then cat {REMOTE_CLAUDE_SETTINGS}; else printf %s '{{}}'; fi"
     );
-    let read = crate::sshexec::remote_login_script(ssh, &script).output();
+    let read = ssh.login_script(&script).output();
     let Ok(out) = read else { return false };
     if !out.status.success() {
         return false;

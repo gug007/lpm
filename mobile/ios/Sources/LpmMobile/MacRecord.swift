@@ -31,6 +31,9 @@ struct MacRecord: Codable, Identifiable, Equatable {
     var via: MacVia? = nil
     // The network cards it can be woken through, as it last said in `ready`.
     var wake: [WakeTarget]? = nil
+    // The port lpm's login helper answers on, which can open lpm while it's
+    // closed, as the Mac last said in `ready`; nil while it's off there.
+    var launcher: Int? = nil
 
     var id: UUID { localId }
 

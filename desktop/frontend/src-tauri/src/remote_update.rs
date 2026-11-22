@@ -1,4 +1,4 @@
-// Updating lpm on this Mac from a paired phone: the `updateCheck`,
+// Updating lpm on this computer from a paired phone: the `updateCheck`,
 // `updateInstall` and `updateCancel` verbs behind lpm Link's update bar.
 //
 // The phone runs the same install as the app's own Update button. Every step of
@@ -35,7 +35,7 @@ const IDLE: Step = Step {
 static STEP: Mutex<Step> = Mutex::new(IDLE);
 static LAST_CHECK: Mutex<Option<(Instant, UpdateInfo)>> = Mutex::new(None);
 
-/// Only a release build on macOS replaces itself.
+/// Only a release build that replaces itself: macOS, or Windows from the installer.
 pub(crate) fn offered() -> bool {
     crate::peerupdate::advertised() && crate::updates::current_version() != "dev"
 }
@@ -100,9 +100,9 @@ pub(crate) fn recent_check(force: bool) -> Result<UpdateInfo, String> {
 
 /// Returns only when the install stopped short; a finished one restarts lpm.
 fn install(app: &AppHandle) -> Value {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     let result = crate::updates::install_for_peer(app, None);
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", windows)))]
     let result: Result<bool, String> = {
         let _ = app;
         Err(UNSUPPORTED.into())

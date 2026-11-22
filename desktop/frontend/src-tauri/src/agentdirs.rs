@@ -62,6 +62,25 @@ pub fn opencode_dir() -> Option<&'static Path> {
     .as_deref()
 }
 
+/// `$XDG_DATA_HOME/opencode`, else `~/.local/share/opencode` — on every
+/// platform. OpenCode keeps its sessions there.
+pub fn opencode_data_dir() -> Option<&'static Path> {
+    static DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
+    DIR.get_or_init(|| {
+        exported("XDG_DATA_HOME")
+            .or_else(|| dirs::home_dir().map(|home| home.join(".local").join("share")))
+            .map(|data| data.join("opencode"))
+    })
+    .as_deref()
+}
+
+/// `~/.cursor`, where Cursor CLI keeps its hooks and chats.
+pub fn cursor_dir() -> Option<&'static Path> {
+    static DIR: OnceLock<Option<PathBuf>> = OnceLock::new();
+    DIR.get_or_init(|| dirs::home_dir().map(|home| home.join(".cursor")))
+        .as_deref()
+}
+
 /// `$PI_CODING_AGENT_DIR`, else `~/.omp/agent`.
 pub fn omp_dir() -> Option<&'static Path> {
     static DIR: OnceLock<Option<PathBuf>> = OnceLock::new();

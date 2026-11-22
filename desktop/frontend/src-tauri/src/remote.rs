@@ -54,8 +54,8 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Listener, Manager, State};
 use tungstenite::{accept, Error as WsError, Message, WebSocket};
 
-mod answer;
-mod check_log;
+pub(crate) mod answer;
+pub(crate) mod check_log;
 mod ci_push;
 mod dialog;
 mod dictation;
@@ -64,6 +64,7 @@ mod live;
 mod mac_alert;
 mod mentions;
 mod notify_levels;
+mod power;
 mod push_detail;
 mod push_fit;
 mod recap_push;
@@ -76,7 +77,7 @@ mod tab_account;
 mod tab_menu;
 pub(crate) mod tabs;
 
-pub(crate) use ci_push::push_ci_result;
+pub(crate) use ci_push::{push_ci_result, push_fix_loop_result};
 pub(crate) use mac_alert::send_all as send_mac_alert;
 pub(crate) use recap_push::send_weekly_recap;
 pub(crate) use generate::push_generate_request;
@@ -186,6 +187,7 @@ const PHONE_FEATURES: &[&str] = &[
     generate::FEATURE,
     crate::wakeonlan::FEATURE,
     crate::keepawake_cmds::PHONE_FEATURE,
+    power::FEATURE,
     crate::remote_lpm_commands::FEATURE,
     crate::remote_lpm_commands::OTHER_SKILLS_FEATURE,
     crate::remote_lpm_commands::NESTED_FOLDERS_FEATURE,
@@ -193,6 +195,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_ci::FEATURE,
     crate::remote_ci::COMMITS_FEATURE,
     crate::remote_ci::MERGE_FEATURE,
+    crate::remote_ci::FIX_LOOP_FEATURE,
     crate::remote_popup::FEATURE,
     crate::remote_popup::APP_FEATURE,
     review::SECRETS_FEATURE,
@@ -272,7 +275,7 @@ impl PushPreferences {
 
 /// This host's user-visible name, resolved once per process. Prefers the macOS
 /// Sharing pane's ComputerName, falling back to the hostname (see sys.rs).
-fn server_name() -> String {
+pub(crate) fn server_name() -> String {
     static NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     NAME.get_or_init(|| {
         let mut base = crate::sys::machine_name();
@@ -304,7 +307,7 @@ fn effective_port_for(p: u16, dev: bool) -> u16 {
     }
 }
 
-fn effective_port(p: u16) -> u16 {
+pub(crate) fn effective_port(p: u16) -> u16 {
     effective_port_for(p, is_dev_instance())
 }
 
@@ -1524,19 +1527,8 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
             match pair_device(hub, code, name, replaced_device_id(&v), &phone_id_of(&v)) {
                 Ok((id, token)) => {
                     let _ = ws.send(Message::text(
-                        with_hosts(
-                            hub,
-                            crate::remote_update::with_build(json!({
-                                "t": "paired",
-                                "deviceId": id,
-                                "token": token,
-                                "serverId": hub.server_id(),
-                                "serverName": server_name(),
-                                "platform": crate::peer::platform_id(),
-                                "features": phone_features(),
-                            })),
-                        )
-                        .to_string(),
+                        hello(hub, json!({ "t": "paired", "deviceId": id, "token": token }))
+                            .to_string(),
                     ));
                     FirstFrame::Done(Some(AuthOutcome::Paired(id)))
                 }
@@ -1565,17 +1557,7 @@ fn authenticate(ws: &mut ClientWs, hub: &RemoteHub) -> FirstFrame {
             if check_device(hub, id, token) {
                 hub.note_phone_id(id, &phone_id_of(&v));
                 let _ = ws.send(Message::text(
-                    crate::wakeonlan::with_wake(with_hosts(
-                        hub,
-                        crate::remote_update::with_build(json!({
-                            "t": "ready",
-                            "serverId": hub.server_id(),
-                            "serverName": server_name(),
-                            "platform": crate::peer::platform_id(),
-                            "features": phone_features(),
-                        })),
-                    ))
-                    .to_string(),
+                    crate::wakeonlan::with_wake(hello(hub, json!({ "t": "ready" }))).to_string(),
                 ));
                 FirstFrame::Done(Some(AuthOutcome::Resumed(id.to_string())))
             } else {
@@ -1745,19 +1727,7 @@ fn handle_pair_request(
                 return None;
             };
             let _ = ws.send(Message::text(
-                with_hosts(
-                    hub,
-                    crate::remote_update::with_build(json!({
-                        "t": "paired",
-                        "deviceId": id,
-                        "token": token,
-                        "serverId": hub.server_id(),
-                        "serverName": server_name(),
-                        "platform": crate::peer::platform_id(),
-                        "features": phone_features(),
-                    })),
-                )
-                .to_string(),
+                hello(hub, json!({ "t": "paired", "deviceId": id, "token": token })).to_string(),
             ));
             Some(AuthOutcome::Paired(id))
         }
@@ -1971,15 +1941,17 @@ fn revoked_frame() -> String {
 }
 
 fn check_device(hub: &RemoteHub, id: &str, token: &str) -> bool {
+    token_ok(&hub.inner.config.lock().unwrap().devices, id, token)
+}
+
+/// Whether `devices` holds `id` with this bearer token: what `auth` checks, and
+/// what the login helper checks the same way (linkhelper.rs).
+pub(crate) fn token_ok(devices: &[crate::remotestore::Device], id: &str, token: &str) -> bool {
     if id.is_empty() || token.is_empty() {
         return false;
     }
     let want = sha256_hex(token.as_bytes());
-    hub.inner
-        .config
-        .lock()
-        .unwrap()
-        .devices
+    devices
         .iter()
         .any(|d| d.id == id && ct_eq(d.token_hash.as_bytes(), want.as_bytes()))
 }
@@ -2327,9 +2299,11 @@ fn open_agent_sessions(hub: &RemoteHub, project: &str) -> HashMap<String, String
         .cloned()
         .unwrap_or_default();
     let sessions = hub.inner.agent_sessions.lock().unwrap();
-    ids.into_iter()
-        .filter_map(|id| sessions.get(&id).map(|s| (s.session_id.clone(), id)))
-        .collect()
+    let open = ids
+        .iter()
+        .filter_map(|id| sessions.get(id).map(|s| (s.session_id.clone(), id.clone())))
+        .collect();
+    crate::remote_agents::with_resumed(open, &ids)
 }
 
 /// Queue a phone run-action/new-terminal request and wake the main window's
@@ -4798,6 +4772,7 @@ fn handle_msg(
         "updateCheck" | "updateInstall" | "updateCancel" => {
             crate::remote_update::handle(app, out, t, &v)
         }
+        "power" | "lockScreen" | "sleepNow" | "sleepWhenIdle" => power::handle(app, out, t, &v),
         "keepAwake" | "keepAwakeSet" => {
             let reply = crate::keepawake_cmds::answer_phone(t, &v);
             let _ = out.try_send(reply.to_string());
@@ -4806,6 +4781,7 @@ fn handle_msg(
         "gitChecks" | "gitChecksRerun" | "gitCommitChecks" | "gitMergePr" => {
             crate::remote_ci::handle(out, t, &v)
         }
+        "ciFixLoop" => crate::remote_ci::handle_fix_loop(app, out, &v),
         "actionPopup" => crate::remote_popup::handle(out, &v, crate::config::popup::View::Popup),
         "actionApp" => crate::remote_popup::handle(out, &v, crate::config::popup::View::App),
         "gitScanSecrets" | "gitBranchFiles" | "gitBranchDiffs" | "gitPrDiscussion" => {
@@ -6444,6 +6420,17 @@ fn advertised_hosts(hub: &RemoteHub) -> Vec<String> {
 
 /// Attach the optional `hosts` field to a server->phone frame. Old apps ignore
 /// unknown fields, so this is backwards compatible.
+/// `frame` (a `paired` or `ready`) with what every phone learns on connecting:
+/// this computer, what it offers, and the addresses that reach it.
+fn hello(hub: &RemoteHub, mut frame: Value) -> Value {
+    frame["serverId"] = json!(hub.server_id());
+    frame["serverName"] = json!(server_name());
+    frame["platform"] = json!(crate::peer::platform_id());
+    frame["features"] = json!(phone_features());
+    frame["launcher"] = crate::linkhelper_agent::advertised();
+    with_hosts(hub, crate::remote_update::with_build(frame))
+}
+
 fn with_hosts(hub: &RemoteHub, mut frame: Value) -> Value {
     let hosts = advertised_hosts(hub);
     if !hosts.is_empty() {
@@ -6487,6 +6474,7 @@ pub(crate) fn state_value(hub: &RemoteHub) -> Value {
         "tailscale": cfg.tailscale,
         "keepAwake": cfg.keep_awake,
         "keepAwakeStatus": crate::keepawake::status(),
+        "openFromPhone": crate::linkhelper_agent::state(),
         "running": hub.inner.running.load(Ordering::Relaxed),
         "bindError": hub.bind_error(),
         "configError": hub.config_error(),
@@ -6708,6 +6696,7 @@ pub fn remote_set_terminal_labels(
         caps_map,
         account_map,
     ));
+    crate::remote_agents::note_tabs(&labels);
     if project.is_empty() {
         return;
     }

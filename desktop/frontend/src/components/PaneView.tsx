@@ -6,6 +6,8 @@ import { InteractiveTab } from "./InteractiveTab";
 import { BrowserPane } from "./BrowserPane";
 import { BrowserMirrorPlaceholder } from "./BrowserMirrorPlaceholder";
 import { IS_MIRROR_WINDOW } from "../mirror";
+import { MINI_VIEWS_HERE, isMiniViewKept, toggleMiniView } from "../miniViewToggle";
+import { detectAICLI } from "../slashCommands";
 import { MemoryView } from "./MemoryView";
 import { ToolkitView } from "./toolkit/ToolkitView";
 import { FilesPane } from "./files/FilesPane";
@@ -227,13 +229,13 @@ export interface PaneViewProps {
   onRestartService: (serviceName: string) => void;
   // Absent where services can't be edited from here.
   onEditService?: (serviceName: string) => void;
-  onAddTerminal: (paneId: string) => void;
+  onAddTerminal: (paneId: string, shell?: string) => void;
   // The project the + popup starts things in.
   newTabProject: LaunchpadProject;
   // An agent picked from the + popup, opened in this pane.
   onLaunchAgent: (paneId: string, launch: RemoteAgentLaunch) => void;
   // A command typed into the + popup, run in a new terminal in this pane.
-  onRunCommand: (paneId: string, command: string) => void;
+  onRunCommand: (paneId: string, command: string, shell?: string) => void;
   // A project action started from the + popup, in this pane.
   onRunAction: (paneId: string, action: ActionInfo, opts?: RunActionOpts) => void;
   // The pane ⌘T asked to show its + popup, until it has.
@@ -740,8 +742,8 @@ function PaneViewImpl(props: PaneViewProps) {
           </TabStrip>
           <AddTerminalButton
             project={newTabProject}
-            onAddTerminal={() => onAddTerminal(pane.id)}
-            onRunCommand={(command) => onRunCommand(pane.id, command)}
+            onAddTerminal={(shell) => onAddTerminal(pane.id, shell)}
+            onRunCommand={(command, shell) => onRunCommand(pane.id, command, shell)}
             onOpenAgent={(launch) => onLaunchAgent(pane.id, launch)}
             onRunAction={(action, opts) => onRunAction(pane.id, action, opts)}
             onResumeSession={onResumeSession}
@@ -1128,6 +1130,18 @@ function PaneViewImpl(props: PaneViewProps) {
                 ? () => void copyLink(tabLink(projectName, tab.historyKey!))
                 : undefined
             }
+            onToggleMiniView={
+              isTerminalTab(tab) && MINI_VIEWS_HERE
+                ? () =>
+                    toggleMiniView({
+                      termId: tab.id,
+                      project: projectName,
+                      label: terminalDisplayLabel(tab),
+                      agent: detectAICLI(tab.startCmd ?? tab.resumeCmd),
+                    })
+                : undefined
+            }
+            miniViewKept={isMiniViewKept(tab.id)}
             canFork={forkable}
             canForkCopy={forkable && canForkIntoCopy}
             canCloseOthers={canCloseOthers}

@@ -1,6 +1,7 @@
 import { useArmedMerge } from "../hooks/useArmedMerge";
 import { usePrMergeOffer } from "../hooks/usePrMergeOffer";
 import { prLook } from "../prLook";
+import { prWords } from "../gitForge";
 import type { PullRequestInfo } from "../types";
 import { PrMergeBody } from "./PrMergeBody";
 import { PrMergeFixItems } from "./PrMergeFixItems";
@@ -24,6 +25,7 @@ export function PrMergeCard({ pr, branch, projectName, projectPath, onClose }: P
   const info = offer.kind === "loaded" ? offer.info : null;
   const shown = info ?? pr;
   const look = prLook(shown);
+  const words = prWords(pr);
   const base = info?.merge.base;
 
   return (
@@ -32,7 +34,7 @@ export function PrMergeCard({ pr, branch, projectName, projectPath, onClose }: P
         <div className="flex min-w-0 items-center gap-1.5">
           <look.Icon size={13} className="shrink-0" style={{ color: look.color }} />
           <span className="truncate text-[12px] font-medium text-[var(--text-primary)]" title={shown.title}>
-            <span className="tabular-nums">#{pr.number}</span> {shown.title}
+            <span className="tabular-nums">{words.ref(pr.number)}</span> {shown.title}
           </span>
         </div>
         <div className="mt-0.5 truncate font-mono text-[10.5px] text-[var(--text-muted)]">
@@ -40,12 +42,12 @@ export function PrMergeCard({ pr, branch, projectName, projectPath, onClose }: P
         </div>
         {offer.kind === "loading" && (
           <PrMergeLine state="pending" className="mt-2.5">
-            Asking GitHub
+            Asking {words.site}
           </PrMergeLine>
         )}
         {offer.kind === "missing" && (
           <p className="mt-2.5 text-[11px] leading-snug text-[var(--text-secondary)]">
-            GitHub didn't say how this pull request stands. It may have merged or closed.
+            {words.site} didn't say how this {words.noun} stands. It may have merged or closed.
           </p>
         )}
         {info ? (
@@ -58,7 +60,7 @@ export function PrMergeCard({ pr, branch, projectName, projectPath, onClose }: P
           />
         ) : (
           <div className="mt-3 flex justify-end">
-            <PrOpenOnGitHub url={pr.url} onClose={onClose} />
+            <PrOpenOnGitHub url={pr.url} onClose={onClose} site={words.site} />
           </div>
         )}
       </div>

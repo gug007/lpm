@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
-import { CircleDot, Copy, GitFork, Link2, Pin, PinOff, Sparkles, Users } from "lucide-react";
+import { CircleDot, Copy, GitFork, Link2, PictureInPicture2, Pin, PinOff, Sparkles, Users } from "lucide-react";
 import { PencilIcon, XIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuSeparator } from "../ui/ContextMenuSeparator";
 import { ContextMenuShell } from "../ui/ContextMenuShell";
 import { chordLabel } from "../../keys";
+import { miniViewChordLabel } from "../../miniViewChord";
 import { SplitDownIcon, SplitRightIcon } from "./icons";
 import type { PaneEdge } from "../../paneMoves";
 
@@ -33,6 +34,10 @@ interface TabContextMenuProps {
   continueMenu?: ReactNode;
   // Absent when the pane would be left with nothing to show.
   onMoveToNewPane?: (edge: Exclude<PaneEdge, "left">) => void;
+  // Keeps the tab in a mini view, or takes it out; absent where none can show
+  // (a detached window, a service log).
+  onToggleMiniView?: () => void;
+  miniViewKept?: boolean;
   onCloseTab: () => void;
   onCloseOthers: () => void;
   onClose: () => void;
@@ -58,6 +63,8 @@ export function TabContextMenu({
   accountMenu,
   continueMenu,
   onMoveToNewPane,
+  onToggleMiniView,
+  miniViewKept = false,
   onCloseTab,
   onCloseOthers,
   onClose,
@@ -120,6 +127,14 @@ export function TabContextMenu({
           label="Copy link to tab"
           icon={<Link2 size={12} />}
           onClick={close(onCopyLink)}
+        />
+      )}
+      {onToggleMiniView && (
+        <ContextMenuItem
+          label={miniViewKept ? "Close mini view" : "Keep in a mini view"}
+          icon={<PictureInPicture2 size={12} />}
+          shortcut={miniViewChordLabel()}
+          onClick={close(onToggleMiniView)}
         />
       )}
       {onMoveToNewPane && (

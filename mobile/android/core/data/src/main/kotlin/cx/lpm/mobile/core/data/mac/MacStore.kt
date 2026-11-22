@@ -75,6 +75,7 @@ class MacStore @Inject constructor(private val prefs: AppPreferences) {
             )
         }
         r.wake?.let { targets -> put("wake", JsonArray(targets.map(WakeTarget::toJson))) }
+        r.launcher?.let { put("launcher", it) }
     }
 
     private fun decode(o: JsonObject): MacRecord? {
@@ -104,7 +105,8 @@ class MacStore @Inject constructor(private val prefs: AppPreferences) {
                 val slug = v.string("slug")
                 if (macId != null && slug != null) MacVia(macId, slug) else null
             },
-            wake = o.objects("wake")?.mapNotNull(WakeTarget::parse)?.ifEmpty { null }
+            wake = o.objects("wake")?.mapNotNull(WakeTarget::parse)?.ifEmpty { null },
+            launcher = o.int("launcher")
         )
     }
 }

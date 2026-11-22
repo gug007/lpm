@@ -13,6 +13,7 @@ import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.model.CheckLog
 import cx.lpm.mobile.core.model.CiCheck
+import cx.lpm.mobile.core.model.CiFixLoop
 import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.GitMergeMethod
 import cx.lpm.mobile.core.model.LaunchpadOption
@@ -69,7 +70,12 @@ data class GitChecksUiState(
     val canReadLogs: Boolean = false,
     /** The failed checks' logs and why they couldn't be read, by check URL. */
     val logs: Map<String, CheckLog> = emptyMap(),
-    val logErrors: Map<String, String> = emptyMap()
+    val logErrors: Map<String, String> = emptyMap(),
+    /** The Mac can keep an agent fixing until the checks pass. */
+    val canKeepFixing: Boolean = false,
+    /** The project's loop, running or lately ended. */
+    val fixLoop: CiFixLoop? = null,
+    val fixLoopError: String? = null
 ) {
     /** The pull request conflicts with its base and an agent can be told to resolve it. */
     val canResolve: Boolean
@@ -106,7 +112,17 @@ class GitChecksViewModel @AssistedInject constructor(
 
     /** What the agent being started is told: the failing checks, or the conflicts. */
     private var prompt: String? = null
-    private val fixer = AgentFixer(project, { session }, actionMemory) { prompt }
+
+    /** Whether Keep fixing until green follows the agent being started. */
+    private var loops = false
+    private val fixer = AgentFixer(
+        project,
+        { session },
+        actionMemory,
+        beforeStart = { option ->
+            if (loops) session?.store<GitChecksStore>()?.startLoop(project, option.label)
+        }
+    ) { prompt }
 
     private val mergeMethod = prefs.data.map {
         prefs.string(PreferenceKeys.GIT_MERGE_METHOD) ?: GitMergeMethod.SQUASH.wire
@@ -149,7 +165,10 @@ class GitChecksViewModel @AssistedInject constructor(
             mergeMethod = method,
             canReadLogs = s.store<GitExtrasStore>().canReadCheckLogs,
             logs = logs.first,
-            logErrors = logs.second
+            logErrors = logs.second,
+            canKeepFixing = store.canKeepFixing,
+            fixLoop = ci.loops[project],
+            fixLoopError = ci.loopErrors[project]
         )
     }
 
@@ -195,12 +214,29 @@ class GitChecksViewModel @AssistedInject constructor(
      * inputs or a confirmation asks for them first: false until it starts.
      */
     fun fix(option: LaunchpadOption, onSpawn: (TerminalInfo) -> Unit): Boolean {
+        loops = false
         prompt = uiState.value.checks?.fixPrompt
         return fixer.fix(option, onSpawn)
     }
 
+    /**
+     * [fix], with Keep fixing until green armed for its tab first: the Mac follows the
+     * tab the project opens next, told to push its fix.
+     */
+    fun fixUntilGreen(option: LaunchpadOption, onSpawn: (TerminalInfo) -> Unit): Boolean {
+        val checks = uiState.value.checks
+        loops = uiState.value.canKeepFixing
+        prompt = checks?.fixLoopPrompt.takeIf { loops } ?: checks?.fixPrompt
+        return fixer.fix(option, onSpawn)
+    }
+
+    fun stopFixLoop() {
+        session?.store<GitChecksStore>()?.stopLoop(project)
+    }
+
     /** [option] in a new tab, told to merge the base branch and resolve the conflicts. */
     fun resolve(option: LaunchpadOption, onSpawn: (TerminalInfo) -> Unit): Boolean {
+        loops = false
         prompt = uiState.value.checks?.resolvePrompt
         return fixer.fix(option, onSpawn)
     }

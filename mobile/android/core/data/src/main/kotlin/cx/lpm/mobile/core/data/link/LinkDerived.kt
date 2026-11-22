@@ -12,10 +12,12 @@ private val LinkStore.network: NetworkMonitor.Network get() = env.network.networ
 fun LinkStore.view(): LinkView {
     val issue = issue()
     val visible = issue?.takeUnless { it.isConnecting && !state.value.slowConnect }
+    val s = session.state.value
+    val canOpenLpm = !s.demoMode && s.activeRecord?.launcher != null
     return LinkView(
         issue = issue,
         visibleIssue = visible,
-        barIssue = visible?.takeIf { it.needsYou },
+        barIssue = visible?.takeIf { it.needsYou(canOpenLpm) },
         quietReconnect = issue?.isConnecting == true && !state.value.slowConnect,
         statusLine = statusLine(issue),
         macLabel = macLabel(),

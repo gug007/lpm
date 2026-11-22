@@ -1,5 +1,5 @@
 import { MousePointerClick, Play, ScanSearch } from "lucide-react";
-import { DOCS_PATH, PROJECT_SIDEBAR_PATH } from "@/lib/links";
+import { DOCS_PATH, PROJECT_SIDEBAR_PATH, lessonPath } from "@/lib/links";
 import type { FeatureArea } from "./feature-types";
 
 export const PROJECTS_AREA: FeatureArea = {
@@ -81,6 +81,13 @@ export const PROJECTS_AREA: FeatureArea = {
       body: "Give any action its own keyboard shortcut, drag actions into split buttons or dropdown menus, and style them with an emoji and a color.",
     },
     {
+      title: "Mini apps",
+      body: "Turn an action into a page of your own, such as a dashboard, a chart, or a list built from what a project command prints. Point at its button for a quick card, or click it to open the page in a tab of its own, where it keeps running and can run the project's actions.",
+      since: "0.7.65",
+      href: lessonPath("mini-apps"),
+      linkLabel: "Watch the mini apps lesson",
+    },
+    {
       title: "AI-drafted config and actions",
       body: "Let Claude Code, Codex, Gemini CLI, or OpenCode inspect a project and draft its services, actions, and profiles, or describe an action in plain words. Nothing is saved until you review it.",
     },
@@ -99,6 +106,13 @@ export const PROJECTS_AREA: FeatureArea = {
     {
       title: "Folders and work statuses",
       body: "Group projects into collapsible sidebar folders, drag to reorder, and tag projects In progress, Blocked, Review, Done, or your own emoji status.",
+    },
+    {
+      title: "Archive a project",
+      body: "Archive a project you're done with: it leaves the sidebar, its services stop, and its automations pause, while its config, notes, and folder stay. More → Archive shows the space each one takes, frees disk space by moving node_modules and build folders to the Trash, and brings a project back, or opens it without unarchiving.",
+      since: "0.7.62",
+      href: lessonPath("archive-projects"),
+      linkLabel: "Watch the archiving lesson",
     },
     {
       title: "Fast switching",

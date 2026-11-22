@@ -12,6 +12,17 @@ describe("prFromCreatedUrl", () => {
     });
   });
 
+  it("reads a GitLab merge request's URL and marks it as GitLab's", () => {
+    expect(prFromCreatedUrl("https://gitlab.acme.dev/t/app/-/merge_requests/12", "Rounding")).toEqual({
+      number: 12,
+      url: "https://gitlab.acme.dev/t/app/-/merge_requests/12",
+      state: "OPEN",
+      title: "Rounding",
+      isDraft: false,
+      host: "gitlab",
+    });
+  });
+
   it("marks a PR opened as a draft", () => {
     expect(prFromCreatedUrl("https://github.com/o/r/pull/7", "WIP", true)?.isDraft).toBe(true);
   });

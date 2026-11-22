@@ -4,6 +4,7 @@ import type { ChangeSpec } from "./changes";
 import { CALVER, DAY, HOUR, MINUTE, YMD } from "./clock";
 import { defineProject } from "./define";
 import { SAAS_APP_FILES } from "./saas-app-files";
+import { DEPLOYS_PAGE, REVENUE_PAGE } from "./saas-pages";
 
 // Mirrors the seeded working-tree diff, so the Review tab shows exactly the
 // changes the visitor just watched Claude make.
@@ -163,6 +164,31 @@ const ACTIONS: SeedAction[] = [
     ],
   },
   {
+    name: "deploys",
+    label: "Deploys",
+    emoji: "📈",
+    cmd: "./scripts/deploy-log.sh",
+    display: "",
+    type: "",
+    popup: { format: "html", title: "Deploys this week", width: 300, height: 196 },
+    page: DEPLOYS_PAGE,
+    durationMs: 600,
+    output: [
+      { text: "$ ./scripts/deploy-log.sh", color: "green", at: 50 },
+      { text: "16 deploys this week, 1 failed (Fri, rolled back)", color: "default", at: 400 },
+    ],
+  },
+  {
+    name: "revenue",
+    label: "Revenue",
+    emoji: "💳",
+    cmd: "",
+    display: "",
+    type: "app",
+    app: { format: "html", title: "Revenue" },
+    page: REVENUE_PAGE,
+  },
+  {
     name: "deploy",
     label: "Deploy",
     emoji: "🚢",
@@ -233,6 +259,18 @@ export const SAAS_APP: SeedProject = defineProject({
       { name: "release-2026-04", remote: "origin", ageMs: 5 * HOUR },
       { name: "main", remote: "origin", ageMs: 2 * HOUR },
     ],
+    pr: {
+      number: 42,
+      title: "Add a 14-day trial to the billing flow",
+      url: "https://github.com/acme/saas-app/pull/42",
+      base: "main",
+      checks: [
+        { name: "lint", workflow: "CI", state: "pass" },
+        { name: "test", workflow: "CI", state: "pending" },
+        { name: "build", workflow: "CI", state: "pending" },
+      ],
+      passAfterMs: 45_000,
+    },
   },
   changes: CHANGES,
   tree: SAAS_APP_FILES,

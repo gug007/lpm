@@ -9,6 +9,7 @@ import { DEFAULT_PULL_CONFIG, pullFlags } from "../gitOptions";
 import { pullErrorText } from "../gitPullErrors";
 import { useConfirmFlash } from "../hooks/useConfirmFlash";
 import { BranchIcon, CopyIcon } from "./icons";
+import { forgeWords, type ForgeWords } from "../gitForge";
 
 interface PRCreatedViewProps {
   projectPath: string;
@@ -16,6 +17,7 @@ interface PRCreatedViewProps {
   base: string;
   url: string;
   draft?: boolean;
+  words?: ForgeWords;
   onSwitched: () => void;
   onBusyChange?: (busy: boolean) => void;
 }
@@ -26,6 +28,7 @@ export function PRCreatedView({
   base,
   url,
   draft = false,
+  words = forgeWords(),
   onSwitched,
   onBusyChange,
 }: PRCreatedViewProps) {
@@ -87,7 +90,7 @@ export function PRCreatedView({
       </div>
       <div className="flex flex-col items-center gap-1">
         <span className="flex items-center gap-2 text-base font-medium text-[var(--text-primary)]">
-          {pr ? `Pull request #${pr.number} created` : "Pull request created"}
+          {pr ? `${words.sentence} ${words.ref(pr.number)} created` : `${words.sentence} created`}
           {draft && (
             <span className="rounded-full bg-[var(--bg-active)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-secondary)]">
               Draft
@@ -131,7 +134,7 @@ export function PRCreatedView({
           disabled={switching}
           className="rounded-lg bg-[var(--text-primary)] px-4 py-1.5 text-sm font-medium text-[var(--bg-primary)] transition-all hover:opacity-90 disabled:opacity-50"
         >
-          Open on GitHub
+          Open on {words.site}
         </button>
       </div>
     </div>

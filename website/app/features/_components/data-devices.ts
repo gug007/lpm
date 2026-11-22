@@ -63,8 +63,9 @@ export const DEVICES_AREA: FeatureArea = {
     },
     {
       title: "Away from home with Tailscale",
-      body: "Invites carry your Tailscale address next to your LAN address, so paired machines reach each other over your tailnet.",
-      note: "You set up Tailscale; lpm detects the address.",
+      body: "Tailscale is built in. Set up Built-in Tailscale under + above your projects → Another computer, then sign in to it in lpm Link with the same account, and paired machines and your phone reach each other over your tailnet with no Tailscale app. Invites carry the tailnet address next to your LAN address.",
+      note: "Already running the Tailscale app? Built-in Tailscale is optional, and lpm uses that address.",
+      since: "0.6.14",
     },
     {
       title: "Sync to this computer",
@@ -105,6 +106,12 @@ export const DEVICES_AREA: FeatureArea = {
       title: "Take control",
       body: "A terminal open in several places is controlled from one at a time. Take control moves it to the window, computer, or phone you're on.",
     },
+    {
+      title: "Continue on another computer",
+      body: "Move a Claude Code conversation to the same project on a paired computer from the tab's Continue on menu. lpm pauses Claude, carries the work in progress over, and the session picks up there. Bring it back the same way.",
+      note: "Claude Code tabs only.",
+      since: "0.7.63",
+    },
   ],
 };
 
@@ -122,7 +129,7 @@ export const IPHONE_AREA: FeatureArea = {
     {
       icon: BellRing,
       title: "Push notifications",
-      body: "Get a push when an agent waits for you, finishes, or errors, and optionally when automations run. Content is encrypted on your computer and only your phone can read it.",
+      body: "Get a push when an agent waits for you, finishes, or errors, and optionally when automations run. Allow or Deny a Claude Code or Codex permission prompt, or Reply to a finished agent, right from the notification. Content is encrypted on your computer and only your phone can read it.",
       note: `Agent alerts come from ${STATUS_AGENT_NAMES}.`,
     },
     {

@@ -69,6 +69,7 @@ When `lpm config resolve` is unavailable, inspect the YAML project files read-on
 | Remote execution | project `ssh` block |
 | Scheduled task (automation) | not a config edit: `lpm automations add` from `lpm-cli`; keep any `jobs` section as it is |
 | Let the app pull one project from origin by itself, or never | `autoPull`, set with `lpm auto-pull <project> --set on\|off\|default`; see `core.md` |
+| Open one project's plain terminals in another shell (fish, pwsh, WSL) | `terminal: { shell }` in the project file; see `core.md` |
 
 Ask only when the requested shape is genuinely ambiguous. For “button with options,” distinguish a split button, dropdown, and input prompt. For a terminal action, distinguish one reused pane from a fresh pane each run.
 

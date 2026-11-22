@@ -145,7 +145,7 @@ function startFresh(t: PersistedTab, projectName: string): Promise<string> {
   const sessionId = t.agentEnded ? undefined : claudeResumeSessionId(t.resumeCmd);
   return t.actionName
     ? StartTerminalForRestore(projectName, t.actionName, sessionId)
-    : StartTerminal(projectName, sessionId);
+    : StartTerminal(projectName, sessionId, undefined, undefined, undefined, t.shell);
 }
 
 async function reifyTree(
@@ -196,6 +196,7 @@ async function reifyTree(
           resumeCmd: t.resumeCmd,
           agentEnded: t.agentEnded,
           actionName: t.actionName,
+          shell: t.shell,
           pinned: t.pinned,
           emoji: t.emoji,
           color: t.color,
@@ -291,6 +292,7 @@ export function treeToPersisted(node: PaneNode): PersistedPaneNode {
           ...(t.resumeCmd ? { resumeCmd: t.resumeCmd } : {}),
           ...(t.agentEnded ? { agentEnded: true } : {}),
           ...(t.actionName ? { actionName: t.actionName } : {}),
+          ...(t.shell ? { shell: t.shell } : {}),
           ...(t.pinned ? { pinned: true } : {}),
           ...(t.emoji ? { emoji: t.emoji } : {}),
           ...(t.color ? { color: t.color } : {}),

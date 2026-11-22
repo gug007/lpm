@@ -11,6 +11,7 @@ import { setInitialProject } from "./tour/done";
 import { drawWindowButtons } from "./window-buttons";
 
 window.__LPM_PLATFORM__ = "macos";
+window.__LPM_INLINE_PAGES__ = true;
 
 const { seed, omit, selected, preview } = seedFor(new URLSearchParams(window.location.search));
 loadSeed(seed, omit);

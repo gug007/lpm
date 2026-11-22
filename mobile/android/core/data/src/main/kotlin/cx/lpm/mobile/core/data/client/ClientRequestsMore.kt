@@ -193,6 +193,9 @@ fun LpmClient.requestGitCommitChecks(project: String) = send(Wire.gitCommitCheck
 fun LpmClient.requestGitChecksRerun(project: String, runIds: List<String>) =
     send(Wire.gitChecksRerun(project, runIds))
 
+fun LpmClient.requestCiFixLoop(project: String, on: Boolean, agent: String) =
+    send(Wire.ciFixLoop(project, on, agent))
+
 fun LpmClient.requestGitMergePr(
     project: String,
     number: Int,

@@ -12,8 +12,8 @@ const OPEN_DELAY_MS = 300;
 
 interface AddTerminalButtonProps {
   project: LaunchpadProject;
-  onAddTerminal: () => void;
-  onRunCommand: (command: string) => void;
+  onAddTerminal: (shell?: string) => void;
+  onRunCommand: (command: string, shell?: string) => void;
   onOpenAgent: (launch: RemoteAgentLaunch) => void;
   onRunAction: (action: ActionInfo, opts?: RunActionOpts) => void;
   onResumeSession?: () => void;

@@ -127,6 +127,18 @@
       "description": "Commands shown as buttons, menus and terminal launchers.",
       "additionalProperties": { "$ref": "#/definitions/action" }
     },
+    "terminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How this project's plain terminals open on this computer. Services, actions and agent tabs keep the login shell.",
+      "properties": {
+        "shell": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The shell a new plain terminal opens in, by name or path: zsh, bash, fish, nu, or /opt/homebrew/bin/fish; on Windows pwsh, powershell, cmd, bash (Git Bash) or wsl (the default distro; wsl:Ubuntu for another). A shell this computer doesn't have opens the login shell. Overrides Settings → Terminal → Shell for this project."
+        }
+      }
+    },
     "terminals": {
       "type": "object",
       "description": "Deprecated alias for actions with type terminal; entries here default to type terminal. Declare new terminals under actions.",

@@ -1,3 +1,4 @@
+import { FEATURES_PATH } from "@/lib/links";
 import { slugify } from "@/lib/slug";
 
 export const OPEN_SEARCH_EVENT = "features:open-search";
@@ -5,6 +6,12 @@ export const REVEAL_EVENT = "features:reveal";
 
 export function featureId(title: string) {
   return `f-${slugify(title)}`;
+}
+
+// A page of its own that a shared link can preview, which then lands on the
+// feature here.
+export function featureSharePath(title: string) {
+  return `${FEATURES_PATH}/${slugify(title)}`;
 }
 
 export function openFeatureSearch(query = "") {

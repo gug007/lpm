@@ -191,7 +191,7 @@ struct Watch {
 }
 
 #[derive(Debug, PartialEq)]
-enum Outcome {
+pub(crate) enum Outcome {
     /// Nothing ran on the push yet.
     Nothing,
     Running,
@@ -201,7 +201,7 @@ enum Outcome {
 
 /// Where a push's own checks stand: the ones that ran on its commit, not the
 /// results carried over from earlier pushes.
-fn outcome(checks: &[PrCheck]) -> Outcome {
+pub(crate) fn outcome(checks: &[PrCheck]) -> Outcome {
     let own: Vec<&PrCheck> = checks
         .iter()
         .filter(|c| c.commit.is_none() && c.state != "skipped")
@@ -323,17 +323,22 @@ impl CiWatch {
         }
         self.quiet.remove(&w.repo);
         let key = (w.repo.clone(), w.branch.clone());
+        // A Keep fixing until green loop on the branch says how CI went itself,
+        // once, at its end.
+        let looped = crate::ci_fix_loop::quiets(&w.project, &w.branch);
         match outcome {
             Outcome::Running => age < GIVE_UP,
             Outcome::Failed => {
                 self.failing.insert(key);
-                announce(app, &CiResult::of(w, &info, false));
+                if !looped {
+                    announce(app, &CiResult::of(w, &info, false));
+                }
                 false
             }
             _ => {
                 if info.checks.iter().any(|c| c.state == "fail") {
                     self.failing.insert(key);
-                } else if self.failing.remove(&key) {
+                } else if self.failing.remove(&key) && !looped {
                     announce(app, &CiResult::of(w, &info, true));
                 }
                 false

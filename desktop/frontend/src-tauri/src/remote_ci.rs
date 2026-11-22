@@ -2,13 +2,15 @@
 // open pull request, else of the commit the branch last pushed, with what
 // Claude is told to fix them and a way to run the failed jobs again, and how
 // each recent commit did for History's rows, and merging the pull request once
-// it's ready. All ask GitHub, so they answer through the out-queue.
+// it's ready, and keeping an agent fixing until the checks pass. All ask
+// GitHub, so they answer through the out-queue.
 use crate::ci_checks::{branch_commit_checks, rerun_failed_checks};
 use crate::ci_commits::recent_commit_checks;
 use crate::pull_request::branch_pull_request_with_merge;
 use crate::remote::git_result_reply;
 use serde_json::{json, Value};
 use std::sync::mpsc::SyncSender;
+use tauri::AppHandle;
 
 /// The phone may send `gitChecks` and `gitChecksRerun`.
 pub const FEATURE: &str = "gitChecks";
@@ -17,6 +19,9 @@ pub const COMMITS_FEATURE: &str = "gitCommitChecks";
 /// The phone may send `gitMergePr`, and `gitChecks` carries each open pull
 /// request's `merge`.
 pub const MERGE_FEATURE: &str = "gitMerge";
+/// The phone may send `ciFixLoop`, and `gitChecks` carries `fixLoop` and
+/// `fixLoopPrompt`.
+pub const FIX_LOOP_FEATURE: &str = "ciFixLoop";
 
 pub fn handle(out: &SyncSender<String>, t: &str, v: &Value) {
     let out = out.clone();
@@ -83,12 +88,40 @@ fn checks_reply(project: &str, root: String) -> Value {
         "commit": commit,
     });
     if let Some(fix) = fix {
+        reply["fixLoopPrompt"] = json!(crate::ci_fix_loop::first_prompt(&fix));
         reply["fixPrompt"] = json!(fix);
+    }
+    if let Some(fix_loop) = crate::ci_fix_loop::current(project) {
+        reply["fixLoop"] = json!(fix_loop);
     }
     if let Some(resolve) = resolve {
         reply["resolvePrompt"] = json!(resolve);
     }
     reply
+}
+
+/// `ciFixLoop`: `on` arms Keep fixing until green for the project's next fix
+/// tab, naming its `agent`; off stops it. Every change after this reaches every
+/// phone as the same frame.
+pub fn handle_fix_loop(app: &AppHandle, out: &SyncSender<String>, v: &Value) {
+    let (app, out) = (app.clone(), out.clone());
+    let project = v["project"].as_str().unwrap_or_default().to_string();
+    let on = v["on"].as_bool().unwrap_or(false);
+    let agent = v["agent"].as_str().unwrap_or_default().to_string();
+    std::thread::spawn(move || {
+        let reply = if on {
+            crate::ci_fix_loop::start(&app, &project, &agent).map(Some)
+        } else {
+            Ok(crate::ci_fix_loop::cancel(&app, &project))
+        };
+        let mut reply = match reply {
+            Ok(fix_loop) => json!({ "ok": true, "loop": fix_loop }),
+            Err(error) => json!({ "ok": false, "error": error }),
+        };
+        reply["t"] = json!("ciFixLoop");
+        reply["project"] = json!(project);
+        let _ = out.try_send(reply.to_string());
+    });
 }
 
 fn merge_reply(project: &str, root: &str, v: &Value) -> Value {

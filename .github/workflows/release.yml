@@ -491,6 +491,56 @@ jobs:
           cp desktop/frontend/src-tauri/target/release/bundle/nsis/*-setup.exe lpm-desktop-windows-amd64-setup.exe
           ls -l lpm-desktop-windows-amd64-setup.exe
 
+      # SignPath Foundation signs the installer through its free open-source
+      # program (https://lpm.cx/code-signing): it checks that this run built the
+      # file from the tagged commit, then waits for a maintainer to approve the
+      # request in SignPath. Tags only, and only once the SIGNPATH_API_TOKEN
+      # secret and the SIGNPATH_ORGANIZATION_ID variable are set; until then the
+      # installer ships unsigned. SignPath's artifact configuration "installer" is
+      # .github/signpath/installer.xml.
+      - name: Check for signing
+        id: signing
+        shell: bash
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* && -n "$SIGNPATH_API_TOKEN" && -n "$SIGNPATH_ORGANIZATION_ID" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Not signing: tags only, with SIGNPATH_API_TOKEN and SIGNPATH_ORGANIZATION_ID set."
+          fi
+
+      - name: Upload installer for signing
+        id: unsigned
+        if: steps.signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-installer-unsigned
+          path: lpm-desktop-windows-amd64-setup.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign installer
+        if: steps.signing.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: lpm
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: installer
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion-timeout-in-seconds: 7200
+          output-artifact-directory: signed
+
+      - name: Use the signed installer
+        if: steps.signing.outputs.enabled == 'true'
+        shell: bash
+        run: |
+          cp signed/lpm-desktop-windows-amd64-setup.exe lpm-desktop-windows-amd64-setup.exe
+          ls -l lpm-desktop-windows-amd64-setup.exe
+
       - uses: actions/upload-artifact@v7
         with:
           name: windows-installer

@@ -68,6 +68,13 @@ class ProjectsSlots(
     val keepAwakeMenu: @Composable ColumnScope.() -> Unit = {},
     /** The cup beside the live Mac's name while it is kept awake (`:feature:mac`). */
     val keepAwakeIndicator: @Composable () -> Unit = {},
+    /** Lock or Sleep in the Mac switcher (`:feature:mac`). */
+    val powerMenu: @Composable ColumnScope.() -> Unit = {},
+    /**
+     * The moon beside the live Mac's name while it sleeps once its agents finish, and
+     * the question Sleep Now asks first (`:feature:mac`).
+     */
+    val powerIndicator: @Composable () -> Unit = {},
     /** "Terminal Settings": the phone's terminal font and theme (`:feature:terminal`). */
     val terminalSettingsSheet: @Composable (onDismiss: () -> Unit) -> Unit = {},
     /** The bar along the bottom of the projects list (the lpm update bar, `:feature:mac`). */

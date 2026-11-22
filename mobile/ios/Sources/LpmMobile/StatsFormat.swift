@@ -48,6 +48,9 @@ func providerMeta(_ key: String) -> ProviderMeta {
     switch key {
     case "claude": return ProviderMeta(label: "Claude Code", short: "Claude", color: Color(hex: "#D97757"))
     case "codex": return ProviderMeta(label: "Codex", short: "Codex", color: Color(hex: "#10A37F"))
+    case "gemini": return ProviderMeta(label: "Gemini CLI", short: "Gemini", color: Color(hex: "#4796E3"))
+    case "opencode": return ProviderMeta(label: "OpenCode", short: "OpenCode", color: Color(hex: "#FAB283"))
+    case "cursor": return ProviderMeta(label: "Cursor", short: "Cursor", color: .primary)
     default: return ProviderMeta(label: key, short: key, color: .secondary)
     }
 }

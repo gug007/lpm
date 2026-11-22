@@ -8,6 +8,7 @@ import { emitEvent, replayOnListen } from "../ipc";
 import type { AgentKind, SeedSession } from "../seed/types";
 import { createShell, type Shell } from "../shell/shell";
 import { dirEntries } from "./files";
+import { announceTurnEnd } from "../tour/turnEnd";
 import { GENERIC_DEV_LOG } from "./services";
 import { movePaneStatus, setAgentStatus, statusKey } from "./status";
 import { HOME, agentAction, project, projects, record } from "./state";
@@ -136,10 +137,17 @@ function spawn({ projectName }: Record<string, unknown>): string {
         if (resumed) movePaneStatus(name, seedPane(name), id);
         const key = statusKey(cmd.kind, sessionId, id);
         t.agent = cmd.kind;
+        let last: AgentStatus["value"] | undefined;
         return startAgent(
           {
             write,
-            status: (status) => setAgentStatus(name, id, key, status),
+            status: (status) => {
+              setAgentStatus(name, id, key, status);
+              if (last === "Running" && status && status.value !== "Running") {
+                announceTurnEnd(name, cmd.kind, status.value === "Done" ? "done" : "waiting");
+              }
+              last = status?.value;
+            },
             exit: () => {
               t.agent = undefined;
               exit();
@@ -168,6 +176,18 @@ function spawn({ projectName }: Record<string, unknown>): string {
   return id;
 }
 
+// Input with any non-ASCII character arrives hex-encoded after this marker
+// (terminal-io.ts), which the real backend decodes in pty.rs.
+const HEX_MARKER = "\x00HEX:";
+
+function decodeInput(data: string): string {
+  if (!data.startsWith(HEX_MARKER)) return data;
+  const hex = data.slice(HEX_MARKER.length);
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return new TextDecoder().decode(bytes);
+}
+
 export const terminalCommands: CommandMap = {
   start_terminal: spawn,
   start_terminal_with_cwd_env: spawn,
@@ -177,8 +197,17 @@ export const terminalCommands: CommandMap = {
     const cmd = action?.cmd ?? String(args.terminalName);
     return { id: spawn(args), ...launchCmds(parseLaunch(cmd)?.kind, cmd) };
   },
+  // The shells a Mac with Homebrew's fish has; zsh is the login shell.
+  list_shells: () => ({
+    shells: [
+      { id: "/bin/zsh", label: "zsh", detail: "/bin/zsh", login: true },
+      { id: "/bin/bash", label: "bash", detail: "/bin/bash", login: false },
+      { id: "/opt/homebrew/bin/fish", label: "fish", detail: "/opt/homebrew/bin/fish", login: false },
+    ],
+    default: "/bin/zsh",
+  }),
   write_terminal: ({ id, data }) => {
-    terminals.get(String(id))?.shell.input(String(data));
+    terminals.get(String(id))?.shell.input(decodeInput(String(data)));
     return null;
   },
   resize_terminal: ({ id, cols }) => {

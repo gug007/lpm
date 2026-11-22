@@ -2,7 +2,7 @@
 // (sidebar, header buttons, services, Git, files, open agent tabs) is derived
 // from one SeedProject, so no two views of it can disagree.
 
-import type { AICLI, ActionPopupInfo, ProfileInfo } from "../../types";
+import type { AICLI, ActionAppInfo, ActionPopupInfo, PrCheck, ProfileInfo } from "../../types";
 import type { OtherSkill } from "../../lpmCommands";
 
 export type AgentKind = AICLI;
@@ -77,8 +77,8 @@ export interface SeedAction {
   display: string;
   // "terminal" opens a tab running cmd, "background" runs it behind a progress
   // card, "command" types it into the focused terminal; "" runs it and shows
-  // its output.
-  type: "terminal" | "background" | "command" | "";
+  // its output; "app" opens its page in a tab of its own.
+  type: "terminal" | "background" | "command" | "app" | "";
   confirm?: boolean;
   // As a config sets them; seeded buttons keep the order they're declared in.
   position?: number;
@@ -95,6 +95,26 @@ export interface SeedAction {
   // reply that prompt gets.
   task?: AgentTask;
   popup?: ActionPopupInfo;
+  app?: ActionAppInfo;
+  // What its popup card or mini app tab shows: the page and the data its
+  // command would print.
+  page?: SeedPage;
+}
+
+export interface SeedPage {
+  html: string;
+  data: unknown;
+}
+
+// The branch's open pull request. Checks still running pass this long after
+// the footer first asks about it.
+export interface SeedPullRequest {
+  number: number;
+  title: string;
+  url: string;
+  base: string;
+  checks: (Omit<PrCheck, "url"> & { state: "pass" | "pending" })[];
+  passAfterMs: number;
 }
 
 export type SeedProfile = ProfileInfo;
@@ -121,6 +141,7 @@ export interface SeedGit {
   behind: number;
   branches: SeedBranch[];
   changes: SeedChange[];
+  pr?: SeedPullRequest;
 }
 
 // An agent tab already open when the project is first shown.

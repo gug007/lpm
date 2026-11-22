@@ -44,6 +44,8 @@
     <string name="identity_title">Check that it\'s %1$s</string>
     <string name="issue_tailscale_working">Turning on Built-in Tailscale… Sign in once with your Tailscale account.</string>
     <string name="issue_trying">Trying…</string>
+    <string name="issue_opening">Opening…</string>
+    <string name="issue_opening_lpm">Starting lpm on the Mac…</string>
     <string name="machine">Machine</string>
     <string name="machine_opens_through">Opens through</string>
     <string name="machine_switch">Switch to it</string>

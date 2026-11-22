@@ -135,9 +135,9 @@ const FAQS: QA[] = [
   {
     question: "How does lpm update?",
     short:
-      "It checks at launch and every 24 hours. On macOS one click updates and relaunches, and your dev servers keep running.",
+      "It checks at launch and every 24 hours. On macOS and Windows one click updates and relaunches, and your dev servers keep running.",
     answer:
-      "lpm checks for a new version when it opens and every 24 hours while it runs, and you can choose Check for Updates… from the lpm menu. On macOS, an update button appears in the sidebar: one click downloads it, replaces the app and relaunches, and your dev servers keep running through the update. On Windows and Linux, lpm tells you about the new version and opens its download in your browser; run the installer or install the package to update.",
+      "lpm checks for a new version when it opens and every 24 hours while it runs, and you can choose Check for Updates… from the lpm menu. On macOS and Windows, an update button appears in the sidebar: one click downloads it, replaces the app and relaunches, and your dev servers keep running through the update. On Linux, lpm tells you about the new version and opens its download in your browser; install the package to update.",
   },
   {
     question: "How do I uninstall lpm?",

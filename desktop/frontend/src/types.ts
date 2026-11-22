@@ -488,6 +488,8 @@ export interface PullRequestInfo {
   checks?: PrCheck[];
   // What a Fix with … agent is told while an open PR's checks fail.
   fixPrompt?: string;
+  // "gitlab" for a GitLab merge request (gitlab_mr.rs); absent on GitHub.
+  host?: "gitlab";
 }
 
 export type PrMergeMethod = "merge" | "squash" | "rebase";
@@ -522,6 +524,24 @@ export interface PrMergeWatch {
   state: "waiting" | "merged" | "stopped" | "cancelled";
   reason?: string;
   deletedBranch: boolean;
+}
+
+export const CI_FIX_LOOP_EVENT = "ci-fix-loop";
+
+// Keep fixing until green on a project (ci_fix_loop.rs): the agent a Fix with …
+// opened gets each new failure until the checks pass, for up to `maxRounds`.
+export interface CiFixLoop {
+  project: string;
+  agent: string;
+  branch: string;
+  round: number;
+  maxRounds: number;
+  state: "starting" | "fixing" | "watching" | "passed" | "stopped" | "cancelled";
+  sha: string;
+  // Where it stands, in one line: "Claude Code pushed 7c41e2a · watching the new run".
+  detail: string;
+  reason?: string;
+  progress: number;
 }
 
 export interface PullRequestMergeInfo extends PullRequestInfo {

@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// The project's past Claude Code and Codex conversations, newest first and
-/// grouped by day as the desktop's Resume session list shows them. Picking one
+/// The project's past agent conversations — Claude Code, Codex, Gemini,
+/// OpenCode and Cursor — newest first and grouped by day as the desktop's
+/// Resume session list shows them. Picking one
 /// continues it in a new tab, or opens the tab already holding it.
 struct ResumeSessionList: View {
     @Environment(AppModel.self) private var model
@@ -10,24 +11,23 @@ struct ResumeSessionList: View {
     let onDone: () -> Void
     let onOpen: (TerminalInfo) -> Void
 
-    @State private var filter = ProviderFilter.all
+    /// A provider key, or `nil` for All.
+    @State private var filter: String?
     @State private var search = ""
 
     private var list: AgentSessionList { model.agentLaunch.sessions[project.name] ?? AgentSessionList() }
     private var rows: [AgentSession] {
-        filter == .all ? list.rows : list.rows.filter { $0.provider == filter.rawValue }
+        guard let filter else { return list.rows }
+        return list.rows.filter { $0.provider == filter }
     }
+    private var providers: [String] { sessionFilterProviders(list.rows.map(\.provider), selected: filter) }
     private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Agent", selection: $filter) {
-                ForEach(ProviderFilter.allCases) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
-            .padding(.bottom, 10)
+            SessionProviderFilter(providers: providers, selection: $filter)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
             content
         }
         .background(Color(.systemGroupedBackground).ignoresSafeArea())
@@ -67,7 +67,7 @@ struct ResumeSessionList: View {
                 ContentUnavailableView {
                     Label("No Past Sessions", systemImage: "clock.arrow.circlepath")
                 } description: {
-                    Text("Claude Code and Codex conversations in this project show up here.")
+                    Text("Conversations with Claude Code, Codex, Gemini, OpenCode or Cursor in this project show up here.")
                 }
                 .frame(maxHeight: .infinity)
             }
@@ -147,16 +147,4 @@ struct ResumeSessionList: View {
         }
     }
 
-    private enum ProviderFilter: String, CaseIterable, Identifiable {
-        case all, claude, codex
-
-        var id: String { rawValue }
-        var label: String {
-            switch self {
-            case .all: return "All"
-            case .claude: return "Claude"
-            case .codex: return "Codex"
-            }
-        }
-    }
 }

@@ -15,6 +15,9 @@ mod agent_session_titles;
 mod agent_sessions;
 mod agent_sessions_claude;
 mod agent_sessions_codex;
+mod agent_sessions_cursor;
+mod agent_sessions_gemini;
+mod agent_sessions_opencode;
 mod agent_usage;
 mod agent_usage_claude;
 mod agent_usage_codex;
@@ -46,6 +49,8 @@ mod bounds;
 mod browser;
 mod ci_checks;
 mod ci_commits;
+mod ci_fix_loop;
+mod ci_fix_loop_rules;
 mod ci_prompt;
 mod ci_watch;
 mod claude_account_pin;
@@ -121,6 +126,8 @@ mod git_branch_base;
 mod termlook;
 mod gitdiscards;
 mod gitundo;
+mod githook;
+mod githook_text;
 mod worktree_files;
 mod peerhealth;
 mod gitsecrets;
@@ -144,6 +151,8 @@ mod ignoredset;
 mod ignoredstep;
 mod ignoredsync;
 mod ignoredwrite;
+#[cfg(windows)]
+mod installchoices;
 mod gitpush;
 mod gitresolve;
 mod gitsync;
@@ -221,6 +230,9 @@ mod sharenoise;
 mod sharerelay;
 mod sharerelaydial;
 mod sleepwatch;
+mod syspower;
+mod linkhelper;
+mod linkhelper_agent;
 mod netif;
 mod wakeonlan;
 mod notes_blobs;
@@ -263,6 +275,7 @@ mod portsprobe;
 mod portsprobe_windows;
 mod procinfo;
 mod action_exec;
+mod interface_size;
 mod interval;
 mod ipc_gate;
 mod popup_cache;
@@ -276,12 +289,22 @@ mod project_labels;
 mod projectmarks;
 mod project_archive;
 mod project_size;
+mod copy_reinstall;
+mod copy_space;
+mod diskspace;
+mod diskusage;
+mod duplicate_space;
 mod projects_crud;
 mod pty;
 mod pull_request;
 mod pull_request_merge;
 mod pr_merge_watch;
 mod pull_request_review;
+mod githost;
+mod gitlab_ci;
+mod gitlab_merge;
+mod gitlab_mr;
+mod gitlab_review;
 mod ptymodes;
 mod ptyring;
 mod releasenotes;
@@ -308,6 +331,7 @@ mod remote_upload;
 mod remotessh;
 mod remotestore;
 mod remotetls;
+mod remoteshell;
 mod runguard;
 #[cfg(windows)]
 mod runjob;
@@ -329,6 +353,7 @@ mod session_memory;
 mod session_memory_files;
 mod session_memory_scope;
 mod shellpath;
+mod shells;
 mod skill_install;
 mod skill_install_remote;
 mod sockdeliver;
@@ -391,6 +416,7 @@ mod updatenote;
 #[cfg(any(not(target_os = "macos"), test))]
 mod updatenotice;
 mod updates;
+mod updates_windows;
 mod updatesocket;
 mod upload;
 mod vault;
@@ -417,6 +443,10 @@ mod winfocus;
 mod winhandoff;
 #[cfg(windows)]
 mod winpath;
+mod wsl;
+mod wslstatus;
+#[cfg(windows)]
+mod wslterm;
 mod zone_layers;
 mod zones;
 
@@ -458,6 +488,7 @@ use clipboard::*;
 use clonerun::cancel_clone;
 use codex_statusline::*;
 use commands_real::*;
+use interface_size::set_interface_size;
 use config_cmds::*;
 use control::*;
 use crashreport::{crash_report_config, crash_reports_allowed};
@@ -485,10 +516,12 @@ use popup_view::{
 };
 use pull_request::*;
 use pull_request_review::pull_request_discussion;
+use githost::git_host_info;
 use pull_request_merge::{merge_pull_request, pull_request_merge_offer};
 use pr_merge_watch::{
     cancel_pull_request_merge, merge_pull_request_when_ready, pull_request_merge_watch,
 };
+use ci_fix_loop::{cancel_ci_fix_loop, ci_fix_loop_state, start_ci_fix_loop};
 use gitfollow::{follow_list, follow_pause, follow_resume, follow_stop};
 use gitautopull::{git_auto_pull, git_auto_pull_last, git_auto_pull_undo, set_auto_pull};
 use gitlines::{git_diff_stat, git_file_line_counts};
@@ -498,6 +531,7 @@ use git_branch_base::git_branch_base;
 use termlook::list_terminal_looks;
 use gitdiscards::{git_discarded, git_restore_discarded};
 use gitundo::{git_amend_commit, git_redo_commit, git_undo_commit};
+use githook::git_commit_checked;
 use worktree_files::{set_worktree_files, worktree_files};
 use gitsecrets::git_scan_secrets;
 use gitorigin::git_origin_status;
@@ -561,12 +595,18 @@ use ports::*;
 use portsall::{kill_port_holder, list_ports_overview};
 use project_archive::{archive_preview, archive_project, list_archived_projects, unarchive_project};
 use project_size::{free_project_space, project_disk_size, project_size_breakdown};
+use wsl::{wsl_distros, wsl_home};
+use copy_space::{copy_space, free_copy_space};
+use diskspace::machine_disk_space;
+use duplicate_space::duplicate_space;
 use projects_crud::*;
 use pty::*;
+use shells::list_shells;
 use releasenotes::release_notes;
 use remote::tabs::{remote_take_restore_requests, terminal_tab_op};
 use remote_agents::remote_set_agent_options;
 use remote::*;
+use linkhelper_agent::remote_set_open_from_phone;
 use send_later::*;
 use limit_reminders::*;
 use services::*;
@@ -607,6 +647,15 @@ pub use crate::sessiond::DAEMON_ARG;
 /// daemon is this binary re-exec'd rather than a separate one.
 pub fn run_session_daemon() -> ! {
     sessiond::run()
+}
+
+/// The argument that turns this binary into lpm Link's login helper
+/// (linkhelper.rs), which opens lpm for a paired phone while it's closed.
+pub use crate::linkhelper::HELPER_ARG as LINK_HELPER_ARG;
+
+/// Become the login helper and never return.
+pub fn run_link_helper() -> ! {
+    linkhelper::run()
 }
 
 /// The argument that stops every service and retires the daemon. For uninstall,
@@ -679,6 +728,8 @@ pub fn forget_inherited_tab() {
 }
 
 pub fn run() {
+    #[cfg(windows)]
+    installchoices::apply();
     let _crash_reports = crashreport::init("app");
 
     #[cfg(target_os = "linux")]
@@ -937,26 +988,7 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| match event {
-            tauri::RunEvent::Exit => {
-                mainwindow::persist_now(app); // capture the final window bounds before teardown
-                agentexit::stop(); // the agents dying below are not the user quitting them
-                remote::farewell(&app.state::<remote::RemoteHub>(), "quit"); // tell phones lpm is closing, before its terminals end
-                pty::kill_all_trees(&app.state::<pty::PtyState>()); // reap in-app terminal trees (services stay up)
-                tts::stop_on_exit(app); // kill any suspended python TTS child
-                portforward::stop_on_exit(app); // kill ssh -L tunnels + pollers
-                statusfwd::stop_all(app); // kill ssh -R status forwards
-                sshsync::stop_all_sync_watchers(app); // drop rsync mirror watchers
-                remote::stop(&app.state::<remote::RemoteHub>()); // retire the mobile server threads
-                app.state::<autosync::Engine>().stop(); // retire the auto-sync scheduler
-                app.state::<gitfollow::Engine>().stop(); // retire the follow scheduler
-                app.state::<ignoredkeep::Engine>().stop(); // stop keeping files in step
-                peer::stop(&app.state::<peer::PeerHub>()); // retire the peer host threads
-                peerclient::stop(&app.state::<peerclient::PeerClientHub>()); // drop peer client conns
-                tailnet::stop(); // take the built-in Tailscale node offline
-                keepawake::release(); // let this machine sleep again
-                telegrampoll::stop(); // stop reading Telegram for answers
-                socketsrv::release();
-            }
+            tauri::RunEvent::Exit => lifecycle::teardown(app, true),
             // Dock-icon click with no visible window restores the hidden main
             // window — otherwise it would stay hidden after the close button.
             #[cfg(target_os = "macos")]

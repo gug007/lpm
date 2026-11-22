@@ -50,7 +50,7 @@ struct IssueContent: View {
     // opened through another Mac, which "your Mac" would read as.
     private var copy: IssueCopy {
         let named = style == .card || issue == .removedOnMac
-        return issue.copy(mac: named ? model.link.macLabel : model.link.macNoun)
+        return issue.copy(mac: named ? model.link.macLabel : model.link.macNoun, canOpenLpm: model.canOpenLpm)
     }
 
     /// The bar leaves Details to the line under the Mac's name, which opens them.
@@ -71,6 +71,7 @@ struct IssueContent: View {
             return "Wake signal sent. lpm reconnects as soon as it's up."
         }
         if model.link.tailscaleWorking { return "Turning on Built-in Tailscale… Sign in once with your Tailscale account." }
+        if copy.actions.contains(.openLpm) && model.link.openingLpm { return "Starting lpm on the Mac…" }
         return copy.message
     }
 
@@ -127,11 +128,11 @@ struct IssueContent: View {
         let run = {
             if let onAction { onAction(action) } else { model.perform(action, for: issue) }
         }
-        if primary && action == .retry && model.link.trying {
+        if primary && ((action == .retry && model.link.trying) || (action == .openLpm && model.link.openingLpm)) {
             Button(action: {}) {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.mini)
-                    Text("Trying…").font(.footnote.weight(.semibold))
+                    Text(action == .openLpm ? "Opening…" : "Trying…").font(.footnote.weight(.semibold))
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -161,7 +162,7 @@ struct TerminalConnectionBanner: View {
 
     var body: some View {
         let issue = model.link.issue ?? .connecting(nil)
-        let copy = issue.copy(mac: model.link.macLabel)
+        let copy = issue.copy(mac: model.link.macLabel, canOpenLpm: model.canOpenLpm)
         let action = copy.actions.first { $0 != .details }
         HStack(spacing: 8) {
             if issue.isConnecting {

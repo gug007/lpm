@@ -37,7 +37,7 @@ fn install() {
     }
 }
 
-fn install_remote(ssh: &crate::config::SshSettings) -> bool {
+fn install_remote(ssh: &dyn crate::remoteshell::RemoteShell) -> bool {
     PLUGINS
         .iter()
         .fold(true, |installed, plugin| plugin.install_remote(ssh) && installed)

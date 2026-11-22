@@ -1,5 +1,5 @@
 import { forEachAction } from "./actionTree";
-import type { AgentSessionProvider } from "./agentSession";
+import { isResumableProvider } from "./agentSession";
 import { mergeSessionRows } from "./agentSessions";
 import type { TerminalViewHandle } from "./components/TerminalView";
 import type { TerminalStartOpts } from "./hooks/terminals/types";
@@ -103,10 +103,6 @@ export function launchRemoteAgent(
   view.createTerminalWithCmd(tab.label, tab.cmd, { ...tab.opts, background });
 }
 
-function isProvider(value: string): value is AgentSessionProvider {
-  return value === "claude" || value === "codex";
-}
-
 // Continues the conversation exactly as picking it in Resume session does —
 // the tab history's own command and name when this project closed it — unless
 // a tab already holds it, which the phone opens instead.
@@ -115,7 +111,7 @@ export function resumeRemoteSession(
   projectName: string,
   resume: RemoteResume,
 ): void {
-  if (!view || !isProvider(resume.provider)) return;
+  if (!view || !isResumableProvider(resume.provider)) return;
   const row = mergeSessionRows({
     history: getProjectTerminals(projectName).history ?? [],
     sessions: [

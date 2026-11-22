@@ -70,9 +70,18 @@ export const PROJECTS = [
 ];
 
 // Pushes as the phone shows them: the project as the title, then
-// "<terminal> — Agent is waiting for you" or "… — Agent finished"
-// (NotificationService.swift).
-export type Push = { title: string; body: string; time: string };
+// "<terminal> — Agent is waiting for you" or "… — Agent finished", which a
+// finish moves to the subtitle to make room for the words the agent ended on
+// (NotificationService.swift). The buttons are the ones lpm Link offers for
+// that alert (AgentAnswerSender.swift, PROTOCOL.md "Answering from a
+// notification").
+export type Push = {
+  title: string;
+  subtitle?: string;
+  body: string;
+  time: string;
+  actions?: string[];
+};
 
 export const EARLIER_PUSH: Push = {
   title: "ml-pipeline",
@@ -80,10 +89,21 @@ export const EARLIER_PUSH: Push = {
   time: "12m ago",
 };
 
-export const WAITING_PUSH: Push = {
+export const OPEN_TAB = "Open Tab";
+
+export const ANSWER_PUSH: Push = {
   title: "auth-service",
-  body: "claude — Agent is waiting for you",
+  subtitle: "claude — Agent finished",
+  body: "The limiter now blocks after 5 attempts and resets on success. Commit and open a PR?",
   time: "now",
+  actions: ["Reply", "Review Changes", OPEN_TAB],
+};
+
+export const PERMISSION_PUSH: Push = {
+  title: "storefront",
+  body: "codex — Agent is waiting for you",
+  time: "now",
+  actions: ["Allow", "Deny"],
 };
 
 // How each side names the other in its "Active in …" placeholder: the Mac

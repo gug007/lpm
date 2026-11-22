@@ -1,4 +1,5 @@
 import type { PullRequestInfo } from "../types";
+import { forgeWords, useGitHost } from "../gitForge";
 import { DrillMenu } from "./DrillMenu";
 import { PullSplitRow, pullConfigScreen } from "./pullMenu";
 import { PushSplitRow, pushConfigScreen } from "./pushMenu";
@@ -6,6 +7,7 @@ import { FetchSplitRow, fetchConfigScreen } from "./fetchMenu";
 import { HistoryIcon, MergeIcon, PRIcon, SparkleIcon, UndoIcon } from "./icons";
 
 interface CommitActionsMenuProps {
+  projectPath?: string;
   busy: boolean;
   uncommitted: number;
   openPr: PullRequestInfo | null;
@@ -23,6 +25,7 @@ interface CommitActionsMenuProps {
 }
 
 export function CommitActionsMenu({
+  projectPath = "",
   busy,
   uncommitted,
   openPr,
@@ -38,6 +41,8 @@ export function CommitActionsMenu({
   onDiscardAll,
   onClose,
 }: CommitActionsMenuProps) {
+  const host = useGitHost(projectPath, Boolean(projectPath));
+  const words = forgeWords(openPr?.host ?? host?.kind);
   return (
     <DrillMenu
       widthClassName="w-full"
@@ -77,7 +82,7 @@ export function CommitActionsMenu({
               className="flex w-full items-center gap-2.5 px-4 py-2 text-left text-[13px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
             >
               <PRIcon />
-              {openPr ? `Open PR #${openPr.number}` : "Create PR"}
+              {openPr ? `Open ${words.short} ${words.ref(openPr.number)}` : `Create ${words.short}`}
             </button>
             <button
               onClick={onMerge}
@@ -142,10 +147,10 @@ export function CommitActionsMenu({
                     </span>
                     <span className="flex flex-col">
                       <span className="text-[13px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
-                        Auto Create PR
+                        Auto Create {words.short}
                       </span>
                       <span className="text-[11px] text-[var(--text-muted)]">
-                        AI names the branch, commits, pushes, and opens the PR
+                        AI names the branch, commits, pushes, and opens the {words.short}
                       </span>
                     </span>
                   </button>

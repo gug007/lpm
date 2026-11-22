@@ -3,6 +3,7 @@ import { InputComposer } from "../InputComposer";
 import { LaunchpadDestinationTabs } from "./LaunchpadDestinationTabs";
 import { LaunchpadModelMenu } from "./LaunchpadModelMenu";
 import { LaunchpadFoldersMenu } from "./LaunchpadFoldersMenu";
+import { LaunchpadShellMenu } from "./LaunchpadShellMenu";
 import { takesFolders } from "../../agentFolders";
 
 // The launchpad's prompt: where it goes picked at the top of the box, then a
@@ -46,6 +47,7 @@ export function LaunchpadPrompt({
           <span className="min-w-0 flex-1" />
           {option && command === null && takesFolders(option.agent) && <LaunchpadFoldersMenu projectName={project.name} />}
           {pick && command === null && <LaunchpadModelMenu pick={pick} onChange={launchpad.changePick} />}
+          {!option && <LaunchpadShellMenu projectName={project.name} picked={launchpad.shell} onPick={launchpad.setShell} />}
           <button
             type="button"
             onClick={onStart}

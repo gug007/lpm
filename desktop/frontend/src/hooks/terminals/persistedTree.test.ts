@@ -333,8 +333,8 @@ describe("reifyTreeWithFreshPtys", () => {
       [],
       [],
     );
-    expect(h.startTerminal).toHaveBeenCalledWith("demo", sid);
-    expect(h.startTerminal).toHaveBeenCalledWith("demo", undefined);
+    expect(h.startTerminal).toHaveBeenCalledWith("demo", sid, undefined, undefined, undefined, undefined);
+    expect(h.startTerminal).toHaveBeenCalledWith("demo", undefined, undefined, undefined, undefined, undefined);
     expect(h.startForRestore).toHaveBeenCalledWith("demo", "agent", sid);
   });
 
@@ -354,7 +354,7 @@ describe("reifyTreeWithFreshPtys", () => {
       [],
       [],
     );
-    expect(h.startTerminal).toHaveBeenCalledWith("demo", undefined);
+    expect(h.startTerminal).toHaveBeenCalledWith("demo", undefined, undefined, undefined, undefined, undefined);
     expect(h.startForRestore).toHaveBeenCalledWith("demo", "agent", undefined);
     const tabs = asLeaf(restored).tabs;
     expect(tabs.map((t) => t.agentEnded)).toEqual([true, true]);
@@ -582,7 +582,7 @@ describe("reifyTreeWithFreshPtys", () => {
       [],
     );
 
-    expect(h.startTerminal).toHaveBeenCalledWith("proj", undefined);
+    expect(h.startTerminal).toHaveBeenCalledWith("proj", undefined, undefined, undefined, undefined, undefined);
     expect(asLeaf(tree).tabs[0].startCmd).toBe("npm run dev");
   });
 

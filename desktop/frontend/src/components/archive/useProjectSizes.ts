@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
 import { projectSize, type ArchivedProject, type ProjectSize } from "../../projectArchive";
+import { measureEach } from "../measureEach";
 
 // What each folder measured last, so the page shows sizes at once on a second
 // visit while it measures again behind them.
 const measured = new Map<string, ProjectSize | null>();
-
-// Two at a time: a folder with node_modules can take seconds, and every walk
-// competes for the same disk.
-const PARALLEL = 2;
 
 /** Each project's folder size: absent while it's measured, null when it can't
  *  be (an SSH project, a folder that's gone). `remeasure` measures them again,
@@ -21,8 +18,7 @@ export function useProjectSizes(list: readonly ArchivedProject[]): {
   const key = `${round}\n${list.map((p) => `${p.name}\u0000${p.isRemote}`).join("\n")}`;
 
   useEffect(() => {
-    let cancelled = false;
-    const queue = list.filter((p) => !p.isRemote).map((p) => p.name);
+    const local = list.filter((p) => !p.isRemote).map((p) => p.name);
     const remote = list.filter((p) => p.isRemote).map((p) => p.name);
     if (remote.length > 0) {
       setSizes((prev) => {
@@ -31,17 +27,14 @@ export function useProjectSizes(list: readonly ArchivedProject[]): {
         return next;
       });
     }
-    const worker = async () => {
-      for (let name = queue.shift(); name !== undefined && !cancelled; name = queue.shift()) {
-        const bytes = await projectSize(name).catch(() => null);
-        measured.set(name, bytes);
-        if (!cancelled) setSizes((prev) => new Map(prev).set(name, bytes));
-      }
-    };
-    void Promise.all(Array.from({ length: PARALLEL }, worker));
-    return () => {
-      cancelled = true;
-    };
+    const measure = (name: string) =>
+      projectSize(name)
+        .catch(() => null)
+        .then((size) => {
+          measured.set(name, size);
+          return size;
+        });
+    return measureEach(local, measure, (name, size) => setSizes((prev) => new Map(prev).set(name, size)));
     // `key` stands for `list`: a new array with the same projects measures nothing new.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);

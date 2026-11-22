@@ -43,6 +43,8 @@ internal fun GitChecksSheetHost(
         state = state,
         fix = CiFixActions(
             start = { viewModel.fix(it, onSpawnedTerminal) },
+            startUntilGreen = { viewModel.fixUntilGreen(it, onSpawnedTerminal) },
+            stopLoop = viewModel::stopFixLoop,
             resolve = { viewModel.resolve(it, onSpawnedTerminal) },
             submitInputs = { viewModel.submitInputs(it, onSpawnedTerminal) },
             confirm = { viewModel.confirm(onSpawnedTerminal) },

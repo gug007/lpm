@@ -67,7 +67,7 @@ class ResumeSessionViewModelTest {
         assertEquals(listOf("Fix checkout tax rounding", "Migrate cart store to Zustand"), rows())
         assertEquals(listOf(SessionDay.Older), vm.uiState.value.groups.map { it.day })
 
-        vm.setFilter(ProviderFilter.Codex)
+        vm.setFilter("codex")
         testScheduler.runCurrent()
         assertEquals(listOf("Migrate cart store to Zustand"), rows())
         assertEquals(1, socket.sentOf("agentSessions").size)

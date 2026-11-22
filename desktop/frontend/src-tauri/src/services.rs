@@ -219,6 +219,7 @@ fn start_session(
     info: &config::SpawnInfo,
     services: &[String],
 ) -> Result<(), String> {
+    crate::copy_reinstall::reinstall_before_start(name)?;
     crate::readiness::clear(name);
     let gate = crate::readiness::gate(&info.services, services, &[]);
     let deferred = gate.as_ref().map(|g| g.deferred()).unwrap_or_default();

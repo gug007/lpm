@@ -5,16 +5,19 @@ import SwiftUI
 /// tapping opens a menu of all saved machines with whether each answers right
 /// now and a checkmark on the ones shown. Tapping a row ticks or clears it and
 /// the menu stays open. Under them: the live Mac's own servers and Macs still
-/// being added here, Keep Awake, "Add a machine…" and "Manage machines…". A cup
-/// beside the name says the live Mac is kept awake.
+/// being added here, Keep Awake, Lock or Sleep, "Add a machine…" and "Manage
+/// machines…". A cup beside the name says the live Mac is kept awake, a moon that
+/// it sleeps once its agents finish.
 struct MacSwitcherMenu: View {
     @Environment(AppModel.self) private var model
     var maxWidth: CGFloat? = nil
+    @State private var confirmSleep = false
 
     var body: some View {
         Menu {
             if model.demoMode {
                 KeepAwakeMenu()
+                PowerMenu(confirmSleep: $confirmSleep)
                 Button {
                     model.exitDemo()
                 } label: {
@@ -35,6 +38,7 @@ struct MacSwitcherMenu: View {
                     }
                 }
                 KeepAwakeMenu()
+                PowerMenu(confirmSleep: $confirmSleep)
                 Divider()
                 Button {
                     model.beginAddMac()
@@ -61,12 +65,19 @@ struct MacSwitcherMenu: View {
                             .foregroundStyle(.orange)
                             .accessibilityLabel("Kept awake")
                     }
+                    if model.power.state?.armed == true {
+                        Image(systemName: "moon.zzz.fill")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.indigo)
+                            .accessibilityLabel("Sleeps when agents finish")
+                    }
                     Image(systemName: "chevron.down")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
                 }
             }
         }
+        .confirmsMacSleep($confirmSleep, macName: model.activeRecord?.displayName ?? "the Mac", model: model)
     }
 
     private var title: String {

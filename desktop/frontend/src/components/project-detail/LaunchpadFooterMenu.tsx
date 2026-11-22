@@ -13,7 +13,8 @@ interface LaunchpadFooterMenuProps {
   title?: string;
   triggerClassName?: string;
   panelClassName?: string;
-  children: ReactNode;
+  // A function child gets a way to close the panel, for a pick that's final.
+  children: ReactNode | ((close: () => void) => ReactNode);
 }
 
 // A pill beside the launchpad's Start that opens its panel below it.
@@ -66,7 +67,7 @@ export function LaunchpadFooterMenu({
             aria-label={label}
             className={`z-[80] rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl ${panelClassName}`}
           >
-            {children}
+            {typeof children === "function" ? children(() => setOpen(false)) : children}
           </div>,
           document.body,
         )}

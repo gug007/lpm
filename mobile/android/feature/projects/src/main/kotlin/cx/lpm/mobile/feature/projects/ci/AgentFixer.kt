@@ -54,6 +54,8 @@ internal class AgentFixer(
     private val project: String,
     private val session: () -> MacSession?,
     private val actionMemory: ActionMemory,
+    /** Called with the option right before its tab is asked for. */
+    private val beforeStart: (LaunchpadOption) -> Unit = {},
     private val prompt: () -> String?
 ) {
     private val _step = MutableStateFlow<ActionRunStep?>(null)
@@ -70,6 +72,7 @@ internal class AgentFixer(
         when {
             action == null -> {
                 val prompt = prompt() ?: return true
+                beforeStart(option)
                 session()?.store<AgentLaunchStore>()?.newTerminal(
                     project,
                     AgentLaunch(agent = option.agent, prompt = prompt),
@@ -121,6 +124,7 @@ internal class AgentFixer(
         onSpawn: (TerminalInfo) -> Unit
     ) {
         val prompt = prompt() ?: return
+        beforeStart(option)
         option.group?.let { group ->
             group.lastUsedKey(action)?.let { actionMemory.rememberChild(project, group.name, it) }
         }

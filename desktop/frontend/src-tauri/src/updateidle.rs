@@ -3,7 +3,7 @@
 // `lpm update` without --now asks for one. An agent that runs it is mid-turn
 // itself, so the install waits for that turn to end like any other. The
 // "Install updates when idle" setting asks for one on its own, so it also waits
-// for nobody to have used the Mac for a while and for terminals to be back at
+// for nobody to have used the computer for a while and for terminals to be back at
 // their prompts (updatebusy.rs).
 #![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 
@@ -62,7 +62,7 @@ static PENDING: Mutex<Option<Scheduled>> = Mutex::new(None);
 static WAKE: OnceLock<Sender<()>> = OnceLock::new();
 
 pub fn start(app: AppHandle) {
-    if cfg!(not(target_os = "macos")) {
+    if !crate::updates::replaces_itself() {
         return;
     }
     let (tx, rx) = channel();
@@ -105,7 +105,7 @@ pub fn schedule(app: &AppHandle, target: Target, version: String, places: Vec<Bu
 
 /// The Update button's "When agents finish": what `lpm update` does while an
 /// agent is mid-turn. With none busy it installs on the next look.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 #[tauri::command(async)]
 pub fn schedule_update(app: AppHandle) -> Result<Scheduled, String> {
     let version = crate::updates::pending_version(Target::Newest)?
@@ -114,10 +114,10 @@ pub fn schedule_update(app: AppHandle) -> Result<Scheduled, String> {
     Ok(schedule(&app, Target::Newest, version, places))
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 #[tauri::command(async)]
 pub fn schedule_update(_app: AppHandle) -> Result<Scheduled, String> {
-    Err("lpm updates itself only on macOS.".into())
+    Err("This lpm doesn't update itself.".into())
 }
 
 pub fn cancel(app: &AppHandle) -> bool {
@@ -224,7 +224,7 @@ fn enabled() -> bool {
 }
 
 /// Install now. Returns only when it stopped short: cancelled (Ok) or failed.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 pub(crate) fn install(
     app: &AppHandle,
     target: Target,
@@ -233,13 +233,13 @@ pub(crate) fn install(
     crate::updates::install_observed(app, observer, target)
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 pub(crate) fn install(
     _app: &AppHandle,
     _target: Target,
     _observer: Option<Observer>,
 ) -> Result<bool, String> {
-    Err("lpm updates itself only on macOS.".into())
+    Err("This lpm doesn't update itself.".into())
 }
 
 /// How long since anyone used the keyboard, mouse or trackpad.
@@ -260,7 +260,23 @@ fn away_for() -> Duration {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(windows)]
+fn away_for() -> Duration {
+    use windows_sys::Win32::System::SystemInformation::GetTickCount;
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
+    let mut last = LASTINPUTINFO {
+        cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32,
+        dwTime: 0,
+    };
+    if unsafe { GetLastInputInfo(&mut last) } == 0 {
+        return Duration::ZERO;
+    }
+    Duration::from_millis(u64::from(
+        unsafe { GetTickCount() }.wrapping_sub(last.dwTime),
+    ))
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
 fn away_for() -> Duration {
     Duration::ZERO
 }

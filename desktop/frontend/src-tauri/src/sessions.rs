@@ -236,6 +236,11 @@ fn build_command(
     match ssh {
         Some(ssh) => config::ssh_command_line(ssh, cwd_raw, env, cmd),
         None => {
+            #[cfg(windows)]
+            if let Some(target) = crate::wsl::parse(root) {
+                let dir = crate::wsl::join(&target.linux, cwd_raw);
+                return crate::wsl::pane_line(&target.distro, &crate::wsl::script(&dir, env, cmd));
+            }
             // build_local_script owns the export quoting and joining (and drops
             // an empty cmd, which open-coding this left as a trailing `&&`).
             let cwd = config::resolve_cwd(root, cwd_raw);
@@ -254,8 +259,8 @@ fn build_command(
 }
 
 fn pane_spawn_dir(root: &str, cwd_raw: &str, ssh: Option<&config::SshSettings>) -> String {
-    if ssh.is_some() {
-        config::remote_local_spawn_dir(root) // local cwd for the ssh client
+    if ssh.is_some() || (cfg!(windows) && crate::wsl::parse(root).is_some()) {
+        config::remote_local_spawn_dir(root) // local cwd for the ssh or wsl.exe client
     } else {
         config::resolve_cwd(root, cwd_raw)
     }

@@ -3,6 +3,7 @@ import { toast } from "../notifications/toast";
 import { EventsOn } from "../../bridge/runtime";
 import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus, FocusMainWindow, RemoteSetTerminalLabels } from "../../bridge/commands";
 import { IS_MIRROR_WINDOW, requestRunInDuplicates } from "../mirror";
+import { MINI_VIEWS_HERE, keepMiniView } from "../miniViewToggle";
 import { chordLabel } from "../keys";
 
 // Log streaming is refcounted per viewer in Rust; the two windows that can watch
@@ -21,7 +22,7 @@ import {
   type AdoptedTabOpts,
   type AppTabSeed,
 } from "../paneTree";
-import { agentSessionOf } from "../agentSession";
+import { agentSessionOf, resumableSessionOf } from "../agentSession";
 import { copyLastAnswer } from "../hooks/useCopyLastAnswer";
 import { remoteTabOf, sameRemoteTabs, type RemoteTab } from "../remoteTabs";
 import { useShallow } from "zustand/react/shallow";
@@ -82,6 +83,7 @@ import { blockingDialogOpen } from "./ui/blockingDialog";
 import { isPendingClose } from "../pendingClose";
 import type { SavedLayoutNode } from "../savedLayouts";
 import { useClaudeSwitches } from "../store/claudeSwitches";
+import { DEFAULT_SHELL } from "../shells";
 
 // Everything a terminal leaves behind in this window once it's really gone.
 function dropTerminalSession(id: string) {
@@ -120,7 +122,7 @@ interface TerminalViewProps {
 }
 
 export interface TerminalViewHandle {
-  createTerminal(background?: boolean): void;
+  createTerminal(background?: boolean, shell?: string): void;
   // ⌘T. False when the "Pick agent and model on +" popup has no pane to open on
   // and the caller's own empty state should show it.
   openNewTab(asLauncher?: boolean): boolean;
@@ -129,7 +131,7 @@ export interface TerminalViewHandle {
   // A saved layout picked from an empty state.
   openLayout(root: SavedLayoutNode): void;
   // A command typed into an empty state's popup, run in a new terminal.
-  runCommand(command: string): void;
+  runCommand(command: string, shell?: string): void;
   createTerminalWithCmd(label: string, cmd: string, opts?: TerminalStartOpts): void;
   // Adopt a peer-spawned pty as a tab (no new pty, no command injection).
   adoptTerminal(id: string, label?: string, opts?: AdoptedTabOpts): void;
@@ -320,12 +322,12 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
   );
   // A command typed into the + popup, in a new terminal named after it.
   const runCommandInPane = useCallback(
-    (paneId: string | undefined, command: string) =>
-      void createTerminalWithCmd(command.split("\n")[0], command, { paneId }),
+    (paneId: string | undefined, command: string, shell = DEFAULT_SHELL) =>
+      void createTerminalWithCmd(command.split("\n")[0], command, { paneId, shell }),
     [createTerminalWithCmd],
   );
   const runCommand = useCallback(
-    (command: string) => runCommandInPane(undefined, command),
+    (command: string, shell?: string) => runCommandInPane(undefined, command, shell),
     [runCommandInPane],
   );
   const newTabProject = useMemo<LaunchpadProject>(
@@ -696,7 +698,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
   const liveAgentSessions = useCallback(() => {
     const live = new Map<string, string>();
     for (const tab of tree ? collectTerminals(tree) : []) {
-      const session = agentSessionOf(tab);
+      const session = resumableSessionOf(tab);
       if (session && !live.has(session.sessionId)) live.set(session.sessionId, tab.id);
     }
     return live;
@@ -1283,6 +1285,11 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
           onReorder={reorderTerminals}
           onMove={moveTerminal}
           onMoveToNewPane={moveTerminalToNewPane}
+          onDropToMiniView={
+            MINI_VIEWS_HERE
+              ? (termId, label, agent) => keepMiniView({ termId, project: projectName, label, agent })
+              : undefined
+          }
         >
           <PaneLayout
             node={tree}
@@ -1366,7 +1373,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
           <p className="text-xs">No terminals yet</p>
           <NewTerminalButton
             project={newTabProject}
-            onNewTerminal={() => void createTerminal()}
+            onNewTerminal={(shell) => void createTerminal(false, shell)}
             onRunCommand={runCommand}
             onOpenAgent={openAgent}
             onRunAction={onRunAction}

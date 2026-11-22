@@ -109,7 +109,11 @@
     <string name="ci_fix">Fix with %1$s</string>
     <string name="ci_fix_description">Opens a new tab with the failing checks</string>
     <string name="ci_rerun">Re-run failed jobs</string>
-    <string name="ci_open_github">Open checks on GitHub</string>
+    <string name="ci_keep_fixing">Keep fixing until green</string>
+    <string name="ci_keep_fixing_footer">Each new failure goes to the same tab with the failing checks. Stops when checks pass, after 3 rounds, or when the agent asks you something.</string>
+    <string name="ci_keep_fixing_description">Opens a new tab with the failing checks, then sends each new failure until CI is green</string>
+    <string name="ci_keep_fixing_stop">Stop</string>
+    <string name="ci_open_github">Open checks on %1$s</string>
     <string name="ci_merge_ready">Ready to merge</string>
     <string name="ci_merge_checking">Checking the pull request</string>
     <string name="ci_merge_waiting">Waiting for checks</string>
@@ -119,9 +123,9 @@
     <string name="ci_merge_method">Method</string>
     <string name="ci_merge_delete_branch">Delete branch</string>
     <string name="ci_merge_deletes_branch">GitHub deletes the branch once it\'s merged.</string>
-    <string name="ci_merge_button">Merge #%1$d</string>
-    <string name="ci_merged">Merged #%1$d</string>
-    <string name="ci_merged_branch_deleted">Its branch was deleted on GitHub. The branch on your Mac is still checked out.</string>
+    <string name="ci_merge_button">Merge %1$s</string>
+    <string name="ci_merged">Merged %1$s</string>
+    <string name="ci_merged_branch_deleted">Its branch was deleted on %1$s. The branch on your Mac is still checked out.</string>
     <string name="ci_merged_branch_kept">The branch on your Mac is still checked out.</string>
     <string name="ok">OK</string>
     <string name="save">Save</string>
@@ -382,8 +386,7 @@
     <!-- Resume Session -->
     <string name="resume_title">Resume Session</string>
     <string name="resume_all">All</string>
-    <string name="resume_claude">Claude</string>
-    <string name="resume_codex">Codex</string>
+    <string name="resume_agent">Agent</string>
     <string name="resume_search">Search conversations</string>
     <string name="resume_today">Today</string>
     <string name="resume_yesterday">Yesterday</string>
@@ -395,7 +398,7 @@
     <string name="resume_failed">Couldn\'t Load Sessions</string>
     <string name="resume_try_again">Try Again</string>
     <string name="resume_empty">No Past Sessions</string>
-    <string name="resume_empty_message">Claude Code and Codex conversations in this project show up here.</string>
+    <string name="resume_empty_message">Conversations with Claude Code, Codex, Gemini, OpenCode or Cursor in this project show up here.</string>
     <string name="resume_no_results">No Results for “%1$s”</string>
     <string name="resume_no_results_message">Check the spelling or try a new search.</string>
 

@@ -26,6 +26,12 @@ export function noteLatestRelease(info: { latestVersion?: string } | null | unde
   if (info?.latestVersion) useReleaseVersions.setState({ latest: info.latestVersion });
 }
 
+/** This Mac's lpm: "dev" for a development build, empty until known. */
+export function useAppVersion(): string {
+  useEffect(loadAppVersion, []);
+  return useReleaseVersions((s) => s.app);
+}
+
 /** The release a paired Mac should be brought up to. Empty until known. */
 export function useUpdateTarget(): string {
   useEffect(loadAppVersion, []);

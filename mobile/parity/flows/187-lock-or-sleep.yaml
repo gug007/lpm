@@ -1,0 +1,26 @@
+appId: cx.lpm.mobile
+name: 187-lock-or-sleep
+tags: [demo, mac]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "Demo Mac.*"
+- tapOn: "Lock or Sleep.*"
+- extendedWaitUntil:
+    visible: "Sleep When Agents Finish.*"
+    timeout: 5000
+- takeScreenshot: 1-lock-or-sleep-menu
+- tapOn: "Sleep When Agents Finish.*"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-armed
+- tapOn: "Demo Mac.*"
+- tapOn: "Lock or Sleep.*"
+- extendedWaitUntil:
+    visible: ".*tap to cancel.*"
+    timeout: 5000
+- takeScreenshot: 3-armed-menu
+- tapOn: "Sleep Now"
+- extendedWaitUntil:
+    visible: "Put .* to sleep\\?"
+    timeout: 5000
+- takeScreenshot: 4-sleep-confirm

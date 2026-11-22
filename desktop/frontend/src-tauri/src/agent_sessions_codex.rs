@@ -5,7 +5,7 @@
 use crate::agent_session_titles::{
     codex_state_databases, compact_fallback, compact_title, threads_columns,
 };
-use crate::agent_sessions::AgentSessionSummary;
+use crate::agent_sessions::{escape_like, AgentSessionSummary};
 use rusqlite::{Connection, OpenFlags};
 use std::path::Path;
 use std::time::Duration;
@@ -166,13 +166,6 @@ fn query_cwd(cwd: &str) -> String {
 
 fn windows_query_cwd(cwd: &str) -> String {
     cwd.trim_start_matches(r"\\?\").replace('/', r"\")
-}
-
-fn escape_like(needle: &str) -> String {
-    needle
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_")
 }
 
 #[cfg(test)]

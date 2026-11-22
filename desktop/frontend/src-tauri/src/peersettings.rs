@@ -106,6 +106,7 @@ const SHARED: &[(&str, Kind)] = &[
     ("terminalThemeDark", Kind::Name),
     ("terminalThemeLight", Kind::Name),
     ("terminalOpenInDefaultApp", Kind::Flag),
+    ("terminalShell", Kind::Path),
     ("composerOpen", Kind::Flag),
     ("filesTreeSide", Kind::OneOf(&["left", "right"])),
     ("autoCloseComposerOnSend", Kind::Flag),

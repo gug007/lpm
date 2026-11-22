@@ -13,12 +13,14 @@ export function PrMergeArmed({
   watch,
   base,
   url,
+  site = "GitHub",
   projectPath,
   onClose,
 }: {
   watch: PrMergeWatch;
   base: string;
   url: string;
+  site?: string;
   projectPath: string;
   onClose: () => void;
 }) {
@@ -46,7 +48,7 @@ export function PrMergeArmed({
           <Clock size={12} style={{ color: "var(--accent-amber)" }} />
           Merging when checks pass
         </div>
-        <p className="mt-0.5 text-[10.5px] leading-snug text-[var(--text-secondary)]">{armedText(watch, base)}</p>
+        <p className="mt-0.5 text-[10.5px] leading-snug text-[var(--text-secondary)]">{armedText(watch, base, site)}</p>
       </div>
       {error && (
         <p role="alert" className="mt-2 text-[11px] leading-snug text-[var(--accent-red)]">
@@ -58,7 +60,7 @@ export function PrMergeArmed({
           Cancel
         </button>
         <span className="ml-auto">
-          <PrOpenOnGitHub url={url} onClose={onClose} />
+          <PrOpenOnGitHub url={url} onClose={onClose} site={site} />
         </span>
       </div>
     </>

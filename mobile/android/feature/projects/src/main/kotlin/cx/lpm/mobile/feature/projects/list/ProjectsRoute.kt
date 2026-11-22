@@ -86,7 +86,9 @@ fun ProjectsRoute(
             showDetails = viewModel::showConnectionDetails,
             pendingMachines = slots.pendingMachines,
             keepAwake = slots.keepAwakeMenu,
-            keepAwakeIndicator = slots.keepAwakeIndicator
+            keepAwakeIndicator = slots.keepAwakeIndicator,
+            power = slots.powerMenu,
+            powerIndicator = slots.powerIndicator
         ),
         rowActions = ProjectRowActions(
             open = { onNavigate(ProjectKey(it.name)) },

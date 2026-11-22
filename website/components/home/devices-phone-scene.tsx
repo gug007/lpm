@@ -40,6 +40,7 @@ export function PhoneScene({
     owner,
     phoneOpen,
     notified,
+    expanded,
     tap,
   } = usePairedDevicesLoop(ref, paused || !active);
   const status = <DeviceStatus working={working} />;
@@ -70,6 +71,7 @@ export function PhoneScene({
             open={phoneOpen}
             controlled={owner === "phone"}
             notified={notified}
+            expanded={expanded}
             pressed={tap === "notification"}
             visible={visible}
             status={status}

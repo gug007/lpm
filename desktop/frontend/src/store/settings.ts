@@ -59,6 +59,9 @@ export const SEEN_SHOWN_MAX = 10;
 export interface Settings {
   theme: Theme;
   browserTheme?: "light" | "dark"; // unset = follow the app theme
+  // How big lpm draws its own pages, as a zoom (0.9–1.25); unset is 100%.
+  // This computer's alone: a paired one never shares it (peersettings.rs).
+  interfaceSize?: number;
 
   doubleClickToToggle: boolean;
   defaultProjectDirectory?: string;
@@ -90,6 +93,8 @@ export interface Settings {
   terminalFontFamily?: string;
   terminalLineHeight?: number;
   terminalOpenInDefaultApp?: boolean;
+  // The shell new plain terminals open in (shells.rs); unset is the login shell.
+  terminalShell?: string;
   editorFontSize?: number;
   windowWidth?: number;
   windowHeight?: number;
@@ -242,6 +247,7 @@ function normalize(s: main.Settings): Settings {
       s.browserTheme === "light" || s.browserTheme === "dark"
         ? s.browserTheme
         : undefined,
+    interfaceSize: typeof s.interfaceSize === "number" ? s.interfaceSize : undefined,
     doubleClickToToggle: s.doubleClickToToggle ?? defaults.doubleClickToToggle,
     defaultProjectDirectory: s.defaultProjectDirectory || undefined,
     soundNotifications: s.soundNotifications ?? defaults.soundNotifications,
@@ -266,6 +272,7 @@ function normalize(s: main.Settings): Settings {
     terminalFontFamily: s.terminalFontFamily || undefined,
     terminalLineHeight: s.terminalLineHeight,
     terminalOpenInDefaultApp: s.terminalOpenInDefaultApp,
+    terminalShell: s.terminalShell || undefined,
     editorFontSize: s.editorFontSize,
     windowWidth: s.windowWidth,
     windowHeight: s.windowHeight,

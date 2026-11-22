@@ -23,6 +23,7 @@ import {
   UninstallKokoro,
 } from "../../../bridge/commands";
 import { listMonospaceFonts, mergeFontLists } from "../terminal/fontDetect";
+import { listShells, parseShellList, type ShellChoice } from "../../shells";
 import { LOCAL_GENERATE, peerGenerate, type GenerateCommands } from "./generateCommands";
 import {
   LOCAL_MOBILE,
@@ -54,6 +55,8 @@ export type InstructionKind = "commit" | "prTitle" | "prDescription" | "branchNa
 export interface MachineCommands {
   listSystemSounds: () => Promise<string[]>;
   listMonospaceFonts: () => Promise<string[]>;
+  // The shells a new plain terminal can open in there (shells.rs).
+  listShells: () => Promise<ShellChoice[]>;
   // Other terminals' fonts and colors found on the machine (termlook/).
   listTerminalLooks: () => Promise<TerminalLook[]>;
   checkClaudeHooks: () => Promise<ClaudeHooksCheck>;
@@ -126,6 +129,7 @@ const INSTRUCTION_COMMAND: Record<InstructionKind, string> = {
 export const LOCAL_COMMANDS: MachineCommands = {
   listSystemSounds: () => ListSystemSounds().then(strings),
   listMonospaceFonts,
+  listShells: () => listShells().then((list) => list.shells),
   listTerminalLooks: () => ListTerminalLooks().then(looks),
   checkClaudeHooks: () => CheckClaudeHooks(),
   resetClaudeHooks: () => ResetClaudeHooks(),
@@ -166,6 +170,7 @@ export function peerCommands(slug: string): MachineCommands {
     listSystemSounds: () => run("list_system_sounds").then(strings),
     listMonospaceFonts: () =>
       run("list_monospace_fonts").then((fonts) => mergeFontLists(strings(fonts), [])),
+    listShells: () => run("list_shells", { projectName: null }).then((v) => parseShellList(v).shells, () => []),
     listTerminalLooks: () => run("list_terminal_looks").then(looks, () => []),
     checkClaudeHooks: () => run("check_claude_hooks"),
     resetClaudeHooks: () => run("reset_claude_hooks").then(() => undefined),

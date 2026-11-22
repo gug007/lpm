@@ -124,9 +124,14 @@ host should not offer what only a Mac has: pair-by-approval, or anything that
 assumes someone is sitting in front of the machine. **Absent** from a desktop that
 predates the field; treat a missing `platform` as `"macos"`.
 
+`launcher` rides `paired` and `ready`: the port lpm's login helper answers on, or `null` while it's
+off (see [Opening lpm again](#opening-lpm-again)). **Absent** from a desktop that
+predates it.
+
 `version` is the lpm release the machine runs (`"dev"` for a development build),
 and `selfUpdate` is true when the phone may install a newer release there (see
-[Updating lpm](#updating-lpm)) — only a release build on macOS replaces itself.
+[Updating lpm](#updating-lpm)) — only a release build replaces itself: on macOS, or on
+Windows when the lpm installer put it there.
 Both ride `paired` **and** `ready`. **Absent** from a desktop that predates them;
 treat a missing `selfUpdate` as false.
 
@@ -143,7 +148,8 @@ terminal again in its tab (`restartTerminal`); `"agentLaunch"` — `agentOptions
 (`gitChecks`, `gitChecksRerun`) and the `ci` notify switch;
 `"gitCommitChecks"` — `gitCommitChecks`, how each recent commit did on CI;
 `"gitMerge"` — `gitMergePr`, merging the open pull request, and `merge` on
-`gitChecks`' `pr`; `"gitScanSecrets"` — `gitScanSecrets`, the commit sheet's look
+`gitChecks`' `pr`; `"ciFixLoop"` — `ciFixLoop`, Keep fixing until green, and
+`fixLoop` / `fixLoopPrompt` on `gitChecks`; `"gitScanSecrets"` — `gitScanSecrets`, the commit sheet's look
 for secrets; `"gitBranchDiff"` — `gitBranchFiles` and `gitBranchDiffs`, the
 branch's changes since it left its base; `"gitPrDiscussion"` — `gitPrDiscussion`,
 the review on the open pull request; `"gitCheckLog"` — `gitCheckLog`, the end of a
@@ -165,7 +171,8 @@ desktop's weekly recap card (`weeklyRecap`); `"recapMonth"` — `weeklyRecap` wi
 reply and `sidebarPin` (see [Sidebar folder ops](#sidebar-folder-ops)); `"gitHistory"` —
 `gitHistory`, `gitCommitFiles` and `gitCommitPatch` (see [Commit history](#commit-history));
 `"keepAwake"` — `keepAwake` and `keepAwakeSet`, and the `keepAwake` push (see
-[Keep awake](#keep-awake)); `"dictation"` — `dictateStart`, `dictateAudio`, `dictateStop`
+[Keep awake](#keep-awake)); `"power"` — `power`, `lockScreen`, `sleepNow` and
+`sleepWhenIdle`, and the `power` push (see [Lock or sleep](#lock-or-sleep)); `"dictation"` — `dictateStart`, `dictateAudio`, `dictateStop`
 and `dictateCancel` (see [Dictation](#dictation)), offered only while an installed
 VoiceToText takes audio from other apps, so unlike the rest it depends on the machine
 as well as the build.
@@ -499,9 +506,10 @@ thread on the Mac, so the reply arrives asynchronously. Only when `features` has
 
 | Request | Reply |
 |---|---|
-| `{ "t": "gitChecks", "project": "<name>" }` | `{ "t": "gitChecks", "project": "<name>", "ok": true, "branch": "<checked-out branch>", "pr": { "number", "url", "title", "checks": [Check…] }\|null, "commit": { "sha", "title", "url", "checks": [Check…] }\|null, "fixPrompt"?: "<text>" }` / `{ …, "ok": false, "error": "…" }` — how CI stands, as the desktop footer's checks pill shows it. A branch with an **open** pull request answers its checks in `pr` (heading "Checks on #N") and `commit: null`; any other branch answers `pr: null` and, in `commit`, the commit its upstream points at, the last one pushed (heading "Checks on <branch> · <7-char sha>", `title` under it). From a Mac whose `features` has `"gitMerge"`, `pr` also carries `isDraft` and `merge`: `{ "mergeable": "MERGEABLE"\|"CONFLICTING"\|"UNKNOWN", "state": "<GitHub mergeStateStatus>", "review": "APPROVED"\|"CHANGES_REQUESTED"\|"REVIEW_REQUIRED"\|"", "head": "<head sha>", "base": "<branch it merges into>", "methods": ["merge"\|"squash"\|"rebase"…], "deletesBranch": bool }` — `methods` are the ones the repository allows, in GitHub's order, and `deletesBranch` says GitHub deletes a merged branch by itself. The CI sheet offers a merge above the checks unless something fails: a draft, a `CONFLICTING` or `DIRTY` one, `BEHIND` and `BLOCKED` (by `review` when it says why) say why it can't; while checks run, or `state` is anything else unknown, it waits (asking again 3 s after an unknown state); `CLEAN`, `HAS_HOOKS` and `UNSTABLE` are "Ready to merge", with a method picker when there's more than one, a Delete branch switch when `deletesBranch` is false, and "Merge #N" behind the risky-action confirmation. `commit` lists each check's newest result for that branch over its last 8 pushes, since a workflow that only runs for some paths skips some commits; a result from an earlier push carries that push's short sha in `commit`. Only runs GitHub made for the branch count, never a tag's or a merged branch's. Both are `null` with no upstream, no GitHub remote, or no `gh` on the Mac: show nothing. **Check** = `{ "name", "workflow", "state": "pass"\|"fail"\|"pending"\|"skipped", "url", "commit"? }`. Count the checks that aren't `skipped`: any `fail` makes the pill red with "N failing", else any `pending` amber with "N running", else green; none counted, no pill. Sort the list failing, running, passed, skipped, by name within each, with `workflow` and `on <commit>` after the name. `fixPrompt` (present while something fails) is what the desktop's Fix with … items send: offer the agents New Tab offers, less the agent actions that start on a task of their own (see **Fixing CI** below), one Fix with … row each, a split button or menu as one row with its items to pick from; a bare agent starts with `newTerminal` (`agent` and `prompt`), an agent action with `runAction` and `prompt` (after its inputs and confirmation) when `features` has `"actionPrompt"`. `resolvePrompt` (present while an open pull request is `CONFLICTING` or `DIRTY`) is the same for its conflicts: the sheet offers one Resolve with … row per agent under "Can't merge yet", started the same way. While the checkout runs ahead of its upstream (`git`'s `ahead`), say so: "N commits not pushed yet. These checks are for <sha>, the last one you pushed." Asks GitHub, so it runs off the read loop and the reply arrives **asynchronously**. Ask again on `git-changed`, and every 20 s while a check is pending (60 s otherwise) while it's on screen. Only when `features` has `"gitChecks"` |
+| `{ "t": "gitChecks", "project": "<name>" }` | `{ "t": "gitChecks", "project": "<name>", "ok": true, "branch": "<checked-out branch>", "pr": { "number", "url", "title", "checks": [Check…] }\|null, "commit": { "sha", "title", "url", "checks": [Check…] }\|null, "fixPrompt"?: "<text>", "fixLoopPrompt"?: "<text>", "fixLoop"?: FixLoop }` / `{ …, "ok": false, "error": "…" }` — how CI stands, as the desktop footer's checks pill shows it. A branch with an **open** pull request answers its checks in `pr` (heading "Checks on #N") and `commit: null`; any other branch answers `pr: null` and, in `commit`, the commit its upstream points at, the last one pushed (heading "Checks on <branch> · <7-char sha>", `title` under it). From a Mac whose `features` has `"gitMerge"`, `pr` also carries `isDraft` and `merge`: `{ "mergeable": "MERGEABLE"\|"CONFLICTING"\|"UNKNOWN", "state": "<GitHub mergeStateStatus>", "review": "APPROVED"\|"CHANGES_REQUESTED"\|"REVIEW_REQUIRED"\|"", "head": "<head sha>", "base": "<branch it merges into>", "methods": ["merge"\|"squash"\|"rebase"…], "deletesBranch": bool }` — `methods` are the ones the repository allows, in GitHub's order, and `deletesBranch` says GitHub deletes a merged branch by itself. The CI sheet offers a merge above the checks unless something fails: a draft, a `CONFLICTING` or `DIRTY` one, `BEHIND` and `BLOCKED` (by `review` when it says why) say why it can't; while checks run, or `state` is anything else unknown, it waits (asking again 3 s after an unknown state); `CLEAN`, `HAS_HOOKS` and `UNSTABLE` are "Ready to merge", with a method picker when there's more than one, a Delete branch switch when `deletesBranch` is false, and "Merge #N" behind the risky-action confirmation. `commit` lists each check's newest result for that branch over its last 8 pushes, since a workflow that only runs for some paths skips some commits; a result from an earlier push carries that push's short sha in `commit`. Only runs GitHub made for the branch count, never a tag's or a merged branch's. Both are `null` with no upstream, no GitHub or GitLab remote, or no `gh` (`glab` for GitLab) on the Mac: show nothing. On GitLab, `pr` is the merge request: its `url` holds `/-/merge_requests/`, so call it a merge request, write it `!N` rather than `#N`, name GitLab where the sheet says GitHub, and link `<url>/pipelines` in place of `<url>/checks`; a check's `url` is its job's, `…/-/jobs/<id>`. **Check** = `{ "name", "workflow", "state": "pass"\|"fail"\|"pending"\|"skipped", "url", "commit"? }`. Count the checks that aren't `skipped`: any `fail` makes the pill red with "N failing", else any `pending` amber with "N running", else green; none counted, no pill. Sort the list failing, running, passed, skipped, by name within each, with `workflow` and `on <commit>` after the name. `fixPrompt` (present while something fails) is what the desktop's Fix with … items send: offer the agents New Tab offers, less the agent actions that start on a task of their own (see **Fixing CI** below), one Fix with … row each, a split button or menu as one row with its items to pick from; a bare agent starts with `newTerminal` (`agent` and `prompt`), an agent action with `runAction` and `prompt` (after its inputs and confirmation) when `features` has `"actionPrompt"`. `resolvePrompt` (present while an open pull request is `CONFLICTING` or `DIRTY`) is the same for its conflicts: the sheet offers one Resolve with … row per agent under "Can't merge yet", started the same way. While the checkout runs ahead of its upstream (`git`'s `ahead`), say so: "N commits not pushed yet. These checks are for <sha>, the last one you pushed." Asks GitHub, so it runs off the read loop and the reply arrives **asynchronously**. Ask again on `git-changed`, and every 20 s while a check is pending (60 s otherwise) while it's on screen. Only when `features` has `"gitChecks"` |
 | `{ "t": "gitMergePr", "project": "<name>", "number": N, "method": "merge"\|"squash"\|"rebase", "head": "<sha>", "deleteBranch": bool }` | `{ "t": "gitMergePr", "project": "<name>", "ok": true, "number": N, "deletedBranch": bool }` / `{ …, "ok": false, "error": "…" }` — merges pull request `number` with `gh pr merge <number> --<method> --match-head-commit <head>`, so it merges only while its head is still the commit the phone was shown (`merge.head`); `gh`'s own message comes back as `error` when GitHub refuses. With `deleteBranch`, the Mac then deletes the branch on GitHub (`gh api -X DELETE repos/{owner}/{repo}/git/refs/heads/<branch>`, never a fork's), unless the repository deletes merged branches by itself; `deletedBranch` says whether it's gone. The Mac's working copy is not touched: its branch stays checked out. Afterwards ask `gitChecks` and `git` again. Asynchronous. Only when `features` has `"gitMerge"` |
-| `{ "t": "gitChecksRerun", "project": "<name>", "runIds": ["<GitHub Actions run id>"…] }` | `{ "t": "gitChecksRerun", "project": "<name>", "ok": true }` / `{ …, "ok": false, "error": "…" }` — runs the failed jobs of each run again (`gh run rerun <id> --failed`). The run ids are the digits after `/actions/runs/` in the failing checks' `url`s, each once. The failed checks then show as pending: ask `gitChecks` again. Asynchronous. Only when `features` has `"gitChecks"` |
+| `{ "t": "ciFixLoop", "project": "<name>", "on": true, "agent": "<the Fix with … row's agent, e.g. Claude Code>" }` / `{ "t": "ciFixLoop", "project": "<name>", "on": false }` | `{ "t": "ciFixLoop", "project": "<name>", "ok": true, "loop": FixLoop\|null }` / `{ …, "ok": false, "error": "…" }` — Keep fixing until green. `on: true` arms it for the project, replacing a loop already running there: the CI sheet sends it when the switch is on and a Fix with … row is picked, **right before** opening that row's tab with `fixLoopPrompt` in place of `fixPrompt`. The Mac takes the next tab the project opens (or, for an action that reuses its tab, the one whose agent starts working) as the fix tab, waits for the agent to push, follows that push's checks, and when one fails again types the failing checks into the same tab (as a notification reply is typed), up to 3 rounds. It stops when the checks pass, after round 3 still fails, when the agent asks something (`Waiting`), finishes its turn or quits without pushing, its tab closes, a check that failed before doesn't run again, or GitHub can't be read; `on: false` cancels it. An error when the project is an SSH project or its branch has no upstream. Every change after the reply (each round, the push, the end) reaches **every** phone as this same frame, `loop` carrying the state, so a phone that wasn't the one asking keeps up too. The loop's end is one alert — the Mac's banner and a `ci` notification under the branch's CI key (`ci:<project>/<branch>`), "CI passed after 2 rounds · fixed by Claude Code" or "Stopped fixing CI: <why>" — and the push watcher's own CI alerts for that branch stay quiet while it runs and for 10 minutes after. A cancel says nothing. **FixLoop** = `{ "project", "agent", "branch", "round": N, "maxRounds": 3, "state": "starting"\|"fixing"\|"watching"\|"passed"\|"stopped"\|"cancelled", "sha": "<short sha being fixed or watched>", "detail": "<one line>", "reason"?: "<why it stopped>", "progress": 0…1 }`; `detail` is what to show under "Round N of 3" ("Claude Code pushed 7c41e2a · watching the new run", "CI passed after 2 rounds", the reason it stopped), `progress` a bar. `gitChecks` carries the project's loop as `fixLoop` while it runs and for 10 minutes after it ends, and `fixLoopPrompt` beside `fixPrompt`. The sheet shows a "Keep fixing until green" switch at the top of its Fix with … section while something fails and nothing runs; while a loop runs (`starting`, `fixing`, `watching`) the switch stays on above "Round N of 3", `detail`, the bar and a Stop button (`on: false`), in place of the Fix with … rows; an ended loop's `detail` shows once under the switch. Only when `features` has `"ciFixLoop"` |
+| `{ "t": "gitChecksRerun", "project": "<name>", "runIds": ["<GitHub Actions run id>"…] }` | `{ "t": "gitChecksRerun", "project": "<name>", "ok": true }` / `{ …, "ok": false, "error": "…" }` — runs the failed jobs of each run again (`gh run rerun <id> --failed`; on GitLab, `glab` retries each job). The run ids are the digits after `/actions/runs/`, or on GitLab after `/-/jobs/`, in the failing checks' `url`s, each once. The failed checks then show as pending: ask `gitChecks` again. Asynchronous. Only when `features` has `"gitChecks"` |
 | `{ "t": "gitCheckLog", "project": "<name>", "url": "<check url>" }` | `{ "t": "gitCheckLog", "project": "<name>", "url": "<check url>", "ok": true, "step": "<failed step>", "lines": ["…"…], "more": bool }` / `{ …, "ok": false, "error": "…" }` — why a check failed: `gh run view <run> --job <job> --log-failed` for a GitHub Actions check (`url` names the run and job, as `checks[].url` does), the step that failed and its last 40 lines, timestamps, colours and `##[group]` markers removed, `##[error]` written as `Error:`. `more` says earlier lines were left out. Any other check has no log here (`ok: false`). Only when `features` has `"gitCheckLog"`. Async (worker) |
 | `{ "t": "gitCommitChecks", "project": "<name>" }` | `{ "t": "gitCommitChecks", "project": "<name>", "ok": true, "commits": [{ "sha": "<full hash>", "state": "fail"\|"pending"\|"pass" }…] }` / `{ …, "ok": false, "error": "…" }` — how each of the branch's last pushes did by itself, newest first, without the results `gitChecks` carries over from earlier pushes, as the desktop's branch card and History rows show it. Any failing check makes a commit `fail`, else any running one `pending`, else `pass`. A commit with no checks, or only skipped ones, is left out; the list is empty with no upstream, no GitHub remote, or no `gh` on the Mac. History draws the state as an icon on the right of a pushed commit's row, under its age: a red cross, an amber spinner or a green check, read aloud as "CI failed", "CI running" or "CI passed". A commit no remote has keeps its "↑". Ask with each load of the newest page, and every 20 s while a commit is `pending` and History is on screen. Asks GitHub, so it runs off the read loop and the reply arrives **asynchronously**. Only when `features` has `"gitCommitChecks"` |
 | `{ "t": "gitHistory", "project": "<name>", "skip": N, "limit": N }` | `{ "t": "gitHistory", "project": "<name>", "skip": N, "ok": true, "commits": [HistoryCommit…], "hasMore": bool }` / `{ …, "ok": false, "error": "…" }` — a page of `HEAD`'s log: `limit` commits (default 100, at most 1000) after skipping `skip`. `hasMore` says an older page exists. A repository without commits yet answers an empty list |
@@ -780,6 +788,23 @@ phone, a paired Mac, `lpm awake`, or by itself as a set time or the countdown ru
 out, the Mac is unplugged or its battery runs low): `{ "t": "keepAwake", "state": KeepAwake }`.
 Always the whole state.
 
+### Lock or sleep
+
+Locks the machine's screen or puts it to sleep, now or once nothing works on it any
+more. Only sent to a machine whose `features` has `"power"`; the phone offers each
+action its `MacPower` says the machine can do (a headless host has no screen to lock).
+
+| Request | Reply |
+|---|---|
+| `{ "t": "power" }` | `{ "t": "power", "state": MacPower }` |
+| `{ "t": "lockScreen" }` | `{ "t": "lockScreen", "ok": true }` once the screen is locked (macOS: as Control-Command-Q does; Linux: `loginctl lock-session`; Windows: `LockWorkStation`) / `{ "t": "lockScreen", "ok": false, "error": "…" }` |
+| `{ "t": "sleepNow" }` | `{ "t": "sleepNow", "ok": true }`, then the machine sleeps about 1.5 s later so the reply gets out (macOS: `pmset sleepnow`; Linux: `systemctl suspend`; Windows: `SetSuspendState`), and every phone gets the usual `bye` with `"sleep"` / `{ "t": "sleepNow", "ok": false, "error": "…" }` |
+| `{ "t": "sleepWhenIdle", "on": bool }` | `{ "t": "sleepWhenIdle", "ok": true, "state": MacPower }` / `{ "t": "sleepWhenIdle", "ok": false, "error": "…", "state": MacPower }`. `on` (default true) arms Sleep When Agents Finish: once no agent on the machine works or waits for an answer and no automation runs, and it stays that way for 30 s, the machine pushes `"<name> is asleep"` (below) and sleeps 5 s later. Arming with nothing working is refused ("Use Sleep Now instead"); `on: false` cancels it. It lasts until it fires, is cancelled, or lpm quits |
+
+**`power`** (pushed to **every** phone whenever it changes: armed or cancelled from
+any phone, fired, or how many agents and automations work changed, once a phone has
+asked): `{ "t": "power", "state": MacPower }`. Always the whole state.
+
 ### Agent tabs and files
 
 What the phone's New Tab sheet, Resume Session list and Files screen read. Each
@@ -832,7 +857,7 @@ the title. Closed tabs with no transcript behind them aren't listed.
 |---|---|
 | `{ "t": "agentOptions" }` | `{ "t": "agentOptions", "agents": [AgentOption…] }` — the agents a tab can start, in the desktop's order, with the models and levels its launch picker lists (see AgentOption below). `[]` until the Mac's main window has started. Inline |
 | `{ "t": "agentSessions", "project": "<name>", "search"?: "<text>", "limit"?: N }` | `{ "t": "agentSessions", "project": "<name>", "search": "<as asked>", "limit": N, "ok": true, "sessions": [AgentSession…], "hasMore": bool }` / `{ "t": "agentSessions", "project": "<name>", "search": "<as asked>", "limit": N, "ok": false, "error": "…" }` — one page, newest first. `search` and `limit` echo the request (`""` and 40 when it left them out): replies can land out of order, so drop one whose `search` isn't the query on screen. `search` matches titles and opening prompts on the Mac; `limit` defaults to 40 (clamped 1–500). `hasMore` means older ones exist: ask again with a bigger `limit`. Reading transcripts takes a while, so the reply arrives on the out-queue |
-| `{ "t": "resumeSession", "project": "<name>", "provider": "claude"\|"codex", "sessionId": "<id>", "title": "<row title>" }` | `{ "t": "resumeSession", "ok": true }` / `{ "ok": false, "project": "<name>", "error": "Open the lpm app on your Mac to resume a session." }` — relay; continues the conversation in a new tab behind whatever the Mac shows, exactly as picking it in the desktop's Resume session does: the tab history's own resume command and name when the project closed that tab, else `claude --resume <id>` / `codex resume <id>` named `title`. A conversation already open in a tab (its row's `openIn`) gets no second one — open that tab instead. The new terminal appears on a subsequent `terminals` re-request |
+| `{ "t": "resumeSession", "project": "<name>", "provider": "claude"\|"codex"\|"gemini"\|"opencode"\|"cursor", "sessionId": "<id>", "title": "<row title>" }` | `{ "t": "resumeSession", "ok": true }` / `{ "ok": false, "project": "<name>", "error": "Open the lpm app on your Mac to resume a session." }` — relay; continues the conversation in a new tab behind whatever the Mac shows, exactly as picking it in the desktop's Resume session does: the tab history's own resume command and name when the project closed that tab, else `claude --resume <id>` / `codex resume <id>` / `gemini --resume <id>` / `opencode --session <id>` / `cursor-agent --resume <id>` named `title`. A Mac older than the last three ignores them, so the phone sends one only from a row that Mac listed. A conversation already open in a tab (its row's `openIn`) gets no second one — open that tab instead. The new terminal appears on a subsequent `terminals` re-request |
 | `{ "t": "listDir", "project": "<name>", "dir": "<relative dir>" }` | `{ "t": "listDir", "project": "<name>", "dir": "<dir>", "ok": true, "root": "<abs project root>", "entries": [DirEntry…] }` / `{ …, "ok": false, "error": "…" }` — one folder (`""` = the project root), as the desktop's Files tab lists it: folders first, then names in natural order regardless of case; `.git` and other VCS folders never listed. The path is confined to the project (`..` is refused). A file opens with `fileChunk` at `<dir>/<name>`; `root` joined with that is its absolute path (Copy Path). Out-queue |
 
 Go to file needs no request of its own: it filters the `mentions` index.
@@ -1134,6 +1159,33 @@ the phone offers Wake. It uses what the Mac said in `ready`'s `wake`, and:
 Then the phone keeps reconnecting for a minute. Nothing here needs the sleeping Mac's
 cooperation beyond "Wake for network access" being on, which macOS has on by default.
 
+### Opening lpm again
+
+With **Open lpm from your phone** on (+ above your projects → Phone → More options,
+macOS only for now), a small login helper runs whether or not lpm is open: the same
+binary as the app, started by the launch agent `cx.lpm.link-helper` (`.dev` for a dev
+build) as `<app binary> --link-helper`. It listens on **the Mac's lpm port + 10** (8775
+by default), on every interface, only while remote control is on, wraps every
+connection in the app's own TLS identity (same pinned certificate) and re-reads the
+paired devices from `remote.json` on each one. It is reachable over the home network
+and over the Tailscale app; Built-in Tailscale stops with lpm, so it can't reach it.
+
+The Mac names the port on `paired` and every `ready` as `"launcher": <port>` while the helper is
+on, and `null` while it's off. Remember it per Mac. When a `bye` with `"quit"` left
+the phone without lpm, it offers Open lpm and talks to the helper with the usual
+client:
+
+1. the usual `auth` → `{ "t": "ready", "serverId", "serverName", "platform",
+   "features": ["launchLpm"] }`, or `{ "t": "error", "error": "unauthorized" }`
+   (after a second, then the socket closes). Pairing isn't offered there;
+2. `{ "t": "launchLpm" }` → `{ "t": "launchLpm", "ok": true, "already": bool }` once
+   lpm answers on its own port (`already`: it was running), or `"ok": false,
+   "error": "…"` when it couldn't be opened or didn't start within 90 s. The helper
+   answers `ping` with `pong` meanwhile and ignores everything else. Then it hangs up.
+
+The phone then reconnects to lpm as usual. A `ready` whose `features` has
+`"launchLpm"` is the helper, never lpm: it carries no `launcher`.
+
 ### Push notifications (APNs and FCM)
 
 While the app is backgrounded its socket dies, so agent status changes reach the
@@ -1191,6 +1243,11 @@ Mac pushes the same way to every device with any notification on:
 `{ "serverId", "target": "keepAwake", "title", "body", "ts", "key": "keepAwake" }`
 (`title` like "Studio can sleep in 5 min"). Show `title` and `body` as given, and
 open that Mac's connection page, where Keep awake is, when it's tapped.
+
+When Sleep When Agents Finish fires, the Mac pushes the same way, just before it
+sleeps: `{ "serverId", "target": "keepAwake", "title", "body", "ts", "key": "power" }`
+(`title` like "Studio is asleep", `body` like "3 agents finished."). If it then fails to
+sleep, a second push with the same `key` replaces it ("Couldn't put Studio to sleep").
 
 An `Error` alert for a Claude tab that stopped at a usage limit (see LimitStop) carries
 `"summary"`: what stopped and where the conversation can go on, e.g. "Main login hit its
@@ -1435,6 +1492,7 @@ retires the activity token (APNs) or the push token (FCM).
 | `{ "t": "composerDraft", "id": "<termId>", "text": "…", "rev": N, "origin": "mac"\|"<deviceId>" }` | The terminal composer's active-input text changed on another surface. Apply it to that terminal's composer input (see composer draft sync below). `origin` is `"mac"` for a desktop-typed draft, else the deviceId of the phone that sent it — drop the frame when `origin` is your own deviceId (your echo). `rev` is monotonic; drop a frame whose `rev` is ≤ the last one applied for this terminal. |
 | `{ "t": "updateProgress", "phase": "checking"\|"downloading"\|"installing"\|"idle", "progress": N }` | A step of an lpm install on the Mac, whoever started it. See [Updating lpm](#updating-lpm). |
 | `{ "t": "keepAwake", "state": KeepAwake }` | Keep awake changed on the Mac. See [Keep awake](#keep-awake). Only from a Mac whose `features` has `"keepAwake"`. |
+| `{ "t": "power", "state": MacPower }` | Lock or sleep changed on the Mac. See [Lock or sleep](#lock-or-sleep). Only from a Mac whose `features` has `"power"`. |
 | `{ "t": "bye", "reason": "sleep"\|"quit"\|"off", "at": unix MILLIS }` | The desktop is about to close this connection on purpose: the machine is going to sleep (macOS and Windows), lpm is quitting, or remote control was turned off. Sent just before the socket closes — for `sleep`, just before the machine sleeps, so the socket may stay open until the phone notices it went quiet. Remember it per machine until the next `ready`, and say so ("asleep since 11:42 PM", "lpm was closed") instead of reporting the drop as a network problem; keep reconnecting as usual. Older desktops never send it. |
 
 ## Data shapes
@@ -1847,14 +1905,18 @@ models: [ { value: string, label: string, efforts: [ { value: string, label: str
 **AgentSession** — one past conversation (`agentSessions`):
 ```
 key: string           // "<provider>:<sessionId>", unique in the list
-provider: "claude" | "codex"
+provider: "claude" | "codex" | "gemini" | "opencode" | "cursor"
+                      // an older Mac lists only the first two. Show a filter per
+                      // provider the list holds, and any other name as itself
 sessionId: string
 title: string
 preview: string       // the opening prompt; "" when it would only restate the title
 updatedAt: unix MILLIS   // last activity; 0 when unknown
 gitBranch?: string    // the branch it ran on
 account?: string      // the Claude account it resumes on, by name; absent for the main login
-openIn?: string       // the live tab already holding it (a Terminal id)
+openIn?: string       // the live tab already holding it (a Terminal id): for Claude and
+                      // Codex the tab's live conversation; for the others, the one
+                      // the tab was resumed into
 ```
 
 **DirEntry** — one row of `listDir`:
@@ -1960,6 +2022,18 @@ seenAt?: int     // unix millis it was last opened; only on `seenEntries`
   "battery": true,            // hold on battery too, down to `floor`
   "floor": 20,                // battery percent at which it lets go
   "power": "awake"            // "unsupported" | "idle" (nothing held) | "failed" | "awake" | "battery" (on battery, not held there) | "low" (at or below `floor`)
+}
+```
+
+### MacPower
+
+```jsonc
+{
+  "lock": true,         // the machine can lock its screen from here (never on a headless host)
+  "sleep": true,        // the machine can be put to sleep from here
+  "armed": false,       // Sleep When Agents Finish is waiting
+  "agents": 2,          // terminals with an agent working or waiting for an answer
+  "automations": 0      // automations running
 }
 ```
 

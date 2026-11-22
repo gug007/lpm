@@ -13,12 +13,14 @@ import {
   groupByDay,
   listAgentSessions,
   mergeSessionRows,
+  providersIn,
   type AgentSessionSummary,
   type SessionFilter,
   type SessionRow as Row,
 } from "../../agentSessions";
 import type { PersistedHistoryEntry } from "../../terminals";
 import { isImeComposing } from "../../imeComposing";
+import { providerMeta } from "../../agentStatus";
 
 interface ResumeSessionModalProps {
   projectName: string;
@@ -121,12 +123,7 @@ export function ResumeSessionModal({
   );
   // Counted off the unfiltered merge: picking a provider must not be what
   // makes the control decide it has nothing to offer.
-  const hasBoth = useMemo(
-    () =>
-      merged.some((row) => row.provider === "claude") &&
-      merged.some((row) => row.provider === "codex"),
-    [merged],
-  );
+  const providers = useMemo(() => providersIn(merged), [merged]);
   const rows = useMemo(() => filterByProvider(merged, filter), [merged, filter]);
   const groups = useMemo(() => groupByDay(rows), [rows]);
 
@@ -235,13 +232,16 @@ export function ResumeSessionModal({
     return () => document.removeEventListener("keydown", onKey, true);
   }, [searchInput]);
 
+  // One choice per agent with sessions here, plus the one picked even when a
+  // search has left it nothing, so the control never loses its selection.
   const filterOptions = useMemo(
     () => [
       { value: "all" as SessionFilter, label: "All" },
-      { value: "claude" as SessionFilter, label: "Claude" },
-      { value: "codex" as SessionFilter, label: "Codex" },
+      ...providers
+        .concat(filter !== "all" && !providers.includes(filter) ? [filter] : [])
+        .map((provider) => ({ value: provider as SessionFilter, label: providerMeta(provider).short })),
     ],
-    [],
+    [providers, filter],
   );
 
   const searching = query.search.trim().length > 0;
@@ -250,7 +250,7 @@ export function ResumeSessionModal({
   const skeleton = sessions === null || (stale && rows.length === 0);
   // Raising the limit widens the scan; it doesn't page through a fixed list.
   const moreLabel = loading ? "Loading…" : searching ? "Search further back" : "Show older sessions";
-  const showFilter = hasBoth || filter !== "all";
+  const showFilter = providers.length > 1 || filter !== "all";
   const hiddenCount = hidden.size;
 
   return (

@@ -22,7 +22,9 @@ data class LinkUiState(
     val isReady: Boolean,
     val demo: Boolean,
     val recoveryStatus: String?,
-    val device: String
+    val device: String,
+    /** The active Mac's login helper can start lpm from here. */
+    val canOpenLpm: Boolean = false
 ) {
     /**
      * The bar names the machine by kind; a card by its name. A machine that removed
@@ -36,7 +38,8 @@ data class LinkUiState(
             } else {
                 view.macNoun
             },
-            device = device
+            device = device,
+            canOpenLpm = canOpenLpm
         )
         val sent = link.wakeSentAt?.let { System.currentTimeMillis() - it < WAKE_NOTE_MS } == true
         return IssueContentState(
@@ -47,7 +50,8 @@ data class LinkUiState(
             waitingCount = if (link.pairing) 0 else link.waitingCount,
             trying = link.trying,
             tailscaleWorking = link.tailscaleWorking,
-            wakeSent = sent && IssueAction.Wake in copy.actions
+            wakeSent = sent && IssueAction.Wake in copy.actions,
+            openingLpm = link.openingLpm && IssueAction.OpenLpm in copy.actions
         )
     }
 
@@ -68,7 +72,9 @@ data class IssueContentState(
     val trying: Boolean = false,
     val tailscaleWorking: Boolean = false,
     /** A wake signal went out in the last minute. */
-    val wakeSent: Boolean = false
+    val wakeSent: Boolean = false,
+    /** The login helper is starting lpm. */
+    val openingLpm: Boolean = false
 )
 
 /** Follows `session`'s link for the connection UI. */
@@ -80,6 +86,7 @@ fun MacSession.linkUi(device: String): Flow<LinkUiState> =
             isReady = s.isReady,
             demo = s.demoMode,
             recoveryStatus = s.recoveryStatus,
-            device = device
+            device = device,
+            canOpenLpm = !s.demoMode && s.activeRecord?.launcher != null
         )
     }

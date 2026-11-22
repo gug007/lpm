@@ -195,6 +195,13 @@ fn agent_still_there(
     }
 }
 
+/// Types `text` into the agent in `terminal` and submits it, the way a reply
+/// from a notification goes (ci_fix_loop.rs sends the next failing check so).
+pub(crate) fn type_prompt(app: &AppHandle, terminal: &str, text: &str) -> Result<(), String> {
+    let hub = app.try_state::<RemoteHub>().ok_or_else(gone)?;
+    type_reply(hub.inner(), app, terminal, text)
+}
+
 fn type_reply(hub: &RemoteHub, app: &AppHandle, terminal: &str, text: &str) -> Result<(), String> {
     let write = |data: &str| crate::pty::remote_write(app, terminal, data).map_err(|_| gone());
     if !hub.bracketed_paste(terminal) {

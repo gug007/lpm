@@ -83,6 +83,14 @@ sealed interface WireGit {
         putJsonArray("runIds") { runIds.forEach { add(it) } }
     }
 
+    // Keep fixing until green on (naming the fixing agent) or off; a Mac whose
+    // `features` has "ciFixLoop".
+    fun ciFixLoop(project: String, on: Boolean, agent: String): String = frame("ciFixLoop") {
+        put("project", project)
+        put("on", on)
+        if (on) put("agent", agent)
+    }
+
     fun gitCommitFiles(project: String, hash: String): String = frame("gitCommitFiles") {
         put("project", project)
         put("hash", hash)

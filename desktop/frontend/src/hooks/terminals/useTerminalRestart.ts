@@ -51,7 +51,7 @@ export function useTerminalRestart({
         newId = await replaceTabTerminal({ treeRef, applyTree }, oldId, () =>
           tab.actionName
             ? StartTerminalForRestore(projectName, tab.actionName, sessionId)
-            : StartTerminal(projectName, sessionId),
+            : StartTerminal(projectName, sessionId, undefined, undefined, undefined, tab.shell),
         );
       } catch (err) {
         toast.error(`Couldn't restart the terminal: ${err}`);

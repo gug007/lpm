@@ -1,9 +1,9 @@
 import { BrowserOpenURL } from "../bridge/runtime";
-import { isMac } from "./platform";
+import { isMac, isWindows } from "./platform";
 
-// lpm installs a new version itself only on macOS; elsewhere the update notice
-// leads to the release, installed the way the app was.
-export const UPDATES_INSTALL_IN_APP = isMac;
+// lpm installs a new version itself on macOS and Windows; on Linux the update
+// notice leads to the release, installed the way the app was.
+export const UPDATES_INSTALL_IN_APP = isMac || isWindows;
 
 const RELEASES_URL = "https://github.com/gug007/lpm/releases";
 

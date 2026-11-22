@@ -35,7 +35,7 @@ pub(super) const CURSOR_EVENTS: [&str; 5] = [
 ];
 
 fn hooks_path() -> Option<std::path::PathBuf> {
-    dirs::home_dir().map(|home| home.join(".cursor").join("hooks.json"))
+    crate::agentdirs::cursor_dir().map(|dir| dir.join("hooks.json"))
 }
 
 fn install() {
@@ -44,7 +44,7 @@ fn install() {
     }
 }
 
-fn install_remote(ssh: &crate::config::SshSettings) -> bool {
+fn install_remote(ssh: &dyn crate::remoteshell::RemoteShell) -> bool {
     install_remote_json(ssh, REMOTE_DIR, REMOTE_HOOKS, merge_cursor_hooks)
 }
 

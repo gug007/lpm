@@ -12,7 +12,9 @@ import { DemoCaption } from "@/components/home/demo-caption";
 import { DemoFrame } from "@/components/home/demo-frame";
 import { DemoLoadStatus } from "@/components/home/demo-load-status";
 import { DemoSkeleton } from "@/components/home/demo-skeleton";
+import { DemoAlertsToggle } from "@/components/home/demo-alerts-toggle";
 import { DemoSteps } from "@/components/home/demo-steps";
+import { useDemoAlerts } from "@/components/home/use-demo-alerts";
 import { DesktopOnlyPrompt } from "@/components/home/desktop-only-prompt";
 import { WINDOW_FRAME } from "@/components/home/demo-window";
 import { YouTubeVideo } from "@/components/youtube-video";
@@ -204,6 +206,7 @@ function DemoStage({
   const idle = useIdle();
   const [tour, setTour] = useState<TourState>({ stage: 0, playing: false });
   const tourRef = useRef<TourHandle>(null);
+  const alerts = useDemoAlerts();
   // The video a visitor picked over waiting for the demo.
   const [watching, setWatching] = useState(false);
   const runStep = useCallback((index: number) => {
@@ -260,6 +263,7 @@ function DemoStage({
               tour={script}
               tourRef={tourRef}
               onTour={setTour}
+              onTurnEnd={alerts.onTurnEnd}
               placeholder={(progress) => (
                 <DemoSkeleton
                   status={
@@ -294,6 +298,7 @@ function DemoStage({
               <DemoSkeleton status={<DemoLoadStatus progress={0} />} />
             </div>
           )}
+          {isDesktop && <DemoAlertsToggle alerts={alerts} />}
           <div id="demo-next" tabIndex={-1} className="outline-none" />
         </div>
       )}

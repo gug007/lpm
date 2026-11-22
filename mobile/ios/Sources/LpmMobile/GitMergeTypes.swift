@@ -47,10 +47,11 @@ enum GitMergeStatus: Equatable {
 }
 
 /// A pull request this phone just merged, shown until the sheet closes.
-struct MergedPullRequest: Equatable {
+struct MergedPullRequest: Equatable, ForgeRef {
     let number: Int
     let title: String
     let deletedBranch: Bool
+    var isGitLab = false
 }
 
 extension GitChecks {
@@ -65,7 +66,7 @@ extension GitChecks {
     var mergeStatus: GitMergeStatus? {
         guard let pr, let offer = pr.merge else { return nil }
         if pr.isDraft || offer.state == "DRAFT" {
-            return .blocked("Draft pull requests can't be merged. Mark it ready for review on GitHub.")
+            return .blocked("Draft \(pr.noun)s can't be merged. Mark it ready for review on \(pr.site).")
         }
         switch verdict {
         case .fail: return nil

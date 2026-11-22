@@ -59,10 +59,11 @@ sealed interface ConnectionIssue {
 
     /**
      * A tap on this phone can fix it, so it earns a bar of its own. The rest only
-     * need waiting, and the line under the Mac's name says so.
+     * need waiting, and the line under the Mac's name says so. Opening lpm from
+     * here is a fix this phone may have too.
      */
-    val needsYou: Boolean
-        get() = issueCopy("your Mac", "phone").actions.any {
+    fun needsYou(canOpenLpm: Boolean = false): Boolean =
+        issueCopy("your Mac", "phone", canOpenLpm = canOpenLpm).actions.any {
             it != IssueAction.Retry &&
                 it != IssueAction.Details
         }

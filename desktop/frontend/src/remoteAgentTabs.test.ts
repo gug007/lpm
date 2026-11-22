@@ -184,9 +184,24 @@ describe("resumeRemoteSession", () => {
     expect(view.resumeFromHistory).not.toHaveBeenCalled();
   });
 
+  it("continues Gemini, OpenCode and Cursor conversations with their own resume", () => {
+    for (const [provider, cmd] of [
+      ["gemini", `gemini --resume ${SESSION}`],
+      ["opencode", `opencode --session ${SESSION}`],
+      ["cursor", `cursor-agent --resume ${SESSION}`],
+    ]) {
+      const view = fakeView();
+      resumeRemoteSession(asHandle(view), "fresh", { provider, sessionId: SESSION, title: "Checkout" });
+      expect(view.resumeFromHistory).toHaveBeenCalledWith(
+        expect.objectContaining({ resumeCmd: cmd, sessionTitle: "Checkout" }),
+        true,
+      );
+    }
+  });
+
   it("ignores a provider it can't resume", () => {
     const view = fakeView();
-    resumeRemoteSession(asHandle(view), "fresh", { provider: "gemini", sessionId: SESSION });
+    resumeRemoteSession(asHandle(view), "fresh", { provider: "aider", sessionId: SESSION });
     expect(view.resumeFromHistory).not.toHaveBeenCalled();
   });
 });

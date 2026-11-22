@@ -519,6 +519,8 @@ struct SpawnTarget {
     ssh: Option<config::SshSettings>,
     claude_env: config::ClaudeEnv,
     claude_account: Option<String>,
+    /// A plain terminal's chosen shell (shells.rs); None is the login shell.
+    shell: Option<crate::shells::Shell>,
 }
 
 fn start_internal(
@@ -594,12 +596,28 @@ fn start_internal(
         if dir.is_empty() {
             return Err("project has no root directory".into());
         }
-        let shell = require_login_shell()?;
-        builder = CommandBuilder::new(&shell);
-        // login shell, matches Go exec.Command(shell, "-l")
-        for arg in crate::shellpath::login_args() {
-            builder.arg(arg);
+        // A WSL project's terminals and agents run inside its distro.
+        #[cfg(windows)]
+        if let Some(wsl) = crate::wsl::parse(&dir).filter(|_| target.shell.is_none()) {
+            let builder = crate::wslterm::builder(app, &wsl, project_name, &id, extra_env);
+            return spawn_with_builder(app, state, id, project_name, None, None, builder);
         }
+        let shell = match &target.shell {
+            Some(chosen) => {
+                builder = CommandBuilder::new(&chosen.program);
+                builder.args(&chosen.args);
+                chosen.program.to_string_lossy().into_owned()
+            }
+            None => {
+                let shell = require_login_shell()?;
+                builder = CommandBuilder::new(&shell);
+                // login shell, matches Go exec.Command(shell, "-l")
+                for arg in crate::shellpath::login_args() {
+                    builder.arg(arg);
+                }
+                shell
+            }
+        };
         builder.cwd(&dir);
         // MSYS's login profile otherwise starts every shell in $HOME.
         #[cfg(windows)]
@@ -808,6 +826,7 @@ fn resolve_spawn(
         ssh,
         claude_env: spawn.env,
         claude_account: spawn.account,
+        shell: None,
     })
 }
 
@@ -832,13 +851,17 @@ pub fn start_terminal(
     session_id: Option<String>,
     fixed_account: Option<bool>,
     account: Option<String>,
+    shell: Option<String>,
 ) -> Result<String, String> {
-    let target = resolve_spawn(
+    let mut target = resolve_spawn(
         &project_name,
         session_id.as_deref(),
         fixed_account,
         account.as_deref(),
     )?;
+    if target.ssh.is_none() {
+        target.shell = crate::shells::for_terminal(&project_name, shell.as_deref());
+    }
     start_internal(&app, &state, &project_name, &target, "", &BTreeMap::new())
 }
 

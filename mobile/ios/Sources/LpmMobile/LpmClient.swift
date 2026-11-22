@@ -111,6 +111,7 @@ final class LpmClient: NSObject {
     var onGitChecks: ((_ project: String, _ checks: GitChecks?, _ error: String?) -> Void)?
     var onGitCommitChecks: ((_ project: String, _ states: [String: CiCheck.State]) -> Void)?
     var onGitChecksRerun: ((_ project: String, _ error: String?) -> Void)?
+    var onCiFixLoop: ((_ project: String, _ loop: CiFixLoop?, _ error: String?) -> Void)?
     var onGitScanSecrets: ((SecretScanReply) -> Void)?
     var onGitBranchFiles: ((BranchFilesReply) -> Void)?
     var onGitPrDiscussion: ((PrDiscussionReply) -> Void)?
@@ -145,11 +146,16 @@ final class LpmClient: NSObject {
     // hasn't been assigned to yet when `ready` lands.
     var onAdvertisedHosts: ((_ serverId: String?, _ hosts: [String]) -> Void)?
     var onWakeTargets: ((_ serverId: String?, _ targets: [WakeTarget]) -> Void)?
+    // The login helper's port that can open lpm while it's closed; nil when it's off.
+    var onLauncher: ((_ serverId: String?, _ port: Int?) -> Void)?
+    var onLaunchLpm: ((_ error: String?) -> Void)?
     // The lpm release the Mac runs, on every `paired` and `ready`. Nil from a
     // build too old to report it.
     var onBuild: ((_ build: MacBuild?) -> Void)?
     var onKeepAwake: ((_ state: MacKeepAwake) -> Void)?
     var onKeepAwakeSet: ((_ state: MacKeepAwake?, _ error: String?) -> Void)?
+    var onPower: ((_ state: MacPower) -> Void)?
+    var onPowerSet: ((_ action: MacPower.Action, _ state: MacPower?, _ error: String?) -> Void)?
     var onUpdateCheck: ((_ check: MacUpdateCheck) -> Void)?
     var onUpdateProgress: ((_ step: MacUpdateStep) -> Void)?
     var onUpdateInstall: ((_ cancelled: Bool, _ error: String?) -> Void)?
@@ -299,7 +305,11 @@ final class LpmClient: NSObject {
     static let gitChecksFeature = "gitChecks"
     static let gitCommitChecksFeature = "gitCommitChecks"
     static let gitMergeFeature = "gitMerge"
+    static let ciFixLoopFeature = "ciFixLoop"
     static let keepAwakeFeature = "keepAwake"
+    static let powerFeature = "power"
+    // Only the login helper answers it: its `ready` names nothing else.
+    static let launchLpmFeature = "launchLpm"
     static let lpmCommandsFeature = "lpmCommands"
     static let lpmOtherSkillsFeature = "lpmOtherSkills"
     static let lpmNestedFoldersFeature = "lpmNestedFolders"
@@ -554,8 +564,9 @@ final class LpmClient: NSObject {
                              Self.tabAccountFeature,
                              Self.weeklyRecapFeature, Self.recapMonthFeature, Self.agentArchiveFeature,
                              Self.limitRemindersFeature, Self.projectPinsFeature, Self.gitHistoryFeature,
-                             Self.keepAwakeFeature, Self.lpmCommandsFeature, Self.lpmOtherSkillsFeature, Self.lpmNestedFoldersFeature,
+                             Self.keepAwakeFeature, Self.powerFeature, Self.lpmCommandsFeature, Self.lpmOtherSkillsFeature, Self.lpmNestedFoldersFeature,
                              Self.gitChecksFeature, Self.gitCommitChecksFeature, Self.gitMergeFeature,
+                             Self.ciFixLoopFeature,
                              Self.agentDialogFeature, Self.gitDiscardFilesFeature, Self.actionPopupFeature,
                              Self.actionAppFeature,
                              Self.gitScanSecretsFeature, Self.gitBranchDiffFeature, Self.gitPrDiscussionFeature,
@@ -1241,6 +1252,9 @@ final class LpmClient: NSObject {
     func requestGitChecksRerun(project: String, runIds: [String]) {
         send(Wire.gitChecksRerun(project: project, runIds: runIds))
     }
+    func requestCiFixLoop(project: String, on: Bool, agent: String) {
+        send(Wire.ciFixLoop(project: project, on: on, agent: agent))
+    }
     func scanSecrets(project: String, files: [String]) { send(Wire.gitScanSecrets(project: project, files: files)) }
     func requestBranchFiles(project: String) { send(Wire.gitBranchFiles(project: project)) }
     func requestBranchDiffs(project: String, paths: [String]) { send(Wire.gitBranchDiffs(project: project, paths: paths)) }
@@ -1294,6 +1308,11 @@ final class LpmClient: NSObject {
     func updateCancel() { send(Wire.updateCancel()) }
     func keepAwake() { send(Wire.keepAwake()) }
     func keepAwakeSet(mode: String, minutes: Int?) { send(Wire.keepAwakeSet(mode: mode, minutes: minutes)) }
+    func power() { send(Wire.power()) }
+    func lockScreen() { send(Wire.lockScreen()) }
+    func sleepNow() { send(Wire.sleepNow()) }
+    func sleepWhenIdle(_ on: Bool) { send(Wire.sleepWhenIdle(on)) }
+    func launchLpm() { send(Wire.launchLpm()) }
     func gitAutoCancel(project: String) { send(Wire.gitAutoCancel(project: project)) }
     func gitAutoSwitchBase(project: String, base: String) {
         send(Wire.gitAutoSwitchBase(project: project, base: base))
@@ -1505,7 +1524,8 @@ final class LpmClient: NSObject {
                 self.onPairPending?(matchCode)
             case .pairDenied(let reason, let message):
                 self.failPair(reason, message: message)
-            case .ready(let serverId, let serverName, let hosts, let platform, let build, let features, let wake):
+            case .ready(let serverId, let serverName, let hosts, let platform, let build, let features, let wake,
+                        let launcher):
                 self.hostFeatures = features
                 self.set(.ready)
                 self.onConnected()
@@ -1522,6 +1542,7 @@ final class LpmClient: NSObject {
                 self.onIdentity?(serverId, serverName, platform)
                 if !hosts.isEmpty { self.onAdvertisedHosts?(serverId, hosts) }
                 self.onWakeTargets?(serverId, wake)
+                if !features.contains(Self.launchLpmFeature) { self.onLauncher?(serverId, launcher) }
                 self.onBuild?(build)
             case .bye(let reason, let at):
                 let when = at.map { Date(timeIntervalSince1970: Double($0) / 1000) } ?? Date()
@@ -1659,6 +1680,7 @@ final class LpmClient: NSObject {
             case .gitChanged(let proj): self.onGitChanged?(proj)
             case .gitHistory(let proj, let skip, let page, let error): self.onGitHistory?(proj, skip, page, error)
             case .gitChecks(let proj, let checks, let error): self.onGitChecks?(proj, checks, error)
+            case .ciFixLoop(let proj, let loop, let error): self.onCiFixLoop?(proj, loop, error)
             case .gitCommitChecks(let proj, let states): self.onGitCommitChecks?(proj, states)
             case .gitChecksRerun(let proj, let error): self.onGitChecksRerun?(proj, error)
             case .gitMergePr(let proj, let number, let deleted, let error):
@@ -1674,6 +1696,9 @@ final class LpmClient: NSObject {
             case .updateCancel(let stopping): self.onUpdateCancel?(stopping)
             case .keepAwake(let state): self.onKeepAwake?(state)
             case .keepAwakeSet(let state, let error): self.onKeepAwakeSet?(state, error)
+            case .power(let state): self.onPower?(state)
+            case .powerSet(let action, let state, let error): self.onPowerSet?(action, state, error)
+            case .launchLpm(let error): self.onLaunchLpm?(error)
             case .gitAutoSwitchBase(let proj, let base, let error, let pullError):
                 self.onGitAutoSwitchBase?(proj, base, error, pullError)
             case .apnsToken(let ok): self.onApnsToken?(ok)

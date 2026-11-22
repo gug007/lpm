@@ -101,6 +101,9 @@ internal class DemoWorld(val clock: Clock) {
     var keepAwakeMode = "agents"
     var keepAwakeEndsAt: Long? = null
 
+    /** Lock or Sleep: whether the demo Mac sleeps once its agents finish. */
+    var powerArmed = false
+
     // lpm commands: the global list, and each project's own once it's asked for.
     var commandsGlobal = globalCommandsSeed()
     val commandsByProject = mutableMapOf<String, DemoCommandList>()
@@ -216,6 +219,8 @@ internal class DemoWorld(val clock: Clock) {
     var gitAutoNextId = 1
     val ciRerunAt = mutableMapOf<String, Long>() // project -> when its failed CI ran again, millis
     val ciMerged = mutableSetOf<String>() // projects whose pull request was merged from the phone
+    val ciFixLoops = mutableMapOf<String, DemoFixLoop>() // project -> its Keep fixing run
+    var ciFixLoopNextId = 1
     val fileEdits = mutableMapOf<String, String>() // "project\npath" -> what the editor saved
 
     // The tab each resumed agent session runs in, by "provider:sessionId".

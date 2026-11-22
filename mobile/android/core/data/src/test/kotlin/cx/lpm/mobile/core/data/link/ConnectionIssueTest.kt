@@ -5,6 +5,7 @@ import cx.lpm.mobile.core.data.mac.Farewell
 import java.time.Instant
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -38,7 +39,7 @@ class ConnectionIssueTest {
         assertEquals("This phone was removed on Build Box", copy.title)
         assertEquals("Pair it on that Mac itself to use it here again.", copy.message)
         assertEquals(listOf(IssueAction.PairAgain), copy.actions)
-        assertTrue(issue.needsYou)
+        assertTrue(issue.needsYou())
         assertEquals(
             "Removed on that Mac",
             LinkStatusLine.make(
@@ -110,8 +111,8 @@ class ConnectionIssueTest {
         // Waking it is something this phone can do, so the notice earns a bar.
         assertEquals(listOf(IssueAction.Wake, IssueAction.Retry), copy.actions)
         assertEquals("Wake", IssueAction.Wake.label(asleep))
-        assertTrue(asleep.needsYou)
-        assertTrue(ConnectionIssue.NotRecognized.needsYou)
+        assertTrue(asleep.needsYou())
+        assertTrue(ConnectionIssue.NotRecognized.needsYou())
         assertEquals(
             "This phone is offline",
             ConnectionIssue.PhoneOffline.issueCopy("your Mac", "phone").title
@@ -120,6 +121,21 @@ class ConnectionIssueTest {
             "Your Mac no longer recognizes this phone",
             ConnectionIssue.NotRecognized.issueCopy("your Mac", "phone").title
         )
+    }
+
+    @Test
+    fun `a closed lpm offers Open lpm only where the Mac's helper can start it`() {
+        val closed = ConnectionIssue.Farewell(
+            Farewell(Farewell.Reason.Quit, Instant.parse("2026-10-15T09:41:00Z"))
+        )
+        assertEquals(listOf(IssueAction.Retry), closed.issueCopy("Studio", "phone").actions)
+        val openable = closed.issueCopy("Studio", "phone", ZoneOffset.UTC, canOpenLpm = true)
+        assertEquals(listOf(IssueAction.OpenLpm, IssueAction.Retry), openable.actions)
+        assertEquals("lpm was closed on Studio", openable.title)
+        assertEquals("Open lpm", IssueAction.OpenLpm.label(closed))
+        // Opening it is something this phone can do, so the notice earns a bar.
+        assertFalse(closed.needsYou())
+        assertTrue(closed.needsYou(canOpenLpm = true))
     }
 
     @Test

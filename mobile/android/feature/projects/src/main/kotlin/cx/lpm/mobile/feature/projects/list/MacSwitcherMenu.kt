@@ -25,15 +25,17 @@ class MacSwitcherActions(
     val showDetails: () -> Unit = {},
     val pendingMachines: @Composable ColumnScope.() -> Unit = {},
     val keepAwake: @Composable ColumnScope.() -> Unit = {},
-    val keepAwakeIndicator: @Composable () -> Unit = {}
+    val keepAwakeIndicator: @Composable () -> Unit = {},
+    val power: @Composable ColumnScope.() -> Unit = {},
+    val powerIndicator: @Composable () -> Unit = {}
 )
 
 /**
  * The title's menu for choosing which saved machines the projects list shows: every
  * saved machine with whether it answers right now and a check on the ones shown.
- * Tapping one ticks or clears it and the menu stays open. Then Keep Awake, "Add a
- * machine…" and "Manage machines…". In Demo Mode it only offers Keep Awake and the
- * way out.
+ * Tapping one ticks or clears it and the menu stays open. Then Keep Awake, Lock or
+ * Sleep, "Add a machine…" and "Manage machines…". In Demo Mode it only offers Keep
+ * Awake, Lock or Sleep and the way out.
  */
 @Composable
 fun MacSwitcherMenu(
@@ -47,6 +49,7 @@ fun MacSwitcherMenu(
     ContextMenu(expanded = expanded, onDismissRequest = onDismiss, modifier = modifier) {
         if (demoMode) {
             actions.keepAwake(this)
+            actions.power(this)
             ContextMenuItem(
                 title = stringResource(ProjectsR.string.mac_exit_demo),
                 onClick = actions.exitDemo,
@@ -75,6 +78,7 @@ fun MacSwitcherMenu(
             }
             actions.pendingMachines(this)
             actions.keepAwake(this)
+            actions.power(this)
             ContextMenuDivider()
             ContextMenuItem(
                 title = stringResource(ProjectsR.string.mac_add),

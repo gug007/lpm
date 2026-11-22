@@ -80,6 +80,8 @@ final class LinkStore {
     var tailscaleWorking = false
     /// When this phone last sent the active Mac a wake signal.
     var wakeSentAt: Date?
+    /// Asking the active Mac's login helper to open lpm, until it answers.
+    var openingLpm = false
     var tailscaleFailure: String?
     var tailscalePage: TailscalePage?
     var summary: PairedSummary?
@@ -166,7 +168,7 @@ final class LinkStore {
 
     /// The issue worth a bar over the list: only one a tap on this iPhone fixes.
     var barIssue: ConnectionIssue? {
-        guard let issue = visibleIssue, issue.needsYou else { return nil }
+        guard let issue = visibleIssue, issue.needsYou(canOpenLpm: model?.canOpenLpm ?? false) else { return nil }
         return issue
     }
 

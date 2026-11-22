@@ -96,21 +96,29 @@ export async function projectSize(name: string): Promise<ProjectSize | null> {
   }
 }
 
-export function rebuildableBytes(size: ProjectSize | null | undefined): number {
-  return (size?.rebuildable ?? []).reduce((n, f) => n + f.bytes, 0);
+export function folderBytes(folders: readonly RebuildableFolder[] | undefined): number {
+  return (folders ?? []).reduce((n, f) => n + f.bytes, 0);
 }
 
-/** Rebuildable folders summed by their own name ("node_modules" wherever it
- *  sits), biggest first. */
-export function rebuildableKinds(sizes: Iterable<ProjectSize | null | undefined>): RebuildableFolder[] {
+export function rebuildableBytes(size: ProjectSize | null | undefined): number {
+  return folderBytes(size?.rebuildable);
+}
+
+/** Folders summed by their own name ("node_modules" wherever it sits),
+ *  biggest first. */
+export function sumByKind(groups: Iterable<readonly RebuildableFolder[] | undefined>): RebuildableFolder[] {
   const byKind = new Map<string, number>();
-  for (const size of sizes) {
-    for (const f of size?.rebuildable ?? []) {
+  for (const folders of groups) {
+    for (const f of folders ?? []) {
       const kind = f.path.split(/[\\/]/).pop() || f.path;
       byKind.set(kind, (byKind.get(kind) ?? 0) + f.bytes);
     }
   }
   return [...byKind].map(([path, bytes]) => ({ path, bytes })).sort((a, b) => b.bytes - a.bytes);
+}
+
+export function rebuildableKinds(sizes: Iterable<ProjectSize | null | undefined>): RebuildableFolder[] {
+  return sumByKind(Array.from(sizes, (size) => size?.rebuildable));
 }
 
 /** Where the Archive page is reached from, as the confirmation names it. */

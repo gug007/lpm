@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { DocsHeading } from "@/components/docs/docs-heading";
 import { CODE, LINK, P } from "@/components/prose";
 import { RemoveLpm } from "@/components/remove-lpm";
 import { STATUS_AGENT_NAMES } from "@/lib/app-facts";
-import { REPO_URL, SECURITY_PATH, SECURITY_REPORT_URL } from "@/lib/links";
+import { CODE_SIGNING_PATH, REPO_URL, SECURITY_PATH, SECURITY_REPORT_URL } from "@/lib/links";
 import {
   breadcrumbJsonLd,
   jsonLdString,
@@ -81,7 +82,11 @@ export default function SecurityPage() {
         notarized by Apple and stapled, so Gatekeeper opens them. The Windows
         installer and the Linux packages aren&rsquo;t code-signed yet, so
         SmartScreen can warn about the installer, and the checksum is how you
-        confirm the file.
+        confirm the file. How the Windows installer gets signed is in the{" "}
+        <Link href={CODE_SIGNING_PATH} className={LINK}>
+          code signing policy
+        </Link>
+        .
       </p>
 
       <DocsHeading id="verify">Check a download</DocsHeading>

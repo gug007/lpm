@@ -13,9 +13,7 @@ import {
 import { AIPickerButton } from "./ui/AIPickerButton";
 import {
   GenerateCommitMessage,
-  GitAmendCommit,
   GitChangedFiles,
-  GitCommit,
   GitDiff,
   GitDiscardFiles,
   GitPush,
@@ -49,6 +47,9 @@ import { clearCommitDraft, commitDraft, saveCommitDraft } from "../store/commitD
 import { useCommitAmend } from "../hooks/useCommitAmend";
 import { CommitDraftNote } from "./CommitDraftNote";
 import { CommitAmendToggle } from "./CommitAmendToggle";
+import { commitChecked } from "../commitHook";
+import { useCommitHookFailure } from "../hooks/useCommitHookFailure";
+import { CommitHookPanel } from "./CommitHookPanel";
 
 type ChangedFile = main.ChangedFile;
 
@@ -114,6 +115,7 @@ export function CommitModal({
   const secrets = useSecretCheck(projectPath, open, selected);
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
   const amend = useCommitAmend(open, lastCommit, message, setMessage);
+  const hook = useCommitHookFailure(open, projectName);
 
   const editMessage = (text: string) => {
     setMessage(text);
@@ -346,15 +348,21 @@ export function CommitModal({
     void split.plan(paths, taskDescription.trim(), setMessage);
   };
 
-  const submit = async (andPush = false, checked = false) => {
+  const submit = async (andPush = false, checked = false, skipHooks = false) => {
     if (!canCommit) return;
     const paths = Array.from(selected);
     if (!checked && !(await secrets.guard(paths, () => latest.current.submit(andPush, true)))) return;
     setBusy("commit");
+    hook.clear();
     const verb = amend.on ? "Amended" : "Committed";
     try {
-      if (amend.on && amend.commit) await GitAmendCommit(projectPath, message.trim(), paths, amend.commit.hash);
-      else await GitCommit(projectPath, message.trim(), paths);
+      const amending = amend.on && amend.commit ? amend.commit.hash : null;
+      const trimmed = message.trim();
+      const failure = await commitChecked({ cwd: projectPath, message: trimmed, files: paths, amend: amending, skipHooks });
+      if (failure) {
+        hook.setStopped({ failure, message: trimmed, files: paths, amend: !!amending, andPush });
+        return;
+      }
       clearCommitDraft(projectPath);
       if (andPush) {
         setBusy("push");
@@ -670,6 +678,21 @@ export function CommitModal({
             onCommitAnyway={secrets.commitAnyway}
             onDismiss={secrets.dismiss}
           />
+          {hook.stopped && (
+            <CommitHookPanel
+              failure={hook.stopped.failure}
+              busy={!!busy}
+              fix={hook.fix}
+              onFix={() => {
+                if (!hook.stopped?.amend) clearCommitDraft(projectPath);
+                hook.startFixing();
+                closeModal();
+              }}
+              onRetry={() => void submit(hook.stopped?.andPush, true)}
+              onSkipHooks={() => void submit(hook.stopped?.andPush, true, true)}
+              onDismiss={hook.clear}
+            />
+          )}
         </div>
 
         <div

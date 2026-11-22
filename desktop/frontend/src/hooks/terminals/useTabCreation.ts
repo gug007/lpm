@@ -57,6 +57,7 @@ import { nextId, appendTerminal, configLaunchCmds, foldAgentPrompt, reuseLaunch 
 import { type TerminalStartOpts } from "./types";
 import { pinLaunchCommand } from "../../agentLaunchModel";
 import { agentFolderRoots, withAgentFolders } from "../../agentFolders";
+import { DEFAULT_SHELL } from "../../shells";
 
 interface UseTabCreationProps {
   projectName: string;
@@ -109,12 +110,12 @@ export function useTabCreation({
     [applyTree],
   );
 
-  const createTerminal = useCallback(async (background = false) => {
-    if (IS_MIRROR_WINDOW) return forward("createTerminal", background);
+  const createTerminal = useCallback(async (background = false, shell = DEFAULT_SHELL) => {
+    if (IS_MIRROR_WINDOW) return forward("createTerminal", background, shell);
     await restoreSettled.current;
     try {
-      const id = await StartTerminal(projectName);
-      addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current)), undefined, background);
+      const id = await StartTerminal(projectName, undefined, undefined, undefined, undefined, shell);
+      addTerminal(makeTerminal(id, pickTerminalLabel(treeRef.current), { shell }), undefined, background);
     } catch (err) {
       // Swallowing this silently makes a failed spawn look like a dead button —
       // which is exactly how a host that couldn't find its shell presented.
@@ -253,13 +254,14 @@ export function useTabCreation({
                 opts.fixedAccount,
                 tab,
               )
-            : await StartTerminal(projectName, sessionId, opts?.fixedAccount, tab);
+            : await StartTerminal(projectName, sessionId, opts?.fixedAccount, tab, undefined, opts?.shell);
       } catch (err) {
         terminalStartFailed(err, label);
         return;
       }
       addTerminal(
         makeTerminal(id, label, {
+          shell: opts?.shell,
           actionName: opts?.actionName,
           emoji: opts?.emoji,
           color: opts?.color,
@@ -417,12 +419,12 @@ export function useTabCreation({
   );
 
   const addTerminalToPane = useCallback(
-    async (paneId: string) => {
-      if (IS_MIRROR_WINDOW) return forward("addTerminalToPane", paneId);
+    async (paneId: string, shell = DEFAULT_SHELL) => {
+      if (IS_MIRROR_WINDOW) return forward("addTerminalToPane", paneId, shell);
       try {
-        const id = await StartTerminal(projectName);
+        const id = await StartTerminal(projectName, undefined, undefined, undefined, undefined, shell);
         addTerminal(
-          makeTerminal(id, pickTerminalLabel(treeRef.current)),
+          makeTerminal(id, pickTerminalLabel(treeRef.current), { shell }),
           paneId,
         );
       } catch (err) {

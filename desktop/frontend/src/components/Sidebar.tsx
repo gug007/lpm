@@ -98,6 +98,7 @@ import { useSidebarProjectKeys } from "../hooks/useSidebarProjectKeys";
 import { ProjectContextMenu, type FollowingMenuState } from "./ProjectContextMenu";
 import { ProjectGitModals, type GitModalTarget } from "./ProjectGitModals";
 import { BulkDuplicateDialog, type BulkDuplicateOptions } from "./BulkDuplicateDialog";
+import { CopySpaceDialog } from "./CopySpaceDialog";
 import { SyncSetupModal } from "./SyncSetupModal";
 import { syncSourceFor } from "./syncSource";
 import { useIgnoredSyncStore } from "./ignored/ignoredSyncStore";
@@ -2070,6 +2071,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
           setBulkDuplicate(null);
         }}
       />
+      <CopySpaceDialog />
       {syncing && (
         <SyncSetupModal
           remoteName={syncing.remoteName}
@@ -2170,6 +2172,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         showSettings={showSettings}
         onSettings={onSettings}
         onFeedback={onFeedback}
+        onUpdate={handleUpdate}
         peers={peerState.peers}
       />
       <div

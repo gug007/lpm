@@ -1,4 +1,4 @@
-import { agentSessionOf, type AgentSessionRef } from "./agentSession";
+import { agentSessionOf, resumableSessionRefOf, type AgentSessionRef } from "./agentSession";
 import { isClaudeTab } from "./claudeTab";
 import { canForkSession } from "./forkSession";
 import { followsAgentTitle, terminalDisplayLabel, type TerminalInstance } from "./paneTree";
@@ -9,7 +9,9 @@ import { detectAICLI } from "./slashCommands";
 // One terminal tab as phones and paired Macs see it. `cli` is detected from the
 // launch command (empty for plain shells). `agentSession` is the conversation
 // whose transcript the phone's copy key reads, so only for tabs whose
-// transcripts are on this Mac. The `can*` flags gate the phone's tab menu the
+// transcripts are on this Mac. `resumable` is the session id of the past
+// conversation the tab holds, for any agent Resume session lists, so the
+// phone's list opens that tab instead of a second agent. The `can*` flags gate the phone's tab menu the
 // way the desktop's own tab menu is gated. While the tab moves to another
 // Claude account, `switchingTo` names it and `switchedFrom` is the terminal the
 // tab ran before.
@@ -21,6 +23,7 @@ export interface RemoteTab {
   emoji: string;
   historyKey: string;
   agentSession: AgentSessionRef | null;
+  resumable: string | null;
   canFork: boolean;
   canForkCopy: boolean;
   canTitle: boolean;
@@ -39,6 +42,8 @@ export function remoteTabOf(
   }: { localSessions: boolean; sessionsReachable: boolean; label?: string; move?: ClaudeSwitch },
 ): RemoteTab {
   const canFork = canForkSession(t.resumeCmd);
+  const local = localSessions && peerSlugOf(t.id) === null;
+  const session = agentSessionOf(t);
   return {
     id: t.id,
     // The strip's name, which a running command can stand in for.
@@ -49,11 +54,12 @@ export function remoteTabOf(
     // Same fallback the composer uses: an older persisted tree can carry a tab
     // that predates history keys.
     historyKey: t.historyKey ?? t.id,
-    agentSession: localSessions && peerSlugOf(t.id) === null ? agentSessionOf(t) : null,
+    agentSession: local ? session : null,
+    resumable: (local && (session ?? resumableSessionRefOf(t.resumeCmd))?.sessionId) || null,
     canFork,
     canForkCopy: canFork && sessionsReachable,
-    canTitle: !followsAgentTitle(t) && !!agentSessionOf(t),
-    canSwitchAccount: localSessions && peerSlugOf(t.id) === null && isClaudeTab(t),
+    canTitle: !followsAgentTitle(t) && !!session,
+    canSwitchAccount: local && isClaudeTab(t),
     switchingTo: move?.to ?? null,
     switchedFrom: move && move.from !== t.id ? move.from : null,
   };
@@ -72,6 +78,7 @@ export function sameRemoteTabs(a: RemoteTab[], b: RemoteTab[]): boolean {
         p.historyKey === b[i].historyKey &&
         p.agentSession?.provider === b[i].agentSession?.provider &&
         p.agentSession?.sessionId === b[i].agentSession?.sessionId &&
+        p.resumable === b[i].resumable &&
         p.canFork === b[i].canFork &&
         p.canForkCopy === b[i].canForkCopy &&
         p.canTitle === b[i].canTitle &&

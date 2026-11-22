@@ -111,7 +111,7 @@ describe("AddTerminalButton", () => {
     typeInto(prompt(), "npm test");
     expect(button("Run")).toBeTruthy();
     press(prompt(), "Enter");
-    expect(h.onRunCommand).toHaveBeenCalledWith("npm test");
+    expect(h.onRunCommand).toHaveBeenCalledWith("npm test", undefined);
     expect(popup()).toBeNull();
   });
 

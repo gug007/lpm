@@ -704,6 +704,7 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
             "claudeAccount",
             "claudeAccounts",
             "work_status",
+            "terminal",
             "services",
             "actions",
             "terminals",
@@ -739,6 +740,7 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
     project_fields::validate_claude_accounts(root, &mut report);
     project_fields::validate_work_status(root, &mut report);
     project_fields::validate_worktree_files(root, &mut report);
+    project_fields::validate_terminal(root, &mut report);
 
     let local_root = local_root(path, kind, root);
     let is_remote = root.get(Value::String("ssh".into())).is_some();
@@ -2202,6 +2204,36 @@ mod tests {
         assert!(repo
             .errors
             .contains(&"config.work_status: unknown field".to_string()));
+    }
+
+    #[test]
+    fn validator_checks_the_terminal_shell() {
+        let (_dir, ctx) = context();
+        let ok = project_report(&ctx, "root: /tmp\nterminal:\n  shell: fish\n");
+        assert!(
+            !ok.errors.iter().any(|e| e.starts_with("config.terminal")),
+            "{:?}",
+            ok.errors
+        );
+        let cases = [
+            ("terminal: fish", "config.terminal: expected a mapping such as { shell: fish }"),
+            ("terminal:\n  shell: 3", "config.terminal.shell: expected a string"),
+            ("terminal:\n  shell: '  '", "config.terminal.shell: expected a shell's name or path"),
+            ("terminal:\n  shell: fish\n  cwd: src", "config.terminal.cwd: unknown field"),
+        ];
+        for (yaml, expected) in cases {
+            let report = project_report(&ctx, &format!("root: /tmp\n{yaml}\n"));
+            assert!(
+                report.errors.iter().any(|e| e == expected),
+                "missing {expected:?} for {yaml:?}: {:?}",
+                report.errors
+            );
+        }
+        let value: Value = serde_norway::from_str("terminal:\n  shell: fish\n").unwrap();
+        let repo = validate_value(&ctx, &ctx.global_path(), ConfigKind::Repo, &value);
+        assert!(repo
+            .errors
+            .contains(&"config.terminal: unknown field".to_string()));
     }
 
     #[test]

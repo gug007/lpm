@@ -46,6 +46,9 @@ export interface TerminalInstance {
   // kept so a closed tab still files the conversation under past sessions.
   agentEnded?: boolean;
   actionName?: string;
+  // The shell a plain terminal asked for (shells.ts), asked for again on a
+  // restart. Absent: the login shell, which agent and action tabs always use.
+  shell?: string;
   pinned?: boolean;
   // Custom emoji shown as the tab icon (in place of the terminal icon).
   // Inherited from the action that launched the terminal.
@@ -135,6 +138,7 @@ export function makeTerminal(
     resumeCmd?: string;
     agentEnded?: boolean;
     actionName?: string;
+    shell?: string;
     pinned?: boolean;
     emoji?: string;
     color?: string;
@@ -159,6 +163,7 @@ export function makeTerminal(
     ...(opts?.resumeCmd ? { resumeCmd: opts.resumeCmd } : {}),
     ...(opts?.agentEnded ? { agentEnded: true } : {}),
     ...(opts?.actionName ? { actionName: opts.actionName } : {}),
+    ...(opts?.shell ? { shell: opts.shell } : {}),
     ...(opts?.pinned ? { pinned: true } : {}),
     ...(opts?.emoji ? { emoji: opts.emoji } : {}),
     ...(opts?.color ? { color: opts.color } : {}),

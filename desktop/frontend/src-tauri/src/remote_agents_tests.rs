@@ -100,3 +100,27 @@ fn a_resume_names_its_conversation() {
         json!({ "provider": "codex", "sessionId": "x", "title": "T" })
     );
 }
+
+#[test]
+fn a_tab_holding_a_resumed_conversation_counts_as_open() {
+    note_tabs(&[
+        json!({ "id": "shop-gem-1", "resumable": "gem-session-1" }),
+        json!({ "id": "shop-shell-1", "resumable": null }),
+    ]);
+    let open = with_resumed(HashMap::new(), &["shop-gem-1".into(), "shop-shell-1".into()]);
+    assert_eq!(open.get("gem-session-1").map(String::as_str), Some("shop-gem-1"));
+    assert_eq!(open.len(), 1);
+
+    // The tab's live session wins, and a tab that let go of it is no longer open.
+    let live = HashMap::from([("gem-session-1".to_string(), "shop-other-1".to_string())]);
+    let open = with_resumed(live, &["shop-gem-1".into()]);
+    assert_eq!(open.get("gem-session-1").map(String::as_str), Some("shop-other-1"));
+    note_tabs(&[json!({ "id": "shop-gem-1" })]);
+    assert!(with_resumed(HashMap::new(), &["shop-gem-1".into()]).is_empty());
+}
+
+#[test]
+fn a_tab_from_another_project_is_not_open_here() {
+    note_tabs(&[json!({ "id": "other-oc-1", "resumable": "ses_abc" })]);
+    assert!(with_resumed(HashMap::new(), &["shop-oc-1".into()]).is_empty());
+}

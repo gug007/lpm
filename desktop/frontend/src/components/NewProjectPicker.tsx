@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Smartphone } from "lucide-react";
+import { Smartphone, SquareTerminal } from "lucide-react";
 import { useAppStore } from "../store/app";
 import { MACHINE } from "../machineWords";
 import { CheckIcon, ChevronRightIcon, CloudBranchIcon, FolderIcon, ServerIcon } from "./icons";
@@ -12,6 +12,8 @@ import { PhoneScreen } from "./mobile/PhoneScreen";
 import { LaptopIcon } from "./connections/LaptopIcon";
 import { ServerHosts } from "./connections/ServerHosts";
 import { ClipboardCloneCard } from "./ClipboardCloneCard";
+import { WslDistroScreen } from "./WslDistroScreen";
+import { isWindows } from "../platform";
 import type { IconListMenuItem } from "./ui/IconListMenu";
 
 export type NewProjectKind = "local" | "ssh" | "clone";
@@ -67,6 +69,11 @@ export function NewProjectPicker() {
         </div>
       ),
     };
+    const wslScreen: DrillScreen = {
+      title: "WSL folder",
+      width: WIDE_SCREEN,
+      render: () => <WslDistroScreen />,
+    };
     const sources = target ? remoteSources(target.alias) : NEW_PROJECT_SOURCES;
     const heading = target ? `Add a project on ${target.alias}` : "Add a project";
     const root: DrillScreen = {
@@ -104,6 +111,25 @@ export function NewProjectPicker() {
                 </div>
               </button>
             ))}
+            {!target && isWindows && (
+              <button
+                onClick={() => api.push(wslScreen)}
+                className="group flex items-start gap-3.5 rounded-xl px-4 py-3.5 text-left transition-all hover:bg-[var(--bg-hover)]"
+              >
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-hover)] text-[#f97316] transition-colors group-hover:bg-[var(--bg-active)]">
+                  <SquareTerminal size={22} strokeWidth={1.5} />
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <div className="text-[13px] font-medium text-[var(--text-primary)]">WSL folder</div>
+                  <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-secondary)]">
+                    Code in a Linux distro: it runs there, not on Windows
+                  </div>
+                </div>
+                <span className="mt-2 flex shrink-0 text-[var(--text-muted)]">
+                  <ChevronRightIcon />
+                </span>
+              </button>
+            )}
             {!target && (
               <>
                 <div className="mx-4 mt-2 h-px bg-[var(--border)]" />

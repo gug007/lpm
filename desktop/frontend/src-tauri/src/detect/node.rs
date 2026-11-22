@@ -94,7 +94,7 @@ fn declared_manager(dir: &Path) -> Option<PackageManager> {
     PackageManager::from_name(spec.split('@').next().unwrap_or(""))
 }
 
-fn lockfile_manager(dir: &Path) -> Option<PackageManager> {
+pub(crate) fn lockfile_manager(dir: &Path) -> Option<PackageManager> {
     let has = |file: &str| dir.join(file).exists();
     if has("bun.lockb") || has("bun.lock") {
         Some(PackageManager::Bun)

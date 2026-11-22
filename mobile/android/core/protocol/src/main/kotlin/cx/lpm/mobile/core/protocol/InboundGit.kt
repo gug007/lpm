@@ -1,6 +1,7 @@
 package cx.lpm.mobile.core.protocol
 
 import cx.lpm.mobile.core.model.CiCheck
+import cx.lpm.mobile.core.model.CiFixLoop
 import cx.lpm.mobile.core.model.CommitFile
 import cx.lpm.mobile.core.model.GitAutoRun
 import cx.lpm.mobile.core.model.GitBranch
@@ -120,6 +121,13 @@ internal val gitParsers = parsers {
     }
     put("gitCommitChecks") { o ->
         Inbound.GitCommitChecks(o.str("project"), CiCheck.commitStates(o))
+    }
+    put("ciFixLoop") { o ->
+        Inbound.CiFixLoop(
+            project = o.str("project"),
+            loop = o.obj("loop")?.let(CiFixLoop::parse),
+            error = o.failure("Couldn't keep fixing until green.")
+        )
     }
     put("gitChecksRerun") { o ->
         Inbound.GitChecksRerun(o.str("project"), o.failure("Couldn't run the failed jobs again."))

@@ -27,15 +27,11 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** The segmented control over the list: which agent's sessions show. */
-enum class ProviderFilter(val provider: String?) {
-    All(null),
-    Claude("claude"),
-    Codex("codex")
-}
-
 data class ResumeSessionUiState(
-    val filter: ProviderFilter = ProviderFilter.All,
+    /** The agent whose sessions show, a provider key; null for All. */
+    val filter: String? = null,
+    /** The agents the filter offers ([sessionFilterProviders]). */
+    val providers: List<String> = sessionFilterProviders(emptyList(), null),
     val query: String = "",
     val list: AgentSessionList = AgentSessionList(),
     /** The rows [filter] lets through, under their day headings. */
@@ -48,7 +44,8 @@ data class ResumeSessionUiState(
 }
 
 /**
- * The project's past Claude Code and Codex conversations (iOS `ResumeSessionList`),
+ * The project's past agent conversations — Claude Code, Codex, Gemini, OpenCode and
+ * Cursor (iOS `ResumeSessionList`),
  * newest first and grouped by day. Picking one continues it in a new tab, or opens the
  * tab already holding it.
  */
@@ -60,7 +57,7 @@ class ResumeSessionViewModel @AssistedInject constructor(
     private val sessions: MacSessions,
     private val clock: Clock
 ) : ViewModel() {
-    private val filter = MutableStateFlow(ProviderFilter.All)
+    private val filter = MutableStateFlow<String?>(null)
     private val query = MutableStateFlow("")
     private var searching: Job? = null
     private val store: AgentLaunchStore? get() = sessions[sessionKey]?.store()
@@ -72,10 +69,10 @@ class ResumeSessionViewModel @AssistedInject constructor(
     private fun resumeState(s: MacSession) =
         combine(s.store<AgentLaunchStore>().state, filter, query) { launch, filter, query ->
             val list = launch.sessions[project] ?: AgentSessionList()
-            val rows =
-                filter.provider?.let { p -> list.rows.filter { it.provider == p } } ?: list.rows
+            val rows = filter?.let { p -> list.rows.filter { it.provider == p } } ?: list.rows
             ResumeSessionUiState(
                 filter = filter,
+                providers = sessionFilterProviders(list.rows.map { it.provider }, filter),
                 query = query,
                 list = list,
                 groups = agentSessionGroups(rows, clock.instant(), clock.zone)
@@ -85,7 +82,7 @@ class ResumeSessionViewModel @AssistedInject constructor(
     /** The list came up: ask for the newest sessions matching the search. */
     fun onAppear() = search()
 
-    fun setFilter(value: ProviderFilter) {
+    fun setFilter(value: String?) {
         filter.value = value
     }
 

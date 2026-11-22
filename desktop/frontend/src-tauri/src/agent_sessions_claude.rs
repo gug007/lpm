@@ -4,23 +4,17 @@
 //! sits at one end or the other: the opening prompt at the head, the current
 //! title at the tail.
 use crate::agent_session_titles::{compact_fallback, compact_title};
-use crate::agent_sessions::AgentSessionSummary;
+use crate::agent_sessions::{epoch_millis, AgentSessionSummary, FileCache};
 use serde_json::Value;
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// How much of a transcript is read to find the first user message (the
 /// preview) and the newest title record. Titles are rewritten as the
 /// conversation evolves, so the newest one is always near the end.
 const HEAD_SCAN_BYTES: u64 = 64 * 1024;
 const TAIL_SCAN_BYTES: u64 = 256 * 1024;
-/// Transcripts a search may open beyond the page itself.
-const SEARCH_SCAN_CAP: usize = 200;
-const SUMMARY_CACHE_MAX: usize = 512;
 
 pub(crate) struct Candidate {
     path: PathBuf,
@@ -80,106 +74,27 @@ pub(crate) fn candidates(dir: &Path) -> Vec<Candidate> {
     out
 }
 
-/// Summarizes candidates newest-first until the page is full. A search keeps
-/// going past non-matches, but only so far — a project can hold thousands of
-/// transcripts, and a bigger page (the caller asking for more) is what widens
-/// the reach. Returns how many were opened, so the caller can tell a page that
-/// exhausted the store from one that stopped early.
-pub(crate) fn summaries(
-    candidates: &[Candidate],
-    needle: &str,
-    limit: usize,
-) -> (Vec<AgentSessionSummary>, usize) {
-    let scan_cap = if needle.is_empty() {
-        limit
-    } else {
-        SEARCH_SCAN_CAP.max(limit * 5)
-    };
-    let mut out = Vec::new();
-    let mut scanned = 0;
-    for candidate in candidates {
-        if out.len() >= limit || scanned >= scan_cap {
-            break;
-        }
-        scanned += 1;
-        let Some(summary) = summary(candidate) else {
-            continue;
-        };
-        if matches_needle(&summary, needle) {
-            out.push(summary);
-        }
-    }
-    (out, scanned)
-}
-
-fn matches_needle(summary: &AgentSessionSummary, needle: &str) -> bool {
-    if needle.is_empty() {
-        return true;
-    }
-    [&summary.title, &summary.preview, &summary.git_branch]
-        .into_iter()
-        .flatten()
-        .any(|field| field.to_lowercase().contains(needle))
-}
-
-#[derive(Clone)]
-struct CachedSummary {
-    mtime: Option<SystemTime>,
-    len: u64,
-    title: Option<String>,
-    head: TranscriptHead,
-}
-
-fn summary_cache() -> &'static Mutex<HashMap<PathBuf, CachedSummary>> {
-    static CACHE: OnceLock<Mutex<HashMap<PathBuf, CachedSummary>>> = OnceLock::new();
-    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
-}
+/// A transcript's newest title and its head, valid while the file is unchanged.
+static SCANS: FileCache<(Option<String>, TranscriptHead)> = FileCache::new();
 
 /// A transcript's row: its newest title, its opening prompt, and the branch it
-/// started on. Cached against (mtime, len) so reopening the picker — or typing
-/// in its search box — re-reads nothing that hasn't changed.
-fn summary(candidate: &Candidate) -> Option<AgentSessionSummary> {
-    let meta = std::fs::metadata(&candidate.path).ok()?;
-    let (mtime, len) = (meta.modified().ok(), meta.len());
-
-    let cached = summary_cache()
-        .lock()
-        .unwrap()
-        .get(&candidate.path)
-        .filter(|entry| entry.mtime == mtime && entry.len == len)
-        .cloned();
-    let scan = match cached {
-        Some(entry) => entry,
-        None => {
-            let entry = CachedSummary {
-                mtime,
-                len,
-                title: tail_title(&candidate.path, len),
-                head: head(&candidate.path),
-            };
-            let mut cache = summary_cache().lock().unwrap();
-            if cache.len() >= SUMMARY_CACHE_MAX && !cache.contains_key(&candidate.path) {
-                if let Some(evict) = cache.keys().next().cloned() {
-                    cache.remove(&evict);
-                }
-            }
-            cache.insert(candidate.path.clone(), entry.clone());
-            entry
-        }
-    };
-
+/// started on.
+pub(crate) fn summary(candidate: &Candidate) -> Option<AgentSessionSummary> {
+    let (title, head) = SCANS.get_or_read(&candidate.path, |len| {
+        (tail_title(&candidate.path, len), head(&candidate.path))
+    })?;
     // A transcript with neither a title nor a prompt is an aborted start with
     // nothing to resume into, and nothing to show in a row.
-    if !scan.head.interactive || (scan.title.is_none() && scan.head.preview.is_none()) {
+    if !head.interactive || (title.is_none() && head.preview.is_none()) {
         return None;
     }
     Some(AgentSessionSummary {
         provider: "claude",
         session_id: candidate.session_id.clone(),
-        title: scan.title,
-        preview: scan.head.preview,
+        title,
+        preview: head.preview,
         updated_at: candidate.updated_at,
-        git_branch: scan.head.git_branch,
+        git_branch: head.git_branch,
         account: candidate.account.clone(),
     })
 }
@@ -313,12 +228,6 @@ fn tail_title(path: &Path, len: u64) -> Option<String> {
     }
     // A cleared custom title falls back to the AI one rather than sticking.
     custom.flatten().or(ai)
-}
-
-fn epoch_millis(time: Option<SystemTime>) -> i64 {
-    time.and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-        .map(|d| d.as_millis() as i64)
-        .unwrap_or(0)
 }
 
 #[cfg(test)]

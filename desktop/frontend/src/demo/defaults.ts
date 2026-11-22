@@ -6,7 +6,7 @@ const NULL: string[] = [
   "accept_claude_pool_pick", "ack_terminal_data", "add_port_forward", "agent_last_answer", "allow_repo_commands",
   "agent_session_title", "apply_claude_limits", "apply_claude_statusline",
   "apply_claude_statusline_custom", "apply_codex_statusline", "attach_project",
-  "branch_commit_checks", "branch_pull_request", "pull_request_discussion", "pull_request_merge_offer", "merge_pull_request_when_ready", "cancel_pull_request_merge", "pull_request_merge_watch", "browser_back", "browser_forward", "browser_reload", "inspect_browser",
+  "branch_commit_checks", "pull_request_discussion", "git_host_info", "cancel_ci_fix_loop", "ci_fix_loop_state", "browser_back", "browser_forward", "browser_reload", "inspect_browser",
   "cancel_action_background", "cancel_file_download", "check_aicl_is", "check_claude_hooks", "check_for_update",
   "claude_limit_stop", "claude_pool_state", "claude_session_state", "claude_statusline_preset_spec", "clear_job_state",
   "clear_job_state_global", "clear_openai_key", "clear_port_suggestions", "close_browser",
@@ -48,7 +48,7 @@ const NULL: string[] = [
   "quit_app", "quit_request_heard", "read_agent_capability", "read_clipboard_image", "record_slash_command", "read_memory_sessions",
   "refresh_action_label", "refresh_agent_tools", "release_pane_status", "remote_rename_device",
   "remote_respond_pair_request", "remote_revoke_device", "remote_set_agent_options",
-  "remote_set_composer_draft", "remote_set_config", "remote_set_keep_awake",
+  "remote_set_composer_draft", "remote_set_config", "remote_set_keep_awake", "remote_set_open_from_phone",
   "remote_set_terminal_labels", "remote_start_pairing", "remote_state", "remove_claude_account",
   "remove_port_forward", "rename_branch", "rename_memory_session", "rename_template",
   "reorder_projects", "rerun_failed_checks", "reset_claude_hooks", "reset_codex_statusline", "resolve_port_conflict",
@@ -84,12 +84,12 @@ const EMPTY_LIST: string[] = [
   "message_history_query",
   "openai_voices", "peer_agent_requests", "read_clipboard_files", "remote_take_restore_requests",
   "remote_take_run_actions", "search_branches", "telegram_find_chats",
-  "video_setup_check",
+  "video_setup_check", "wsl_distros",
 ];
 
 const FALSE: string[] = [
   "cancel_ai_generate", "cancel_scheduled_update", "cancel_update", "check_ghcli", "check_kokoro_installed",
-  "crash_reports_allowed", "daily_ping_available", "merge_pull_request", "focus_detached_window", "git_push_rebasing", "github_starred", "has_openai_key", "is_terminal_remote",
+  "crash_reports_allowed", "daily_ping_available", "focus_detached_window", "git_push_rebasing", "github_starred", "has_openai_key", "is_terminal_remote",
   "peer_cancel_mac_update", "save_text_file", "voice_to_text_available",
 ];
 
@@ -97,14 +97,14 @@ const EMPTY_STRING: string[] = [
   "claude_limits_account", "create_agent_skill", "create_pull_request", "export_config",
   "generate_action_yaml", "generate_branch_name", "generate_claude_statusline",
   "generate_pr_description", "generate_pr_title", "generate_project_config", "get_platform",
-  "get_version", "message_history_save_draft", "git_diff", "git_diff_branch", "git_show_prefix", "git_show_commit", "media_http_base",
+  "get_version", "wsl_home", "message_history_save_draft", "git_diff", "git_diff_branch", "git_show_prefix", "git_show_commit", "media_http_base",
   "notes_read_attachment", "notes_save_attachment", "notes_save_attachment_data",
   "openai_tts_speak", "peer_update_mac", "peer_upload_file", "pick_audio_file", "pick_image_file",
   "preview_claude_statusline", "read_branch_name_instructions", "read_clipboard_text",
   "read_commit_instructions", "read_file",
   "read_pr_description_instructions", "read_pr_title_instructions", "read_project_instructions",
   "read_template", "resolve_merge_conflicts_with_ai", "save_clipboard_image", "save_png_image",
-  "save_generator_icon", "start_claude_login", "sync_project_start", "ignored_sync_start", "terminal_foreground_command",
+  "save_generator_icon", "start_ci_fix_loop", "start_claude_login", "sync_project_start", "ignored_sync_start", "terminal_foreground_command",
   "transform_text", "upload_and_quote_for_terminal", "upload_clipboard_image_for_terminal",
   "upload_file_for_terminal", "vault_export_key", "video_voice_sample", "voice_to_text_start",
 ];

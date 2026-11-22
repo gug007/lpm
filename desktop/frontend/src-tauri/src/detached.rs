@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 const EVENT_CHANGED: &str = "detached-changed";
-const LABEL_PREFIX: &str = "detached-";
+pub(crate) const LABEL_PREFIX: &str = "detached-";
 const DEFAULT_W: f64 = 900.0;
 const DEFAULT_H: f64 = 700.0;
 const CASCADE_STEP: f64 = 28.0;

@@ -1,4 +1,5 @@
 import { featureId } from "./feature-id";
+import FeatureLinkButton from "./feature-link-button";
 import FeatureMeta from "./feature-meta";
 import FeatureNote from "./feature-note";
 import type { Highlight } from "./feature-types";
@@ -20,7 +21,7 @@ export default function HighlightCard({ feature, compact = false, className = ""
   return (
     <li
       id={featureId(title)}
-      className={`feature-target flex scroll-mt-40 rounded-2xl border border-gray-200 bg-white p-5 transition-colors duration-200 hover:border-gray-300 dark:border-gray-800 dark:bg-white/[0.025] dark:hover:border-gray-700 ${
+      className={`feature-target group flex scroll-mt-40 rounded-2xl border border-gray-200 bg-white p-5 transition-colors duration-200 hover:border-gray-300 dark:border-gray-800 dark:bg-white/[0.025] dark:hover:border-gray-700 ${
         compact ? "gap-4" : "flex-col sm:p-6"
       } ${className}`}
     >
@@ -38,6 +39,7 @@ export default function HighlightCard({ feature, compact = false, className = ""
             {title}
           </h3>
           {compact && keys && <KeyChips keys={keys} />}
+          <FeatureLinkButton title={title} />
         </div>
         <p className="mt-2 max-w-prose text-sm leading-relaxed text-gray-600 dark:text-gray-400">
           {body}

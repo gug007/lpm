@@ -106,6 +106,8 @@ extension DemoServer {
             return "\(blue)✦\(reset) \(bold)Gemini CLI\(reset)\r\n\r\n"
                 + "\(dim)  Tips: ask questions, edit files, or run commands.\r\n"
                 + "  cwd: ~/dev/\(project)\(reset)\r\n\r\n"
+        case "cursor":
+            return "\(bold)Cursor Agent\(reset)\r\n\r\n\(dim)  ~/dev/\(project)\(reset)\r\n\r\n"
         default:
             return "\(bold)opencode\(reset) \(dim)v0.15.2\r\n\r\n  cwd: ~/dev/\(project)\(reset)\r\n\r\n"
         }
@@ -148,14 +150,23 @@ extension DemoServer {
                 DemoSession(provider: "claude", sessionId: "7c1e4f2a-tax", title: "Fix checkout tax rounding",
                             preview: "Totals are off by a cent when a coupon and tax both apply",
                             ago: 2 * hour, branch: "fix/tax"),
+                DemoSession(provider: "gemini", sessionId: "3f9a1c7e-ratelimits", title: "Add rate limits to the API",
+                            preview: "Limit /v1/orders to 60 a minute per customer",
+                            ago: 4 * hour, branch: "main"),
                 DemoSession(provider: "claude", sessionId: "b93d0e51-applepay", title: "Add Apple Pay to checkout",
                             preview: "Offer Apple Pay in the payment step, behind a feature flag",
                             ago: day, branch: "main", account: "Work"),
+                DemoSession(provider: "opencode", sessionId: "ses_4c2e8a1f9bSearch", title: "Search page skeleton",
+                            preview: "Add a loading state to the search results page",
+                            ago: day + 5 * hour, branch: "feat/search"),
                 DemoSession(provider: "codex", sessionId: "019a6c2e-zustand", title: "Migrate cart store to Zustand",
                             preview: "Replace the cart context with a Zustand store and keep the badge in sync",
                             ago: 3 * day, branch: "cart-store"),
                 DemoSession(provider: "claude", sessionId: "e4a7f6c3-node22", title: "Why does CI fail on Node 22?",
                             preview: "", ago: 6 * day, branch: "main"),
+                DemoSession(provider: "cursor", sessionId: "8d2b6e40-cards", title: "Tidy the product card styles",
+                            preview: "Use the spacing tokens on product cards and fix the price wrap",
+                            ago: 8 * day, branch: "main"),
                 DemoSession(provider: "codex", sessionId: "019a2b71-coupons", title: "Write e2e tests for coupons",
                             preview: "Playwright tests for applying, stacking and removing coupons",
                             ago: 12 * day, branch: "main"),

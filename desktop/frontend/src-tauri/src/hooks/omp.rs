@@ -22,7 +22,7 @@ fn install() {
     PLUGIN.install(crate::agentdirs::omp_dir());
 }
 
-fn install_remote(ssh: &crate::config::SshSettings) -> bool {
+fn install_remote(ssh: &dyn crate::remoteshell::RemoteShell) -> bool {
     PLUGIN.install_remote(ssh)
 }
 

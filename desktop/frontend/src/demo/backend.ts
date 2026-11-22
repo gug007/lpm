@@ -2,6 +2,7 @@ import { actionCommands } from "./commands/actions";
 import { archiveCommands } from "./commands/archive";
 import { cloneCommands } from "./commands/clone";
 import { copyCommands } from "./commands/copies";
+import { diskSpaceCommands } from "./commands/diskSpace";
 import { fileCommands } from "./commands/files";
 import { fileSearchCommands } from "./commands/fileSearch";
 import { gitCommands } from "./commands/git";
@@ -14,6 +15,7 @@ import { keepAwakeCommands } from "./commands/keepAwake";
 import { lpmCommandCommands } from "./commands/lpmCommands";
 import { notesCommands } from "./commands/notes";
 import { projectCommands } from "./commands/projects";
+import { pullRequestCommands } from "./commands/pullRequest";
 import { reminderCommands } from "./commands/reminders";
 import { serviceCommands } from "./commands/services";
 import { settingsCommands } from "./commands/settings";
@@ -34,11 +36,13 @@ export const HANDLERS: CommandMap = {
   ...terminalCommands,
   ...statusCommands,
   ...gitCommands,
+  ...pullRequestCommands,
   ...historyCommands,
   ...portCommands,
   ...fileCommands,
   ...fileSearchCommands,
   ...copyCommands,
+  ...diskSpaceCommands,
   ...actionCommands,
   ...usageCommands,
   ...reminderCommands,

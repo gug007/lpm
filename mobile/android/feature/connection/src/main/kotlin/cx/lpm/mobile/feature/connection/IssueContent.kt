@@ -84,6 +84,8 @@ fun IssueContent(
                 text = state.recoveryStatus
                     ?: if (state.wakeSent) {
                         stringResource(R.string.issue_wake_sent)
+                    } else if (state.openingLpm) {
+                        stringResource(R.string.issue_opening_lpm)
                     } else if (state.tailscaleWorking) {
                         stringResource(
                             R.string.issue_tailscale_working
@@ -139,9 +141,10 @@ private fun IssueActionButton(
     primary: Boolean,
     onAction: (IssueAction) -> Unit
 ) {
-    if (primary && action == IssueAction.Retry && state.trying) {
+    val opening = action == IssueAction.OpenLpm && state.openingLpm
+    if (primary && ((action == IssueAction.Retry && state.trying) || opening)) {
         CapsuleButton(
-            text = stringResource(R.string.issue_trying),
+            text = stringResource(if (opening) R.string.issue_opening else R.string.issue_trying),
             onClick = {},
             prominent = true,
             enabled = false,

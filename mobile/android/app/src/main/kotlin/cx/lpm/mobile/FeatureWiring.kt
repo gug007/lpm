@@ -21,6 +21,8 @@ import cx.lpm.mobile.feature.mac.keepawake.KeepAwakeIndicatorRoute
 import cx.lpm.mobile.feature.mac.keepawake.KeepAwakeMenuRoute
 import cx.lpm.mobile.feature.mac.machines.PairDirectlyRoute
 import cx.lpm.mobile.feature.mac.machines.PendingMachinesRoute
+import cx.lpm.mobile.feature.mac.power.PowerIndicatorRoute
+import cx.lpm.mobile.feature.mac.power.PowerMenuRoute
 import cx.lpm.mobile.feature.mac.update.MacUpdateBarRoute
 import cx.lpm.mobile.feature.mac.update.MacUpdateMenuItemRoute
 import cx.lpm.mobile.feature.mac.update.liveMacVersion
@@ -74,6 +76,8 @@ internal fun projectsSlots(navigator: Navigator) = ProjectsSlots(
     pendingMachines = { PendingMachinesRoute() },
     keepAwakeMenu = { KeepAwakeMenuRoute() },
     keepAwakeIndicator = { KeepAwakeIndicatorRoute() },
+    powerMenu = { PowerMenuRoute() },
+    powerIndicator = { PowerIndicatorRoute() },
     terminalSettingsSheet = { onDismiss -> TerminalSettingsSheet(onDismiss) },
     bottomBar = { MacUpdateBarRoute() }
 )

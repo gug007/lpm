@@ -182,6 +182,25 @@ pub fn stop() {
     stop_node(&mut st);
 }
 
+/// Waits for a node stopped a moment ago to end, ending it once its grace runs
+/// out: Windows can't replace the sidecar's file while it runs.
+#[cfg(windows)]
+pub fn wait_stopped() {
+    let Some(child) = lock().exiting.clone() else {
+        return;
+    };
+    let deadline = Instant::now() + STOP_GRACE;
+    while Instant::now() < deadline {
+        if !matches!(child.lock().unwrap().try_wait(), Ok(None)) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let mut child = child.lock().unwrap();
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
 fn notify(st: &State) {
     HUB.changed.notify_all();
     let payload = state_value_of(st);

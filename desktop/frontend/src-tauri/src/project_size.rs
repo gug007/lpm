@@ -65,7 +65,7 @@ fn candidate(name: &str) -> bool {
 
 /// The paths among `dirs` that git tracks something inside. Outside a git
 /// repository every one counts as tracked, so only the ALWAYS names are freed.
-fn tracked(root: &Path, dirs: &[PathBuf]) -> Vec<PathBuf> {
+pub(crate) fn tracked(root: &Path, dirs: &[PathBuf]) -> Vec<PathBuf> {
     if dirs.is_empty() {
         return Vec::new();
     }
@@ -135,10 +135,15 @@ pub(crate) fn measure(root: &Path) -> Sized {
 
 /// The project's folder on this machine; none for an SSH project or a folder
 /// that's gone.
-fn local_root(name: &str) -> Result<Option<PathBuf>, String> {
+pub(crate) fn local_root(name: &str) -> Result<Option<PathBuf>, String> {
     let (root, is_remote) = config::project_root(name)?;
     let root = PathBuf::from(root.trim());
     Ok((!is_remote && !root.as_os_str().is_empty() && root.is_dir()).then_some(root))
+}
+
+/// Measure `root` afresh next time, after something under it was freed.
+pub(crate) fn forget(root: &Path) {
+    cache().lock().unwrap().remove(root);
 }
 
 fn measured(root: &Path) -> Sized {

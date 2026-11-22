@@ -1,12 +1,14 @@
 package cx.lpm.mobile.core.data.git
 
 import cx.lpm.mobile.core.data.client.LpmClient
+import cx.lpm.mobile.core.data.client.requestCiFixLoop
 import cx.lpm.mobile.core.data.client.requestGitChecks
 import cx.lpm.mobile.core.data.client.requestGitChecksRerun
 import cx.lpm.mobile.core.data.client.requestGitMergePr
 import cx.lpm.mobile.core.data.review.noteWin
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.model.CiFixLoop
 import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.GitMergeMethod
 import cx.lpm.mobile.core.model.MergedPullRequest
@@ -22,13 +24,17 @@ data class GitChecksState(
     val rerunErrors: Map<String, String> = emptyMap(),
     val merging: Set<String> = emptySet(),
     val mergeErrors: Map<String, String> = emptyMap(),
-    val merged: Map<String, MergedPullRequest> = emptyMap()
+    val merged: Map<String, MergedPullRequest> = emptyMap(),
+    /** Keep fixing until green, by project: running, or how it lately ended. */
+    val loops: Map<String, CiFixLoop> = emptyMap(),
+    val loopErrors: Map<String, String> = emptyMap()
 )
 
 /**
  * CI on each project's branch (iOS `GitChecksStore`): what the Mac last said about
- * it, running the failed jobs again, and merging the pull request once it's ready.
- * The screens showing it ask again while they're up.
+ * it, running the failed jobs again, merging the pull request once it's ready, and
+ * keeping an agent fixing until the checks pass. The screens showing it ask again
+ * while they're up.
  */
 class GitChecksStore(private val session: MacSession) : SessionStore {
     private val mutable = MutableStateFlow(GitChecksState())
@@ -42,10 +48,14 @@ class GitChecksStore(private val session: MacSession) : SessionStore {
     val canMerge: Boolean
         get() = client?.hostFeatures?.contains(LpmClient.GIT_MERGE_FEATURE) == true
 
+    val canKeepFixing: Boolean
+        get() = client?.hostFeatures?.contains(LpmClient.CI_FIX_LOOP_FEATURE) == true
+
     override fun wire(client: LpmClient) {
         client.onGitChecks = ::apply
         client.onGitChecksRerun = ::applyRerun
         client.onGitMergePr = ::applyMerge
+        client.onCiFixLoop = ::applyLoop
     }
 
     override fun reset() {
@@ -84,6 +94,20 @@ class GitChecksStore(private val session: MacSession) : SessionStore {
         )
     }
 
+    /**
+     * Arms Keep fixing until green for the tab the project opens next; sent right
+     * before that tab is asked for.
+     */
+    fun startLoop(project: String, agent: String) {
+        mutable.update { it.copy(loopErrors = it.loopErrors - project) }
+        client?.requestCiFixLoop(project, on = true, agent = agent)
+    }
+
+    fun stopLoop(project: String) {
+        mutable.update { it.copy(loopErrors = it.loopErrors - project) }
+        client?.requestCiFixLoop(project, on = false, agent = "")
+    }
+
     /** The sheet closed: what it said about merging is done with. */
     fun forgetMerge(project: String) {
         mutable.update {
@@ -102,9 +126,26 @@ class GitChecksStore(private val session: MacSession) : SessionStore {
                     it.results - project
                 } else {
                     it.results + (project to checks)
+                },
+                loops = when {
+                    checks == null -> it.loops
+
+                    else -> checks.fixLoop?.let { loop -> it.loops + (project to loop) }
+                        ?: (it.loops - project)
                 }
             )
         }
+    }
+
+    private fun applyLoop(project: String, loop: CiFixLoop?, error: String?) {
+        if (error != null) {
+            mutable.update { it.copy(loopErrors = it.loopErrors + (project to error)) }
+            return
+        }
+        mutable.update {
+            it.copy(loops = if (loop == null) it.loops - project else it.loops + (project to loop))
+        }
+        if (loop != null && !loop.running) load(project)
     }
 
     private fun applyRerun(project: String, error: String?) {
@@ -136,11 +177,14 @@ class GitChecksStore(private val session: MacSession) : SessionStore {
             return
         }
         mutable.update { s ->
-            val title = s.results[project]?.pr?.takeIf { it.number == number }?.title.orEmpty()
-            s.copy(
-                merging = s.merging - project,
-                merged = s.merged + (project to MergedPullRequest(number, title, deletedBranch))
+            val pr = s.results[project]?.pr?.takeIf { it.number == number }
+            val merged = MergedPullRequest(
+                number,
+                pr?.title.orEmpty(),
+                deletedBranch,
+                isGitLab = pr?.isGitLab ?: false
             )
+            s.copy(merging = s.merging - project, merged = s.merged + (project to merged))
         }
         session.noteWin()
         load(project)

@@ -250,6 +250,16 @@ fun LpmClient.keepAwakeSet(mode: MacKeepAwake.Mode, minutes: Int? = null) =
 
 fun LpmClient.keepAwakeExtend(minutes: Int) = send(Wire.keepAwakeSet("extend", minutes))
 
+fun LpmClient.power() = send(Wire.power())
+
+fun LpmClient.lockScreen() = send(Wire.lockScreen())
+
+fun LpmClient.sleepNow() = send(Wire.sleepNow())
+
+fun LpmClient.sleepWhenIdle(on: Boolean) = send(Wire.sleepWhenIdle(on))
+
+fun LpmClient.launchLpm() = send(Wire.launchLpm())
+
 fun LpmClient.claim(id: String) = send(Wire.claim(id))
 
 fun LpmClient.sendInput(id: String, data: String) = sendLive(Wire.input(id, data))

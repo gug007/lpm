@@ -31,7 +31,7 @@ const FAQS: QA[] = [
   {
     question: "Will I get a notification when Claude Code finishes or is waiting?",
     answer:
-      "Yes. Even with the app closed, you get a push the moment an agent is waiting on you, finishes, or hits an error, and automations can notify you when they start, finish, or fail. Each kind has its own on/off switch. Tapping the notification opens that terminal or automation, and it withdraws itself if you handle the agent on your Mac instead.",
+      "Yes. Even with the app closed, you get a push the moment an agent is waiting on you, finishes, or hits an error, and automations can notify you when they start, finish, or fail. Each kind has its own on/off switch. You can answer some without opening the app: Allow or Deny a Claude Code or Codex permission prompt, or Reply when an agent finishes. Tapping the notification opens that terminal or automation, and it withdraws itself if you handle the agent on your Mac instead.",
   },
   {
     question: "Does my code or terminal output go through the cloud?",

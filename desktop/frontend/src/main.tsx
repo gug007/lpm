@@ -32,6 +32,8 @@ import { initCrashReports } from "./crashReports";
 import { initStorageFullNotice } from "./storageFullNotice";
 import "./styles/globals.css";
 import { initSendLater } from "./store/sendLater";
+import { initInterfaceSize } from "./interfaceSize";
+import { initInterfaceSizeMenu } from "./interfaceSizeMenu";
 
 const detachedProject = MIRROR_PROJECT;
 const surface = detachedProject ? "detached" : IS_QUICK_TERMINAL_WINDOW ? "quick-terminal" : "main";
@@ -43,6 +45,8 @@ initMenuEditEvents();
 initializeDiagnostics(surface);
 initCrashReports();
 initStorageFullNotice();
+initInterfaceSize();
+if (surface === "main") initInterfaceSizeMenu();
 
 function reloadWindow() {
   window.location.reload();

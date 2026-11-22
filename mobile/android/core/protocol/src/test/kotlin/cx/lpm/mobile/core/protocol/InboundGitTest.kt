@@ -389,6 +389,34 @@ class InboundGitTest {
     }
 
     @Test
+    fun ciFixLoop() {
+        val f = decode<Inbound.CiFixLoop>(
+            """{ "t": "ciFixLoop", "project": "a", "ok": true, "loop": { "project": "a",
+                 "agent": "Claude Code", "branch": "feat/x", "round": 2, "maxRounds": 3,
+                 "state": "watching", "sha": "7c41e2a",
+                 "detail": "Claude Code pushed 7c41e2a · watching the new run", "progress": 0.55 } }"""
+        )
+        val loop = f.loop!!
+        assertTrue(loop.running)
+        assertEquals("Round 2 of 3", loop.roundLabel)
+        assertEquals(0.55, loop.progress, 0.0001)
+        assertNull(f.error)
+        assertEquals(
+            Inbound.CiFixLoop("a", null, "Couldn't keep fixing until green."),
+            Inbound.parse("""{ "t": "ciFixLoop", "project": "a", "ok": false }""")
+        )
+        val checks = decode<Inbound.GitChecks>(
+            """{ "t": "gitChecks", "project": "a", "ok": true, "branch": "feat/x", "pr": null,
+                 "commit": { "sha": "4b8e2f1c", "title": "T", "url": "u", "checks": [] },
+                 "fixPrompt": "Fix it.", "fixLoopPrompt": "Fix it. Then push.",
+                 "fixLoop": { "project": "a", "state": "passed", "round": 2,
+                   "detail": "CI passed after 2 rounds" } }"""
+        ).checks!!
+        assertEquals("Fix it. Then push.", checks.fixLoopPrompt)
+        assertFalse(checks.fixLoop!!.running)
+    }
+
+    @Test
     fun gitHistory() {
         val f = decode<Inbound.GitHistory>(
             """{ "t": "gitHistory", "project": "a", "skip": 100, "ok": true, "hasMore": true,

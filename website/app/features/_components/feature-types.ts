@@ -11,6 +11,7 @@ export type Feature = {
   href?: string;
   linkLabel?: string;
   mono?: boolean;
+  since?: string;
 };
 
 export type Highlight = Feature & { icon: LucideIcon };

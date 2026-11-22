@@ -175,6 +175,8 @@ const FORWARDED_EVENTS: &[&str] = &[
     // A pull request a Mac asked this computer to merge once its checks pass:
     // armed, merged or stopped.
     crate::pr_merge_watch::EVENT,
+    // Keep fixing until green on a project here: armed, each round, and how it ended.
+    crate::ci_fix_loop::EVENT,
     // The command a terminal here runs and how it ended, for its tab on a Mac.
     crate::cmdmarks::EVENT,
     // What a coding agent prints while it generates something a paired Mac asked
@@ -2382,6 +2384,8 @@ fn is_denied(cmd: &str) -> bool {
             | "detach_project"
             | "attach_project"
             | "save_window_size"
+            // How big this machine draws lpm is chosen at its own screen.
+            | "set_interface_size"
             // app settings and config import/export. The global and repo configs
             // are a paired Mac's to edit, as they are this one's.
             | "save_settings"

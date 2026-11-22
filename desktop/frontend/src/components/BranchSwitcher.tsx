@@ -518,6 +518,7 @@ export function BranchSwitcher({
           createPortal(
             <div ref={commitMenu.panelRef} style={commitMenu.style} className="z-50">
               <CommitActionsMenu
+                projectPath={projectPath}
                 busy={busy}
                 uncommitted={status.uncommitted}
                 openPr={openPr}

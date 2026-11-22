@@ -159,6 +159,8 @@ private fun agentBanner(agent: String, project: String, model: String, effort: S
                 "$DIM  Tips: ask questions, edit files, or run commands.\r\n" +
                 "  cwd: ~/dev/$project$RESET\r\n\r\n"
 
+        "cursor" -> "${BOLD}Cursor Agent$RESET\r\n\r\n$DIM  ~/dev/$project$RESET\r\n\r\n"
+
         else -> "${BOLD}opencode$RESET ${DIM}v0.15.2\r\n\r\n  cwd: ~/dev/$project$RESET\r\n\r\n"
     }
 }
@@ -205,6 +207,14 @@ private fun demoSessions(project: String): List<DemoSession> = when (project) {
             "fix/tax"
         ),
         DemoSession(
+            "gemini",
+            "3f9a1c7e-ratelimits",
+            "Add rate limits to the API",
+            "Limit /v1/orders to 60 a minute per customer",
+            4 * HOUR,
+            "main"
+        ),
+        DemoSession(
             "claude",
             "b93d0e51-applepay",
             "Add Apple Pay to checkout",
@@ -212,6 +222,14 @@ private fun demoSessions(project: String): List<DemoSession> = when (project) {
             DAY,
             "main",
             account = "Work"
+        ),
+        DemoSession(
+            "opencode",
+            "ses_4c2e8a1f9bSearch",
+            "Search page skeleton",
+            "Add a loading state to the search results page",
+            DAY + 5 * HOUR,
+            "feat/search"
         ),
         DemoSession(
             "codex",
@@ -227,6 +245,14 @@ private fun demoSessions(project: String): List<DemoSession> = when (project) {
             "Why does CI fail on Node 22?",
             "",
             6 * DAY,
+            "main"
+        ),
+        DemoSession(
+            "cursor",
+            "8d2b6e40-cards",
+            "Tidy the product card styles",
+            "Use the spacing tokens on product cards and fix the price wrap",
+            8 * DAY,
             "main"
         ),
         DemoSession(

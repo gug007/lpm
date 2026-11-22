@@ -153,11 +153,16 @@ pub(crate) fn first_line_within(out: &str, max: usize) -> Option<String> {
         .lines()
         .map(|l| strip_ansi(l).trim().to_string())
         .find(|l| !l.is_empty())?;
-    if line.chars().count() <= max {
-        return Some(line);
+    Some(clip(&line, max))
+}
+
+/// `text` cut to `max` characters, with "…" when longer.
+pub(crate) fn clip(text: &str, max: usize) -> String {
+    if text.chars().count() <= max {
+        return text.to_string();
     }
-    let cut: String = line.chars().take(max - 1).collect();
-    Some(format!("{}…", cut.trim_end()))
+    let cut: String = text.chars().take(max - 1).collect();
+    format!("{}…", cut.trim_end())
 }
 
 fn strip_ansi(s: &str) -> String {

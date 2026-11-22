@@ -117,6 +117,18 @@ class WireAutomationsGitTest {
     }
 
     @Test
+    fun ciFixLoop() {
+        assertFrame(
+            """{ "t": "ciFixLoop", "project": "a", "on": true, "agent": "Claude Code" }""",
+            Wire.ciFixLoop("a", on = true, agent = "Claude Code")
+        )
+        assertFrame(
+            """{ "t": "ciFixLoop", "project": "a", "on": false }""",
+            Wire.ciFixLoop("a", on = false, agent = "")
+        )
+    }
+
+    @Test
     fun gitCommitChecks() {
         assertFrame("""{ "t": "gitCommitChecks", "project": "a" }""", Wire.gitCommitChecks("a"))
     }

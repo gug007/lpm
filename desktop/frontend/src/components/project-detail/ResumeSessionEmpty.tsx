@@ -55,7 +55,7 @@ export function ResumeSessionEmpty({
         ? "Other agents may still have sessions here."
         : allHidden
           ? `${hiddenCount} ${hiddenCount === 1 ? "session is" : "sessions are"} hidden from this list.`
-          : "Conversations you have with Claude Code or Codex in this project show up here, ready to pick up again.";
+          : "Conversations you have with Claude Code, Codex, Gemini, OpenCode or Cursor in this project show up here, ready to pick up again.";
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-1.5 px-6 text-center">

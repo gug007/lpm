@@ -57,7 +57,7 @@ describe("useTerminalRestart", () => {
 
   it("starts a Claude tab on the account holding its conversation", async () => {
     await restart("pty-1");
-    expect(bridge.StartTerminal).toHaveBeenCalledWith("web", "abc");
+    expect(bridge.StartTerminal).toHaveBeenCalledWith("web", "abc", undefined, undefined, undefined, undefined);
   });
 
   it("leaves a terminal that is still running alone", async () => {

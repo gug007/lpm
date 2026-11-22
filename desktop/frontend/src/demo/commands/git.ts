@@ -136,6 +136,9 @@ export const gitCommands: CommandMap = {
     gitChanged(p);
     return null;
   },
+  // The sample's repos have no hooks, so every commit goes through.
+  git_commit_checked: (args) =>
+    args.amend ? gitCommands.git_amend_commit({ ...args, hash: args.amend }) : gitCommands.git_commit(args),
   git_amend_commit: ({ cwd, files }) => {
     const p = repo(cwd);
     if (!p) return null;
