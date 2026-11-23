@@ -255,6 +255,10 @@ export function CommitModal({
     setExpandedFile((prev) => (prev && valid.has(prev) ? prev : null));
   };
 
+  const refreshFiles = () => {
+    reloadFiles().catch((err) => toast.error(`Couldn't reload the changes: ${err}`));
+  };
+
   const runDiscard = async (op: () => Promise<unknown>, successMsg: string) => {
     if (busy) return;
     setBusy("discard");
@@ -263,7 +267,7 @@ export function CommitModal({
       await reloadFiles();
       onCommitted();
       announceDiscard(projectPath, kept, successMsg, () => {
-        void reloadFiles();
+        refreshFiles();
         onCommitted();
       });
     } catch (err) {
@@ -839,7 +843,7 @@ export function CommitModal({
           open={reviewOpen}
           onClose={() => {
             setReviewOpen(false);
-            void reloadFiles();
+            refreshFiles();
           }}
           projectName={projectName}
           projectPath={projectPath}

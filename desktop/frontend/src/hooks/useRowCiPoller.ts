@@ -1,27 +1,33 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { EventsOn } from "../../bridge/runtime";
+import { useMemo, useRef } from "react";
 import { fetchBranchCi } from "../branchCi";
-import { entryChecks } from "../sidebarRowDetails";
+import { entryChecks, rowBranch } from "../sidebarRowDetails";
 import { layoutShows, type SidebarRowLayout } from "../sidebarRowLayout";
 import { useBranchPr } from "../store/branchPr";
 import { useOriginStatus } from "../store/originStatus";
 import { useRowStats } from "../store/rowStats";
-import { GIT_CHANGED_EVENT, type ProjectInfo } from "../types";
-import { useEventListener } from "./useEventListener";
+import type { ProjectInfo } from "../types";
+import { useGitChangedRoots } from "./useGitChangedRoots";
 import { originRoots } from "./useOriginStatusPoller";
+import { useSweep, type SweepTiming } from "./useSweep";
 
-const SWEEP_EVERY_MS = 60_000;
+const SWEEP_TIMING: SweepTiming = { firstDelayMs: 4_000, everyMs: 60_000, focusThrottleMs: 60_000 };
 // A pull request rarely changes, and every look is a call to GitHub.
-export const CI_FRESH_MS = 5 * 60_000;
+const CI_FRESH_MS = 5 * 60_000;
 // While checks run, so the row turns red or green soon after they finish.
-export const CI_PENDING_FRESH_MS = 45_000;
-const FOCUS_THROTTLE_MS = 60_000;
-const FIRST_SWEEP_DELAY_MS = 4_000;
+const CI_PENDING_FRESH_MS = 45_000;
 // `gh pr create` pushes first and opens the PR a moment later.
 const GIT_CHANGE_DELAY_MS = 5_000;
 
 function branchOf(root: string): string {
-  return useRowStats.getState().entries[root]?.branch || useOriginStatus.getState().entries[root]?.status.branch || "";
+  return rowBranch({ stats: useRowStats.getState().entries[root], origin: useOriginStatus.getState().entries[root] });
+}
+
+async function lookup(root: string, branch: string, withCommitChecks: boolean): Promise<void> {
+  const { pr, commit } = await fetchBranchCi(root, withCommitChecks);
+  // Without asking about the last commit, keep what the footer learned of it.
+  const prev = useBranchPr.getState().entries[root];
+  const kept = withCommitChecks || pr?.state === "OPEN" || prev?.branch !== branch ? commit : (prev.commit ?? null);
+  useBranchPr.getState().setEntry(root, { branch, pr, commit: kept, checkedAt: Date.now() });
 }
 
 // Fills the same per-project pull request store the footer reads, for every
@@ -36,23 +42,9 @@ export function useRowCiPoller(projects: ProjectInfo[], layout: SidebarRowLayout
   rootsRef.current = roots;
   const checksRef = useRef(withChecks);
   checksRef.current = withChecks;
-  const sweeping = useRef(false);
-  const lastSweep = useRef(0);
 
-  const lookup = useCallback(async (root: string, branch: string) => {
-    const withCommitChecks = checksRef.current;
-    const { pr, commit } = await fetchBranchCi(root, withCommitChecks);
-    // Without asking about the last commit, keep what the footer learned of it.
-    const prev = useBranchPr.getState().entries[root];
-    const kept = withCommitChecks || pr?.state === "OPEN" || prev?.branch !== branch ? commit : (prev.commit ?? null);
-    useBranchPr.getState().setEntry(root, { branch, pr, commit: kept, checkedAt: Date.now() });
-  }, []);
-
-  const sweep = useCallback(async () => {
-    if (sweeping.current || document.hidden) return;
-    sweeping.current = true;
-    lastSweep.current = Date.now();
-    try {
+  useSweep(
+    async () => {
       for (const root of rootsRef.current) {
         const branch = branchOf(root);
         if (!branch) continue;
@@ -62,49 +54,23 @@ export function useRowCiPoller(projects: ProjectInfo[], layout: SidebarRowLayout
           const fresh = pending ? CI_PENDING_FRESH_MS : CI_FRESH_MS;
           if (Date.now() - entry.checkedAt < fresh) continue;
         }
-        await lookup(root, branch);
+        await lookup(root, branch, checksRef.current);
       }
-    } finally {
-      sweeping.current = false;
-    }
-  }, [lookup]);
-
-  useEffect(() => {
-    if (!wanted) return;
-    const first = setTimeout(() => void sweep(), FIRST_SWEEP_DELAY_MS);
-    const timer = setInterval(() => void sweep(), SWEEP_EVERY_MS);
-    return () => {
-      clearTimeout(first);
-      clearInterval(timer);
-    };
-  }, [wanted, withChecks, sweep]);
-
-  const onFocus = useCallback(() => {
-    if (Date.now() - lastSweep.current >= FOCUS_THROTTLE_MS) void sweep();
-  }, [sweep]);
-  useEventListener("focus", onFocus, window, wanted);
+    },
+    wanted,
+    SWEEP_TIMING,
+    [withChecks],
+  );
 
   // Only `.git` metadata (files: null) can mean a push or a new pull request.
-  useEffect(() => {
-    if (!wanted) return;
-    const pending = new Map<string, ReturnType<typeof setTimeout>>();
-    const cancel = EventsOn(GIT_CHANGED_EVENT, (payload: { path?: string; files?: string[] | null } | string) => {
-      const path = typeof payload === "string" ? payload : payload?.path;
-      const files = typeof payload === "string" ? null : (payload?.files ?? null);
-      if (!path || files !== null || !rootsRef.current.includes(path)) return;
-      clearTimeout(pending.get(path));
-      pending.set(
-        path,
-        setTimeout(() => {
-          pending.delete(path);
-          const branch = branchOf(path);
-          if (branch) void lookup(path, branch);
-        }, GIT_CHANGE_DELAY_MS),
-      );
-    });
-    return () => {
-      if (typeof cancel === "function") cancel();
-      pending.forEach(clearTimeout);
-    };
-  }, [wanted, lookup]);
+  useGitChangedRoots(
+    wanted,
+    rootsRef,
+    GIT_CHANGE_DELAY_MS,
+    (root) => {
+      const branch = branchOf(root);
+      if (branch) void lookup(root, branch, checksRef.current);
+    },
+    (files) => files === null,
+  );
 }

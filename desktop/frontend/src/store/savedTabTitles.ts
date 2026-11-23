@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { readLocalJson, writeLocalJson } from "../localJson";
 
 // Each project's tab names as its tab strip last showed them, kept across
 // restarts. Only a project open in this window publishes live names
@@ -12,22 +13,15 @@ const STORAGE_KEY = "lpm.tabTitles";
 type Titles = Record<string, Record<string, string>>;
 
 function load(): Titles {
-  try {
-    if (typeof localStorage === "undefined") return {};
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}");
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
+  return readLocalJson(
+    STORAGE_KEY,
+    (v) => (v && typeof v === "object" && !Array.isArray(v) ? (v as Titles) : undefined),
+    {},
+  );
 }
 
 function save(titles: Titles): void {
-  try {
-    if (typeof localStorage === "undefined") return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(titles));
-  } catch {
-    // ignore storage failures (private mode, quota)
-  }
+  writeLocalJson(STORAGE_KEY, titles);
 }
 
 // Order counts: a dragged tab keeps every name and only moves the keys, and the

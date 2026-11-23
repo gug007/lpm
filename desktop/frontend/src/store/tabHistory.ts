@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { readLocalJson, writeLocalJson } from "../localJson";
 
 // The tabs the user has looked at, most recent first, for Ctrl+Tab. A tab is
 // remembered by its persisted key, not its pty id, which changes every launch,
@@ -20,22 +21,11 @@ function isVisit(v: unknown): v is TabVisit {
 }
 
 function load(): TabVisit[] {
-  try {
-    if (typeof localStorage === "undefined") return [];
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
-    return Array.isArray(parsed) ? parsed.filter(isVisit).slice(0, CAP) : [];
-  } catch {
-    return [];
-  }
+  return readLocalJson(STORAGE_KEY, (v) => (Array.isArray(v) ? v.filter(isVisit).slice(0, CAP) : undefined), []);
 }
 
 function save(visits: TabVisit[]): void {
-  try {
-    if (typeof localStorage === "undefined") return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(visits));
-  } catch {
-    // ignore storage failures (private mode, quota)
-  }
+  writeLocalJson(STORAGE_KEY, visits);
 }
 
 interface TabHistoryState {

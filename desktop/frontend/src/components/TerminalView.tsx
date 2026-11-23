@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback, useImperativeHandle } from "react";
 import { toast } from "../notifications/toast";
 import { EventsOn } from "../../bridge/runtime";
-import { GetServiceLogs, StartLogStreaming, StopLogStreaming, ClearStatus, FocusMainWindow, RemoteSetTerminalLabels } from "../../bridge/commands";
+import { GetServiceLogs, StartLogStreaming, StopLogStreaming, FocusMainWindow, RemoteSetTerminalLabels } from "../../bridge/commands";
 import { IS_MIRROR_WINDOW, requestRunInDuplicates } from "../mirror";
 import { MINI_VIEWS_HERE, keepMiniView } from "../miniViewToggle";
 import { chordLabel } from "../keys";
@@ -35,6 +35,7 @@ import { BulkDuplicateDialog, type DuplicatePromptSeed } from "./BulkDuplicateDi
 import type { ServiceTabInfo, StatusKind } from "./PaneView";
 import { readyStateKey, readyStateOf, type ServiceReadyState } from "../serviceReadyState";
 import type { PaneStatus } from "../hooks/usePaneStatus";
+import { clearSeenStatus } from "../clearSeenStatus";
 import { type TerminalThemeName, getTerminalThemeColors, terminalThemeCssVars, terminalXtermTheme } from "../terminal-themes";
 import { TerminalIcon } from "./icons";
 import {
@@ -590,7 +591,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
   }, []);
 
   const handleClearStatus = useCallback(
-    (terminalId: string, kind: StatusKind) => ClearStatus(projectName, terminalId, kind),
+    (terminalId: string, kind: StatusKind) => void clearSeenStatus(projectName, terminalId, kind),
     [projectName],
   );
 

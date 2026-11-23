@@ -6,6 +6,13 @@ use std::process::Stdio;
 use std::sync::OnceLock;
 use std::time::Duration;
 
+/// `s` as a NUL-terminated UTF-16 string, for a Win32 call.
+#[cfg(windows)]
+pub(crate) fn wide(s: impl AsRef<std::ffi::OsStr>) -> Vec<u16> {
+    use std::os::windows::ffi::OsStrExt;
+    s.as_ref().encode_wide().chain(Some(0)).collect()
+}
+
 /// Raw login-shell PATH captured once at startup, in the user's shell-resolution
 /// order. Stashed so shadow detection can reason about the same PATH the user's
 /// shell would use, not the (reordered, augmented) process PATH.

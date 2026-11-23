@@ -1,8 +1,10 @@
 import { checksLabel, checksSummary, summarizeChecks, type ChecksSummary } from "./prChecks";
+import { prWords } from "./gitForge";
 import { originMark } from "./originStatus";
 import { prLook } from "./prLook";
+import { plural } from "./projectArchive";
 import { relativeTime } from "./relativeTime";
-import type { RowDetail, SidebarRowLayout } from "./sidebarRowLayout";
+import { visibleLines, type RowDetail, type RowLine, type SidebarRowLayout } from "./sidebarRowLayout";
 import type { BranchPrEntry } from "./store/branchPr";
 import type { OriginEntry } from "./store/originStatus";
 import type { PullRequestInfo } from "./types";
@@ -82,7 +84,7 @@ export function rowChecks(data: RowData): ChecksSummary | null {
   return entryChecks(entry);
 }
 
-export function originShows(entry: OriginEntry | undefined): boolean {
+function originShows(entry: OriginEntry | undefined): boolean {
   if (!entry) return false;
   return entry.running || Boolean(entry.done) || originMark(entry.status) !== null;
 }
@@ -93,7 +95,7 @@ export function unpushed(entry: OriginEntry | undefined): number {
   return Math.max(0, s.ahead);
 }
 
-export function showsBranch(data: RowData, layout: SidebarRowLayout): boolean {
+function showsBranch(data: RowData, layout: SidebarRowLayout): boolean {
   const branch = rowBranch(data);
   if (!branch) return false;
   const base = data.stats?.defaultBranch || data.origin?.status.base || "";
@@ -137,6 +139,12 @@ export function detailShows(
   }
 }
 
+// The lines a project's row draws, each side with only the details that have
+// something to say.
+export function rowLines(layout: SidebarRowLayout, data: RowData, builtIns: RowBuiltIns): RowLine[] {
+  return visibleLines(layout.lines, (d) => detailShows(d, data, builtIns, layout));
+}
+
 // A detail as plain text for one project, for the Row builder's tray; empty
 // when the row would show nothing. Undefined for the details the row draws
 // from elsewhere (an agent's word, a status note), which have no preview.
@@ -155,7 +163,7 @@ export function detailText(
     case "changes":
       return `+${stats?.insertions ?? 0} −${stats?.deletions ?? 0}`;
     case "files":
-      return `${stats?.files ?? 0} file${stats?.files === 1 ? "" : "s"}`;
+      return plural(stats?.files ?? 0, "file");
     case "commit":
       return relativeTime(stats?.lastCommitAt ?? 0);
     case "version":
@@ -166,7 +174,7 @@ export function detailText(
       return `↑${unpushed(data.origin)}`;
     case "pr": {
       const pr = rowPr(data);
-      return pr ? `#${pr.number} ${prLook(pr).label}` : "";
+      return pr ? `${prWords(pr).ref(pr.number)} ${prLook(pr).label}` : "";
     }
     case "checks": {
       const summary = rowChecks(data);

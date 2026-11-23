@@ -8,7 +8,7 @@ use serde_json::Value;
 /// Whether a plain merge and a squash are allowed, from the project's squash
 /// setting; None when GitLab can't say.
 pub(crate) fn methods_allowed(cwd: &str, repo: &GitLabRepo) -> Option<(bool, bool)> {
-    let json = glab_api(cwd, repo, &format!("projects/{}", repo.api_project()), &[]).ok()?;
+    let json = glab_api(cwd, repo, "", &[]).ok()?;
     let project: Value = serde_json::from_str(&json).ok()?;
     Some(allowed_by(
         project["squash_option"].as_str().unwrap_or_default(),
@@ -38,8 +38,8 @@ pub(crate) fn merge(
     for (flag, field) in &fields {
         args.extend([*flag, field.as_str()]);
     }
-    let endpoint = format!("projects/{}/merge_requests/{iid}/merge", repo.api_project());
-    let json = glab_api(cwd, repo, &endpoint, &args).map_err(|e| explain(&e))?;
+    let json = glab_api(cwd, repo, &format!("merge_requests/{iid}/merge"), &args)
+        .map_err(|e| explain(&e))?;
     let merged: Value = serde_json::from_str(&json).unwrap_or_default();
     match merged["state"].as_str() {
         Some("merged") | None => Ok(delete_branch),

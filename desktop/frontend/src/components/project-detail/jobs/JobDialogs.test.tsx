@@ -23,6 +23,8 @@ const config = vi.hoisted(() => ({
     run: { prompt: "Check the support chats." },
   })),
 }));
+const toasted = vi.hoisted(() => ({ error: vi.fn() }));
+vi.mock("../../../notifications/toast", () => ({ toast: { error: toasted.error, success: vi.fn() } }));
 vi.mock("../../../jobsConfig", async (orig) => ({
   ...(await orig<typeof import("../../../jobsConfig")>()),
   readJobPayloadFrom: config.readJobPayloadFrom,
@@ -36,13 +38,13 @@ let root: Root;
 const job: JobInfo = { id: "triage", label: "Support triage", valid: true, enabled: true };
 const editing: JobEditing = { mode: "edit", project: "shop", job };
 
-const show = () =>
+const show = (onCloseEditor: () => void = () => {}) =>
   act(async () => {
     root.render(
       <JobDialogs
         projects={[]}
         editing={editing}
-        onCloseEditor={() => {}}
+        onCloseEditor={onCloseEditor}
         onSaved={() => {}}
         actionsFor={() => []}
         knownIds={() => []}
@@ -93,5 +95,14 @@ describe("JobDialogs", () => {
 
     expect(nameField().value).toBe("Support triage, hourly");
     expect(config.readJobPayloadFrom).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes rather than offering to save over an automation it couldn't read", async () => {
+    config.readJobPayloadFrom.mockRejectedValueOnce("peer request timed out");
+    const onCloseEditor = vi.fn();
+    await show(onCloseEditor);
+
+    expect(onCloseEditor).toHaveBeenCalledTimes(1);
+    expect(toasted.error).toHaveBeenCalledTimes(1);
   });
 });

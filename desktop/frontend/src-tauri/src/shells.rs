@@ -2,11 +2,11 @@
 // the login shell (sys::login_shell): their lines are POSIX and shared with
 // teammates. A terminal asks for a shell by id, or for "default": the project's
 // `terminal: { shell }`, else Settings › Terminal › Shell on this machine.
+use crate::ttl_cache::TtlCache;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 pub(crate) const DEFAULT: &str = "default";
 const SETTING: &str = "terminalShell";
@@ -28,16 +28,8 @@ pub(crate) struct Shell {
 }
 
 fn cached() -> Vec<Shell> {
-    static CACHE: OnceLock<Mutex<Option<(Instant, Vec<Shell>)>>> = OnceLock::new();
-    let mut slot = CACHE.get_or_init(Default::default).lock().unwrap();
-    if let Some((at, shells)) = slot.as_ref() {
-        if at.elapsed() < FRESH {
-            return shells.clone();
-        }
-    }
-    let shells = found();
-    *slot = Some((Instant::now(), shells.clone()));
-    shells
+    static SHELLS: TtlCache<(), Vec<Shell>> = TtlCache::new(FRESH);
+    SHELLS.get_or((), found)
 }
 
 /// A shell's name from its path, `wsl` from `C:\Windows\System32\wsl.exe` on
@@ -119,13 +111,7 @@ fn found() -> Vec<Shell> {
     let system = std::env::var_os("SystemRoot")
         .or_else(|| std::env::var_os("windir"))
         .map(|root| PathBuf::from(root).join("System32"));
-    let pwsh = crate::sys::find_on_path("pwsh.exe").or_else(|| {
-        ["ProgramFiles", "ProgramW6432"]
-            .iter()
-            .filter_map(std::env::var_os)
-            .map(|dir| PathBuf::from(dir).join(r"PowerShell\7\pwsh.exe"))
-            .find(|p| p.is_file())
-    });
+    let pwsh = crate::openin::pwsh().map(PathBuf::from);
     let cmd = std::env::var_os("ComSpec")
         .map(PathBuf::from)
         .or_else(|| system.as_ref().map(|s| s.join("cmd.exe")));

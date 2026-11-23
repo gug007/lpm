@@ -1,7 +1,9 @@
 import { CircleCheck, CircleDashed, CircleX, GitBranch } from "lucide-react";
 import type { ReactNode } from "react";
+import { prWords } from "../gitForge";
 import { checksLabel, type ChecksVerdict } from "../prChecks";
 import { prLook } from "../prLook";
+import { plural } from "../projectArchive";
 import { relativeAgo, relativeTime } from "../relativeTime";
 import {
   portsText,
@@ -44,8 +46,6 @@ function prTextColor(pr: PullRequestInfo): string {
   if (pr.isDraft) return "var(--accent-gray-text)";
   return "var(--accent-green-text)";
 }
-
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 /** One detail on a project's sidebar row, or nothing when it has none. */
 export function SidebarRowDetail({ detail, data, layout, builtIns, chip }: SidebarRowDetailProps) {
@@ -105,7 +105,7 @@ export function SidebarRowDetail({ detail, data, layout, builtIns, chip }: Sideb
       const pr = rowPr(data);
       if (!pr) return null;
       const look = prLook(pr);
-      const text = `#${pr.number}${layout.prStateWord ? ` ${look.label}` : ""}`;
+      const text = `${prWords(pr).ref(pr.number)}${layout.prStateWord ? ` ${look.label}` : ""}`;
       return (
         <span
           className={`shrink-0 font-semibold tabular-nums ${

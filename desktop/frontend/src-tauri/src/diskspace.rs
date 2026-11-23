@@ -51,9 +51,8 @@ pub(crate) fn space(path: &Path) -> Option<DiskSpace> {
 
 #[cfg(windows)]
 pub(crate) fn space(path: &Path) -> Option<DiskSpace> {
-    use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
-    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    let wide = crate::sys::wide(path);
     let (mut free, mut total, mut all_free) = (0u64, 0u64, 0u64);
     let ok = unsafe { GetDiskFreeSpaceExW(wide.as_ptr(), &mut free, &mut total, &mut all_free) };
     (ok != 0).then_some(DiskSpace {

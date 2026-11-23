@@ -18,18 +18,16 @@ pub fn switched(stored: Option<&str>, current: Option<&str>) -> bool {
     matches!((stored, current), (Some(a), Some(b)) if a != b)
 }
 
-/// `id`, then every other profile here signed in as `identity`.
-pub fn profiles_like(id: &str, identity: Option<&str>) -> Vec<String> {
-    let mut out = vec![id.to_string()];
-    if let Some(identity) = identity {
-        out.extend(
-            crate::agent_limits_share::local_identities()
-                .into_iter()
-                .filter(|(other, theirs)| other != id && theirs == identity)
-                .map(|(other, _)| other),
-        );
-    }
-    out
+/// Every profile here other than `id` signed in as `identity`.
+pub fn other_profiles_like(id: &str, identity: Option<&str>) -> Vec<String> {
+    let Some(identity) = identity else {
+        return Vec::new();
+    };
+    crate::agent_limits_share::local_identities()
+        .into_iter()
+        .filter(|(other, theirs)| other != id && theirs == identity)
+        .map(|(other, _)| other)
+        .collect()
 }
 
 /// Drops the readings of an account their profile no longer holds; true when

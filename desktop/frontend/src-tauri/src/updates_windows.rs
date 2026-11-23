@@ -125,18 +125,8 @@ mod win {
 
     impl Suspended {
         fn create(exe: &Path, args: &[&str]) -> Result<Self, String> {
-            let mut line: Vec<u16> = command_line(exe, args)
-                .encode_utf16()
-                .chain(Some(0))
-                .collect();
-            let dir: Vec<u16> = exe
-                .parent()
-                .unwrap_or(Path::new("."))
-                .as_os_str()
-                .to_string_lossy()
-                .encode_utf16()
-                .chain(Some(0))
-                .collect();
+            let mut line = crate::sys::wide(command_line(exe, args));
+            let dir = crate::sys::wide(exe.parent().unwrap_or(Path::new(".")));
             let mut startup: STARTUPINFOW = unsafe { std::mem::zeroed() };
             startup.cb = std::mem::size_of::<STARTUPINFOW>() as u32;
             let mut info: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };

@@ -2,13 +2,12 @@
 // for the Duplicate dialog. A copy goes beside the project (projects_crud), so
 // that folder's disk is the one asked about.
 use crate::diskspace::DiskSpace;
+use crate::ttl_cache::TtlCache;
 use serde::Serialize;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-const FRESH: Duration = Duration::from_secs(300);
+static ESTIMATES: TtlCache<(PathBuf, bool), u64> = TtlCache::new(Duration::from_secs(300));
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -20,15 +19,10 @@ pub struct DuplicateSpace {
     disk: DiskSpace,
 }
 
-fn cache() -> &'static Mutex<HashMap<(PathBuf, bool), (u64, Instant)>> {
-    static CACHE: OnceLock<Mutex<HashMap<(PathBuf, bool), (u64, Instant)>>> = OnceLock::new();
-    CACHE.get_or_init(Default::default)
-}
-
 /// The bytes a standalone copy writes: everything but the caches Duplicate
 /// leaves behind (config::DUPLICATE_SKIP_DIRS), with node_modules counted whole
 /// as Duplicate copies it.
-pub(crate) fn copy_bytes(root: &Path) -> u64 {
+fn copy_bytes(root: &Path) -> u64 {
     let mut total = 0u64;
     let mut stack = vec![(root.to_path_buf(), false)];
     while let Some((dir, in_deps)) = stack.pop() {
@@ -53,7 +47,7 @@ pub(crate) fn copy_bytes(root: &Path) -> u64 {
 }
 
 /// The bytes a worktree checks out: the files git tracks.
-pub(crate) fn tracked_bytes(root: &Path) -> u64 {
+fn tracked_bytes(root: &Path) -> u64 {
     let Ok(out) = crate::git::git_out(&root.to_string_lossy(), &["ls-files", "-z"]) else {
         return 0;
     };
@@ -66,19 +60,13 @@ pub(crate) fn tracked_bytes(root: &Path) -> u64 {
 }
 
 fn estimate(root: &Path, worktree: bool) -> u64 {
-    let key = (root.to_path_buf(), worktree);
-    if let Some((bytes, at)) = cache().lock().unwrap().get(&key) {
-        if at.elapsed() < FRESH {
-            return *bytes;
+    ESTIMATES.get_or((root.to_path_buf(), worktree), || {
+        if worktree {
+            tracked_bytes(root)
+        } else {
+            copy_bytes(root)
         }
-    }
-    let bytes = if worktree {
-        tracked_bytes(root)
-    } else {
-        copy_bytes(root)
-    };
-    cache().lock().unwrap().insert(key, (bytes, Instant::now()));
-    bytes
+    })
 }
 
 /// None for an SSH project, a folder that's gone, or a disk that can't be read.

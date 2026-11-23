@@ -1,22 +1,31 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ProjectRowStats } from "../../bridge/commands";
-import { EventsOn } from "../../bridge/runtime";
 import type { RowStats } from "../sidebarRowDetails";
 import { rowStatsWanted, type SidebarRowLayout } from "../sidebarRowLayout";
 import { useRowStats } from "../store/rowStats";
-import { GIT_CHANGED_EVENT, type ProjectInfo } from "../types";
+import type { ProjectInfo } from "../types";
 import { useEventListener } from "./useEventListener";
+import { useGitChangedRoots } from "./useGitChangedRoots";
 import { originRoots } from "./useOriginStatusPoller";
+import { useSweep, type SweepTiming } from "./useSweep";
 
-export const STATS_EVERY_MS = 60_000;
-const FOCUS_THROTTLE_MS = 15_000;
-const FIRST_SWEEP_DELAY_MS = 2_000;
+const SWEEP_TIMING: SweepTiming = { firstDelayMs: 2_000, everyMs: 60_000, focusThrottleMs: 15_000 };
 // A save or a commit lands in several writes.
 const GIT_CHANGE_DELAY_MS = 1_500;
 
+async function check(root: string, sinceBranch: boolean): Promise<void> {
+  try {
+    const stats = (await ProjectRowStats(root, sinceBranch)) as RowStats | null;
+    if (stats) useRowStats.getState().set(root, stats);
+  } catch {
+    // A project that can't be read keeps what it last showed.
+  }
+}
+
 // Keeps each project's row stats current while a row shows any of them: one
 // project at a time once a minute while the window is on screen, again on
-// focus, and for one project soon after its files or branch change.
+// focus, and for one project soon after its files or branch change. Changes
+// while the window is off screen are looked at once it is back.
 export function useRowStatsPoller(projects: ProjectInfo[], layout: SidebarRowLayout): void {
   const wanted = rowStatsWanted(layout);
   const sinceBranch = layout.changesSince === "branch";
@@ -26,63 +35,35 @@ export function useRowStatsPoller(projects: ProjectInfo[], layout: SidebarRowLay
   rootsRef.current = roots;
   const sinceRef = useRef(sinceBranch);
   sinceRef.current = sinceBranch;
-  const sweeping = useRef(false);
-  const lastSweep = useRef(0);
-
-  const check = useCallback(async (root: string) => {
-    try {
-      const stats = (await ProjectRowStats(root, sinceRef.current)) as RowStats | null;
-      if (stats) useRowStats.getState().set(root, stats);
-    } catch {
-      // A project that can't be read keeps what it last showed.
-    }
-  }, []);
-
-  const sweep = useCallback(async () => {
-    if (sweeping.current || document.hidden) return;
-    sweeping.current = true;
-    lastSweep.current = Date.now();
-    try {
-      for (const root of rootsRef.current) await check(root);
-    } finally {
-      sweeping.current = false;
-    }
-  }, [check]);
+  const missed = useRef(new Set<string>());
 
   useEffect(() => {
-    if (!wanted) return;
-    useRowStats.getState().retain(rootsKey ? rootsKey.split("\n") : []);
-    const first = setTimeout(() => void sweep(), FIRST_SWEEP_DELAY_MS);
-    const timer = setInterval(() => void sweep(), STATS_EVERY_MS);
-    return () => {
-      clearTimeout(first);
-      clearInterval(timer);
-    };
-  }, [wanted, rootsKey, sinceBranch, sweep]);
+    if (wanted) useRowStats.getState().retain(rootsKey ? rootsKey.split("\n") : []);
+  }, [wanted, rootsKey]);
 
-  const onFocus = useCallback(() => {
-    if (Date.now() - lastSweep.current >= FOCUS_THROTTLE_MS) void sweep();
-  }, [sweep]);
-  useEventListener("focus", onFocus, window, wanted);
+  useSweep(
+    async () => {
+      for (const root of rootsRef.current) await check(root, sinceRef.current);
+    },
+    wanted,
+    SWEEP_TIMING,
+    [rootsKey, sinceBranch],
+  );
 
-  useEffect(() => {
-    if (!wanted) return;
-    const pending = new Map<string, ReturnType<typeof setTimeout>>();
-    const cancel = EventsOn(GIT_CHANGED_EVENT, (payload: { path?: string } | string) => {
-      const path = typeof payload === "string" ? payload : payload?.path;
-      if (!path || !rootsRef.current.includes(path)) return;
-      clearTimeout(pending.get(path));
-      pending.set(
-        path,
-        setTimeout(() => {
-          pending.delete(path);
-          void check(path);
-        }, GIT_CHANGE_DELAY_MS),
-      );
-    });
-    return () => {
-      if (typeof cancel === "function") cancel();
-      pending.forEach(clearTimeout);
-    };
-  }, [wanted, check]);
+  useGitChangedRoots(wanted, rootsRef, GIT_CHANGE_DELAY_MS, (root) => {
+    if (document.hidden) missed.current.add(root);
+    else void check(root, sinceRef.current);
+  });
+
+  useEventListener(
+    "visibilitychange",
+    () => {
+      if (document.hidden) return;
+      const roots = [...missed.current].filter((root) => rootsRef.current.includes(root));
+      missed.current.clear();
+      for (const root of roots) void check(root, sinceRef.current);
+    },
+    document,
+    wanted,
+  );
 }

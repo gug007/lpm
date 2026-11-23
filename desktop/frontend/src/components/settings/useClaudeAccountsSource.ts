@@ -77,11 +77,16 @@ function useHostSource(slug: string | null): ClaudeAccountsSource | null {
   const askConsent = useClaudePoolStore((s) => s.askConsent);
 
   const refresh = useCallback(async () => {
-    if (slug) await load(slug);
+    if (!slug) return;
+    try {
+      await load(slug);
+    } catch {
+      // Keep the last known accounts, as this Mac's store does.
+    }
   }, [slug, load]);
 
   useEffect(() => {
-    refresh().catch(() => {});
+    void refresh();
   }, [refresh]);
 
   return useMemo(() => {

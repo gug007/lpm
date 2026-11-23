@@ -390,6 +390,7 @@ mod tabshare;
 mod tailnet;
 mod tailnet_cmds;
 mod tailnet_dial;
+mod ttl_cache;
 mod templates;
 mod termgrid;
 mod termvt;

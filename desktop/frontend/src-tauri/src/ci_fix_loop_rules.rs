@@ -16,6 +16,17 @@ const DONE_GRACE: Duration = Duration::from_secs(3 * 60);
 const START_GRACE: Duration = Duration::from_secs(90);
 const FIX_WITHIN: Duration = Duration::from_secs(90 * 60);
 
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Phase {
+    Starting,
+    Fixing,
+    Watching,
+    Passed,
+    Stopped,
+    Cancelled,
+}
+
 #[derive(Serialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FixLoop {
@@ -25,8 +36,7 @@ pub struct FixLoop {
     pub branch: String,
     pub round: u32,
     pub max_rounds: u32,
-    /// "starting", "fixing", "watching", then "passed", "stopped" or "cancelled".
-    pub state: &'static str,
+    pub state: Phase,
     /// The pushed commit being fixed or watched.
     pub sha: String,
     /// Where it stands, in one line.
@@ -39,7 +49,7 @@ pub struct FixLoop {
 
 impl FixLoop {
     pub fn running(&self) -> bool {
-        matches!(self.state, "starting" | "fixing" | "watching")
+        matches!(self.state, Phase::Starting | Phase::Fixing | Phase::Watching)
     }
 }
 
@@ -149,21 +159,21 @@ pub(crate) fn read_checks(checks: &[PrCheck]) -> Checks {
 pub(crate) fn describe(view: &mut FixLoop) {
     let (agent, round, max) = (view.agent.as_str(), view.round, view.max_rounds.max(1));
     let (detail, step) = match view.state {
-        "starting" => (format!("Opening the {agent} tab…"), 0.0),
-        "fixing" => (format!("{agent} is fixing {}", view.sha), 1.0),
-        "watching" => (
+        Phase::Starting => (format!("Opening the {agent} tab…"), 0.0),
+        Phase::Fixing => (format!("{agent} is fixing {}", view.sha), 1.0),
+        Phase::Watching => (
             format!("{agent} pushed {} · watching the new run", view.sha),
             2.0,
         ),
-        "passed" => (
+        Phase::Passed => (
             match round {
                 1 => "CI passed after one round".into(),
                 n => format!("CI passed after {n} rounds"),
             },
             3.0,
         ),
-        "cancelled" => ("Stopped".into(), 3.0),
-        _ => (view.reason.clone().unwrap_or_else(|| "Stopped".into()), 3.0),
+        Phase::Cancelled => ("Stopped".into(), 3.0),
+        Phase::Stopped => (view.reason.clone().unwrap_or_else(|| "Stopped".into()), 3.0),
     };
     view.detail = detail;
     view.progress = if view.running() {
@@ -179,7 +189,7 @@ pub(crate) fn alert_text(view: &FixLoop) -> (String, String) {
         crate::config::project_display_name(&view.project),
         view.branch
     );
-    let body = if view.state == "passed" {
+    let body = if view.state == Phase::Passed {
         format!("{} · fixed by {}", view.detail, view.agent)
     } else {
         format!("Stopped fixing CI: {}", view.detail)

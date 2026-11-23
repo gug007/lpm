@@ -4,13 +4,12 @@
 // copy_reinstall), Cargo's target beside a Cargo.toml, and framework caches.
 // Code, uncommitted changes, .env files and anything git tracks stay.
 use crate::config;
+use crate::ttl_cache::TtlCache;
 use serde::Serialize;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-const FRESH: Duration = Duration::from_secs(300);
+static USES: TtlCache<PathBuf, CopyUse> = TtlCache::new(Duration::from_secs(300));
 
 pub(crate) const DEPENDENCIES: &str = "node_modules";
 
@@ -48,11 +47,6 @@ pub struct CopySpace {
     running: bool,
 }
 
-fn cache() -> &'static Mutex<HashMap<PathBuf, (CopyUse, Instant)>> {
-    static CACHE: OnceLock<Mutex<HashMap<PathBuf, (CopyUse, Instant)>>> = OnceLock::new();
-    CACHE.get_or_init(Default::default)
-}
-
 fn freeable_dir(dir: &Path, name: &str) -> bool {
     let beside = |file: &str| dir.parent().is_some_and(|p| p.join(file).is_file());
     match name {
@@ -62,26 +56,6 @@ fn freeable_dir(dir: &Path, name: &str) -> bool {
     }
 }
 
-/// Every file's own bytes under `dir`, never following a link.
-fn own_size(dir: &Path) -> u64 {
-    let mut total = 0u64;
-    let mut stack = vec![dir.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let Ok(meta) = entry.metadata() else { continue };
-            if meta.is_dir() {
-                stack.push(entry.path());
-            } else if meta.is_file() {
-                total += crate::diskusage::own_bytes(&entry.path(), &meta);
-            }
-        }
-    }
-    total
-}
-
 /// Outside a repository nothing is tracked, so nothing needs protecting from a
 /// delete; `project_size::tracked` counts every folder as tracked there.
 fn in_git(root: &Path) -> bool {
@@ -89,41 +63,11 @@ fn in_git(root: &Path) -> bool {
         .is_ok_and(|out| out.trim() == "true")
 }
 
-/// Walk the copy once. A freeable folder is measured whole and never searched
-/// for more of them; one git tracks anything inside is left out.
-pub(crate) fn measure(root: &Path) -> CopyUse {
-    let mut bytes = 0u64;
-    let mut found: Vec<(PathBuf, u64)> = Vec::new();
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let Ok(meta) = entry.metadata() else { continue };
-            let path = entry.path();
-            if meta.is_file() {
-                bytes += crate::diskusage::own_bytes(&path, &meta);
-                continue;
-            }
-            if !meta.is_dir() {
-                continue;
-            }
-            if entry
-                .file_name()
-                .to_str()
-                .is_some_and(|n| freeable_dir(&path, n))
-            {
-                if let Ok(rel) = path.strip_prefix(root) {
-                    let size = own_size(&path);
-                    bytes += size;
-                    found.push((rel.to_path_buf(), size));
-                    continue;
-                }
-            }
-            stack.push(path);
-        }
-    }
+/// Walk the copy once, counting each file's own bytes. A freeable folder is
+/// measured whole and never searched for more of them; one git tracks anything
+/// inside is left out.
+fn measure(root: &Path) -> CopyUse {
+    let (bytes, found) = crate::project_size::walk(root, freeable_dir, crate::diskusage::own_bytes);
     let dirs: Vec<PathBuf> = found.iter().map(|(p, _)| p.clone()).collect();
     let tracked = if in_git(root) {
         crate::project_size::tracked(root, &dirs)
@@ -139,20 +83,10 @@ pub(crate) fn measure(root: &Path) -> CopyUse {
 }
 
 fn measured(root: &Path) -> CopyUse {
-    if let Some((used, at)) = cache().lock().unwrap().get(root) {
-        if at.elapsed() < FRESH {
-            return used.clone();
-        }
-    }
-    let used = measure(root);
-    cache()
-        .lock()
-        .unwrap()
-        .insert(root.to_path_buf(), (used.clone(), Instant::now()));
-    used
+    USES.get_or(root.to_path_buf(), || measure(root))
 }
 
-pub(crate) fn is_running(name: &str) -> bool {
+fn is_running(name: &str) -> bool {
     config::spawn_info(name)
         .is_ok_and(|info| crate::sessions::running_sessions().contains(&info.session))
 }
@@ -209,7 +143,7 @@ pub fn free_copy_space(name: String) -> Result<u64, String> {
             Err(e) => failed = Some(e),
         }
     }
-    cache().lock().unwrap().remove(&root);
+    USES.forget(&root);
     crate::project_size::forget(&root);
     match failed {
         Some(e) if freed == 0 => Err(e),

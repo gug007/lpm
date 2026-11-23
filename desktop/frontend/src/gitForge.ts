@@ -87,7 +87,7 @@ export async function loadGitHost(projectPath: string): Promise<GitHost | null> 
   return info ?? known.get(projectPath) ?? null;
 }
 
-export function knownGitHost(projectPath: string): GitHost | null {
+function knownGitHost(projectPath: string): GitHost | null {
   return known.get(projectPath) ?? null;
 }
 

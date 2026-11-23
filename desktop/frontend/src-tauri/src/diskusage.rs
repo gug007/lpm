@@ -69,6 +69,14 @@ mod tests {
         own_bytes(path, &std::fs::symlink_metadata(path).unwrap())
     }
 
+    // Flushed, so APFS has given the data its blocks before they are counted.
+    fn write_synced(path: &Path, bytes: usize) {
+        use std::io::Write;
+        let mut file = std::fs::File::create(path).unwrap();
+        file.write_all(&vec![1u8; bytes]).unwrap();
+        file.sync_all().unwrap();
+    }
+
     #[cfg(unix)]
     #[test]
     fn a_hard_link_frees_nothing() {
@@ -83,7 +91,7 @@ mod tests {
     fn a_plain_file_frees_its_data() {
         let dir = tempfile::tempdir().unwrap();
         let a = dir.path().join("a");
-        std::fs::write(&a, vec![1u8; 64 * 1024]).unwrap();
+        write_synced(&a, 64 * 1024);
         assert!(own(&a) >= 64 * 1024);
     }
 

@@ -35,10 +35,7 @@ struct Position {
 /// The branch's merge request discussion, or None when it has none.
 pub(crate) fn discussion(cwd: &str, repo: &GitLabRepo) -> Option<PullRequestDiscussion> {
     let (iid, title, url, body) = crate::gitlab_mr::heading(cwd, repo)?;
-    let endpoint = format!(
-        "projects/{}/merge_requests/{iid}/notes?sort=asc&order_by=created_at&per_page=100",
-        repo.api_project()
-    );
+    let endpoint = format!("merge_requests/{iid}/notes?sort=asc&order_by=created_at&per_page=100");
     let notes = glab_api(cwd, repo, &endpoint, &[])
         .ok()
         .and_then(|json| serde_json::from_str::<Vec<Note>>(&json).ok())

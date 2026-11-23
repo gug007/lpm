@@ -55,11 +55,7 @@ fn checks_from_jobs(json: &str) -> Vec<PrCheck> {
 
 /// The jobs of pipeline `id`, newest attempt of each, as checks.
 pub(crate) fn pipeline_checks(cwd: &str, repo: &GitLabRepo, id: u64) -> Vec<PrCheck> {
-    let endpoint = format!(
-        "projects/{}/pipelines/{id}/jobs?per_page=100",
-        repo.api_project()
-    );
-    glab_api(cwd, repo, &endpoint, &[])
+    glab_api(cwd, repo, &format!("pipelines/{id}/jobs?per_page=100"), &[])
         .map(|json| checks_from_jobs(&json))
         .unwrap_or_default()
 }
@@ -73,8 +69,7 @@ pub(crate) fn commit_pipelines(
     branch: &str,
 ) -> Result<Vec<CommitChecksInfo>, String> {
     let endpoint = format!(
-        "projects/{}/pipelines?ref={}&sha={sha}&per_page=1",
-        repo.api_project(),
+        "pipelines?ref={}&sha={sha}&per_page=1",
         urlencoding::encode(branch)
     );
     let json = glab_api(cwd, repo, &endpoint, &[])?;
@@ -101,8 +96,7 @@ pub(crate) fn job_id(url: &str) -> Option<&str> {
 /// Runs each failed job again.
 pub(crate) fn retry_jobs(cwd: &str, repo: &GitLabRepo, ids: &[&String]) -> Result<(), String> {
     for id in ids {
-        let endpoint = format!("projects/{}/jobs/{id}/retry", repo.api_project());
-        glab_api(cwd, repo, &endpoint, &["-X", "POST"])?;
+        glab_api(cwd, repo, &format!("jobs/{id}/retry"), &["-X", "POST"])?;
     }
     Ok(())
 }
@@ -112,11 +106,13 @@ pub(crate) fn retry_jobs(cwd: &str, repo: &GitLabRepo, ids: &[&String]) -> Resul
 pub(crate) fn failed_log(root: &str, url: &str) -> Option<Result<FailedLog, String>> {
     let id = job_id(url)?;
     let repo = crate::githost::gitlab(root)?;
-    let endpoint = format!("projects/{}/jobs/{id}/trace", repo.api_project());
-    Some(glab_api(root, &repo, &endpoint, &[]).and_then(|text| {
-        tail(&text)
-            .ok_or_else(|| "GitLab has no log for this job yet. It may still be running.".into())
-    }))
+    Some(
+        glab_api(root, &repo, &format!("jobs/{id}/trace"), &[]).and_then(|text| {
+            tail(&text).ok_or_else(|| {
+                "GitLab has no log for this job yet. It may still be running.".into()
+            })
+        }),
+    )
 }
 
 fn section() -> &'static regex::Regex {

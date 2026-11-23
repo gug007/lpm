@@ -34,8 +34,9 @@ pub(crate) fn page(cursor_dir: Option<&Path>, root: &str, needle: &str, limit: u
     };
     let candidates = candidates(&workspaces(&cursor_dir.join("chats"), root));
     scan_page(&candidates, needle, limit, |c| {
+        let store = c.dir.join("store.db");
         let (title, preview) = TEXT
-            .get_or_read(&c.dir.join("store.db"), |_| text(&c.dir.join("store.db")))
+            .get_or_read(&store, |_| text(&store))
             .unwrap_or_default();
         Some(AgentSessionSummary {
             provider: "cursor",
@@ -161,15 +162,7 @@ fn text(store: &Path) -> (Option<String>, Option<String>) {
 /// `<user_query>` among the context it adds (the OS, the time, open files).
 fn user_query(blob: &str) -> Option<String> {
     let message: Value = serde_json::from_str(blob).ok()?;
-    let text = match message.get("content")? {
-        Value::String(text) => text.clone(),
-        Value::Array(parts) => parts
-            .iter()
-            .filter_map(|p| p.get("text").and_then(Value::as_str))
-            .collect::<Vec<_>>()
-            .join("\n"),
-        _ => return None,
-    };
+    let text = crate::agent_sessions::content_text(message.get("content")?, "\n")?;
     let start = text.find("<user_query>")? + "<user_query>".len();
     let end = text[start..]
         .find("</user_query>")

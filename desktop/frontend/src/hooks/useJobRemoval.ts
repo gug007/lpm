@@ -24,7 +24,7 @@ export function useJobRemoval<T extends JobInfo>(
       return;
     }
     try {
-      void StopJobRun(project, job.id);
+      StopJobRun(project, job.id).catch(() => {});
       if (job.source === "global") {
         await deleteJobGlobal(job.id, job.host);
         await clearJobStateGlobal(job.id, deleteCopies, job.host);

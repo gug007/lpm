@@ -40,7 +40,7 @@ export const MAX_ROW_LINES = 4;
 
 export type RowPresetId = "today" | "two" | "three" | "all";
 
-export const ROW_PRESETS: Record<RowPresetId, RowLine[]> = {
+const ROW_PRESETS: Record<RowPresetId, RowLine[]> = {
   today: [
     { left: ["alert"], right: ["origin"] },
     { left: ["status"], right: [] },
@@ -135,25 +135,6 @@ export function layoutShows(layout: SidebarRowLayout, ...details: RowDetail[]): 
 // they need the checkout's stats too.
 export function rowStatsWanted(layout: SidebarRowLayout): boolean {
   return layoutShows(layout, "branch", "changes", "files", "commit", "version", "pr", "checks");
-}
-
-export interface RowSlot {
-  line: number;
-  side: RowSide;
-}
-
-// Takes `detail` out of wherever it is and, unless `to` is null (hidden),
-// puts it at `index` of that side, or at its end.
-export function moveDetail(lines: readonly RowLine[], detail: RowDetail, to: RowSlot | null, index?: number): RowLine[] {
-  const next = copyLines(lines).map((l) => ({
-    left: l.left.filter((d) => d !== detail),
-    right: l.right.filter((d) => d !== detail),
-  }));
-  if (!to || !next[to.line]) return next;
-  const list = next[to.line][to.side];
-  const at = index === undefined ? list.length : Math.max(0, Math.min(index, list.length));
-  list.splice(at, 0, detail);
-  return next;
 }
 
 export function addLine(lines: readonly RowLine[]): RowLine[] {

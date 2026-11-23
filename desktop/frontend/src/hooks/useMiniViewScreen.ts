@@ -9,8 +9,9 @@ function sameLines(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((line, i) => line === b[i]);
 }
 
-/** The last lines on a terminal's screen, kept current while it draws, and
- *  whether its session is still there (a closed tab's isn't). */
+/** The last lines on a terminal's screen, kept current while it draws and the
+ *  window is on screen, and whether its session is still there (a closed tab's
+ *  isn't). */
 export function useMiniViewScreen(terminalId: string, rows: number): { lines: string[]; alive: boolean } {
   const [lines, setLines] = useState<string[]>([]);
   const [alive, setAlive] = useState(() => hasInteractivePaneSession(terminalId));
@@ -18,6 +19,7 @@ export function useMiniViewScreen(terminalId: string, rows: number): { lines: st
   useEffect(() => {
     let seen = -1;
     const read = () => {
+      if (document.hidden) return;
       const live = hasInteractivePaneSession(terminalId);
       setAlive(live);
       const term = interactiveSessions.get(terminalId)?.term;

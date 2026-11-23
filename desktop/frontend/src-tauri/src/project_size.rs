@@ -3,13 +3,13 @@
 // and an answer is kept for a few minutes so reopening the page doesn't walk
 // node_modules again.
 use crate::config;
+use crate::ttl_cache::TtlCache;
 use serde_json::{json, Value};
-use std::collections::HashMap;
+use std::fs::Metadata;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-const FRESH: Duration = Duration::from_secs(300);
+static SIZES: TtlCache<PathBuf, Sized> = TtlCache::new(Duration::from_secs(300));
 
 /// Folders an install recreates, whatever the project.
 const ALWAYS: &[&str] = &[
@@ -32,14 +32,25 @@ pub(crate) struct Sized {
     pub rebuildable: Vec<(PathBuf, u64)>,
 }
 
-fn cache() -> &'static Mutex<HashMap<PathBuf, (Sized, Instant)>> {
-    static CACHE: OnceLock<Mutex<HashMap<PathBuf, (Sized, Instant)>>> = OnceLock::new();
-    CACHE.get_or_init(Default::default)
+fn file_len(_: &Path, meta: &Metadata) -> u64 {
+    meta.len()
 }
 
-/// The bytes of every file under `root`. Folders it can't read count as empty.
-pub(crate) fn dir_size(root: &Path) -> u64 {
+fn pick_none(_: &Path, _: &str) -> bool {
+    false
+}
+
+/// Walk `root` once: the bytes of its files, each by `size_of`, and every
+/// folder `pick` takes (relative to `root`) with its own bytes, included in the
+/// total. A picked folder is never searched for more of them. Folders it can't
+/// read count as empty.
+pub(crate) fn walk(
+    root: &Path,
+    pick: impl Fn(&Path, &str) -> bool,
+    size_of: impl Fn(&Path, &Metadata) -> u64 + Copy,
+) -> (u64, Vec<(PathBuf, u64)>) {
     let mut total = 0u64;
+    let mut picked: Vec<(PathBuf, u64)> = Vec::new();
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
         let Ok(entries) = std::fs::read_dir(&dir) else {
@@ -49,14 +60,26 @@ pub(crate) fn dir_size(root: &Path) -> u64 {
             // DirEntry::metadata doesn't follow symlinks, so a link to a folder
             // outside the project (or back up into it) is never walked.
             let Ok(meta) = entry.metadata() else { continue };
-            if meta.is_dir() {
-                stack.push(entry.path());
-            } else if meta.is_file() {
-                total += meta.len();
+            let path = entry.path();
+            if meta.is_file() {
+                total += size_of(&path, &meta);
+                continue;
             }
+            if !meta.is_dir() {
+                continue;
+            }
+            if entry.file_name().to_str().is_some_and(|n| pick(&path, n)) {
+                if let Ok(rel) = path.strip_prefix(root) {
+                    let bytes = walk(&path, pick_none, size_of).0;
+                    total += bytes;
+                    picked.push((rel.to_path_buf(), bytes));
+                    continue;
+                }
+            }
+            stack.push(path);
         }
     }
-    total
+    (total, picked)
 }
 
 fn candidate(name: &str) -> bool {
@@ -85,31 +108,10 @@ pub(crate) fn tracked(root: &Path, dirs: &[PathBuf]) -> Vec<PathBuf> {
 /// Walk `root` once: its size, and each rebuildable folder with its own.
 /// A rebuildable folder is never searched for more of them.
 pub(crate) fn measure(root: &Path) -> Sized {
-    let mut total = 0u64;
-    let mut found: Vec<PathBuf> = Vec::new();
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let Ok(meta) = entry.metadata() else { continue };
-            if meta.is_file() {
-                total += meta.len();
-            } else if meta.is_dir() {
-                let path = entry.path();
-                if entry.file_name().to_str().is_some_and(candidate) {
-                    if let Ok(rel) = path.strip_prefix(root) {
-                        found.push(rel.to_path_buf());
-                        continue;
-                    }
-                }
-                stack.push(path);
-            }
-        }
-    }
+    let (total, found) = walk(root, |_, name| candidate(name), file_len);
     let conditional: Vec<PathBuf> = found
         .iter()
+        .map(|(p, _)| p)
         .filter(|p| {
             p.file_name()
                 .and_then(|n| n.to_str())
@@ -118,14 +120,10 @@ pub(crate) fn measure(root: &Path) -> Sized {
         .cloned()
         .collect();
     let kept = tracked(root, &conditional);
-    let mut rebuildable = Vec::new();
-    for rel in found {
-        let bytes = dir_size(&root.join(&rel));
-        total += bytes;
-        if !kept.contains(&rel) && bytes > 0 {
-            rebuildable.push((rel, bytes));
-        }
-    }
+    let mut rebuildable: Vec<(PathBuf, u64)> = found
+        .into_iter()
+        .filter(|(rel, bytes)| !kept.contains(rel) && *bytes > 0)
+        .collect();
     rebuildable.sort_by(|a, b| b.1.cmp(&a.1));
     Sized {
         bytes: total,
@@ -143,21 +141,11 @@ pub(crate) fn local_root(name: &str) -> Result<Option<PathBuf>, String> {
 
 /// Measure `root` afresh next time, after something under it was freed.
 pub(crate) fn forget(root: &Path) {
-    cache().lock().unwrap().remove(root);
+    SIZES.forget(&root.to_path_buf());
 }
 
 fn measured(root: &Path) -> Sized {
-    if let Some((sized, at)) = cache().lock().unwrap().get(root) {
-        if at.elapsed() < FRESH {
-            return sized.clone();
-        }
-    }
-    let sized = measure(root);
-    cache()
-        .lock()
-        .unwrap()
-        .insert(root.to_path_buf(), (sized.clone(), Instant::now()));
-    sized
+    SIZES.get_or(root.to_path_buf(), || measure(root))
 }
 
 /// The size of the project's folder on this machine.
@@ -201,7 +189,7 @@ pub fn free_project_space(name: String) -> Result<u64, String> {
             Err(e) => failed = Some(format!("{}: {e}", rel.display())),
         }
     }
-    cache().lock().unwrap().remove(&root);
+    forget(&root);
     match failed {
         Some(e) if freed == 0 => Err(e),
         _ => Ok(freed),
@@ -211,6 +199,10 @@ pub fn free_project_space(name: String) -> Result<u64, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn dir_size(root: &Path) -> u64 {
+        walk(root, pick_none, file_len).0
+    }
 
     fn write(root: &Path, rel: &str, bytes: usize) {
         let path = root.join(rel);

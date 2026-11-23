@@ -42,7 +42,7 @@ export function ClaudeLoginModal({ account, startLogin, status, refresh, onClose
     startLogin(account.id)
       .then((id) => {
         if (cancelled) {
-          void StopTerminal(id);
+          StopTerminal(id).catch(() => {});
           return;
         }
         idRef.current = id;
@@ -57,7 +57,7 @@ export function ClaudeLoginModal({ account, startLogin, status, refresh, onClose
     return () => {
       cancelled = true;
       if (idRef.current) {
-        void StopTerminal(idRef.current);
+        StopTerminal(idRef.current).catch(() => {});
         idRef.current = null;
       }
       void refreshRef.current();

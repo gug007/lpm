@@ -9,7 +9,7 @@ use crate::ci_fix_loop_rules::{
     alert_text, cant_go_on, describe, fix_verdict, read_agent, read_checks, round_prompt, Agent,
     Checks,
 };
-pub use crate::ci_fix_loop_rules::{first_prompt, FixLoop, MAX_ROUNDS};
+pub use crate::ci_fix_loop_rules::{first_prompt, FixLoop, Phase, MAX_ROUNDS};
 use crate::notifychannels::NotificationEvent;
 use crate::pull_request::branch_pull_request_with_merge;
 use crate::status::{is_live, now_millis, StatusStore};
@@ -17,7 +17,7 @@ use crate::statusnotify::{notify, should_notify};
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -61,6 +61,10 @@ fn loops() -> &'static Mutex<Loops> {
     LOOPS.get_or_init(Default::default)
 }
 
+/// Signalled whenever a run is replaced or removed, so a follower asleep on
+/// one wakes at once instead of finishing its wait.
+static RUNS_CHANGED: Condvar = Condvar::new();
+
 /// The loop running for `project`, else the one that ended there lately.
 pub fn current(project: &str) -> Option<FixLoop> {
     let loops = loops().lock().unwrap();
@@ -99,7 +103,7 @@ pub fn start(app: &AppHandle, project: &str, agent: &str) -> Result<FixLoop, Str
         branch,
         round: 1,
         max_rounds: MAX_ROUNDS,
-        state: "starting",
+        state: Phase::Starting,
         sha: short_sha(&sha).to_string(),
         detail: String::new(),
         reason: None,
@@ -122,6 +126,7 @@ pub fn start(app: &AppHandle, project: &str, agent: &str) -> Result<FixLoop, Str
         let mut loops = loops().lock().unwrap();
         loops.ended.remove(project);
         loops.runs.insert(project.to_string(), run);
+        RUNS_CHANGED.notify_all();
     }
     announce(app, &view);
     let (app, project) = (app.clone(), project.to_string());
@@ -131,7 +136,8 @@ pub fn start(app: &AppHandle, project: &str, agent: &str) -> Result<FixLoop, Str
 
 pub fn cancel(app: &AppHandle, project: &str) -> Option<FixLoop> {
     let run = loops().lock().unwrap().runs.remove(project)?;
-    Some(end(app, run, "cancelled", None))
+    RUNS_CHANGED.notify_all();
+    Some(end(app, run, Phase::Cancelled, None))
 }
 
 fn terminal_ids(app: &AppHandle, project: &str) -> Vec<String> {
@@ -149,10 +155,10 @@ fn follow(app: AppHandle, project: String, id: u64) {
             return;
         };
         let step = match run.view.state {
-            "starting" => bind(&app, &run),
-            "fixing" => fixing(&app, &run),
-            "watching" => watching(&app, &run),
-            _ => return,
+            Phase::Starting => bind(&app, &run),
+            Phase::Fixing => fixing(&app, &run),
+            Phase::Watching => watching(&app, &run),
+            Phase::Passed | Phase::Stopped | Phase::Cancelled => return,
         };
         let mut loops = loops().lock().unwrap();
         if loops.runs.get(&project).is_none_or(|r| r.id != id) {
@@ -188,31 +194,29 @@ fn running(project: &str, id: u64) -> Option<Run> {
     loops.runs.get(project).filter(|r| r.id == id).cloned()
 }
 
-fn is_running(project: &str, id: u64) -> bool {
-    let loops = loops().lock().unwrap();
-    loops.runs.get(project).is_some_and(|r| r.id == id)
-}
-
 fn sleep_while_current(project: &str, id: u64, total: Duration) {
-    let step = Duration::from_secs(1);
-    let mut slept = Duration::ZERO;
-    while slept < total && is_running(project, id) {
-        std::thread::sleep(step);
-        slept += step;
+    let deadline = Instant::now() + total;
+    let mut loops = loops().lock().unwrap();
+    while loops.runs.get(project).is_some_and(|r| r.id == id) {
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return;
+        }
+        loops = RUNS_CHANGED.wait_timeout(loops, left).unwrap().0;
     }
 }
 
 enum Step {
     Stay(u32),
     Next(Box<Run>),
-    End(&'static str, Option<String>),
+    End(Phase, Option<String>),
 }
 
 fn stop(reason: String) -> Step {
-    Step::End("stopped", Some(reason))
+    Step::End(Phase::Stopped, Some(reason))
 }
 
-fn phase(run: &Run, state: &'static str) -> Run {
+fn phase(run: &Run, state: Phase) -> Run {
     let mut next = run.clone();
     next.view.state = state;
     next.phase_since = Instant::now();
@@ -242,7 +246,7 @@ fn bind(app: &AppHandle, run: &Run) -> Step {
         });
     match found {
         Some(terminal) => {
-            let mut next = phase(run, "fixing");
+            let mut next = phase(run, Phase::Fixing);
             next.terminal = Some(terminal);
             Step::Next(Box::new(next))
         }
@@ -272,7 +276,7 @@ fn agent_now(app: &AppHandle, run: &Run) -> Agent {
 /// A push since `sha`: its checks are the ones to watch now.
 fn new_push(run: &Run, sha: &str) -> Option<Step> {
     let (pushed, _) = upstream_head(&run.path).filter(|(pushed, _)| pushed != sha)?;
-    let mut next = phase(run, "watching");
+    let mut next = phase(run, Phase::Watching);
     next.view.sha = short_sha(&pushed).to_string();
     next.watched = pushed;
     Some(Step::Next(Box::new(next)))
@@ -316,7 +320,7 @@ fn watching(app: &AppHandle, run: &Run) -> Step {
             stop("The checks were still running after 3 hours.".into())
         }
         Checks::Nothing | Checks::Running => Step::Stay(0),
-        Checks::Passed => Step::End("passed", None),
+        Checks::Passed => Step::End(Phase::Passed, None),
         Checks::Stale(name) => stop(format!("{name} didn't run again on {}.", run.view.sha)),
         Checks::Failed if run.view.round >= MAX_ROUNDS => {
             stop(format!("CI still fails after {MAX_ROUNDS} rounds."))
@@ -346,13 +350,13 @@ fn next_round(app: &AppHandle, run: &Run, commit_prompt: Option<String>) -> Step
     {
         return stop(format!("The next failure couldn't be sent: {e}"));
     }
-    let mut next = phase(run, "fixing");
+    let mut next = phase(run, Phase::Fixing);
     next.view.round = round;
     next.failed = run.watched.clone();
     Step::Next(Box::new(next))
 }
 
-fn end(app: &AppHandle, run: Run, state: &'static str, reason: Option<String>) -> FixLoop {
+fn end(app: &AppHandle, run: Run, state: Phase, reason: Option<String>) -> FixLoop {
     let mut view = FixLoop {
         state,
         reason,
@@ -365,7 +369,7 @@ fn end(app: &AppHandle, run: Run, state: &'static str, reason: Option<String>) -
         .ended
         .insert(view.project.clone(), (view.clone(), Instant::now()));
     announce(app, &view);
-    if state != "cancelled" {
+    if state != Phase::Cancelled {
         let (title, body) = alert_text(&view);
         if should_notify(app, NotificationEvent::Ci) {
             notify(app, &title, &body);

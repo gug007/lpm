@@ -3,7 +3,6 @@ import {
   DEFAULT_ROW_LAYOUT,
   MAX_ROW_LINES,
   addLine,
-  moveDetail,
   normalizeRowLayout,
   presetLines,
   presetOf,
@@ -39,26 +38,6 @@ describe("normalizeRowLayout", () => {
 
   it("always keeps line 1", () => {
     expect(normalizeRowLayout({ lines: [] }).lines).toEqual([{ left: [], right: [] }]);
-  });
-});
-
-describe("moveDetail", () => {
-  const lines = presetLines("two");
-
-  it("moves a detail to another line and side, at an index", () => {
-    const next = moveDetail(lines, "commit", { line: 0, side: "left" }, 0);
-    expect(next[0].left).toEqual(["commit", "alert"]);
-    expect(next[1].right).toEqual([]);
-  });
-
-  it("hides a detail when there is nowhere to put it", () => {
-    const next = moveDetail(lines, "pr", null);
-    expect(next[0].right).toEqual(["checks", "origin"]);
-  });
-
-  it("leaves the layout it was given alone", () => {
-    moveDetail(lines, "pr", null);
-    expect(lines[0].right).toEqual(["pr", "checks", "origin"]);
   });
 });
 

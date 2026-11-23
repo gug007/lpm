@@ -18,6 +18,7 @@ use crate::agent_sessions_opencode as opencode;
 use crate::config;
 use rusqlite::{Connection, OpenFlags};
 use serde::Serialize;
+use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
@@ -256,6 +257,22 @@ pub(crate) fn escape_like(needle: &str) -> String {
         .replace('\\', "\\\\")
         .replace('%', "\\%")
         .replace('_', "\\_")
+}
+
+/// A message's text: a string as is, or the `text` of each of its parts,
+/// joined with `sep`. None for any other shape.
+pub(crate) fn content_text(content: &Value, sep: &str) -> Option<String> {
+    match content {
+        Value::String(text) => Some(text.clone()),
+        Value::Array(parts) => Some(
+            parts
+                .iter()
+                .filter_map(|p| p.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join(sep),
+        ),
+        _ => None,
+    }
 }
 
 /// The project folder as the agent may have recorded it: as lpm knows it, and

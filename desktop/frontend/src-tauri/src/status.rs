@@ -423,6 +423,14 @@ impl StatusStore {
             .collect()
     }
 
+    /// The terminals [`Self::live_agent_entries`] are on.
+    pub fn live_agent_panes(&self) -> std::collections::BTreeSet<String> {
+        self.live_agent_entries()
+            .into_iter()
+            .map(|(_, entry)| entry.pane_id)
+            .collect()
+    }
+
     /// [`Self::live_agent_entries`] of one terminal.
     pub fn live_agent_entries_on(&self, project: &str, pane_id: &str) -> Vec<StatusEntry> {
         let m = self.entries.read().unwrap();

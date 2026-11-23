@@ -11,10 +11,6 @@ use windows_sys::Win32::System::Registry::{
 const KEY: &str = r"Software\lpm";
 const VALUE: &str = "SendUsageData";
 
-fn wide(s: &str) -> Vec<u16> {
-    s.encode_utf16().chain([0]).collect()
-}
-
 fn opted_out_settings() -> Value {
     let mut patch = Map::new();
     patch.insert(crate::dailyping::CONSENT_KEY.into(), json!(false));
@@ -45,8 +41,8 @@ pub fn apply() {
     let code = unsafe {
         RegGetValueW(
             HKEY_CURRENT_USER,
-            wide(KEY).as_ptr(),
-            wide(VALUE).as_ptr(),
+            crate::sys::wide(KEY).as_ptr(),
+            crate::sys::wide(VALUE).as_ptr(),
             RRF_RT_REG_DWORD,
             std::ptr::null_mut(),
             (&mut send as *mut u32).cast(),
@@ -60,6 +56,6 @@ pub fn apply() {
         return;
     }
     unsafe {
-        RegDeleteKeyValueW(HKEY_CURRENT_USER, wide(KEY).as_ptr(), wide(VALUE).as_ptr());
+        RegDeleteKeyValueW(HKEY_CURRENT_USER, crate::sys::wide(KEY).as_ptr(), crate::sys::wide(VALUE).as_ptr());
     }
 }

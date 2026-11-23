@@ -179,14 +179,7 @@ impl Chat {
 /// parts joined. Slash commands, `?` help and the context Gemini injects are
 /// its plumbing, never the opening prompt.
 fn prompt_text(content: Option<&Value>) -> Option<String> {
-    let text = match content? {
-        Value::String(text) => text.clone(),
-        Value::Array(parts) => parts
-            .iter()
-            .filter_map(|p| p.get("text").and_then(Value::as_str))
-            .collect::<String>(),
-        _ => return None,
-    };
+    let text = crate::agent_sessions::content_text(content?, "")?;
     let trimmed = text.trim();
     let plumbing = trimmed.is_empty()
         || trimmed.starts_with('/')

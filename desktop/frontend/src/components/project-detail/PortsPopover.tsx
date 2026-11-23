@@ -91,6 +91,10 @@ export function PortsPopover({ projectName, forwards, suggestions, onClose }: Po
     }
   };
 
+  const dismiss = (request: Promise<unknown>) => {
+    request.catch((err) => toast.error(`Couldn't dismiss the suggestion: ${err}`));
+  };
+
   const acceptSuggestion = (remotePort: number, localStr: string) => {
     const parsed = parseInt(localStr, 10);
     forwardPortAndOpen(projectName, remotePort, isValidPort(parsed) ? parsed : 0);
@@ -156,7 +160,7 @@ export function PortsPopover({ projectName, forwards, suggestions, onClose }: Po
               Detected on remote
             </span>
             <button
-              onClick={() => ClearPortSuggestions(projectName)}
+              onClick={() => dismiss(ClearPortSuggestions(projectName))}
               className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             >
               Clear all
@@ -184,7 +188,7 @@ export function PortsPopover({ projectName, forwards, suggestions, onClose }: Po
                     onCancel={cancelEdit}
                   />
                   <button
-                    onClick={() => DismissPortSuggestion(projectName, port)}
+                    onClick={() => dismiss(DismissPortSuggestion(projectName, port))}
                     className="rounded px-1.5 py-0.5 text-[var(--text-muted)] opacity-0 transition-opacity hover:bg-[var(--bg-active)] hover:text-[var(--text-primary)] group-hover:opacity-100"
                     aria-label={`Dismiss ${port}`}
                   >

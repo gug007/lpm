@@ -139,8 +139,7 @@ import { SidebarRowSide } from "./SidebarRowSide";
 import { SidebarRowExtraLines } from "./SidebarRowExtraLines";
 import { useSidebarRowLayout } from "../hooks/useSidebarRowLayout";
 import { useRowDataOf } from "../hooks/useRowDataOf";
-import { visibleLines } from "../sidebarRowLayout";
-import { detailShows, type RowBuiltIns } from "../sidebarRowDetails";
+import { rowLines } from "../sidebarRowDetails";
 import { SidebarMergedMark } from "./SidebarMergedMark";
 import { SidebarMergedOffer } from "./SidebarMergedOffer";
 import { SidebarOriginAction } from "./SidebarOriginAction";
@@ -1079,16 +1078,10 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     if (next) onApplySidebarLayout(next);
   };
 
-  // Which of the row layout's lines and details this project's row draws.
-  const rowLinesFor = (project: ProjectInfo, builtIns: RowBuiltIns) => {
-    const data = rowDataOf(project);
-    return visibleLines(rowLayout.lines, (d) => detailShows(d, data, builtIns, rowLayout));
-  };
-
   // A row with anything under its name stands taller wherever it sits, so the
   // elbow a folder draws into it has to know as well as the row does.
   const rowIsTall = (project: ProjectInfo, deckCollapsed = false, inPeerSection = false) =>
-    rowLinesFor(project, {
+    rowLines(rowLayout, rowDataOf(project), {
       alert: sidebarProjectAlert(agentsByProject.get(project.name) ?? []) !== null,
       status: deckCollapsed || projectNoteLine(project) !== null,
       origin: showsOrigin(project, inPeerSection),
@@ -1137,7 +1130,7 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     const work = project.workStatus;
     const noteLine = projectNoteLine(project);
     const rowData = rowDataOf(project);
-    const lines = rowLinesFor(project, {
+    const lines = rowLines(rowLayout, rowData, {
       alert: alert !== null,
       status: deckCollapsed || noteLine !== null,
       origin: showOrigin,

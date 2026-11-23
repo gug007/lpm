@@ -102,13 +102,9 @@ fn request_recount() {
 
 /// How many terminals on this machine have an agent working or waiting.
 fn agents_working(app: &AppHandle) -> usize {
-    let store = app.state::<std::sync::Arc<crate::status::StatusStore>>();
-    let panes: std::collections::BTreeSet<String> = store
-        .live_agent_entries()
-        .into_iter()
-        .map(|(_, entry)| entry.pane_id)
-        .collect();
-    panes.len()
+    app.state::<std::sync::Arc<crate::status::StatusStore>>()
+        .live_agent_panes()
+        .len()
 }
 
 fn recount() {

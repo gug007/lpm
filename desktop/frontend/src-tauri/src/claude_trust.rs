@@ -12,8 +12,8 @@ use serde_json::value::RawValue;
 use std::borrow::Cow;
 use serde_json::Value;
 use std::fmt;
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 
 const TRUSTED: &str = "hasTrustDialogAccepted";
 
@@ -43,10 +43,7 @@ pub(crate) fn carry_trust(source: &Path, copy: &Path) {
 /// The spellings Claude may have filed `dir` under: as configured, and with
 /// links resolved, as its working directory reports it.
 fn keys_of(dir: &Path) -> Vec<String> {
-    let mut keys = vec![dir.to_string_lossy().into_owned()];
-    if let Ok(real) = std::fs::canonicalize(dir) {
-        keys.push(real.to_string_lossy().into_owned());
-    }
+    let mut keys = crate::agent_sessions::root_spellings(&dir.to_string_lossy());
     if cfg!(windows) {
         let slashed: Vec<String> = keys.iter().map(|k| k.replace('\\', "/")).collect();
         keys.extend(slashed);
@@ -60,12 +57,11 @@ fn carry_in(file: &Path, source_keys: &[String], copy_name: &str) -> Result<(), 
         let Ok(meta) = std::fs::metadata(file) else {
             return Ok(());
         };
-        let stamp = (meta.modified().ok(), meta.len());
         let text = std::fs::read_to_string(file).map_err(|e| e.to_string())?;
         let Some(next) = with_copy_trusted(&text, source_keys, copy_name)? else {
             return Ok(());
         };
-        if write_if_unchanged(file, &meta, stamp, &next)? {
+        if write_if_unchanged(file, &meta, &next)? {
             return Ok(());
         }
     }
@@ -129,29 +125,25 @@ fn trusted(raw: &str) -> bool {
 
 /// Replaces the file the way Claude Code does (a temp file renamed over it),
 /// unless it changed since it was read; false means read it again.
-fn write_if_unchanged(
-    file: &Path,
-    meta: &std::fs::Metadata,
-    stamp: (Option<SystemTime>, u64),
-    text: &str,
-) -> Result<bool, String> {
-    let tmp = file.with_file_name(format!(
-        "{}.lpm.{}.tmp",
-        file.file_name().and_then(|n| n.to_str()).unwrap_or(".claude.json"),
-        std::process::id()
-    ));
-    std::fs::write(&tmp, text).map_err(|e| e.to_string())?;
-    let _ = crate::fsperm::set_mode(&tmp, crate::fsperm::mode(meta));
-    let now = std::fs::metadata(file).ok().map(|m| (m.modified().ok(), m.len()));
-    if now != Some(stamp) {
-        let _ = std::fs::remove_file(&tmp);
-        return Ok(false);
+fn write_if_unchanged(file: &Path, meta: &std::fs::Metadata, text: &str) -> Result<bool, String> {
+    let stamp = (meta.modified().ok(), meta.len());
+    let mut changed = false;
+    let written = crate::fsatomic::write_with(file, crate::fsatomic::Mode::Preserve(0o600), |f| {
+        f.write_all(text.as_bytes())?;
+        changed = std::fs::metadata(file)
+            .ok()
+            .map(|m| (m.modified().ok(), m.len()))
+            != Some(stamp);
+        if changed {
+            return Err(std::io::ErrorKind::Interrupted.into());
+        }
+        Ok(())
+    });
+    match written {
+        Ok(()) => Ok(true),
+        Err(_) if changed => Ok(false),
+        Err(e) => Err(e.to_string()),
     }
-    std::fs::rename(&tmp, file).map_err(|e| {
-        let _ = std::fs::remove_file(&tmp);
-        e.to_string()
-    })?;
-    Ok(true)
 }
 
 /// A JSON object's members in file order, each value as its original text,

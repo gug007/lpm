@@ -166,11 +166,16 @@ pub(crate) fn clip(text: &str, max: usize) -> String {
 }
 
 fn strip_ansi(s: &str) -> String {
+    strip_ansi_keeping(s, |c| !c.is_control())
+}
+
+/// `s` without escape sequences, keeping only the other characters `keep` accepts.
+pub(crate) fn strip_ansi_keeping(s: &str, keep: impl Fn(char) -> bool) -> String {
     let mut out = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
         if c != '\u{1b}' {
-            if !c.is_control() {
+            if keep(c) {
                 out.push(c);
             }
             continue;

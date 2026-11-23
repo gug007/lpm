@@ -188,6 +188,11 @@ export function JobEditorModal({
         setDraft(next);
         setComposerSession((n) => n + 1);
       })
+      .catch((err) => {
+        if (cancelled) return;
+        toast.error(`Couldn't open this automation: ${err instanceof Error ? err.message : String(err)}`);
+        onClose();
+      })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });

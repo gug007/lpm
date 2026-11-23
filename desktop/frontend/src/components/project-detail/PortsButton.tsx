@@ -22,13 +22,17 @@ export function PortsButton({ projectName }: PortsButtonProps) {
   useEffect(() => {
     let cancelled = false;
     const refresh = async () => {
-      const [list, pending] = await Promise.all([
-        ListPortForwards(projectName),
-        GetSuggestedPorts(projectName),
-      ]);
-      if (cancelled) return;
-      setForwards(list);
-      setSuggestions(pending);
+      try {
+        const [list, pending] = await Promise.all([
+          ListPortForwards(projectName),
+          GetSuggestedPorts(projectName),
+        ]);
+        if (cancelled) return;
+        setForwards(list);
+        setSuggestions(pending);
+      } catch {
+        // Keep the last known ports; the next change event refreshes them.
+      }
     };
     void refresh();
     const off = EventsOn("ports-changed", (changed: string) => {

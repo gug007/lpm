@@ -25,6 +25,8 @@ mod backend;
 use backend::detect;
 #[cfg(target_os = "macos")]
 pub(crate) use backend::detect_by_paths;
+#[cfg(windows)]
+pub(crate) use backend::pwsh;
 pub(crate) use backend::{open_file_with, vscode_cli};
 
 #[derive(Serialize)]

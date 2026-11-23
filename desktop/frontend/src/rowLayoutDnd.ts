@@ -9,13 +9,6 @@ export type ZoneItems = Record<string, RowDetail[]>;
 
 export const zoneId = (line: number, side: RowSide) => `L${line}-${side}`;
 
-export function parseZone(id: string): { line: number; side: RowSide } | null {
-  const m = /^L(\d+)-(left|right)$/.exec(id);
-  return m ? { line: Number(m[1]), side: m[2] as RowSide } : null;
-}
-
-export const isZoneId = (id: string) => id === TRAY_ZONE || parseZone(id) !== null;
-
 export function itemsFromLines(lines: readonly RowLine[]): ZoneItems {
   const items: ZoneItems = {};
   const placed = new Set<RowDetail>();

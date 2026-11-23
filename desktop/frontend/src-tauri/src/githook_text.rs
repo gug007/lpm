@@ -2,7 +2,7 @@
 // what it found ("eslint · 3 errors in src/billing.ts") for the tools commit
 // hooks usually run: lint-staged, the pre-commit framework, eslint, tsc, ruff,
 // prettier. Anything else gets its first line that reads as an error.
-use crate::action_exec::clip;
+use crate::action_exec::{clip, strip_ansi_keeping};
 use regex::Regex;
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
@@ -22,32 +22,9 @@ fn plain_line(line: &str) -> String {
         Some((_, last)) => last,
         None => line,
     };
-    let mut out = String::with_capacity(line.len());
-    let mut chars = line.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '\u{1b}' {
-            match chars.next() {
-                Some('[') => {
-                    for c in chars.by_ref() {
-                        if ('@'..='~').contains(&c) {
-                            break;
-                        }
-                    }
-                }
-                Some(']') => {
-                    while let Some(c) = chars.next() {
-                        if c == '\u{7}' || (c == '\u{1b}' && chars.next_if_eq(&'\\').is_some()) {
-                            break;
-                        }
-                    }
-                }
-                _ => {}
-            }
-        } else if c == '\t' || !c.is_control() {
-            out.push(c);
-        }
-    }
-    out.trim_end().to_string()
+    strip_ansi_keeping(line, |c| c == '\t' || !c.is_control())
+        .trim_end()
+        .to_string()
 }
 
 /// The output as it reads in a terminal: no colours or spinner frames, no runs

@@ -83,13 +83,7 @@ fn state() -> &'static Mutex<State> {
 fn busy(app: &AppHandle) -> Busy {
     let agents = app
         .try_state::<Arc<crate::status::StatusStore>>()
-        .map(|store| {
-            store
-                .live_agent_entries()
-                .into_iter()
-                .map(|(_, entry)| entry.pane_id)
-                .collect()
-        })
+        .map(|store| store.live_agent_panes())
         .unwrap_or_default();
     Busy {
         agents,

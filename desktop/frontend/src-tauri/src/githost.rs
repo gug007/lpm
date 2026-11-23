@@ -4,10 +4,9 @@
 // self-hosted GitLab is one whose host says "gitlab", or one `glab` is signed
 // in to.
 use serde::Serialize;
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use crate::ttl_cache::TtlCache;
+use std::time::Duration;
 
 /// An origin can change under a checkout; a minute is soon enough to notice.
 const FRESH: Duration = Duration::from_secs(60);
@@ -33,26 +32,14 @@ impl GitLabRepo {
     }
 }
 
-fn cache() -> &'static Mutex<HashMap<String, (Forge, Instant)>> {
-    static CACHE: OnceLock<Mutex<HashMap<String, (Forge, Instant)>>> = OnceLock::new();
-    CACHE.get_or_init(Default::default)
-}
-
 /// The forge of `cwd`'s origin.
 pub(crate) fn forge(cwd: &str) -> Forge {
-    if let Some((forge, at)) = cache().lock().unwrap().get(cwd) {
-        if at.elapsed() < FRESH {
-            return forge.clone();
-        }
-    }
-    let url = crate::git::git_out(cwd, &["remote", "get-url", "origin"]).unwrap_or_default();
-    let local = crate::sshexec::remote_project_for_path(cwd).is_none();
-    let forge = forge_of_url(&url, |host| local && glab_signed_in_to(host));
-    cache()
-        .lock()
-        .unwrap()
-        .insert(cwd.to_string(), (forge.clone(), Instant::now()));
-    forge
+    static FORGES: TtlCache<String, Forge> = TtlCache::new(FRESH);
+    FORGES.get_or(cwd.to_string(), || {
+        let url = crate::git::git_out(cwd, &["remote", "get-url", "origin"]).unwrap_or_default();
+        let local = crate::sshexec::remote_project_for_path(cwd).is_none();
+        forge_of_url(&url, |host| local && glab_signed_in_to(host))
+    })
 }
 
 /// The GitLab repository `cwd` pushes to, if its origin is on GitLab.
@@ -112,12 +99,11 @@ pub(crate) fn origin_parts(url: &str) -> Option<(String, String)> {
 /// The hosts `glab` keeps a sign-in for, read from its config file. Every
 /// version keeps it in `glab-cli/config.yml` under one of these folders.
 fn glab_hosts() -> Vec<String> {
-    static HOSTS: OnceLock<Mutex<(Vec<String>, Option<Instant>)>> = OnceLock::new();
-    let slot = HOSTS.get_or_init(|| Mutex::new((Vec::new(), None)));
-    let mut slot = slot.lock().unwrap();
-    if slot.1.is_some_and(|at| at.elapsed() < FRESH) {
-        return slot.0.clone();
-    }
+    static HOSTS: TtlCache<(), Vec<String>> = TtlCache::new(FRESH);
+    HOSTS.get_or((), read_glab_hosts)
+}
+
+fn read_glab_hosts() -> Vec<String> {
     let mut hosts: Vec<String> = Vec::new();
     for file in glab_config_files() {
         if let Ok(text) = std::fs::read_to_string(&file) {
@@ -137,7 +123,6 @@ fn glab_hosts() -> Vec<String> {
             hosts.push(host.to_string());
         }
     }
-    *slot = (hosts.clone(), Some(Instant::now()));
     hosts
 }
 
@@ -198,17 +183,8 @@ fn hosts_in_config(text: &str) -> Vec<String> {
 /// Whether the `glab` CLI is on PATH. Asked again after a while, so installing
 /// it while lpm runs is noticed without a restart.
 pub(crate) fn glab_installed() -> bool {
-    static SEEN: OnceLock<Mutex<Option<(bool, Instant)>>> = OnceLock::new();
-    let slot = SEEN.get_or_init(|| Mutex::new(None));
-    let mut slot = slot.lock().unwrap();
-    if let Some((found, at)) = *slot {
-        if at.elapsed() < Duration::from_secs(30) {
-            return found;
-        }
-    }
-    let found = crate::sys::which("glab");
-    *slot = Some((found, Instant::now()));
-    found
+    static SEEN: TtlCache<(), bool> = TtlCache::new(Duration::from_secs(30));
+    SEEN.get_or((), || crate::sys::which("glab"))
 }
 
 /// Run `glab` in `cwd` without prompts or update notices. A local checkout
@@ -231,14 +207,19 @@ pub(crate) fn glab_out(cwd: &str, args: &[&str]) -> Result<String, String> {
     .map_err(|e| tidy_error(&e))
 }
 
-/// `glab api` against `repo`'s own instance: `endpoint` is a REST v4 path.
+/// `glab api` against `repo`'s own instance, on its project: `path` is the
+/// REST v4 path after `projects/<id>/`, empty for the project itself.
 pub(crate) fn glab_api(
     cwd: &str,
     repo: &GitLabRepo,
-    endpoint: &str,
+    path: &str,
     extra: &[&str],
 ) -> Result<String, String> {
-    let mut args = vec!["api", "--hostname", repo.host.as_str(), endpoint];
+    let endpoint = match path {
+        "" => format!("projects/{}", repo.api_project()),
+        path => format!("projects/{}/{path}", repo.api_project()),
+    };
+    let mut args = vec!["api", "--hostname", repo.host.as_str(), &endpoint];
     args.extend_from_slice(extra);
     glab_out(cwd, &args).map_err(|e| {
         if e.contains("401") || e.contains("Unauthorized") {

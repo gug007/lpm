@@ -63,18 +63,12 @@ fn find(cwd: &str, repo: &GitLabRepo) -> Option<Mr> {
         return None;
     }
     let list = format!(
-        "projects/{}/merge_requests?source_branch={}&order_by=updated_at&sort=desc&per_page=20",
-        repo.api_project(),
+        "merge_requests?source_branch={}&order_by=updated_at&sort=desc&per_page=20",
         urlencoding::encode(branch)
     );
     let listed: Vec<Mr> = serde_json::from_str(&glab_api(cwd, repo, &list, &[]).ok()?).ok()?;
     let picked = pick(&listed)?;
-    let one = format!(
-        "projects/{}/merge_requests/{}",
-        repo.api_project(),
-        picked.iid
-    );
-    let mr = glab_api(cwd, repo, &one, &[])
+    let mr = glab_api(cwd, repo, &format!("merge_requests/{}", picked.iid), &[])
         .ok()
         .and_then(|json| serde_json::from_str::<Mr>(&json).ok())
         .filter(|mr| mr.iid == picked.iid)
@@ -222,8 +216,7 @@ pub(crate) fn create(
     for field in &fields {
         args.extend(["-f", field.as_str()]);
     }
-    let endpoint = format!("projects/{}/merge_requests", repo.api_project());
-    let json = glab_api(cwd, repo, &endpoint, &args)?;
+    let json = glab_api(cwd, repo, "merge_requests", &args)?;
     created_url(&json)
         .ok_or_else(|| format!("GitLab didn't say where the merge request is: {json}"))
 }
@@ -237,7 +230,7 @@ fn created_url(json: &str) -> Option<String> {
 }
 
 fn default_branch(cwd: &str, repo: &GitLabRepo) -> Result<String, String> {
-    let json = glab_api(cwd, repo, &format!("projects/{}", repo.api_project()), &[])?;
+    let json = glab_api(cwd, repo, "", &[])?;
     serde_json::from_str::<serde_json::Value>(&json)
         .ok()
         .and_then(|v| v["default_branch"].as_str().map(str::to_string))

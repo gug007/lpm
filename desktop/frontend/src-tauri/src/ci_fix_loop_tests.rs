@@ -20,7 +20,7 @@ fn check(name: &str, state: &'static str, commit: Option<&str>) -> PrCheck {
     }
 }
 
-fn view(state: &'static str, round: u32) -> FixLoop {
+fn view(state: Phase, round: u32) -> FixLoop {
     let mut v = FixLoop {
         project: "storefront".into(),
         agent: "Claude Code".into(),
@@ -137,29 +137,29 @@ fn an_older_failure_that_didnt_run_again_isnt_a_pass() {
 
 #[test]
 fn the_line_under_the_switch_says_where_the_round_stands() {
-    let starting = view("starting", 1);
+    let starting = view(Phase::Starting, 1);
     assert_eq!(starting.detail, "Opening the Claude Code tab…");
     assert_eq!(starting.progress, 0.0);
-    let watching = view("watching", 2);
+    let watching = view(Phase::Watching, 2);
     assert_eq!(
         watching.detail,
         "Claude Code pushed 7c41e2a · watching the new run"
     );
     assert!(watching.progress > 1.0 / 3.0 && watching.progress < 2.0 / 3.0);
     assert!(watching.running());
-    assert_eq!(view("fixing", 1).detail, "Claude Code is fixing 7c41e2a");
-    let passed = view("passed", 2);
+    assert_eq!(view(Phase::Fixing, 1).detail, "Claude Code is fixing 7c41e2a");
+    let passed = view(Phase::Passed, 2);
     assert_eq!(passed.detail, "CI passed after 2 rounds");
     assert_eq!(passed.progress, 1.0);
     assert!(!passed.running());
-    assert_eq!(view("passed", 1).detail, "CI passed after one round");
+    assert_eq!(view(Phase::Passed, 1).detail, "CI passed after one round");
 }
 
 #[test]
 fn a_stopped_loop_says_why_and_the_alert_says_it_too() {
     let mut stopped = FixLoop {
         reason: Some("Claude Code is asking you something.".into()),
-        ..view("stopped", 2)
+        ..view(Phase::Stopped, 2)
     };
     describe(&mut stopped);
     assert_eq!(stopped.detail, "Claude Code is asking you something.");
@@ -168,13 +168,13 @@ fn a_stopped_loop_says_why_and_the_alert_says_it_too() {
         body,
         "Stopped fixing CI: Claude Code is asking you something."
     );
-    let (_, body) = alert_text(&view("passed", 2));
+    let (_, body) = alert_text(&view(Phase::Passed, 2));
     assert_eq!(body, "CI passed after 2 rounds · fixed by Claude Code");
 }
 
 #[test]
 fn the_apps_read_the_loop_in_camel_case() {
-    let json = serde_json::to_value(view("watching", 2)).unwrap();
+    let json = serde_json::to_value(view(Phase::Watching, 2)).unwrap();
     assert_eq!(json["maxRounds"], 3);
     assert_eq!(json["state"], "watching");
     assert!(json.get("reason").is_none());

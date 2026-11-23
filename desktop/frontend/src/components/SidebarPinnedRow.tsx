@@ -14,8 +14,7 @@ import { SidebarRowExtraLines } from "./SidebarRowExtraLines";
 import { SidebarRowSide } from "./SidebarRowSide";
 import { useRowDataOf } from "../hooks/useRowDataOf";
 import { useSidebarRowLayout } from "../hooks/useSidebarRowLayout";
-import { detailShows } from "../sidebarRowDetails";
-import { visibleLines } from "../sidebarRowLayout";
+import { rowLines } from "../sidebarRowDetails";
 import { WorkStatusMark } from "./WorkStatusMark";
 import { DONE_STYLE, ROW_BASE_CLASS, ROW_TWO_LINE_CLASS, rowTrailing } from "./sidebarRowClass";
 
@@ -64,7 +63,7 @@ export function SidebarPinnedRow({
   const data = useRowDataOf(layout)(project);
   // The pinned copy of a row leaves origin to the row in the list below.
   const builtIns = { alert: alert !== null, status: noteLine !== null, origin: false };
-  const lines = visibleLines(layout.lines, (d) => detailShows(d, data, builtIns, layout));
+  const lines = rowLines(layout, data, builtIns);
   const detailProps = {
     data,
     layout,

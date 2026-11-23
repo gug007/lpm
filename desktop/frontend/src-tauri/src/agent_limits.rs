@@ -740,13 +740,17 @@ pub(crate) fn record_claude(
         account_id: Some(id.to_string()),
         ..limits.clone()
     };
-    let changed = store.set(&claude_store_key(account_id), reading_for(account_id), now, fresh);
+    let changed = store.set(
+        &claude_store_key(account_id),
+        reading_for(account_id),
+        now,
+        fresh,
+    );
     if changed {
-        for id in crate::agent_limits_login::profiles_like(account_id, limits.identity.as_deref()).iter().skip(1) {
-            store.set(&claude_store_key(id), reading_for(id), now, fresh);
+        let identity = limits.identity.as_deref();
+        for id in crate::agent_limits_login::other_profiles_like(account_id, identity) {
+            store.set(&claude_store_key(&id), reading_for(&id), now, fresh);
         }
-    }
-    if changed {
         emit_snapshot(app, store);
         crate::claude_pool::refresh();
     }

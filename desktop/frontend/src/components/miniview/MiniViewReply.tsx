@@ -3,6 +3,7 @@ import { answerAgentDialog } from "../../agentDialogScreen";
 import type { AgentDialog } from "../../agentDialog";
 import { deliverInput } from "../terminal/deliverInput";
 import { isImeComposing } from "../../imeComposing";
+import { toast } from "../../notifications/toast";
 import { interactiveSessions } from "../InteractivePane";
 
 // Choices past this many are left to the tab itself, so the view stays small.
@@ -33,7 +34,9 @@ export function MiniViewReply({
             title={option.label}
             onClick={(e) => {
               e.stopPropagation();
-              void answerAgentDialog(terminalId, dialog, option);
+              answerAgentDialog(terminalId, dialog, option).catch((err) =>
+                toast.error(`Couldn't answer: ${String(err)}`),
+              );
             }}
             className="min-w-0 max-w-full truncate rounded-md border border-[var(--border)] bg-[var(--bg-primary)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
           >

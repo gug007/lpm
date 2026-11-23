@@ -124,32 +124,16 @@ fn json_version(path: &Path) -> Option<String> {
         .map(str::to_string)
 }
 
-/// The quoted `version = "…"` in one of `tables`. A version taken from a
-/// workspace (`version.workspace = true`) has no value of its own here.
+/// The `version` string in the first of `tables` (dotted paths) that has one.
+/// A version taken from a workspace (`version.workspace = true`) is a table,
+/// not a value of its own here.
 fn toml_version(path: &Path, tables: &[&str]) -> Option<String> {
-    let text = fs::read_to_string(path).ok()?;
-    let mut table = String::new();
-    for line in text.lines() {
-        let line = line.trim();
-        if line.starts_with('[') {
-            table = line.trim_matches(['[', ']']).trim().to_string();
-            continue;
-        }
-        if !tables.contains(&table.as_str()) {
-            continue;
-        }
-        let Some(rest) = line.strip_prefix("version") else {
-            continue;
-        };
-        let Some(value) = rest.trim_start().strip_prefix('=') else {
-            continue;
-        };
-        let version = value.trim().strip_prefix('"')?.split('"').next()?;
-        if !version.is_empty() {
-            return Some(version.to_string());
-        }
-    }
-    None
+    let doc: toml_edit::DocumentMut = fs::read_to_string(path).ok()?.parse().ok()?;
+    tables.iter().find_map(|table| {
+        let item = table.split('.').try_fold(doc.as_item(), |item, key| item.get(key))?;
+        let version = item.get("version")?.as_str()?.trim();
+        (!version.is_empty()).then(|| version.to_string())
+    })
 }
 
 #[cfg(test)]
