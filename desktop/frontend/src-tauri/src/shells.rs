@@ -111,7 +111,13 @@ fn found() -> Vec<Shell> {
     let system = std::env::var_os("SystemRoot")
         .or_else(|| std::env::var_os("windir"))
         .map(|root| PathBuf::from(root).join("System32"));
-    let pwsh = crate::openin::pwsh().map(PathBuf::from);
+    let pwsh = crate::sys::find_on_path("pwsh.exe").or_else(|| {
+        ["ProgramFiles", "ProgramW6432"]
+            .iter()
+            .filter_map(std::env::var_os)
+            .map(|dir| PathBuf::from(dir).join(r"PowerShell\7\pwsh.exe"))
+            .find(|p| p.is_file())
+    });
     let cmd = std::env::var_os("ComSpec")
         .map(PathBuf::from)
         .or_else(|| system.as_ref().map(|s| s.join("cmd.exe")));

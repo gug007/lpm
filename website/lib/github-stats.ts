@@ -1,4 +1,4 @@
-import { DOWNLOAD_ENTRIES } from "./downloads";
+import { assetNames, DOWNLOAD_ENTRIES, type DownloadPlatform } from "./downloads";
 import { REPO_API_URL } from "./links";
 
 const RELEASES_API = `${REPO_API_URL}/releases`;
@@ -41,14 +41,20 @@ export type DownloadStats = {
   fetchedAt: string;
 };
 
-const DESKTOP_ASSET_LABELS: Record<string, string> = {
-  [DOWNLOAD_ENTRIES["mac-arm"].filename]: "macOS Desktop — Apple Silicon",
-  [DOWNLOAD_ENTRIES["mac-intel"].filename]: "macOS Desktop — Intel",
-  [DOWNLOAD_ENTRIES["windows-x64"].filename]: "Windows Desktop — x64",
-  [DOWNLOAD_ENTRIES["linux-deb"].filename]: "Linux Desktop — .deb",
-  [DOWNLOAD_ENTRIES["linux-rpm"].filename]: "Linux Desktop — .rpm",
-  [DOWNLOAD_ENTRIES["linux-appimage"].filename]: "Linux Desktop — AppImage",
+const PLATFORM_LABELS: Record<DownloadPlatform, string> = {
+  "mac-arm": "macOS Desktop — Apple Silicon",
+  "mac-intel": "macOS Desktop — Intel",
+  "windows-x64": "Windows Desktop — x64",
+  "linux-deb": "Linux Desktop — .deb",
+  "linux-rpm": "Linux Desktop — .rpm",
+  "linux-appimage": "Linux Desktop — AppImage",
 };
+
+const DESKTOP_ASSET_LABELS: Record<string, string> = Object.fromEntries(
+  Object.values(DOWNLOAD_ENTRIES).flatMap((entry) =>
+    assetNames(entry).map((name) => [name, PLATFORM_LABELS[entry.platform]]),
+  ),
+);
 
 function classify(name: string): string | null {
   return DESKTOP_ASSET_LABELS[name] ?? null;

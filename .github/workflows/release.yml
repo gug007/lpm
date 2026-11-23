@@ -305,6 +305,10 @@ jobs:
   # job, so a failure here never holds back the DMGs.
   build-linux-desktop:
     runs-on: ubuntu-22.04
+    env:
+      # Where AppImageUpdate and similar tools look for a newer lpm: the latest
+      # stable release, whose .zsync file tells them which parts changed.
+      LDAI_UPDATE_INFORMATION: gh-releases-zsync|gug007|lpm|latest|lpm-x86_64.AppImage.zsync
     steps:
       - uses: actions/checkout@v7
 
@@ -325,7 +329,7 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libsoup-3.0-dev \
-            build-essential curl wget file pkg-config patchelf
+            build-essential curl wget file pkg-config patchelf zsync
 
       # The built-in Tailscale sidecar (tailnet/, Go) is built and shipped beside
       # the app, and tauri-build checks it exists like the CLI sidecar.
@@ -375,19 +379,30 @@ jobs:
           [ "$count" -gt 100 ] || { echo "binary looks like a plain cargo build" >&2; exit 1; }
 
       # Stable names, like the DMGs', so a download link can point at
-      # releases/latest/download/<name>.
+      # releases/latest/download/<name>. The AppImage's is the one its tools
+      # expect, app and processor, and the .zsync file is made from it after the
+      # rename because it records that name.
       - name: Rename to release asset names
         run: |
           bundle=desktop/frontend/src-tauri/target/release/bundle
           cp "$bundle"/deb/*.deb lpm-desktop-linux-amd64.deb
           cp "$bundle"/rpm/*.rpm lpm-desktop-linux-amd64.rpm
-          cp "$bundle"/appimage/*.AppImage lpm-desktop-linux-amd64.AppImage
-          ls -lh lpm-desktop-linux-amd64.*
+          cp "$bundle"/appimage/*.AppImage lpm-x86_64.AppImage
+          zsyncmake -u lpm-x86_64.AppImage lpm-x86_64.AppImage
+          ls -lh lpm-desktop-linux-amd64.* lpm-x86_64.*
+
+      - name: Verify the AppImage says where its updates are
+        run: |
+          embedded=$(./lpm-x86_64.AppImage --appimage-updateinformation)
+          echo "update information: $embedded"
+          [ "$embedded" = "$LDAI_UPDATE_INFORMATION" ] || { echo "expected $LDAI_UPDATE_INFORMATION" >&2; exit 1; }
 
       - uses: actions/upload-artifact@v7
         with:
           name: linux-desktop
-          path: lpm-desktop-linux-amd64.*
+          path: |
+            lpm-desktop-linux-amd64.*
+            lpm-x86_64.*
           if-no-files-found: error
           retention-days: 1
 
@@ -620,7 +635,9 @@ jobs:
       - name: Upload to release
         uses: softprops/action-gh-release@v3
         with:
-          files: dist/lpm-desktop-linux-amd64.*
+          files: |
+            dist/lpm-desktop-linux-amd64.*
+            dist/lpm-x86_64.*
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

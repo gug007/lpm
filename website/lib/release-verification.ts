@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  assetNames,
   DOWNLOAD_ENTRIES,
   type DesktopOs,
   type DownloadPlatform,
@@ -77,8 +78,10 @@ export async function getLatestReleaseVerification(): Promise<ReleaseVerificatio
     const assets: ReleaseVerificationAsset[] = [];
 
     for (const expected of EXPECTED_ASSETS) {
-      const { filename, os } = DOWNLOAD_ENTRIES[expected.platform];
-      const asset = release.assets.find(({ name }) => name === filename);
+      const entry = DOWNLOAD_ENTRIES[expected.platform];
+      const asset = assetNames(entry)
+        .map((name) => release.assets.find((a) => a.name === name))
+        .find((found) => found !== undefined);
       const sha256 = parseSha256(asset?.digest ?? null);
       if (!asset || !sha256) {
         if (expected.required) return null;
@@ -86,9 +89,9 @@ export async function getLatestReleaseVerification(): Promise<ReleaseVerificatio
       }
 
       assets.push({
-        filename,
+        filename: asset.name,
         platform: expected.platform,
-        os,
+        os: entry.os,
         label: expected.label,
         architecture: expected.architecture,
         sha256,

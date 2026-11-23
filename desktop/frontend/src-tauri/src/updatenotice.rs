@@ -144,6 +144,26 @@ mod tests {
     }
 
     #[test]
+    fn offers_the_appimage_rather_than_its_zsync_file() {
+        let release = [
+            "lpm-desktop-linux-amd64.deb",
+            "lpm-desktop-linux-amd64.rpm",
+            "lpm-desktop-macos-amd64.dmg",
+            "lpm-host-linux-amd64.tar.gz",
+            "lpm-x86_64.AppImage.zsync",
+            "lpm-x86_64.AppImage",
+        ];
+        let cases = [
+            (Installer::AppImage, "lpm-x86_64.AppImage"),
+            (Installer::Deb, "lpm-desktop-linux-amd64.deb"),
+            (Installer::Rpm, "lpm-desktop-linux-amd64.rpm"),
+        ];
+        for (kind, want) in cases {
+            assert_eq!(pick(&release, kind, "x86_64"), Some(want), "{kind:?}");
+        }
+    }
+
+    #[test]
     fn falls_back_to_msi_then_an_arch_neutral_asset() {
         let names = ["lpm_1.4.0_x64_en-US.msi", "lpm-cli-windows-amd64.exe"];
         assert_eq!(

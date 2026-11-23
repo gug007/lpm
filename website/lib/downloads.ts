@@ -13,6 +13,8 @@ export type DownloadEntry = {
   platform: DownloadPlatform;
   os: DesktopOs;
   filename: string;
+  // What older releases call this build, so their downloads still count.
+  formerFilename?: string;
   href: string;
   label: string;
   choiceLabel: string;
@@ -26,7 +28,11 @@ function entry(
   filename: string,
   copy: Pick<
     DownloadEntry,
-    "label" | "choiceLabel" | "choiceDescription" | "ariaLabel"
+    | "label"
+    | "choiceLabel"
+    | "choiceDescription"
+    | "ariaLabel"
+    | "formerFilename"
   >,
 ): DownloadEntry {
   return { platform, os, filename, href: releaseAsset(filename), ...copy };
@@ -72,8 +78,9 @@ export const DOWNLOAD_ENTRIES: Record<DownloadPlatform, DownloadEntry> = {
   "linux-appimage": entry(
     "linux-appimage",
     "linux",
-    "lpm-desktop-linux-amd64.AppImage",
+    "lpm-x86_64.AppImage",
     {
+      formerFilename: "lpm-desktop-linux-amd64.AppImage",
       label: "Download for Linux (AppImage)",
       choiceLabel: "AppImage",
       choiceDescription: "One portable file",
@@ -81,6 +88,11 @@ export const DOWNLOAD_ENTRIES: Record<DownloadPlatform, DownloadEntry> = {
     },
   ),
 };
+
+// Every name this build goes by across releases, the current one first.
+export function assetNames({ filename, formerFilename }: DownloadEntry): string[] {
+  return formerFilename ? [filename, formerFilename] : [filename];
+}
 
 export function entryForFilename(filename: string): DownloadEntry | undefined {
   return Object.values(DOWNLOAD_ENTRIES).find(

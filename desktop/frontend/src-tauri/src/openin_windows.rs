@@ -81,11 +81,6 @@ fn from_table(id: &str) -> Option<String> {
     first_file(rels.iter().flat_map(|rel| installed(rel))).or_else(|| on_path(bins))
 }
 
-/// PowerShell 7's `pwsh.exe`, or None when not installed.
-pub(crate) fn pwsh() -> Option<String> {
-    from_table("powershell")
-}
-
 /// The app's launcher, or None when not installed.
 pub(crate) fn detect(id: &str) -> Option<String> {
     match id {

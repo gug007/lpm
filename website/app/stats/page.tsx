@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { DownloadFooter } from "@/components/download-footer";
-import { DOWNLOAD_ENTRIES, DOWNLOADS_BY_OS } from "@/lib/downloads";
+import { assetNames, DOWNLOAD_ENTRIES, DOWNLOADS_BY_OS } from "@/lib/downloads";
 import { getDownloadStats, type ReleaseStat } from "@/lib/github-stats";
 import {
   RELEASES_URL,
@@ -85,7 +85,7 @@ function platformCards(releases: ReleaseStat[]): PlatformCard[] {
   if (windows > 0) {
     cards.push({ label: "Windows", value: windows, note: "x64 installer" });
   }
-  const linux = count(...DOWNLOADS_BY_OS.linux.map(({ filename }) => filename));
+  const linux = count(...DOWNLOADS_BY_OS.linux.flatMap(assetNames));
   if (linux > 0) {
     cards.push({ label: "Linux", value: linux, note: ".deb, .rpm and AppImage" });
   }

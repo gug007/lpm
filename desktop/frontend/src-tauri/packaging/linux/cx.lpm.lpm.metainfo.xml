@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>cx.lpm.lpm</id>
+  <name>lpm</name>
+  <summary>Switch between projects and terminals in seconds</summary>
+  <developer id="cx.lpm">
+    <name>gug007</name>
+  </developer>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <description>
+    <p>Start, stop, duplicate and switch between your dev projects with a single click, with a built-in terminal for running AI coding agents like Claude Code and Codex alongside your services.</p>
+    <ul>
+      <li>Start every service in a project with one click, each with a log tab of its own</li>
+      <li>Run Claude Code, Codex and other agents in the built-in terminal</li>
+      <li>Give each agent its own copy of the project, so agents don't get in each other's way</li>
+      <li>See which agent needs you</li>
+      <li>Switch projects without stopping what's running</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">lpm.desktop</launchable>
+  <categories>
+    <category>Development</category>
+  </categories>
+  <url type="homepage">https://lpm.cx</url>
+  <url type="help">https://lpm.cx/docs</url>
+  <url type="bugtracker">https://github.com/gug007/lpm/issues</url>
+  <url type="vcs-browser">https://github.com/gug007/lpm</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>A project's services and a terminal in one window</caption>
+      <image>https://lpm.cx/docs/lpm-linux.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+</component>

@@ -14,6 +14,11 @@
     "shortDescription": "Switch between projects and terminals in seconds",
     "longDescription": "Start, stop, duplicate and switch between your dev projects with a single click, with a built-in terminal for running AI coding agents like Claude Code and Codex alongside your services.",
     "linux": {
+      "appimage": {
+        "files": {
+          "/usr/share/metainfo/cx.lpm.lpm.metainfo.xml": "packaging/linux/cx.lpm.lpm.metainfo.xml"
+        }
+      },
       "deb": {
         "section": "devel",
         "depends": [

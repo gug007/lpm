@@ -73,3 +73,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-pu
 - Claude vs ChatGPT: Opus 5.5 high vs the new GPT-6.2 Sol high build a 3D game
 - Claude vs ChatGPT: Opus 5.5 high vs GPT-6.1 Sol high build a 3D obby
 - Claude vs ChatGPT: Opus 5.5 high vs the new GPT-6.2 Astra high build a space shooter
+- Switch Claude Code accounts without losing your chat

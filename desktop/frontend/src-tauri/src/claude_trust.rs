@@ -12,7 +12,6 @@ use serde_json::value::RawValue;
 use std::borrow::Cow;
 use serde_json::Value;
 use std::fmt;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 const TRUSTED: &str = "hasTrustDialogAccepted";
@@ -124,26 +123,28 @@ fn trusted(raw: &str) -> bool {
 }
 
 /// Replaces the file the way Claude Code does (a temp file renamed over it),
-/// unless it changed since it was read; false means read it again.
+/// unless it changed since it was read; false means read it again. Not
+/// `fsatomic`: its fsync would sit between the check and the rename, and
+/// Claude Code's own write in that gap would be lost.
 fn write_if_unchanged(file: &Path, meta: &std::fs::Metadata, text: &str) -> Result<bool, String> {
     let stamp = (meta.modified().ok(), meta.len());
-    let mut changed = false;
-    let written = crate::fsatomic::write_with(file, crate::fsatomic::Mode::Preserve(0o600), |f| {
-        f.write_all(text.as_bytes())?;
-        changed = std::fs::metadata(file)
-            .ok()
-            .map(|m| (m.modified().ok(), m.len()))
-            != Some(stamp);
-        if changed {
-            return Err(std::io::ErrorKind::Interrupted.into());
-        }
-        Ok(())
-    });
-    match written {
-        Ok(()) => Ok(true),
-        Err(_) if changed => Ok(false),
-        Err(e) => Err(e.to_string()),
+    let tmp = file.with_file_name(format!(
+        "{}.lpm.{}.tmp",
+        file.file_name().and_then(|n| n.to_str()).unwrap_or(".claude.json"),
+        std::process::id()
+    ));
+    std::fs::write(&tmp, text).map_err(|e| e.to_string())?;
+    let _ = crate::fsperm::set_mode(&tmp, crate::fsperm::mode(meta));
+    let now = std::fs::metadata(file).ok().map(|m| (m.modified().ok(), m.len()));
+    if now != Some(stamp) {
+        let _ = std::fs::remove_file(&tmp);
+        return Ok(false);
     }
+    std::fs::rename(&tmp, file).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        e.to_string()
+    })?;
+    Ok(true)
 }
 
 /// A JSON object's members in file order, each value as its original text,
