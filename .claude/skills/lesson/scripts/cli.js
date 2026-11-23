@@ -4,7 +4,9 @@ const path = require("path");
 const { parseArgs } = require("util");
 
 const FLAGS = {
-  "no-audio": "dry run: estimated line lengths, no voice, no mux",
+  "speak-only": "voice the narration and print its real length, without a take",
+  "no-audio": "dry run: never speaks (a line without a clip gets an estimated length)",
+  fresh: "vertical: record a new take even where the last dry run would do as it is",
   frames: "kept for older notes; beat-end frames are always written now",
   "mux-only": "re-cut the last take (or --take) without recording",
   speak: "with --mux-only: speak lines whose text changed and check they still fit the take",
@@ -47,6 +49,7 @@ function parseCli(argv, { script, positional = "required" } = {}) {
   if (!positionals.length && positional === "required") throw usageError(usage(script));
   if (values.take && !values["mux-only"]) throw usageError("--take re-cuts an archived take; add --mux-only");
   if (values.speak && !values["mux-only"]) throw usageError("--speak is for --mux-only re-cuts; a take speaks every changed line anyway");
+  if (values["speak-only"] && (values["mux-only"] || values["no-audio"])) throw usageError("--speak-only only voices the narration; run it on its own");
   if (values["lpm-dir"] && !path.isAbsolute(values["lpm-dir"])) throw usageError(`--lpm-dir must be an absolute path (got ${values["lpm-dir"]})`);
   return { o: values, lesson: positionals[0] || null };
 }

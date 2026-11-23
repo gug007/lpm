@@ -4,6 +4,9 @@
 
 const ease = (p) => (1 - Math.cos(Math.PI * p)) / 2;
 
+const MAX_SCALE = 3;
+const clampScale = (s) => Math.min(MAX_SCALE, Math.max(1, s));
+
 // Where each keyframe's transition starts: wherever the previous one had got
 // to at that frame, so a move that interrupts another never jumps.
 function starts(keys, initial, pick) {
@@ -51,4 +54,4 @@ const toFrames = (keys, fps) =>
     .sort((a, b) => a.startMs - b.startMs)
     .map((k) => ({ ...k, f: Math.round((k.startMs / 1000) * fps), d: Math.max(1, Math.round((k.ms / 1000) * fps)) }));
 
-module.exports = { ease, starts, track, valueAt, toFrames };
+module.exports = { ease, starts, track, valueAt, toFrames, clampScale };

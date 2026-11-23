@@ -20,6 +20,7 @@ const { sleep } = require("./words");
 const { prepareState, guestDir, killStaleServices } = require("./state");
 const { TWO_MAC, twoMacLayout } = require("./twomac");
 const { onTeardown } = require("./teardown");
+const { hideClaudeStatusLine } = require("./guard");
 
 const GAP_MS = 450;
 const LEAD_MS = 500;
@@ -196,6 +197,7 @@ async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmD
   let stage, capture, rec, app;
   let stopping = false;
   try {
+    if (hideClaudeStatusLine(lesson)) log("Claude Code runs without your status line for this take");
     const state = prepareState({ lpmDir, lesson, keepState, log });
     const other = guest && !guest.browser && prepareState({ lpmDir: guestDir(state.lpmDir), lesson: { ...lesson, settings: { ...lesson.settings, ...guest.settings } }, keepState, workspace: false, log });
     if (beats.setup) await beats.setup({ lpmDir: state.lpmDir, workspace: state.workspace, lesson, settings: state.settings, guestDir: other?.lpmDir, guestSettings: other?.settings });
@@ -245,7 +247,7 @@ async function recordApp({ lines, beats, raw, framesDir, errorShot, lesson, lpmD
     const layout = phoneSide ? phoneLayout(OUT, ZOOM) : null;
     const pair = otherApp ? twoMacLayout(OUT, ZOOM, otherSize) : null;
     stage = await Stage.open(app, capture, {
-      framesDir, log, mouse, origin, out: OUT,
+      framesDir, log, mouse, origin, lesson, out: OUT,
       box: layout ? layout.mac : pair ? pair.host : frameBox(OUT, FRAME, ZOOM),
       guest: pair && { app: otherApp, origin: placed.otherOrigin, box: pair.guest, offset: otherApp.contentOffset && (await otherApp.contentOffset()) },
       phone: phoneSide && { driver: phoneSide.driver, press: phoneSide.press, home: phoneSide.home, back: phoneSide.back, relaunch: phoneSide.relaunch, statusBar: phoneSide.statusBar, layout },

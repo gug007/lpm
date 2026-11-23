@@ -8,7 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const { CARD_FADE_MS, OPEN_LIFT } = require("./appstage");
 const { POOLS, POOLS_AT_REST } = require("./overlay");
-const { track, toFrames } = require("./keyframes");
+const { track, toFrames, clampScale } = require("./keyframes");
 const { phoneLayer } = require("./phonecompose");
 const { guestLayer } = require("./twomac");
 const { insetLayer } = require("./insets");
@@ -179,7 +179,7 @@ function editZooms(zooms, edits = {}, log = () => {}) {
       return [];
     }
     const next = { ...z };
-    if (e.scale != null) next.scale = Math.min(3, Math.max(1, e.scale));
+    if (e.scale != null) next.scale = clampScale(e.scale);
     if (e.at) {
       if (!z.rect) throw new Error(`lesson.json zooms: ${z.id} was recorded without its target, so "at" cannot move it; record it again`);
       next.cx = Math.round(z.rect.x + z.rect.w * e.at[0]);

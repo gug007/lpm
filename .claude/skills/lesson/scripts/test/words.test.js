@@ -1,8 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const { norm, alignWords, onsets, findPhrase, Timing } = require("../words");
-
-const heard = (text, step = 300) => text.split(" ").map((word, i) => ({ word, start: (i * step) / 1000, end: (i * step + 250) / 1000 }));
+const heard = require("./heard");
 
 test("numbers and percent read the same written or heard", () => {
   assert.deepStrictEqual(norm("96%"), ["ninety", "six", "percent"]);

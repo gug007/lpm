@@ -1,7 +1,7 @@
 #!/bin/sh
 # take.sh <lesson-dir> [make.js flags]: records a lesson with this skill's
 # make.js (LESSON_MAKER names another skill folder). preflight.js checks the
-# Mac first. Around a recording (not a --mux-only re-cut):
+# Mac first. Around a recording (not a --mux-only re-cut or --speak-only):
 # - the user's agent defaults (model, effort, status line) are saved and put
 #   back afterwards (guard.js); a backup a killed take left is restored first;
 # - the take runs on an empty clipboard (a clipboard handed over from another
@@ -21,7 +21,7 @@ RECORDING=1
 KEEP=0
 for a in "$@"; do
   case "$a" in
-    --mux-only) RECORDING=0 ;;
+    --mux-only | --speak-only) RECORDING=0 ;;
     --keep-state) KEEP=1 ;;
   esac
 done

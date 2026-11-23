@@ -1,7 +1,7 @@
 ---
 name: short-daily
 description: "How the two daily lpm shorts get made: `daily-short` takes its topic from what viewers suggested, `daily-short-research` from research into what gets views. Find a topic, get it approved with one `lpm ask`, then record, check and post it to YouTube Shorts and TikTok in that same turn. Use when either automation runs, or when the user asks for today's short proposal."
-version: 2.0.0
+version: 2.0.1
 metadata:
   lpm-created: "true"
 ---
@@ -69,11 +69,11 @@ A resumed message with no "The user answered" header is the user's own words. A 
      LPM_TIKTOK_DIR=<scratchpad>/race-dry <scratchpad>/race-dry/dry/take.sh --dom-mouse --no-audio --frames
      ```
      Never `<slug>/take.sh --no-audio` for a race: that runs the whole race.
-   - Anything else: `TIKTOK/<slug>/take.sh --dom-mouse --no-audio --frames`.
+   - Anything else: `TIKTOK/<slug>/take.sh --speak-only`, then `TIKTOK/<slug>/take.sh --dom-mouse --no-audio`. Check the sheet and the report it names, and fix what they show. A clean one is the take: step 3 then only renders it.
 
-   Check `frames/` as the lesson's skill says.
+   For a race, check `frames/` as its skill says.
 3. **Take.** It needs `timeoutMin` + 20 minutes left in the turn; if not, ask again. Set `recording`, start `TIKTOK/<slug>/take.sh --dom-mouse --frames --no-qa` with `run_in_background`, and wait with Monitor until it exits. Then set `recorded`.
-4. **Check.** `node SKILLS/lesson/scripts/qa.js TIKTOK/<slug> --vertical`, then review as `short` says, with `sh SKILLS/short/scripts/scan.sh <slug> <scratchpad>`. Never post a QA FAIL or a race side with no time in `result.json`. A popup over static UI: fix it with short-game's `patch.js` and `take.sh --mux-only`. Any other failure ends in the topic question again, with Retake, the backup and Skip as choices.
+4. **Check.** `node SKILLS/lesson/scripts/qa.js TIKTOK/<slug>`, then review as `short` says, with `sh SKILLS/short/scripts/scan.sh <slug> <scratchpad>`. Never post a QA FAIL or a race side with no time in `result.json`. A popup over static UI: fix it with short-game's `patch.js` and `take.sh --mux-only`. Any other failure ends in the topic question again, with Retake, the backup and Skip as choices.
 5. **Post** with `short-publish` from its `prepare.js` on, YouTube then TikTok, TikTok through Chrome; start only with 12 minutes left in the turn. Check first that it isn't live: the Shorts list, `tiktokstudio/content`, `SHORTS.md`. A failed post asks nothing: report it, and tomorrow's proposal offers the other half as its backup. Set `made` before posting and `posted` after.
 6. **Log.** Update the ledgers as `short-publish` says. For a race, `node SKILLS/short-daily/scripts/formats.js posted <slug> --youtube <link> --tiktok <link>`. Add the day to `log.md`, and mark `requests.json` `done` with the links.
 7. **Replies,** for a matchup request, on YouTube only (TikTok's snippet has never posted): `node SKILLS/short-daily/scripts/replies.js draft STATE/labels.json --template requestDone --key '<key>' --a '<A>' --b '<B>' --out STATE/<date>/replies-<slug>.json`, then `fill` the link and run each `snippet` on its address in Chrome. Read only its `{ok, identity, step}`. Report a failure and move on; `not-confirmed` often did post.

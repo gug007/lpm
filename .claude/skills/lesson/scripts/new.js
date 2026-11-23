@@ -10,6 +10,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { parseArgs } = require("util");
+const { slugOf, projectsOf, kitLine, setupBeat, refuseExisting, writeLesson } = require("./scaffold");
 
 const { values: o, positionals } = parseArgs({
   args: process.argv.slice(2),
@@ -23,17 +24,11 @@ if (!title) {
 }
 const ROOT = process.env.LPM_LESSONS_DIR || path.join(os.homedir(), "Movies/lpm-lessons");
 const next = fs.existsSync(ROOT) ? fs.readdirSync(ROOT).reduce((m, n) => Math.max(m, parseInt(n, 10) || 0), 0) + 1 : 1;
-const words = title.toLowerCase().replace(/[^a-z0-9\s-]/g, "").split(/\s+/).filter(Boolean).slice(0, 6);
-const slug = o.slug || `${String(next).padStart(2, "0")}-${words.join("-")}`;
+const slug = o.slug || `${String(next).padStart(2, "0")}-${slugOf(title)}`;
 const dir = path.join(ROOT, slug);
-if (fs.existsSync(dir) && !o.force) {
-  console.error(`${dir} exists; pass --force to rewrite its lesson.json, beats.js and take.sh`);
-  process.exit(1);
-}
+refuseExisting(dir, o.force);
 const card = o.card || title;
-const projects = (o.projects || "storefront").split(",").map((p) => p.trim()).filter(Boolean);
-const PORTS = { storefront: 5173, "client-portal": 3000, "docs-site": 4321, "auth-service": 4000 };
-const SKILL = path.resolve(__dirname, "..");
+const projects = projectsOf(o.projects);
 
 const lesson = {
   title,
@@ -52,19 +47,12 @@ const lesson = {
   },
 };
 
-const seed = projects
-  .map((name) => `    kit.writeProject(lpmDir, workspace, { name: ${JSON.stringify(name)}, port: ${PORTS[name] || 3000} });`)
-  .join("\n");
 const beats = `// ${title}. Recorded from the desktop app; see the skill's
 // reference/beats-api.md for every call a beat can make.
-const kit = require(${JSON.stringify(path.join(SKILL, "scripts", "kit"))});
+${kitLine}
 
 module.exports = {
-  async setup({ lpmDir, workspace, settings }) {
-    kit.neutralShell(lpmDir, workspace);
-${seed}
-    settings({ defaultProjectDirectory: \`\${workspace}/Projects\`, projectOrder: ${JSON.stringify(projects)} });
-  },
+${setupBeat(projects)}
 
   async title(s) {
     await s.card(${JSON.stringify(card)});
@@ -84,8 +72,5 @@ ${seed}
 };
 `;
 
-fs.mkdirSync(dir, { recursive: true });
-fs.writeFileSync(path.join(dir, "lesson.json"), JSON.stringify(lesson, null, 2) + "\n");
-fs.writeFileSync(path.join(dir, "beats.js"), beats);
-fs.writeFileSync(path.join(dir, "take.sh"), `#!/bin/sh\nexec ${JSON.stringify(path.join(SKILL, "scripts", "take.sh"))} "$(dirname "$0")" "$@"\n`, { mode: 0o755 });
+writeLesson(dir, { lesson, beats, skill: path.resolve(__dirname, "..") });
 console.log(`${dir}\n  lesson.json  narration with TODO lines, the youtube block\n  beats.js     setup (${projects.join(", ")}), title card, lpm.cx card\n  take.sh      runs the take: ./take.sh --no-audio for a dry run, then ./take.sh`);

@@ -1,13 +1,15 @@
 #!/usr/bin/env node
-// node qa.js <lesson folder> [--vertical]
+// node qa.js <lesson folder>
 // Checks a finished take before it is published, and writes qa/report.json
 // (lesson-publish's prepare.js refuses a lesson without a passing one):
 // - the screen, read with macOS's text recognition once a second: the user's
 //   account name, full name, computer name, email and home path, any email
-//   address, and error text an agent or the app printed ("Hook failed")
+//   address, lesson.json "hide" terms, and error text an agent or the app
+//   printed ("Hook failed")
 // - the agent replies and clicks the take had to retry (timeline warnings)
 // - dead air: pauses between lines longer than 2.5 s
 // - loudness and true peak of the finished MP4
+// - on a vertical lesson, what its mux found in the cut (cut.json "checks")
 // - qa/sheet.jpg, one frame per narration line, to look over in one glance
 const fs = require("fs");
 const os = require("os");
@@ -19,6 +21,7 @@ const { MASTER } = require("./mix");
 const { helper } = require("./helpers");
 const { STILL_OUT } = require("./compose");
 const { editTimeline } = require("./edit");
+const { SCREEN } = require("./takes");
 
 const DEAD_AIR_MS = 2500;
 const ERROR_TEXT = [
@@ -57,8 +60,23 @@ function identity() {
   return terms.map((t) => ({ ...t, re: new RegExp(`(?<![a-z0-9])${t.text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-z0-9])`) }));
 }
 
-// Text on screen per second of the take, reading each distinct frame once.
-function readScreen(raw) {
+function keptScreen(cache, of) {
+  try {
+    const kept = JSON.parse(fs.readFileSync(cache, "utf8"));
+    return kept.of === of ? kept.seconds : null;
+  } catch {
+    return null;
+  }
+}
+
+// Text on screen per second of the take, reading each distinct frame once. A
+// capture is read once too: `cache` keeps the text for the checks of its next
+// cut.
+function readScreen(raw, cache) {
+  const bin = helper("ocr");
+  const of = [raw, bin].map((f) => fs.statSync(f)).map((s) => `${s.size}:${s.mtimeMs}`).join(" ");
+  const kept = keptScreen(cache, of);
+  if (kept) return kept;
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "lesson-qa-"));
   try {
     execFileSync("ffmpeg", ["-v", "error", "-i", raw, "-vf", "fps=1", "-q:v", "3", path.join(tmp, "%05d.jpg")]);
@@ -71,7 +89,6 @@ function readScreen(raw) {
     }
     const unique = [...byHash.values()].map((fs2) => path.join(tmp, fs2[0]));
     const text = new Map();
-    const bin = helper("ocr");
     for (let i = 0; i < unique.length; i += 40) {
       const r = run(bin, unique.slice(i, i + 40));
       if (r.status !== 0) throw new Error(`text recognition failed (${r.status ?? r.signal}): ${(r.stderr || "").slice(-200)}`);
@@ -87,7 +104,9 @@ function readScreen(raw) {
       const t = text.get(path.join(tmp, group[0])) || "";
       for (const f of group) perSecond.push({ s: parseInt(f, 10) - 1, text: t });
     }
-    return perSecond.sort((a, b) => a.s - b.s);
+    perSecond.sort((a, b) => a.s - b.s);
+    fs.writeFileSync(cache, JSON.stringify({ of, seconds: perSecond }));
+    return perSecond;
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
@@ -104,9 +123,9 @@ function ranges(seconds) {
   return out2.map(([a, b]) => (a === b ? mmss(a * 1000) : `${mmss(a * 1000)}–${mmss(b * 1000)}`)).join(", ");
 }
 
-function screenChecks(raw, clock) {
+function screenChecks(raw, cache, clock, hide = []) {
   const checks = [];
-  const screen = readScreen(raw);
+  const screen = readScreen(raw, cache);
   const hits = new Map();
   const note = (key, level, message, s) => {
     if (!hits.has(key)) hits.set(key, { level, message, seconds: [] });
@@ -121,6 +140,7 @@ function screenChecks(raw, clock) {
     for (const m of low.match(/[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}/g) || []) {
       if (!/@example\./.test(m)) note(`mail:${m}`, "FAIL", `an email address (${m}) is on screen`, s);
     }
+    for (const term of hide) if (low.includes(term.toLowerCase())) note(`hide:${term}`, "FAIL", `"${term}" (lesson.json hide) is on screen`, s);
     for (const e of ERROR_TEXT) if (low.includes(e)) note(`err:${e}`, "FAIL", `error text on screen: "${e}"`, s);
   }
   for (const h of hits.values()) checks.push({ level: h.level, check: "screen", message: `${h.message} at ${ranges(h.seconds)}${clock}` });
@@ -175,24 +195,25 @@ function sheet(mp4, timeline, lesson, file) {
 }
 
 // `raw` is the take's capture; on a vertical lesson or an edited cut its clock
-// is the take's, not the cut's. A vertical lesson has no dead-air check (the
-// edit cuts the waits).
-function runQa({ dir, mp4, raw, timeline, lesson, vertical = false, log = console.log }) {
-  const qaDir = path.join(path.dirname(mp4), "qa");
+// is the take's, not the cut's. A vertical lesson has a `cut` (its cut.json),
+// whose own checks stand in for the dead-air check, which reads the uncut take.
+function runQa({ dir, mp4, raw, timeline, lesson, cut = null, log = console.log }) {
+  const screenFile = path.join(path.dirname(mp4), SCREEN);
+  const qaDir = path.dirname(screenFile);
   fs.mkdirSync(qaDir, { recursive: true });
   const checks = [];
   try {
-    checks.push(...screenChecks(raw, vertical || timeline.edit ? " (take time)" : ""));
+    checks.push(...screenChecks(raw, screenFile, cut || timeline.edit ? " (take time)" : "", lesson.hide));
   } catch (e) {
     checks.push({ level: "FAIL", check: "screen", message: `the screen could not be read, so nothing was checked for names or errors: ${e.message}` });
   }
   for (const w of timeline.warnings || []) {
     checks.push({ level: w.kind === "agent" ? "FAIL" : "WARN", check: w.kind, message: `${w.message}${w.line ? ` (line "${w.line}")` : ""}` });
   }
-  if (!vertical) checks.push(...deadAir(timeline));
+  checks.push(...(cut ? cut.checks || [] : deadAir(timeline)));
   checks.push(...loudnessCheck(mp4));
   const sheetFile = path.join(qaDir, "sheet.jpg");
-  const tiles = vertical ? [] : sheet(mp4, timeline, lesson, sheetFile);
+  const tiles = cut ? [] : sheet(mp4, timeline, lesson, sheetFile);
   const report = {
     lesson: path.basename(dir),
     mp4,
@@ -205,26 +226,27 @@ function runQa({ dir, mp4, raw, timeline, lesson, vertical = false, log = consol
   fs.writeFileSync(path.join(qaDir, "report.json"), JSON.stringify(report, null, 2));
   const fails = checks.filter((c) => c.level === "FAIL");
   const warns = checks.filter((c) => c.level === "WARN");
-  log(`qa: ${fails.length} FAIL, ${warns.length} WARN -> ${path.join(qaDir, "report.json")}${tiles.length ? `, ${sheetFile}` : ""}`);
-  for (const c of [...fails, ...warns]) log(`  ${c.level} ${c.check}: ${c.message}`);
+  const notes = checks.filter((c) => c.level === "NOTE");
+  log(`qa: ${fails.length} FAIL, ${warns.length} WARN${notes.length ? `, ${notes.length} NOTE` : ""} -> ${path.join(qaDir, "report.json")}${tiles.length ? `, ${sheetFile}` : ""}`);
+  for (const c of [...fails, ...warns, ...notes]) log(`  ${c.level} ${c.check}: ${c.message}`);
   return report;
 }
 
 module.exports = { runQa, identity, ERROR_TEXT };
 
 if (require.main === module) {
-  const args = process.argv.slice(2);
-  const vertical = args.includes("--vertical");
-  const dir = args.find((a) => !a.startsWith("--"));
+  const dir = process.argv.slice(2).find((a) => !a.startsWith("--"));
   if (!dir) {
-    console.error("usage: node qa.js <lesson folder> [--vertical]");
+    console.error("usage: node qa.js <lesson folder>");
     process.exit(2);
   }
   const d = path.resolve(dir);
   const read = (f) => JSON.parse(fs.readFileSync(path.join(d, f), "utf8"));
+  const maybe = (f) => (fs.existsSync(path.join(d, f)) ? read(f) : null);
   // timeline.json is the take's clock; an edited MP4 plays the cut in edit.json.
   const taken = read("timeline.json");
-  const timeline = fs.existsSync(path.join(d, "edit.json")) ? editTimeline(taken, { dropped: [] }, read("edit.json"), null) : taken;
-  const report = runQa({ dir: d, mp4: path.join(d, `${path.basename(d)}.mp4`), raw: path.join(d, "record.mkv"), timeline, lesson: read("lesson.json"), vertical });
+  const edit = maybe("edit.json");
+  const timeline = edit ? editTimeline(taken, { dropped: [] }, edit, null) : taken;
+  const report = runQa({ dir: d, mp4: path.join(d, `${path.basename(d)}.mp4`), raw: path.join(d, "record.mkv"), timeline, lesson: read("lesson.json"), cut: maybe("cut.json") });
   process.exit(report.pass ? 0 : 1);
 }

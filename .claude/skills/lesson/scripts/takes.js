@@ -1,12 +1,17 @@
 // Every recording gets its own folder under <lesson>/_takes/, with its raw
 // capture, timeline, log and a copy of the script that produced it. A take
 // that finishes replaces the lesson's current one, whose files move into its
-// own folder; a take that fails or is interrupted never touches them.
+// own folder; a take that fails or is interrupted never touches them. A clean
+// dry run on the real clips can keep its capture (its timeline's `reuse` says
+// for what), and the next take uses it instead of recording the same thing
+// again (short).
 const fs = require("fs");
 const path = require("path");
 
 const TAKES = "_takes";
 const SCRIPT_FILES = ["lesson.json", "beats.js", "compare.json"];
+// The text the checks read off a capture (qa.js), beside its video.
+const SCREEN = path.join("qa", "screen.json");
 const pad = (n) => String(n).padStart(3, "0");
 
 function stamp(d = new Date()) {
@@ -17,6 +22,19 @@ function stamp(d = new Date()) {
 function takeFolders(dir) {
   const root = path.join(dir, TAKES);
   return fs.existsSync(root) ? fs.readdirSync(root).filter((n) => /^\d{3}-/.test(n)).sort() : [];
+}
+
+const takeAt = (dir, id) => {
+  const folder = path.join(dir, TAKES, id);
+  return { id, folder, raw: path.join(folder, "record.mkv"), timeline: path.join(folder, "timeline.json") };
+};
+
+function readTimeline(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 // Output also goes to `file`, so a take's log survives the terminal.
@@ -38,14 +56,15 @@ function teeLog(file) {
 
 function beginTake(dir, { dry = false } = {}) {
   const n = takeFolders(dir).reduce((m, name) => Math.max(m, parseInt(name, 10)), 0) + 1;
-  const id = `${pad(n)}-${stamp()}${dry ? "-dry" : ""}`;
-  const folder = path.join(dir, TAKES, id);
-  fs.mkdirSync(folder, { recursive: true });
+  const take = takeAt(dir, `${pad(n)}-${stamp()}${dry ? "-dry" : ""}`);
+  // Only the newest take can stand in for the next.
+  const kept = keptDryTake(dir);
+  if (kept) fs.rmSync(kept.raw);
+  fs.mkdirSync(take.folder, { recursive: true });
   for (const f of SCRIPT_FILES) {
-    if (fs.existsSync(path.join(dir, f))) fs.copyFileSync(path.join(dir, f), path.join(folder, f));
+    if (fs.existsSync(path.join(dir, f))) fs.copyFileSync(path.join(dir, f), path.join(take.folder, f));
   }
-  const stopLog = teeLog(path.join(folder, "take.log"));
-  return { id, folder, dry, raw: path.join(folder, "record.mkv"), timeline: path.join(folder, "timeline.json"), stopLog };
+  return { ...take, stopLog: teeLog(path.join(take.folder, "take.log")) };
 }
 
 // Safe to call twice: a Ctrl-C marks the take from the signal handler, and
@@ -74,12 +93,8 @@ function promote(dir, take, media) {
   const hasCurrent = ["record.mkv", "timeline.json"].some((f) => fs.existsSync(path.join(dir, f)));
   let archived = null;
   if (hasCurrent) {
-    let oldId = null;
-    try {
-      oldId = JSON.parse(fs.readFileSync(path.join(dir, "timeline.json"), "utf8")).take || null;
-    } catch {
-      // no timeline: the raw capture alone moves
-    }
+    // Without a timeline the raw capture alone moves.
+    const oldId = readTimeline(path.join(dir, "timeline.json"))?.take;
     const named = oldId && path.join(dir, TAKES, oldId);
     const earlier = path.join(dir, TAKES, "000-earlier");
     const earlierFree = !["record.mkv", "timeline.json"].some((f) => fs.existsSync(path.join(earlier, f)));
@@ -99,6 +114,32 @@ function promote(dir, take, media) {
 // A dry run's capture is only for its frames; its log and timeline stay.
 function finishDryTake(take) {
   fs.rmSync(take.raw, { force: true });
+}
+
+// The newest take, when it is a dry run kept with no warnings. Null otherwise.
+function keptDryTake(dir) {
+  const id = takeFolders(dir).at(-1);
+  if (!id?.endsWith("-dry")) return null;
+  const take = takeAt(dir, id);
+  const timeline = fs.existsSync(take.raw) && readTimeline(take.timeline);
+  return timeline && timeline.reuse && !timeline.warnings?.length ? { ...take, reuse: timeline.reuse } : null;
+}
+
+// The dry run made the take: its log carries on with the render, and once
+// promoted its timeline is a take's like any other. Returns where the
+// previous take went, if there was one, and how to stop the log.
+function useDryTake(dir, take, media) {
+  const stopLog = teeLog(path.join(take.folder, "take.log"));
+  const archived = promote(dir, take, media);
+  const screen = path.join(take.folder, SCREEN);
+  if (fs.existsSync(screen)) {
+    fs.mkdirSync(path.join(dir, path.dirname(SCREEN)), { recursive: true });
+    fs.renameSync(screen, path.join(dir, SCREEN));
+  }
+  const file = path.join(dir, "timeline.json");
+  const { reuse, ...timeline } = readTimeline(file);
+  fs.writeFileSync(file, JSON.stringify(timeline, null, 2));
+  return { archived, stopLog };
 }
 
 function freeFolder(base) {
@@ -130,4 +171,4 @@ function findTake(dir, which) {
   return folder;
 }
 
-module.exports = { TAKES, beginTake, failTake, promote, finishDryTake, findTake, keepPreviousCut, teeLog };
+module.exports = { TAKES, SCREEN, beginTake, failTake, promote, finishDryTake, keptDryTake, useDryTake, findTake, keepPreviousCut, teeLog };

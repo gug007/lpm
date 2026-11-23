@@ -6,6 +6,8 @@ const OUT = { width: 1080, height: 1920 };
 const FONT = `"SF Pro Display", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif`;
 const ACCENT = "#25F4EE";
 const LIT = "#FFE14D";
+// Below the phone's status bar and TikTok's tabs (GUIDES_HTML).
+const STICKER_TOP = 270;
 // The opening slam of two names (lesson.json `slam`): paintScene's
 // choreography ends at `ms`, the headline pops in at `headlineAtMs` once both
 // names have landed and fades with them, so nothing is written over the lit
@@ -20,18 +22,20 @@ body { font-family: ${FONT}; -webkit-font-smoothing: antialiased; }
 #slam { position: absolute; left: 130px; width: 820px; top: 470px; display: none; flex-direction: column; align-items: center; transform-origin: 50% 0; }
 #slam .name { font-weight: 900; font-size: 150px; line-height: 1.06; letter-spacing: -0.02em; white-space: nowrap; text-transform: uppercase; -webkit-text-stroke: 14px #000; paint-order: stroke fill; text-shadow: 0 12px 40px rgba(0,0,0,.6); }
 #slam .vs { width: 120px; height: 120px; margin: 8px 0; border-radius: 50%; background: #fff; color: #0b0b10; display: grid; place-items: center; font-weight: 900; font-size: 52px; box-shadow: 0 12px 40px rgba(0,0,0,.5); }
-#sticker { position: absolute; left: 70px; right: 70px; top: 190px; display: flex; justify-content: center; transform-origin: 50% 0; }
+#sticker { position: absolute; left: 70px; right: 70px; top: ${STICKER_TOP}px; display: flex; justify-content: center; transform-origin: 50% 0; }
 .hook { max-width: 900px; text-align: center; text-wrap: balance; font-weight: 800; font-size: 66px; line-height: 1.42; letter-spacing: -0.01em; }
 .hook span { background: #fff; color: #101014; padding: 5px 22px; border-radius: 18px; -webkit-box-decoration-break: clone; box-decoration-break: clone; box-shadow: 0 10px 34px rgba(0,0,0,.28); }
 .label { display: inline-flex; align-items: center; gap: 20px; max-width: 880px; padding: 14px 34px 14px 14px; border-radius: 999px; background: rgba(12,12,18,.86); border: 2px solid rgba(255,255,255,.16); box-shadow: 0 14px 40px rgba(0,0,0,.42); color: #fff; font-weight: 760; font-size: 46px; line-height: 1.15; }
 .label b { flex: none; display: grid; place-items: center; width: 66px; height: 66px; border-radius: 50%; background: ${ACCENT}; color: #0b0b10; font-weight: 900; font-size: 38px; }
 .cta { text-align: center; font-weight: 900; font-size: 96px; line-height: 1.3; letter-spacing: -0.02em; }
 .cta span { background: #fff; color: #101014; padding: 6px 34px; border-radius: 26px; box-shadow: 0 14px 44px rgba(0,0,0,.35); }
+#keys { position: absolute; left: 0; right: 0; top: 1066px; display: flex; justify-content: center; gap: 16px; transform-origin: 50% 50%; }
+#keys b { min-width: 104px; height: 104px; box-sizing: border-box; padding: 0 28px; border-radius: 24px; background: #fff; box-shadow: inset 0 -7px 0 rgba(0,0,0,.16), 0 14px 40px rgba(0,0,0,.5); color: #101014; display: grid; place-items: center; font-weight: 700; font-size: 58px; line-height: 1; white-space: nowrap; }
 #caption { position: absolute; left: 80px; right: 80px; top: 1250px; text-align: center; transform-origin: 50% 50%; font-weight: 900; font-size: 82px; line-height: 1.12; letter-spacing: -0.012em; color: #fff; }
 #caption span { display: inline-block; margin: 0 0.11em; -webkit-text-stroke: 15px #000; paint-order: stroke fill; text-shadow: 0 8px 26px rgba(0,0,0,.5); }
 #caption span.em { color: ${ACCENT}; }
 #caption span.on { color: ${LIT}; transform: scale(1.08); }
-</style></head><body><div id="scrim"></div><div id="slam"><div class="name"></div><div class="vs">VS</div><div class="name"></div></div><div id="sticker"></div><div id="caption"></div></body></html>`;
+</style></head><body><div id="scrim"></div><div id="slam"><div class="name"></div><div class="vs">VS</div><div class="name"></div></div><div id="sticker"></div><div id="keys"></div><div id="caption"></div></body></html>`;
 
 // Runs in the page: paints one moment of the text track. `p` is how far the
 // sticker or caption page has got through its pop-in (0..1).
@@ -43,8 +47,10 @@ function paintScene(scene) {
   };
   const sticker = document.getElementById("sticker");
   const caption = document.getElementById("caption");
+  const keys = document.getElementById("keys");
   sticker.replaceChildren();
   caption.replaceChildren();
+  keys.replaceChildren();
   const scrim = document.getElementById("scrim");
   const slam = document.getElementById("slam");
   scrim.style.opacity = "0";
@@ -104,6 +110,15 @@ function paintScene(scene) {
     sticker.style.opacity = String(Math.min(1, st.p / 0.4) * (1 - slamExit));
     sticker.style.transform = `scale(${0.72 + 0.28 * backOut(st.p)})${st.kind === "hook" ? " rotate(-1.5deg)" : ""}`;
   }
+  if (scene.keys) {
+    for (const cap of scene.keys.caps) {
+      const key = document.createElement("b");
+      key.textContent = cap;
+      keys.append(key);
+    }
+    keys.style.opacity = String(Math.min(1, scene.keys.p / 0.35));
+    keys.style.transform = `scale(${0.84 + 0.16 * backOut(scene.keys.p)})`;
+  }
   const cap = scene.caption;
   if (cap) {
     cap.words.forEach(([text, emph], i) => {
@@ -147,9 +162,9 @@ html, body { margin: 0; width: ${g.win.w}px; height: ${g.win.h}px; overflow: hid
 // the caption and sound at the bottom. Review only; never in the video.
 const GUIDES_HTML = `<!doctype html><html><head><style>
 html, body { margin: 0; width: ${OUT.width}px; height: ${OUT.height}px; background: transparent; overflow: hidden; font: 700 34px ${FONT}; color: #fff; }
-.z { position: absolute; background: rgba(255,40,70,.34); outline: 3px dashed rgba(255,255,255,.7); outline-offset: -3px; display: flex; align-items: center; justify-content: center; }
+.z { position: absolute; background: rgba(255,40,70,.14); outline: 4px dashed rgba(255,70,100,.95); outline-offset: -4px; display: flex; align-items: flex-end; justify-content: center; padding: 14px 0; box-sizing: border-box; text-shadow: 0 2px 8px #000; }
 </style></head><body>
-<div class="z" style="left:0;top:0;width:1080px;height:255px">tabs</div>
+<div class="z" style="left:0;top:0;width:1080px;height:255px;align-items:flex-start">tabs</div>
 <div class="z" style="left:900px;top:700px;width:180px;height:800px">icons</div>
 <div class="z" style="left:0;top:1500px;width:1080px;height:420px">caption · sound</div>
 </body></html>`;

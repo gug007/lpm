@@ -6,6 +6,7 @@
 const shared = require("./shared");
 const { norm, onsets } = shared("words");
 const { SLAM } = require("./look");
+const { keyBadges } = require("./keycaps");
 
 const PAGE_WORDS = 3;
 const PAGE_CHARS = 16;
@@ -64,10 +65,11 @@ function pages(line, outStartMs) {
 
 // `lines` are the timeline's lines with their clip (`line`) and `outMs`, the
 // line's start in the finished video; `labels` come from the stage, already
-// on the finished clock. `slam` ({ a, b }) opens with the two names slammed in
-// big over the dimmed payoff, and the headline comes and goes with them.
-// Without a slam, `headlineMs` caps how long the headline stays up.
-function textTrack({ lines, labels = [], outMs, headline, headlineMs, cta, open = 1, slam }) {
+// on the finished clock, as do `presses` (key presses to show as keycaps).
+// `slam` ({ a, b }) opens with the two names slammed in big over the dimmed
+// payoff, and the headline comes and goes with them. Without a slam,
+// `headlineMs` caps how long the headline stays up.
+function textTrack({ lines, labels = [], presses = [], outMs, headline, headlineMs, cta, open = 1, slam }) {
   const captioned = lines.filter((l) => !l.line.silent && l.line.caption !== false);
   const captionPages = captioned.flatMap((l) => pages(l.line, l.outMs));
   const hookEnd = lines.length > open ? lines[open].outMs : outMs;
@@ -96,6 +98,7 @@ function textTrack({ lines, labels = [], outMs, headline, headlineMs, cta, open 
   return {
     stickers: stickers.filter((s) => s.kind !== "none" && s.endMs > s.startMs),
     pages: captionPages,
+    keys: keyBadges(presses, { outMs }),
     ...(slam && { slam: { a: slam.a, b: slam.b, colors: slam.colors || SLAM.colors, startMs: 0, endMs: Math.min(SLAM.ms, hookEnd) } }),
   };
 }

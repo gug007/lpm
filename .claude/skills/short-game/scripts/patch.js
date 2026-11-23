@@ -10,9 +10,9 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { execFileSync } = require("child_process");
+const ROOT = require("../../short/scripts/root");
+const { frame, msOf, takeFrame } = require("../../short/scripts/edit");
 
-const FPS = 30;
-const ROOT = process.env.LPM_TIKTOK_DIR || path.join(process.env.LPM_LESSONS_DIR || path.join(os.homedir(), "Movies/lpm-lessons"), "tiktok");
 const [cmd, target, ...rest] = process.argv.slice(2);
 if (!cmd || !target) {
   console.error("usage: patch.js where|peek|apply <slug|dir> …");
@@ -30,21 +30,10 @@ const box = (s) => {
 
 if (cmd === "where") {
   const { edit } = JSON.parse(fs.readFileSync(path.join(dir, "cut.json"), "utf8"));
-  let f = Math.round(Number(rest[0]) * FPS);
-  let at;
-  if (f < edit.hook) at = edit.payoff[0] + f;
-  else {
-    f -= edit.hook;
-    for (const [a, b] of edit.main) {
-      if (f < b - a) {
-        at = a + f;
-        break;
-      }
-      f -= b - a;
-    }
-  }
+  const f = frame(Number(rest[0]) * 1000);
+  const at = takeFrame(edit, f);
   if (at == null) throw new Error(`${rest[0]} s is past the end of the video`);
-  console.log(`${rest[0]} s of the MP4 = ${(at / FPS).toFixed(2)} s of record.mkv${Number(rest[0]) * FPS < edit.hook ? " (the opening, cut from the payoff)" : ""}`);
+  console.log(`${rest[0]} s of the MP4 = ${(msOf(at) / 1000).toFixed(2)} s of record.mkv${f < edit.hook ? " (the opening, cut from the payoff)" : ""}`);
 } else if (cmd === "peek") {
   const [t0, t1] = rest.slice(0, 2).map(Number);
   const crop = rest[2] ? box(rest[2]) : null;

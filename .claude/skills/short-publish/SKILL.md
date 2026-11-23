@@ -1,7 +1,7 @@
 ---
 name: short-publish
 description: "Post a finished vertical lesson from ~/Movies/lpm-lessons/tiktok/<slug>/ to YouTube Shorts (LPM channel, through Chrome) and TikTok (@lpm06557, from the user's iPhone through iPhone Mirroring) in parallel: the MP4, the caption and hashtags from post.txt, the headline cover, each platform's settings, then both links logged and the title listed in SHORTS.md. Use when the user asks to upload, publish or post a short, vertical, TikTok or YouTube Shorts video, to one platform or both."
-version: 2.3.0
+version: 2.3.1
 argument-hint: "<slug> [youtube|tiktok]"
 metadata:
   lpm-created: "true"
@@ -37,7 +37,7 @@ The two tracks use different tools that do not share state: YouTube goes through
 
 - path: always the iPhone, through iPhone Mirroring (user rule 2026-09-25). Use the Chrome path below only when the user asks for it, or when a daily short automation posts (`short-daily` skill): a scheduled run has no computer use, and the user chose TikTok Studio in Chrome for it (2026-10-22).
 - account: **@lpm06557** (display name "lpm"). Check it before posting: the TikTok app's Profile tab shows the handle under the name. Any other handle: stop and tell the user. Never log in, log out or switch accounts.
-- cover: the opening frame with the headline sticker. The sticker pops in over the first frames, so frame 0 has none: take the frame around 0.6 s (the one `cover.jpg` shows).
+- cover: the opening frame with the headline sticker. The sticker pops in over the first frames, so frame 0 has none: take the frame around 0.6 s (the moment `cover.jpg` shows, which leaves out the caption).
 - settings (user decisions 2026-09-25, AI label changed 2026-09-27): Everyone can view; comments and reuse (Duet, Stitch) allowed; **AI-generated content off**: never turn the label on and never mention AI-generated anywhere in the post (user 2026-09-27: "do not mention AI generated"); **Disclose commercial content on → Your brand** (the post is labeled "Promotional content", which cannot be changed once live); Ad authorization and Only show as ads off; no sound added (the video carries its own voice and music); no schedule unless asked.
 - post without asking once the account, caption, hashtags, cover and labels check out (zoom on each); report them after posting. Stop and ask only when one of them is wrong and can't be fixed.
 

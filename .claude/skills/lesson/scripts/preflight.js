@@ -4,7 +4,8 @@
 // what it can by itself (Claude Code's folder trust for the lesson workspace,
 // the music bed, Playwright's Chromium, the macOS permission prompts) and
 // lists the rest with the step that fixes it, exiting 1. `--mux-only` checks
-// only what a re-cut needs; `--no-audio` skips the voice and the music.
+// only what a re-cut needs, `--speak-only` only the voice, and `--no-audio`
+// skips the voice and the music.
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -33,9 +34,10 @@ const dir = cli.lesson ? path.resolve(cli.lesson) : null;
 const lessonFile = dir && path.join(dir, "lesson.json");
 const lesson = lessonFile && fs.existsSync(lessonFile) ? JSON.parse(fs.readFileSync(lessonFile, "utf8")) : {};
 const muxOnly = flag("--mux-only");
+const speakOnly = flag("--speak-only");
 const audio = !flag("--no-audio");
 const source = flag("--demo") ? "demo" : flag("--app") ? "app" : lesson.source || "app";
-const onApp = !muxOnly && source === "app";
+const onApp = !muxOnly && !speakOnly && source === "app";
 
 const done = [];
 const missing = [];
@@ -73,7 +75,7 @@ function chromium() {
 }
 
 async function music() {
-  if (!audio || flag("--no-music") || lesson.music === false) return;
+  if (!audio || speakOnly || flag("--no-music") || lesson.music === false) return;
   const file = opt("--music") || lesson.music || process.env.LPM_LESSON_MUSIC || DEFAULT_BED;
   if (fs.existsSync(file)) return;
   if (file !== DEFAULT_BED) {
@@ -189,7 +191,8 @@ function beats() {
     missing.push(`${lessonFile}`);
     return;
   }
-  if (muxOnly) return;
+  // The beats can come after the voice: --speak-only reads only the narration.
+  if (muxOnly || speakOnly) return;
   const kind = path.basename(path.dirname(dir)) === "tiktok" || path.basename(process.env.LESSON_MAKER || "") === "short" ? "vertical" : "landscape";
   const { errors, warnings } = lintDir(dir, { kind });
   for (const e of errors) missing.push(`${path.basename(dir)}: ${e}`);
@@ -259,12 +262,14 @@ function power() {
 
 async function main() {
   tools();
-  power();
-  chromium();
+  if (!speakOnly) {
+    power();
+    chromium();
+  }
   await music();
   voice();
   beats();
-  helpers();
+  if (!speakOnly) helpers();
   if (onApp) {
     agents();
     trust();

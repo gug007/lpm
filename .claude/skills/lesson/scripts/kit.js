@@ -322,7 +322,7 @@ async function focusLeft(s, sel, { scale = 1.8, at = [0.5, 0.5], ms, cue } = {})
   if (typeof s.camera !== "function") return s.zoom(sel, { scale, at, ms, cue });
   const p = await s.point(sel, at);
   const half = (1.1 * s.origin.w) / scale / 2 - 0.05 * s.origin.w;
-  await s.camera(scale, { x: Math.max(p.x, half), y: p.y }, { ms, cue });
+  await s.camera(scale, { x: Math.max(p.x, half), y: p.y }, { ms, cue, sel, at });
 }
 
 // The real pointer somewhere with no hover effect.

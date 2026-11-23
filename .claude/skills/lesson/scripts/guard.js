@@ -10,6 +10,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { CACHE } = require("./helpers");
 
 const home = () => process.env.LESSON_GUARD_HOME || os.homedir();
 const targets = () => [
@@ -211,10 +212,12 @@ function restore(backup, log = console.log) {
   return ok;
 }
 
-// A lesson that keeps usage off screen runs Claude Code without the user's
-// status line, which shows their cost, context and limits. Only while a take
+// "limits": false keeps usage off screen, so Claude Code runs without the
+// user's status line too, which shows their cost, context and limits;
+// "claudeStatusLine": false hides only the status line. Only while a take
 // holds `backup`, so `restore` puts it back afterwards.
-function hideClaudeStatusLine(backup) {
+function hideClaudeStatusLine(lesson, backup = path.join(CACHE, "agent-settings.backup.json")) {
+  if (lesson.limits !== false && lesson.claudeStatusLine !== false) return false;
   if (!fs.existsSync(backup)) return false;
   const { file } = targets().find((t) => t.name === "claude");
   const text = read(file);

@@ -75,10 +75,12 @@ function cameraKeys({ zooms = [], pointer = [], g, scale }) {
   return keys;
 }
 
-// The zoompan stage for a stream whose first frame is take frame `offset`.
-function cameraFilter(keys, g, offset = 0) {
+// The zoompan stage for a stream whose first frame is take frame `offset`, and
+// which steps through the take `rate` frames at a time.
+function cameraFilter(keys, g, offset = 0, rate = 1) {
   const fk = keys.map((k) => ({ ...k, f: Math.round((k.startMs / 1000) * FPS), d: Math.max(1, Math.round((k.ms / 1000) * FPS)) }));
-  const n = offset ? `(in+${offset})` : "in";
+  const step = rate === 1 ? "in" : `in*${rate}`;
+  const n = offset ? `(${step}+${offset})` : step;
   const { centre } = g;
   const z = track(fk, g.zFit, (k) => g.zFit * k.s, n);
   const cx = track(fk, centre.cx, (k) => k.cx, n);

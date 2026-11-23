@@ -13,7 +13,7 @@ const { OUT, OVERLAY_HTML, paintScene, backdropHtml, maskHtml, GUIDES_HTML } = r
 const FRAME_MS = 1000 / 30;
 // Part of every frame's name, so a change to the look repaints it.
 const LOOK = OVERLAY_HTML + paintScene.toString();
-const POP_MS = { sticker: 240, page: 170 };
+const POP_MS = { sticker: 240, page: 170, keys: 170 };
 
 async function withPage(size, fn) {
   const browser = await chromium.launch({ executablePath: CHROME, headless: true });
@@ -61,6 +61,7 @@ function sceneAt(t, track) {
   const st = track.stickers.find((s) => t >= s.startMs && t < s.endMs);
   const pg = track.pages.find((p) => t >= p.startMs && t < p.endMs);
   const sl = track.slam && t >= track.slam.startMs && t < track.slam.endMs ? track.slam : null;
+  const ky = track.keys.find((k) => t >= k.startMs && t < k.endMs);
   let active = 0;
   if (pg) pg.words.forEach((w, i) => t >= w.ms && (active = i));
   return {
@@ -80,6 +81,7 @@ function sceneAt(t, track) {
       p: st.pop === false ? 1 : coarse(unit((t - st.startMs) / POP_MS.sticker)),
       ...(track.stickerTop != null && { top: track.stickerTop }),
     },
+    ...(ky && { keys: { caps: ky.caps, p: coarse(unit((t - ky.startMs) / POP_MS.keys)) } }),
     caption: pg && { words: pg.words.map((w) => [w.text, w.emph ? 1 : 0]), active, p: coarse(unit((t - pg.startMs) / POP_MS.page)) },
   };
 }
@@ -99,6 +101,10 @@ function sampleTimes(track, outMs) {
     else pop(s.startMs, POP_MS.sticker);
     times.add(Math.ceil(s.endMs));
   }
+  for (const k of track.keys) {
+    pop(k.startMs, POP_MS.keys);
+    times.add(Math.ceil(k.endMs));
+  }
   for (const p of track.pages) {
     pop(p.startMs, POP_MS.page);
     times.add(Math.ceil(p.endMs));
@@ -107,41 +113,42 @@ function sampleTimes(track, outMs) {
   return [...times].filter((t) => t >= 0 && t < outMs).sort((a, b) => a - b);
 }
 
-async function renderTrack(dir, track, outMs) {
+// `cover` in what it returns is the text on screen at `coverMs` without the
+// caption, for the cover: a word or two of a sentence says nothing in a feed.
+async function renderTrack(dir, track, outMs, coverMs) {
   fs.mkdirSync(dir, { recursive: true });
-  const times = [...new Set(sampleTimes(track, outMs))];
-  const runs = [];
-  for (const t of times) {
-    const scene = sceneAt(t, track);
-    const key = JSON.stringify(scene);
-    if (runs.length && runs.at(-1).key === key) continue;
-    runs.push({ t, key, scene });
-  }
   const files = new Map();
-  for (const r of runs) {
-    const name = `t-${crypto.createHash("sha1").update(LOOK).update(r.key).digest("hex").slice(0, 16)}.png`;
-    files.set(r.key, { name, scene: r.scene });
+  const fileOf = (key) => {
+    if (!files.has(key)) files.set(key, `t-${crypto.createHash("sha1").update(LOOK).update(key).digest("hex").slice(0, 16)}.png`);
+    return files.get(key);
+  };
+  const runs = [];
+  for (const t of sampleTimes(track, outMs)) {
+    const key = JSON.stringify(sceneAt(t, track));
+    if (runs.at(-1)?.key !== key) runs.push({ t, key, file: fileOf(key) });
   }
-  const todo = [...files.values()].filter((f) => !fs.existsSync(path.join(dir, f.name)));
+  const { caption, keys, ...still } = sceneAt(coverMs, track);
+  const cover = path.join(dir, fileOf(JSON.stringify(still)));
+  const todo = [...files].filter(([, name]) => !fs.existsSync(path.join(dir, name)));
   if (todo.length) {
     await withPage(OUT, async (page) => {
       await page.setContent(OVERLAY_HTML);
       await page.evaluate(() => document.fonts.ready);
-      for (const f of todo) {
-        await page.evaluate(`(${paintScene.toString()})(${JSON.stringify(f.scene)})`);
-        await page.screenshot({ path: path.join(dir, f.name), omitBackground: true });
+      for (const [scene, name] of todo) {
+        await page.evaluate(`(${paintScene.toString()})(${scene})`);
+        await page.screenshot({ path: path.join(dir, name), omitBackground: true });
       }
     });
   }
   const list = ["ffconcat version 1.0"];
   runs.forEach((r, i) => {
     const end = i + 1 < runs.length ? runs[i + 1].t : outMs;
-    list.push(`file '${files.get(r.key).name}'`, `duration ${((end - r.t) / 1000).toFixed(4)}`);
+    list.push(`file '${r.file}'`, `duration ${((end - r.t) / 1000).toFixed(4)}`);
   });
-  list.push(`file '${files.get(runs.at(-1).key).name}'`);
+  list.push(`file '${runs.at(-1).file}'`);
   const listFile = path.join(dir, "track.ffconcat");
   fs.writeFileSync(listFile, list.join("\n") + "\n");
-  return { listFile, painted: todo.length, frames: runs.length };
+  return { listFile, cover, painted: todo.length, frames: runs.length };
 }
 
-module.exports = { renderBackdrop, renderGuides, renderTrack };
+module.exports = { withPage, renderBackdrop, renderGuides, renderTrack };

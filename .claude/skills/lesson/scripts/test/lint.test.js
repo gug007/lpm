@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert");
-const { checkLesson } = require("../lint");
+const { checkLesson, checkNarration, refuseMistakes } = require("../lint");
 const { fitLines } = require("../fit");
 
 const ok = {
@@ -78,4 +78,54 @@ test("a re-spoken line is fine while it ends before the next one starts", () => 
   const gone = fitLines(timeline, [{ id: "a", ms: 3000 }, { id: "c", ms: 2000 }, { id: "d", ms: 1000 }]);
   assert.ok(gone.errors.some((e) => /"b" is in the take but no longer/.test(e)));
   assert.ok(gone.errors.some((e) => /"d" is not in the take/.test(e)));
+});
+
+const vertical = {
+  title: "Switch accounts mid-chat",
+  open: 2,
+  narration: [
+    { id: "hook", text: "Claude almost out?", headline: "Switch Claude accounts mid-chat 🔀" },
+    { id: "keep", text: "Your *conversation* keeps going." },
+    { id: "pick", text: "Right-click the tab. Pick *Personal*.", label: "Pick an account" },
+    { id: "wrap", text: "No starting over." },
+  ],
+  post: { caption: "Switch accounts in lpm.", hashtags: ["claude", "lpm"] },
+};
+const verticalBeats = { async hook() {}, async keep() {}, async pick(s) { await s.click("x", { cue: "Personal" }); }, async wrap(s) { await s.payoff(); } };
+const lintVertical = (lesson, beats = {}) => checkLesson({ ...vertical, ...lesson }, { ...verticalBeats, ...beats }, { kind: "vertical" });
+
+test("a vertical lesson that follows the rules lints clean", () => {
+  assert.deepStrictEqual(lintVertical(), { errors: [], warnings: [] });
+});
+
+test("a pointer cued on a line's first word can't land on it, a camera move can", () => {
+  const late = lintVertical({}, { async pick(s) { await s.click("x", { at: [0.5, 0.5], cue: "Right-click", ms: 400 }); } });
+  assert.ok(late.warnings.some((w) => /s\.click on "Right-click", the line's first word, lands 0\.4 s late/.test(w)));
+  const camera = lintVertical({}, { async pick(s) { await s.focus("x", { cue: "Right-click", ms: 400 }); } });
+  assert.deepStrictEqual(camera.warnings, []);
+  const hidden = lintVertical({}, { async hook(s) { await s.click("x", { cue: "Claude" }); } });
+  assert.deepStrictEqual(hidden.warnings, [], "the opening's beats are never seen");
+});
+
+test("copy, post and payoff mistakes are found before the voice is paid for", () => {
+  const { warnings, errors } = lintVertical({
+    narration: [{ id: "hook", text: "In this video we look at switching accounts." }, vertical.narration[1], { id: "pick", text: "Right-click, then pick, then *wait." }, vertical.narration[3]],
+    post: { caption: "By @lpm", hashtags: ["a", "b", "c", "d", "e", "f"] },
+  }, { async wrap() {} });
+  for (const re of [/announces the video/, /2 commas/, /no headline/, /has an @/, /6 hashtags/, /leave out "lpm"/, /no beat calls s\.payoff/]) assert.ok(warnings.some((w) => re.test(w)), String(re));
+  assert.ok(errors.some((e) => /unpaired \*/.test(e)));
+  assert.ok(lintVertical({ open: 4 }).errors.some((e) => /nothing is left after the opening/.test(e)));
+});
+
+test("a vertical push-in can also be shifted at mux time", () => {
+  assert.deepStrictEqual(lintVertical({ zooms: { "pick#1": { by: -200, scale: 1.4 } } }).errors, []);
+  assert.ok(lintVertical({ zooms: { "pick#1": { zoom: 2 } } }).errors.some((e) => /unknown zoom/.test(e)));
+  assert.ok(checkLesson({ ...ok, zooms: { "start#1": { by: 100 } } }, okBeats).errors.some((e) => /unknown by/.test(e)));
+});
+
+test("the lines are checked on their own before the voice is paid for", () => {
+  assert.deepStrictEqual(checkNarration(vertical, { kind: "vertical" }), { errors: [], warnings: [] });
+  const todo = checkNarration({ narration: [{ id: "a", text: "TODO: the hook." }, { id: "a", text: "Click, then pick, then *wait." }] }, { kind: "vertical" });
+  for (const re of [/"a" still has a TODO/, /"a" is used twice/, /unpaired \*/]) assert.ok(todo.errors.some((e) => re.test(e)), String(re));
+  assert.throws(() => refuseMistakes(todo), /mistakes to fix first/);
 });

@@ -9,7 +9,7 @@ const path = require("path");
 const { spawnSync } = require("child_process");
 const { parseCli, lessonDir } = require("./cli");
 const { OUT, FRAME, ZOOM } = require("./stage");
-const { recordDemo, recordApp, renderTimelineCards } = require("./record");
+const { recordDemo, recordApp, renderTimelineCards, GAP_MS } = require("./record");
 const { CARD_LOOK, renderThumbnail } = require("./cards");
 const { videoGraph, frameAssets, frameBox, editZooms } = require("./compose");
 const { makeVoice } = require("./voice");
@@ -17,7 +17,7 @@ const { DEFAULT_BED, RATE, soundtrack } = require("./mix");
 const { beginTake, failTake, promote, finishDryTake, findTake, keepPreviousCut } = require("./takes");
 const { exitOnSignals, runTeardown, onTeardown } = require("./teardown");
 const { fitLines, speakWithRollback } = require("./fit");
-const { lintDir } = require("./lint");
+const { checkNarration, lintDir, refuseMistakes } = require("./lint");
 const { writeCaptions } = require("./captions");
 const { chapters, chaptersText } = require("./chapters");
 const { runQa } = require("./qa");
@@ -27,10 +27,9 @@ const { deglyph } = require("./deglyph");
 const { DEFAULT_LPM_DIR } = require("./state");
 const { PHONE_LAYOUT, phoneLayout, phoneAssets, clearOfPhone } = require("./phonecompose");
 const { TWO_MAC, twoMacLayout, labelsAsset } = require("./twomac");
-const { hideClaudeStatusLine } = require("./guard");
+const { setHeard } = require("./words");
 const { insetTimes, insetAsset, pointerAssets, pngSize } = require("./insets");
 const { fitMasks } = require("./maskfit");
-const { CACHE } = require("./helpers");
 
 const ROOT = process.env.LPM_LESSONS_DIR || path.join(os.homedir(), "Movies/lpm-lessons");
 let o, DIR;
@@ -38,6 +37,7 @@ try {
   const cli = parseCli(process.argv.slice(2), { script: "make.js" });
   o = cli.o;
   DIR = lessonDir(cli.lesson, ROOT);
+  if (o.fresh) throw new Error("--fresh is for vertical lessons; a lesson's take always records");
 } catch (e) {
   console.error(e.message);
   process.exit(2);
@@ -61,6 +61,7 @@ try {
   process.exit(2);
 }
 const lesson = JSON.parse(fs.readFileSync(takeScript && fs.existsSync(takeScript) ? takeScript : path.join(DIR, "lesson.json"), "utf8"));
+setHeard(lesson.heard);
 const source = o.demo ? "demo" : o.app ? "app" : lesson.source || "app";
 const VOICE = o.voice || lesson.voice || DEFAULT_VOICE;
 const TTS_STYLE = o.style || lesson.style || DEFAULT_STYLE;
@@ -69,7 +70,7 @@ const dry = !!o["no-audio"];
 const muxOnly = !!o["mux-only"];
 const audioDir = variant ? path.join(DIR, "audio", variant) : path.join(DIR, "audio");
 const music = o["no-music"] ? null : o.music || (lesson.music === false ? null : lesson.music || process.env.LPM_LESSON_MUSIC || DEFAULT_BED);
-const voice = makeVoice({ audioDir, voice: VOICE, style: TTS_STYLE, respeak: !!o.respeak });
+const voice = makeVoice({ audioDir, voice: VOICE, style: TTS_STYLE, respeak: !!o.respeak, pronounce: lesson.pronounce });
 // What moves with a take when a newer one replaces it.
 const MEDIA = ["record.mkv", "timeline.json", `${slug}.mp4`, `${slug}.srt`, "chapters.txt", "edit.json", "cards", "qa"];
 
@@ -94,13 +95,6 @@ async function record(lines) {
   const P = paths();
   const common = { lines, beats, raw: take ? take.raw : P.raw, framesDir, voice: VOICE };
   const interrupted = take && onTeardown(() => failTake(take, new Error("interrupted (Ctrl-C or a kill signal)")));
-  // "limits": false keeps usage off screen, Claude's own status line included;
-  // "claudeStatusLine": false hides only the status line (take.sh's settings
-  // guard puts it back).
-  const hideStatusLine = lesson.limits === false || lesson.claudeStatusLine === false;
-  if (hideStatusLine && source === "app" && hideClaudeStatusLine(path.join(CACHE, "agent-settings.backup.json"))) {
-    console.log("Claude Code runs without your status line for this take");
-  }
   let timeline;
   try {
     timeline =
@@ -349,11 +343,12 @@ async function finish(lines, P, timeline, taken) {
 
 (async () => {
   exitOnSignals();
-  if (!muxOnly) {
-    const lint = lintDir(DIR, { kind: "landscape" });
-    for (const w of lint.warnings) console.log(`lint: ${w}`);
-    if (lint.errors.length) throw new Error(`the lesson has mistakes to fix before a take:\n  ${lint.errors.join("\n  ")}`);
+  if (o["speak-only"]) {
+    refuseMistakes(checkNarration(lesson));
+    const lines = await voice.prepare(lesson.narration);
+    return console.log(`about ${(lines.reduce((ms, l) => ms + l.ms + GAP_MS, 0) / 1000).toFixed(1)} s of narration and pauses`);
   }
+  if (!muxOnly) refuseMistakes(lintDir(DIR, { kind: "landscape" }));
   const lines =
     muxOnly && o.speak
       ? await speakWithRollback({ voice, narration: lesson.narration, audioDir, check: (ls) => fitLines(JSON.parse(fs.readFileSync(paths().timeline, "utf8")), ls).errors })

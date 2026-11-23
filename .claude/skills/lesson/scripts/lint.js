@@ -4,10 +4,14 @@
 const fs = require("fs");
 const path = require("path");
 const { norm, findPhrase } = require("./words");
+const { checkCopy, checkVertical } = require("./lintvertical");
 
 const TEASER = /\b(next (lesson|video|episode)|in the next (one|part)|coming up next|see you (next|in the next)|stay tuned)\b/i;
 const CUE = /\b(cue|until)\s*:\s*(["'`])((?:(?!\2)[^\\\n])+)\2/g;
 const CUE_MS = /\bcueMs\(\s*(["'`])((?:(?!\1)[^\\\n])+)\1/g;
+
+// What lesson.json "zooms" can change about a recorded push-in.
+const ZOOM_EDITS = { landscape: ["scale", "at", "ms", "drop"], vertical: ["scale", "at", "ms", "by", "drop"] };
 
 function cuesIn(fn) {
   const src = fn.toString();
@@ -19,13 +23,14 @@ function cuesIn(fn) {
 
 const sentences = (text) => (text.match(/[^.!?]+[.!?]*/g) || []).map((x) => x.trim()).filter(Boolean);
 
+const linesOf = (lesson) => (Array.isArray(lesson.narration) ? lesson.narration : []);
+
+// What the lines alone can get wrong, before a clip of them is paid for.
 // `kind` is "landscape" (lesson) or "vertical" (short).
-// `dir` (the lesson folder) checks the files lesson.json names.
-function checkLesson(lesson, beats, { kind = "landscape", dir = null } = {}) {
+function checkNarration(lesson, { kind = "landscape" } = {}) {
   const errors = [];
   const warnings = [];
-  if (!lesson.title) errors.push("lesson.json has no title");
-  const narration = Array.isArray(lesson.narration) ? lesson.narration : [];
+  const narration = linesOf(lesson);
   if (!narration.length) errors.push("lesson.json has no narration lines");
   const seen = new Set();
   for (const line of narration) {
@@ -35,7 +40,24 @@ function checkLesson(lesson, beats, { kind = "landscape", dir = null } = {}) {
     if (line.id === "setup") errors.push('a narration line is called "setup", the name of the hook that seeds the lesson; rename it');
     if (!line.text && line.ms == null) warnings.push(`line "${line.id}" has neither text nor ms; it will be a 3 s pause`);
     if (/\bTODO\b/.test(`${line.text || ""} ${line.chapter || ""}`)) errors.push(`line "${line.id}" still has a TODO placeholder`);
+    if (!line.text || kind !== "landscape") continue;
+    if (TEASER.test(line.text)) errors.push(`line "${line.id}" points at another video ("${line.text.match(TEASER)[0]}"); each lesson stands alone`);
+    const parts = sentences(line.text);
+    const lastSentence = parts.at(-1) || "";
+    if (parts.length > 1 && norm(lastSentence).length <= 2) {
+      warnings.push(`line "${line.id}" ends on a very short sentence ("${lastSentence}"); the voice tends to drop those, fold it into the one before`);
+    }
   }
+  if (kind === "vertical") checkCopy(lesson, narration, errors, warnings);
+  return { errors, warnings };
+}
+
+// `dir` (the lesson folder) checks the files lesson.json names.
+function checkLesson(lesson, beats, { kind = "landscape", dir = null } = {}) {
+  const { errors, warnings } = checkNarration(lesson, { kind });
+  if (!lesson.title) errors.push("lesson.json has no title");
+  const narration = linesOf(lesson);
+  const seen = new Set(narration.map((l) => l.id));
   for (const line of narration) {
     const beat = beats[line.id];
     if (typeof beat !== "function") {
@@ -63,15 +85,6 @@ function checkLesson(lesson, beats, { kind = "landscape", dir = null } = {}) {
   for (const [id, fn] of Object.entries(beats)) {
     if (id !== "setup" && typeof fn === "function" && !seen.has(id)) warnings.push(`beat "${id}" has no narration line and never runs`);
   }
-  for (const line of narration) {
-    if (!line.text) continue;
-    if (kind === "landscape" && TEASER.test(line.text)) errors.push(`line "${line.id}" points at another video ("${line.text.match(TEASER)[0]}"); each lesson stands alone`);
-    const parts = sentences(line.text);
-    const lastSentence = parts.at(-1) || "";
-    if (kind === "landscape" && parts.length > 1 && norm(lastSentence).length <= 2) {
-      warnings.push(`line "${line.id}" ends on a very short sentence ("${lastSentence}"); the voice tends to drop those, fold it into the one before`);
-    }
-  }
   if (kind === "landscape" && narration.length) {
     const first = beats[narration[0].id];
     if (typeof first === "function" && !/\.card\(/.test(first.toString())) warnings.push(`the first beat ("${narration[0].id}") shows no title card; lessons open on s.card("<title>")`);
@@ -81,17 +94,12 @@ function checkLesson(lesson, beats, { kind = "landscape", dir = null } = {}) {
       warnings.push(`the last line should be silent ({ "id": "outro", "ms": 3200 }) with s.card("lpm.cx", { hold: true })`);
     }
   }
-  if (kind === "vertical") {
-    for (const line of narration) {
-      const fn = beats[line.id];
-      if (typeof fn === "function" && /\bs\.card\(/.test(fn.toString())) errors.push(`beat "${line.id}" calls s.card(), which a vertical lesson does not have (the opener is the headline sticker)`);
-    }
-  }
+  if (kind === "vertical") checkVertical(lesson, narration, beats, errors, warnings);
   if (/\bTODO\b/.test(JSON.stringify(lesson.youtube || {}))) warnings.push('lesson.json "youtube" still has TODO placeholders; the upload refuses them');
   for (const [id, edit] of Object.entries(lesson.zooms || {})) {
-    const bad = Object.keys(edit).filter((k) => !["scale", "at", "ms", "drop"].includes(k));
+    const bad = Object.keys(edit).filter((k) => !ZOOM_EDITS[kind].includes(k));
     if (!/^[^#]+#\d+$/.test(id)) errors.push(`lesson.json zooms: "${id}" is not a zoom id (<line>#<n>, see the mux log)`);
-    if (bad.length) errors.push(`lesson.json zooms["${id}"]: unknown ${bad.join(", ")} (scale, at, ms or drop)`);
+    if (bad.length) errors.push(`lesson.json zooms["${id}"]: unknown ${bad.join(", ")} (${ZOOM_EDITS[kind].join(", ")})`);
   }
   if (kind === "landscape") checkEdit(lesson, seen, errors, warnings, dir);
   return { errors, warnings };
@@ -144,4 +152,10 @@ function lintDir(dir, opts) {
   return checkLesson(lesson, beats, { ...opts, dir });
 }
 
-module.exports = { checkLesson, lintDir, cuesIn };
+// Says what the lint found and stops on a mistake.
+function refuseMistakes({ errors, warnings }) {
+  for (const w of warnings) console.log(`lint: ${w}`);
+  if (errors.length) throw new Error(`the lesson has mistakes to fix first:\n  ${errors.join("\n  ")}`);
+}
+
+module.exports = { checkNarration, checkLesson, lintDir, refuseMistakes, cuesIn };

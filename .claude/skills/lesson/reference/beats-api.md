@@ -11,6 +11,9 @@ A lesson lives in `~/Movies/lpm-lessons/<slug>/`. `scripts/new.js` writes a star
 | `narration[].chapter` | starts a YouTube chapter at that line (topic cards start one too) |
 | `source` | `"app"` (the default) or `"demo"` (the website demo in headless Chromium) |
 | `voice`, `style` | override the TTS voice (`marin`) and style prompt (`DEFAULT_STYLE` in `scripts/make.js`) |
+| `heard` | how the transcript spells what the voice says right, added to the usual names (Claude, Codex, lpm, Kimi): `{ "wander": "wonder" }`, or a phrase on either side. Add an entry when a line keeps being spoken again over a name it says right |
+| `pronounce` | `{ "nginx": "engine x" }`: how the voice says a word; captions keep the written one (`lpm` is spoken as letters by default) |
+| `hide` | terms the checks must not find on screen |
 | `env` | environment for the lesson app, applied after the scrub (lesson 14: `CLAUDE_SECURESTORAGE_CONFIG_DIR: ""`, `CLAUDE_CODE_HIDE_CWD: "1"`) |
 | `settings` | seeded into the app's `settings.json` before launch |
 | `limits` | `false` leaves the Claude/Codex usage meters out (and Claude's status line); keep them in: the user wants them on every lesson |
