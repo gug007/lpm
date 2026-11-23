@@ -1,14 +1,14 @@
 ---
 name: short-daily
-description: "How the two daily lpm shorts get made: `daily-short` takes its topic from what viewers suggested, `daily-short-research` from research into what gets views. Find a topic, get it approved with one `lpm ask`, then record, check and post it to YouTube Shorts and TikTok in that same turn. Use when either automation runs, or when the user asks for today's short proposal."
-version: 2.0.1
+description: "How the daily lpm shorts get made: `daily-short` takes its topic from what viewers suggested, `daily-short-research` from research into what gets views, `daily-short-features` from ten concepts that each show one thing lpm can do. Find a topic, get it approved with one `lpm ask`, then record, check and post it to YouTube Shorts and TikTok in that same turn. Use when one of these automations runs, or when the user asks for today's short proposal."
+version: 2.1.0
 metadata:
   lpm-created: "true"
 ---
 
 The goal is a bigger YouTube and TikTok audience, so numbers pick the topic, not taste. Recording and posting belong to `short`, `short-race`, `short-game` and `short-publish`; their rules hold unless this file says otherwise.
 
-SKILLS is `.claude/skills` in this repo, TIKTOK is `~/Movies/lpm-lessons/tiktok`, STATE is `TIKTOK/_daily`, and SOURCE is `suggestions` or `research`, as the automation's prompt says.
+SKILLS is `.claude/skills` in this repo, TIKTOK is `~/Movies/lpm-lessons/tiktok`, STATE is `TIKTOK/_daily`, and SOURCE is `suggestions`, `research` or `features`, as the automation's prompt says.
 
 ## Rules
 
@@ -22,7 +22,7 @@ SKILLS is `.claude/skills` in this repo, TIKTOK is `~/Movies/lpm-lessons/tiktok`
   - To run a reply snippet only: `https://www.youtube.com/watch?v=<id>&lc=<comment id>` and `https://www.tiktok.com/@lpm06557/video/<id>`
 - **Hands off.** Never stop a process you didn't start (the user's `tauri dev`, lpm windows, Claude sessions). No input outside `take.sh` and Chrome. `lpm ask` is the only lpm command you use. Never commit or push.
 - **State.** `STATE/SOURCE.json` holds the date, phase (`proposed`, `approved`, `recording`, `recorded`, `made`, `posted`, `skipped`), the topic, slug, links and replies. Read it first, write it after each step, and never redo a finished step. A scheduled start is a new day: drop what was unfinished, but a finished video that never posted can be today's backup. After a killed turn, see [recovery](references/recovery.md).
-- **Two automations, one Mac.** Read the other SOURCE's state: never pick its topic, and when its take is running, wait for it. Both share `requests.json`, `posts.json` and `log.md`, and each one's notes are in `~/.lpm/memory/lpm/job-<automation id>.md`, so read the other's.
+- **Three automations, one Mac.** Read the other SOURCES' states: never pick their topics, and when one's take is running, wait for it. All share `requests.json`, `posts.json` and `log.md`, and each one's notes are in `~/.lpm/memory/lpm/job-<automation id>.md`, so read the others'.
 - **Every final message** ends with `short-daily <date> · SOURCE · phase <phase> · .claude/skills/short-daily/SKILL.md`, so a condensed turn can find its way back.
 
 ## 1. Find the topic
@@ -39,7 +39,9 @@ Run `node SKILLS/short-daily/scripts/channels.js` with Bash `timeout: 600000` (2
 
 Propose something we haven't made, and name the numbers behind it.
 
-**A topic can be** a model race on a format (`short-race`), a race building a game (`short-game`), or an lpm tip or feature (`short`). Pick one topic and one backup.
+**SOURCE features.** Ten concepts, each one lpm feature and the opening hook for it: [features](references/features.md) has the list, what qualifies, and the ask that goes in place of step 3's. Write a lesson (step 2) only after the pick.
+
+**A topic can be** a model race on a format (`short-race`), a race building a game (`short-game`), or an lpm tip or feature (`short`). Pick one topic and one backup; SOURCE features offers its ten instead.
 
 **It has to fit the hour.** Everything after the answer runs in one turn, so a race's slower side must be expected under 18 minutes. Opus or Fable at high: scenes 2–15 minutes, websites 3–8, the 3D runner 12–18. GPT, Gemini and Cursor models: 1–4. xhigh, max, ultracode and GTA don't fit. A take adds about 3 minutes, QA and posting about 10.
 
@@ -61,7 +63,7 @@ The timeout ends at least 30 minutes before this automation's next start, becaus
 
 A resumed message with no "The user answered" header is the user's own words. A pick or a plain go approves it. Changes they asked for: apply them and go on. Skip: log it with any reason and stop. Only an unclear answer, or a change that can't be made, asks again.
 
-1. **Ready.** No take running (`pgrep -fl 'lesson/scripts/take.sh|node scripts/make.js '`); wait for one the other automation started. Nothing but the lesson server on port 9245 (`lsof -nP -iTCP:9245 -sTCP:LISTEN`). The Mac idle for 120 seconds (`ioreg -c IOHIDSystem | awk '/HIDIdleTime/ {print int($NF/1000000000); exit}'`): wait for it with Monitor for up to 10 minutes. Still blocked: ask the topic question again, naming what's in the way. When it's a dev server, offer a choice to stop it: a phone answer can't free the Mac any other way, and only that answer lets you stop its exact process group.
+1. **Ready.** No take running (`pgrep -fl 'lesson/scripts/take.sh|node scripts/make.js '`); wait for one another automation started. Nothing but the lesson server on port 9245 (`lsof -nP -iTCP:9245 -sTCP:LISTEN`). The Mac idle for 120 seconds (`ioreg -c IOHIDSystem | awk '/HIDIdleTime/ {print int($NF/1000000000); exit}'`): wait for it with Monitor for up to 10 minutes. Still blocked: ask the topic question again, naming what's in the way. When it's a dev server, offer a choice to stop it: a phone answer can't free the Mac any other way, and only that answer lets you stop its exact process group.
 2. **Dry run.** Always `--dom-mouse`: nothing may move the user's pointer.
    - A race, on short-game's red-square lesson with the same model specs:
      ```

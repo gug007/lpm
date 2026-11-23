@@ -67,7 +67,7 @@ actions:
       html: scripts/usage/popup.html
       data: $(node scripts/usage/data.mjs)
       title: Usage
-      size: 380x230
+      size: 380x210
       cache: 10m
     app: true
 
