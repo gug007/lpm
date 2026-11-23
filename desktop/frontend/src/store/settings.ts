@@ -74,6 +74,8 @@ export interface Settings {
   notificationChannels?: NotificationChannelPrefs;
   // Toasts wait while the composer is being typed in.
   holdToastsWhileTyping?: boolean;
+  // How many agents need you, on the Dock or taskbar icon. Unset means on.
+  appIconBadge?: boolean;
   doneSound?: string;
   waitingSound?: string;
   errorSound?: string;
@@ -258,6 +260,7 @@ function normalize(s: main.Settings): Settings {
     systemNotifications: s.systemNotifications ?? defaults.systemNotifications,
     notificationChannels: s.notificationChannels,
     holdToastsWhileTyping: s.holdToastsWhileTyping ?? defaults.holdToastsWhileTyping,
+    appIconBadge: s.appIconBadge,
     doneSound: s.doneSound || undefined,
     waitingSound: s.waitingSound || undefined,
     errorSound: s.errorSound || undefined,

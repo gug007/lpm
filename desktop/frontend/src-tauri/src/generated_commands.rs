@@ -13,6 +13,7 @@ macro_rules! all_command_handlers {
     () => {
         tauri::generate_handler![
             ack_terminal_data,
+            set_attention_badge,
             agent_limits,
             claude_read_usage,
             claude_limits_account,
@@ -70,6 +71,8 @@ macro_rules! all_command_handlers {
             browser_forward,
             browser_reload,
             inspect_browser,
+            pick_in_browser,
+            cancel_browser_pick,
             close_browser,
             copy_claude_session_for_fork,
             move_claude_tab_to_account,

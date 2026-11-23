@@ -503,6 +503,24 @@ fn humanize_schedule(schedule: &Value) -> String {
             None => "—".into(),
         },
         Some("manual") => "manual".into(),
+        Some("event") => {
+            let on = schedule.get("on").and_then(Value::as_str).unwrap_or("—");
+            let mut text = format!("on {on}");
+            for key in ["branches", "services"] {
+                let names = strings(key);
+                if !names.is_empty() {
+                    text.push_str(&format!(" {}", names.join(",")));
+                }
+            }
+            let from = strings("from");
+            if !from.is_empty() {
+                text.push_str(&format!(" from {}", from.join(",")));
+            }
+            if schedule.get("atMost").and_then(Value::as_str) == Some("day") {
+                text.push_str(" once a day");
+            }
+            text
+        }
         _ => "—".into(),
     }
 }
@@ -542,6 +560,14 @@ mod tests {
             "cron 0 18 * * 5"
         );
         assert_eq!(humanize_schedule(&json!({ "mode": "manual" })), "manual");
+        assert_eq!(
+            humanize_schedule(&json!({ "mode": "event", "on": "ciFailed", "branches": ["main"], "atMost": "commit" })),
+            "on ciFailed main"
+        );
+        assert_eq!(
+            humanize_schedule(&json!({ "mode": "event", "on": "agentFinished", "from": ["docs"], "atMost": "day" })),
+            "on agentFinished from docs once a day"
+        );
     }
 
     #[test]

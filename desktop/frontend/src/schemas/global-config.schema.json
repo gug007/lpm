@@ -44,7 +44,7 @@
         "enabled": { "type": "boolean", "description": "false pauses it: it doesn't run on its schedule until it's turned on again." },
         "schedule": {
           "type": "object",
-          "description": "When it runs: a time of day (at) on some days (days), an interval (every), a cron line (cron), or manual: true to run it only by hand.",
+          "description": "When it runs: a time of day (at) on some days (days), an interval (every), a cron line (cron), something that happens (on), or manual: true to run it only by hand.",
           "properties": {
             "at": { "description": "A time of day, or a list of them.", "examples": ["09:00"] },
             "until": { "type": "string", "description": "The end of a window the run lands somewhere inside, instead of at the exact time in at." },
@@ -54,7 +54,20 @@
             "shortMonths": { "type": "string", "description": "For a date a short month lacks: last runs it on that month's last day; skip (the default) skips the month.", "examples": ["last", "skip"] },
             "every": { "type": ["string", "integer"], "description": "Run again after this long: hours, or a number with h or d. A band such as 4h-8h draws each gap from it.", "examples": ["6h", "2d", "4h-8h"] },
             "manual": { "type": "boolean", "description": "Never runs on its own, only when started by hand." },
-            "cron": { "type": "string", "description": "A five-field cron line, in place of every other timing key." }
+            "cron": { "type": "string", "description": "A five-field cron line, in place of every other timing key." },
+            "on": {
+              "type": "string",
+              "enum": ["ciFailed", "serviceCrashed", "agentFinished"],
+              "description": "Run when this happens instead of on a clock: CI fails on a push from this computer, one of the project's services exits with an error, or an agent finishes its turn. Replaces every other timing key."
+            },
+            "branches": { "type": ["string", "array"], "items": { "type": "string" }, "description": "With on: ciFailed, only failures on these branches. Left out, any branch." },
+            "services": { "type": ["string", "array"], "items": { "type": "string" }, "description": "With on: serviceCrashed, only these services. Left out, any of the project's services." },
+            "from": { "type": ["string", "array"], "items": { "type": "string" }, "description": "With on: agentFinished, the projects whose agents count. Left out, this project's own." },
+            "atMost": {
+              "type": "string",
+              "enum": ["commit", "day"],
+              "description": "With on: how often it may run. commit (the default) runs once for each commit the event is about; day runs once a day."
+            }
           }
         },
         "run": {

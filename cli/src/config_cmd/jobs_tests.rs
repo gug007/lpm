@@ -120,3 +120,27 @@ fn memory_on_a_read_only_run_is_flagged_but_allowed() {
         vec!["config.jobs.a.run.memory: a read-only run can't save its memory, so each run starts fresh".to_string()]
     );
 }
+
+#[test]
+fn an_event_schedule_is_checked_on_its_own_terms() {
+    let ok = "root: /tmp\njobs:\n  a: { schedule: { on: ciFailed, branches: [main], atMost: day }, run: { prompt: x } }\n";
+    assert_eq!(errors(ConfigKind::Project, ok), Vec::<String>::new());
+    let cases = [
+        ("{ on: prOpened }", "config.jobs.a.schedule.on: expected one of: ciFailed, serviceCrashed, agentFinished"),
+        ("{ on: ciFailed, every: 6h }", "config.jobs.a.schedule: an event replaces at, every, days, cron and manual; drop them"),
+        ("{ on: ciFailed, services: [api] }", "config.jobs.a.schedule.services: goes with on: serviceCrashed"),
+        ("{ on: ciFailed, atMost: hour }", "config.jobs.a.schedule.atMost: expected one of: commit, day"),
+        ("{ at: '09:00', branches: [main] }", "config.jobs.a.schedule.branches: goes with on"),
+    ];
+    for (schedule, expected) in cases {
+        let source = format!("root: /tmp\njobs:\n  a: {{ schedule: {schedule}, run: {{ prompt: x }} }}\n");
+        let errors = errors(ConfigKind::Project, &source);
+        assert!(errors.contains(&expected.to_string()), "{schedule}: {errors:?}");
+    }
+}
+
+#[test]
+fn an_agents_finish_cant_run_an_action() {
+    let source = "root: /tmp\njobs:\n  a: { schedule: { on: agentFinished }, run: { action: claude } }\n";
+    assert!(errors(ConfigKind::Project, source).iter().any(|e| e.starts_with("config.jobs.a.run: an automation an agent's finish starts")));
+}

@@ -1,4 +1,5 @@
 import type { SettingsTab, View } from "./store/app";
+import { appIconBadgeWords } from "./appIconBadgeWords";
 import { builtinShortcutGroups } from "./builtinShortcuts";
 import { HOTKEYS } from "./hotkeys";
 import { chordLabel } from "./keys";
@@ -304,6 +305,13 @@ export const ROWS = {
     label: "Hold toasts while I type",
     description: "They wait until you stop typing in the message input, then show",
     keywords: ["toast", "composer", "typing", "quiet", "focus", "interrupt"],
+  },
+  "notifications.appIconBadge": {
+    kind: "row",
+    tab: "notifications",
+    id: "notifications.appIconBadge",
+    ...appIconBadgeWords(),
+    keywords: ["badge", "dock", "taskbar", "launcher", "icon", "count", "number", "waiting", "needs you", "unread", "agent"],
   },
   "notifications.weeklyRecap": {
     kind: "row",

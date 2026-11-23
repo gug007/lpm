@@ -43,6 +43,14 @@ data class AutomationJob(
     val nthOf: String,
     val onDates: List<String>,
     val fromMinutes: Int?,
+    // An event's schedule: what starts the job ("ciFailed", "serviceCrashed",
+    // "agentFinished"), the names it listens to, and "commit" or "day". Older
+    // Macs never send one.
+    val eventOn: String = "",
+    val eventBranches: List<String> = emptyList(),
+    val eventServices: List<String> = emptyList(),
+    val eventFrom: List<String> = emptyList(),
+    val eventAtMost: String = "",
     val lastRunAt: Long?,
     val lastResult: String,
     /**
@@ -150,6 +158,11 @@ data class AutomationJob(
                 nthOf = schedule.string("nthOf").orEmpty(),
                 onDates = schedule.strings("onDates").orEmpty(),
                 fromMinutes = schedule.int("fromMinutes"),
+                eventOn = schedule.string("on").orEmpty(),
+                eventBranches = schedule.strings("branches").orEmpty(),
+                eventServices = schedule.strings("services").orEmpty(),
+                eventFrom = schedule.strings("from").orEmpty(),
+                eventAtMost = schedule.string("atMost").orEmpty(),
                 lastRunAt = o.long("lastRunAt"),
                 lastResult = o.string("lastResult").orEmpty(),
                 lastNote = o.string("lastNote").orEmpty(),

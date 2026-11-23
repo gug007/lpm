@@ -2378,6 +2378,7 @@ fn is_denied(cmd: &str) -> bool {
             | "stop_all"
             // window / dock / detached-window focus
             | "focus_main_window"
+            | "set_attention_badge"
             | "focus_detached_window"
             | "restore_detached_windows"
             | "list_detached_projects"
@@ -2446,6 +2447,8 @@ fn is_denied(cmd: &str) -> bool {
             | "browser_back"
             | "browser_forward"
             | "browser_reload"
+            | "pick_in_browser"
+            | "cancel_browser_pick"
             // vault key material
             | "vault_export_key"
             | "vault_import_key"
@@ -3114,6 +3117,7 @@ mod tests {
         assert!(is_denied("install_update"));
         assert!(is_denied("cancel_update"));
         assert!(is_denied("open_browser"));
+        assert!(is_denied("pick_in_browser"));
         assert!(is_denied("open_in"));
         assert!(is_denied("open_file_in_editor"));
         assert!(is_denied("open_path_in_default_app"));

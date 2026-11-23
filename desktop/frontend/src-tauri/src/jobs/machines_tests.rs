@@ -89,6 +89,7 @@ fn a_run_covers_the_time_it_came_due_but_a_skip_or_a_reply_doesnt() {
     assert!(covers(&run(100, COMPLETED), 100));
     assert!(!covers(&run(99, COMPLETED), 100));
     assert!(!covers(&run(100, SKIPPED_CAPACITY), 100));
+    assert!(!covers(&run(100, SKIPPED_CI_ROUNDS), 100));
     let reply = HistoryEntry {
         question: Some("and?".into()),
         ..run(200, COMPLETED)

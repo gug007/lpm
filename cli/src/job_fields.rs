@@ -1,3 +1,4 @@
+use crate::job_event_fields::JobEventFields;
 use clap::Args;
 use serde_norway::{Mapping, Value};
 
@@ -72,6 +73,8 @@ pub struct JobFields {
         help = "Five-field cron line in local time, or @hourly, @daily, @weekly, @monthly"
     )]
     pub cron: Option<String>,
+    #[command(flatten)]
+    pub event: JobEventFields,
 
     #[arg(
         long,
@@ -183,6 +186,7 @@ impl JobFields {
             || self.pick_days.is_some()
             || self.short_months.is_some()
             || self.cron.is_some()
+            || self.event.given()
     }
 
     pub fn run_target_given(&self) -> bool {
@@ -286,6 +290,9 @@ impl JobFields {
     }
 
     fn schedule(&self) -> Mapping {
+        if let Some(schedule) = self.event.schedule() {
+            return schedule;
+        }
         let mut schedule = Mapping::new();
         if self.manual {
             schedule.insert("manual".into(), Value::Bool(true));

@@ -6,6 +6,12 @@
 import type { IntervalUnit, JobDraft, JobSchedule } from "./jobsFormat";
 import { normalizeCron, parseCron } from "./cronExpr";
 import {
+  draftToEventSchedule,
+  eventBlockFromDraft,
+  readEventIntoDraft,
+  validateEventDraft,
+} from "./jobsEvents";
+import {
   parseIsoDate,
   readDaysValue,
   writeDaysValue,
@@ -94,6 +100,7 @@ function writesShortMonths(draft: JobDraft): boolean {
 }
 
 export function draftToSchedule(draft: JobDraft): JobSchedule | null {
+  if (draft.scheduleKind === "event") return draftToEventSchedule(draft);
   if (draft.scheduleKind === "cron") {
     const parsed = parseCron(draft.cron);
     return parsed.ok ? { mode: "cron", cron: parsed.spec.source } : null;
@@ -149,6 +156,7 @@ export function draftToSchedule(draft: JobDraft): JobSchedule | null {
 }
 
 export function scheduleBlockFromDraft(draft: JobDraft): Record<string, unknown> {
+  if (draft.scheduleKind === "event") return eventBlockFromDraft(draft);
   if (draft.scheduleKind === "cron") {
     return { cron: normalizeCron(draft.cron) };
   }
@@ -225,6 +233,7 @@ function readAts(at: unknown): string[] {
 // Reverse of scheduleBlockFromDraft. Unknown or partial shapes leave the
 // draft's defaults in place so the editor always opens in a sane state.
 export function readScheduleIntoDraft(draft: JobDraft, s: Record<string, unknown>): void {
+  if (readEventIntoDraft(draft, s)) return;
   if (typeof s.cron === "string" && s.cron.trim()) {
     draft.scheduleKind = "cron";
     draft.cron = normalizeCron(s.cron);
@@ -330,6 +339,7 @@ function validateTimeOfDay(draft: JobDraft, now: Date): string | null {
 // Mirrors the backend validation so save is blocked before a write the
 // scheduler would reject, and the message reads in product terms.
 export function validateDraftSchedule(draft: JobDraft, now: Date = new Date()): string | null {
+  if (draft.scheduleKind === "event") return validateEventDraft(draft);
   if (draft.scheduleKind === "cron") {
     const parsed = parseCron(draft.cron);
     return parsed.ok ? null : parsed.error;

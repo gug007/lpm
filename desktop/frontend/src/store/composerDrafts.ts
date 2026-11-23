@@ -191,8 +191,9 @@ export function deliverPromptDraft(
 
 // Text such as an "@path" mention handed to a terminal's input from elsewhere in
 // the window (the Files tab's "Mention in agent"). It joins what is typed there;
-// a block (a quote from the terminal) goes on lines of its own.
-type ComposerInsertCallback = (text: string, block: boolean) => void;
+// a block (a quote from the terminal) goes on lines of its own. `images` maps the
+// `[Image #N]` tokens in `text` to files, which arrive as chips.
+type ComposerInsertCallback = (text: string, block: boolean, images: Record<string, string>) => void;
 const insertSubs = new Map<string, ComposerInsertCallback>();
 
 export function subscribeComposerInsert(terminalId: string, cb: ComposerInsertCallback): () => void {
@@ -202,6 +203,18 @@ export function subscribeComposerInsert(terminalId: string, cb: ComposerInsertCa
   };
 }
 
+// Each mapped token in `text` renumbered past the prompt's own images, so it
+// can't take over a chip already there.
+function adoptImages(tab: ComposerInputTab, text: string, images: Record<string, string>): string {
+  return text.replace(/\[Image #(\d+)\]/g, (token, n: string) => {
+    const path = images[n];
+    if (!path) return token;
+    tab.imgCounter += 1;
+    tab.imagePaths.set(tab.imgCounter, path);
+    return `[Image #${tab.imgCounter}]`;
+  });
+}
+
 // A mounted composer takes `text` at its caret; otherwise it goes on the end of
 // the parked prompt, there when that composer mounts. True when it went live.
 export function insertComposerText(
@@ -209,10 +222,11 @@ export function insertComposerText(
   historyKey: string,
   text: string,
   block = false,
+  images: Record<string, string> = {},
 ): boolean {
   const cb = insertSubs.get(terminalId);
   if (cb) {
-    cb(text, block);
+    cb(text, block, images);
     return true;
   }
   const durable = historyKey === terminalId ? undefined : historyKey;
@@ -220,10 +234,11 @@ export function insertComposerText(
   const tab = draft?.tabs.find((t) => t.id === draft.activeTabId) ?? draft?.tabs[0];
   if (!draft || !tab) {
     const fresh = createInputTab();
-    fresh.text = text;
+    fresh.text = adoptImages(fresh, text, images);
     saveComposerDraft(terminalId, { tabs: [fresh], activeTabId: fresh.id, history: draft?.history ?? [] }, durable);
     return false;
   }
+  text = adoptImages(tab, text, images);
   if (block) tab.text = tab.text.trim() === "" ? text : `${tab.text.replace(/\s+$/, "")}\n\n${text}`;
   else tab.text = tab.text === "" || /\s$/.test(tab.text) ? tab.text + text : `${tab.text} ${text}`;
   saveComposerDraft(terminalId, draft, durable);

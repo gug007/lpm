@@ -41,7 +41,9 @@ fun automationResultTone(result: String): AutomationTone = when (result) {
 
     in automationFailedResults -> AutomationTone.Red
 
-    "skipped-overlap", "skipped-pending-copy", "skipped-capacity", "pending-window" ->
+    "skipped-overlap", "skipped-pending-copy", "skipped-capacity", "skipped-ci-rounds",
+    "pending-window"
+    ->
         AutomationTone.Orange
 
     else -> AutomationTone.Secondary
@@ -58,6 +60,7 @@ fun automationResultLabel(result: String): String = when (result) {
     "skipped-overlap" -> "Skipped — still running"
     "skipped-pending-copy" -> "Waiting for the previous copy"
     "skipped-capacity" -> "Waiting — other automations were running"
+    "skipped-ci-rounds" -> "Skipped — CI still fails"
     "pending-window" -> "Waiting for the app window"
     else -> result.ifEmpty { "No runs yet" }
 }
@@ -98,10 +101,15 @@ fun automationRowStatusText(job: AutomationJob, now: AutomationClock): String {
 /** The one line that answers "what is this doing right now" when not running. */
 fun automationPillText(job: AutomationJob, now: AutomationClock): String = when {
     !job.valid -> "Can't run"
+
     job.ask != null -> AUTOMATION_WAITING_LABEL
+
     job.running -> "Running"
+
     !job.enabled -> "Off"
-    else -> job.nextFireAt?.let { "Next run ${now.relative(it)}" } ?: "No run scheduled"
+
+    else -> job.nextFireAt?.let { "Next run ${now.relative(it)}" }
+        ?: if (job.scheduleMode == "event") automationScheduleText(job) else "No run scheduled"
 }
 
 fun automationPillTone(job: AutomationJob): AutomationTone = when {

@@ -1333,6 +1333,9 @@ pub(crate) fn publish(app: &AppHandle, store: &StatusStore, project: &str, entry
         if crate::notifychannels::NotificationEvent::of_status(&held.value).is_some() {
             crate::statusroute::announce(app, project, &held);
         }
+        if held.value == crate::status::STATUS_DONE {
+            crate::jobs::event_runs::agent_finished(app, project, &held);
+        }
     }
     if watched {
         crate::agentturn::nudge();

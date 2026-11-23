@@ -50,7 +50,7 @@ function calendarCadence(schedule: Calendar): string {
 }
 
 // A random day or gap only promises the earliest the job can start.
-function isRandom(schedule: Exclude<JobSchedule, { mode: "manual" }>): boolean {
+function isRandom(schedule: Exclude<JobSchedule, { mode: "manual" | "event" }>): boolean {
   if (schedule.mode === "calendar") return (schedule.pickDays ?? 0) > 0;
   if (schedule.mode === "interval") return (schedule.everyMaxSecs ?? 0) > schedule.everySecs;
   return false;
@@ -63,6 +63,9 @@ export function describeFirstRun(
 ): FirstRun | null {
   if (!schedule) return null;
   if (schedule.mode === "manual") return { first: "Runs only when you start it" };
+  if (schedule.mode === "event") {
+    return { first: `Runs ${formatSchedule(schedule).replace(/^./, (c) => c.toLowerCase())}` };
+  }
 
   const from = Math.floor(now.getTime() / 1000);
   const slot = expandSchedule(

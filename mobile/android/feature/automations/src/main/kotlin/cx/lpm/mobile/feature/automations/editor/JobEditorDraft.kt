@@ -70,7 +70,8 @@ data class JobEditorDraft(
     val hasProjectsKey: Boolean = false,
     /**
      * A schedule set on the Mac that this editor has no controls for (several times a
-     * day, dates of the month, a one-off date, an interval held to some hours, cron).
+     * day, dates of the month, a one-off date, an interval held to some hours, cron,
+     * an event).
      * It is written back exactly as read.
      */
     val keptSchedule: JsonObject? = null,

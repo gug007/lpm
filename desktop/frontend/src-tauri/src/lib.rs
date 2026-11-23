@@ -3,6 +3,7 @@ mod actions;
 mod cmd_inputs;
 mod command_run;
 mod adopt;
+mod attention_badge;
 mod agent_dialog;
 mod agent_last_answer;
 mod agent_last_answer_codex;
@@ -48,6 +49,8 @@ mod aigen_split;
 mod autosync;
 mod bounds;
 mod browser;
+mod browser_pick;
+mod browser_snapshot;
 mod ci_checks;
 mod ci_commits;
 mod ci_fix_loop;
@@ -460,6 +463,7 @@ mod zones;
 // macro (which lists them unqualified) resolves the hand-written real
 // commands and the generated stubs.
 use actions::*;
+use attention_badge::set_attention_badge;
 use command_run::*;
 use agent_last_answer::*;
 use agent_limits::*;
@@ -484,6 +488,7 @@ use lpm_commands_cmds::{
 };
 use aigen_split::generate_commit_split;
 use browser::*;
+use browser_pick::*;
 use claude_account_pin::*;
 use claude_limit_stops::{claude_limit_stop, dismiss_claude_limit_stop};
 use claude_pool::{accept_claude_pool_pick, claude_pool_state, resume_claude_pool, set_claude_pool};

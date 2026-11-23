@@ -21,6 +21,7 @@ mod hook;
 mod job;
 mod job_answer;
 mod job_edit;
+mod job_event_fields;
 mod job_manage;
 mod job_move;
 mod job_open;

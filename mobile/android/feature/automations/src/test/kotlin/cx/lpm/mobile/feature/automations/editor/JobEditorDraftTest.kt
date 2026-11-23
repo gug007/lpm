@@ -68,6 +68,7 @@ class JobEditorDraftTest {
     fun `a schedule the editor can't rebuild is written back as read`() {
         val kept = listOf(
             """{"cron":"0 9 * * 1"}""",
+            """{"on":"ciFailed","branches":["main"],"atMost":"day"}""",
             """{"at":["09:00","17:00"]}""",
             """{"every":"2h","at":"09:00","until":"17:00"}""",
             """{"at":"09:00","days":["1","15"]}""",

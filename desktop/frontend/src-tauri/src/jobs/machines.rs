@@ -142,7 +142,11 @@ pub(super) fn catch_up_waits(late: bool, others_away: bool, since_noticed: u64) 
 fn ran(result: &str) -> bool {
     !matches!(
         result,
-        SKIPPED_OVERLAP | SKIPPED_PENDING_COPY | PENDING_WINDOW | SKIPPED_CAPACITY
+        SKIPPED_OVERLAP
+            | SKIPPED_PENDING_COPY
+            | PENDING_WINDOW
+            | SKIPPED_CAPACITY
+            | SKIPPED_CI_ROUNDS
     )
 }
 

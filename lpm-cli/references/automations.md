@@ -81,6 +81,27 @@ The command validates the entry before saving it and exits 2 if anything is wron
 - `--until`, `--times`, and `--pick-days` go with `--at`. With `--every`, `--at` and `--until` form a daily window, and `--days` can only be weekdays.
 - `--cron` and `--manual` stand alone. A cron line's runs must be at least 5 minutes apart.
 
+### When something happens
+
+`--on EVENT` starts the automation when lpm sees something happen, instead of on a clock. It stands alone like `--cron`.
+
+| Event | When it fires | Narrow it with |
+|---|---|---|
+| `ciFailed` | CI fails on a commit pushed from this computer (needs `gh` signed in) | `--branches main,release` |
+| `serviceCrashed` | One of the project's services exits with an error code; noticed within a minute | `--services api,worker` |
+| `agentFinished` | An agent in a terminal finishes its turn | `--from docs-site,web` for agents in other projects; the default is the automation's own project |
+
+- `--at-most commit` (the default) runs once for each commit the event is about: the failing commit for CI, the project's current commit otherwise. `--at-most day` runs once a day. A folder without Git counts each day as one commit.
+- A `ciFailed` automation at `--at-most commit` stops after 3 runs in a row for failures on the same branch, so a run whose pushed fix fails CI too can't keep starting the next. Its history then shows `skipped-ci-rounds`, and it reacts again once CI passes on that branch (or lpm restarts).
+- An automation started by `agentFinished` runs a `--prompt` or a `--cmd`, not an `--action`: the action's agent would finish and start it again.
+- A run started by an event gets `LPM_TRIGGER=event`, `LPM_EVENT`, `LPM_EVENT_PROJECT`, `LPM_EVENT_SUMMARY`, and where they apply `LPM_EVENT_BRANCH`, `LPM_EVENT_COMMIT`, `LPM_EVENT_SERVICE`, `LPM_EVENT_EXIT_CODE`, `LPM_EVENT_AGENT`, `LPM_EVENT_URL` and `LPM_EVENT_DETAIL` (what a Fix with agent would be told about the failing checks, or the agent's answer). A `--prompt` run's agent is told the same at the top of its prompt.
+- A global automation with no project reacts to that event in any project.
+
+```bash
+lpm automations add fix-ci --label "Fix CI" --on ciFailed --branches main \
+  --duplicate worktree --prompt "Make the failing checks pass and push the fix." --agent claude
+```
+
 ## What it runs
 
 Exactly one of these:

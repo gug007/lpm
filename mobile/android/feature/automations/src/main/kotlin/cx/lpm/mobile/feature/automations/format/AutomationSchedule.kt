@@ -7,6 +7,7 @@ import java.util.Locale
 fun automationScheduleText(job: AutomationJob): String {
     when (job.scheduleMode) {
         "manual" -> return "Manual"
+        "event" -> return eventText(job)
         "cron" -> return "Cron ${job.cron}"
         "interval" -> return intervalText(job)
     }
@@ -54,6 +55,39 @@ private fun ordinalText(n: Int): String {
         else -> "th"
     }
     return "$n$suffix"
+}
+
+/**
+ * "When CI fails on main", "When api crashes", "When an agent finishes in docs-site,
+ * once a day": what starts an event's job, worded as the desktop words it.
+ */
+private fun eventText(job: AutomationJob): String {
+    val text = when (job.eventOn) {
+        "ciFailed" -> if (job.eventBranches.isEmpty()) {
+            "When CI fails"
+        } else {
+            "When CI fails on ${orWords(job.eventBranches)}"
+        }
+
+        "serviceCrashed" -> if (job.eventServices.isEmpty()) {
+            "When a service crashes"
+        } else {
+            "When ${orWords(job.eventServices)} crashes"
+        }
+
+        else -> if (job.eventFrom.isEmpty()) {
+            "When an agent finishes"
+        } else {
+            "When an agent finishes in ${orWords(job.eventFrom)}"
+        }
+    }
+    return if (job.eventAtMost == "day") "$text, once a day" else text
+}
+
+/** "a, b or c". */
+private fun orWords(words: List<String>): String {
+    if (words.size <= 1) return words.firstOrNull().orEmpty()
+    return words.dropLast(1).joinToString(", ") + " or " + words.last()
 }
 
 private fun intervalText(job: AutomationJob): String {

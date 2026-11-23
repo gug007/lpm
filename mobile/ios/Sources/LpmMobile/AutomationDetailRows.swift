@@ -39,6 +39,7 @@ struct AutomationStatusPill: View {
         if job.running { return "Running" }
         if !job.enabled { return "Off" }
         if let next = job.nextFireAt { return "Next run \(automationDateText(next))" }
+        if job.scheduleMode == "event" { return automationScheduleText(job) }
         return "No run scheduled"
     }
 

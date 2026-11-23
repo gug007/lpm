@@ -217,7 +217,7 @@ private fun JobEditorDraft.buildDuplicate(): JsonElement? {
  * interval — the shapes this editor can rebuild faithfully.
  */
 internal fun scheduleNeedsMac(schedule: JsonObject): Boolean {
-    if (schedule["cron"] != null) return true
+    if (schedule["cron"] != null || schedule["on"] != null) return true
     if (schedule["at"] is JsonArray || schedule["shortMonths"] != null) return true
     if (schedule["every"] != null) {
         return schedule["at"] != null || schedule["until"] != null || schedule["days"] != null

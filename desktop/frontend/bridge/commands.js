@@ -1477,6 +1477,12 @@ export function BrowserReload(id) {
 export function InspectBrowser(id) {
   return invoke("inspect_browser", { id });
 }
+export function PickInBrowser(id) {
+  return invoke("pick_in_browser", { id });
+}
+export function CancelBrowserPick(id) {
+  return invoke("cancel_browser_pick", { id });
+}
 export function TakeOpenLink() {
   return invoke("take_open_link");
 }
@@ -1753,4 +1759,7 @@ export function FollowPause(project) {
 }
 export function FollowResume(project) {
   return invoke("follow_resume", { project });
+}
+export function SetAttentionBadge(count) {
+  return invoke("set_attention_badge", { count });
 }

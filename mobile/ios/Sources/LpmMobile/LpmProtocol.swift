@@ -1704,6 +1704,14 @@ struct AutomationJob: Identifiable {
     let nthOf: String
     let onDates: [String]
     let fromMinutes: Int?
+    /// An event's schedule: what starts the job ("ciFailed", "serviceCrashed",
+    /// "agentFinished"), the names it listens to, and "commit" or "day". Older
+    /// Macs never send one.
+    let eventOn: String
+    let eventBranches: [String]
+    let eventServices: [String]
+    let eventFrom: [String]
+    let eventAtMost: String
     let lastRunAt: Int?
     let lastResult: String
     /// What the last run said about itself (a failure's reason, or the head of
@@ -1773,6 +1781,11 @@ struct AutomationJob: Identifiable {
         nthOf = schedule["nthOf"] as? String ?? ""
         onDates = schedule["onDates"] as? [String] ?? []
         fromMinutes = schedule["fromMinutes"] as? Int
+        eventOn = schedule["on"] as? String ?? ""
+        eventBranches = schedule["branches"] as? [String] ?? []
+        eventServices = schedule["services"] as? [String] ?? []
+        eventFrom = schedule["from"] as? [String] ?? []
+        eventAtMost = schedule["atMost"] as? String ?? ""
         lastRunAt = o["lastRunAt"] as? Int
         lastResult = o["lastResult"] as? String ?? ""
         lastNote = (o["lastNote"] as? String).flatMap { $0.isEmpty ? nil : $0 }

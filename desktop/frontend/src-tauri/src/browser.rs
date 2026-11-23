@@ -270,6 +270,7 @@ pub fn close_browser(
     id: String,
 ) -> Result<(), String> {
     state.theme.lock().unwrap().remove(&id);
+    crate::browser_pick::cancel_pick(&id);
     if let Some(wv) = app.get_webview(&id) {
         wv.close().map_err(|e| e.to_string())?;
     }

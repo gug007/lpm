@@ -79,7 +79,7 @@ private struct JobEditorDraft {
     var machines: [String] = []     // "runs on": hostIds, best first, "any" last; empty = every Mac that has it
     /// A schedule set on the Mac that this editor has no controls for (several
     /// times a day, dates of the month, a one-off date, an interval held to some
-    /// hours, a cron line). It is written back exactly as read, never rebuilt
+    /// hours, a cron line, an event). It is written back exactly as read, never rebuilt
     /// into something it isn't.
     var keptSchedule: [String: Any]?
     /// The task an agent-launching action is handed, set on the Mac; carried
@@ -90,7 +90,7 @@ private struct JobEditorDraft {
 /// Whether a YAML schedule uses anything beyond weekdays, one time or window,
 /// and a plain interval — the shapes this editor can rebuild faithfully.
 private func scheduleNeedsMac(_ schedule: [String: Any]) -> Bool {
-    if schedule["cron"] != nil { return true }
+    if schedule["cron"] != nil || schedule["on"] != nil { return true }
     if schedule["at"] is [Any] || schedule["shortMonths"] != nil { return true }
     if schedule["every"] != nil {
         return schedule["at"] != nil || schedule["until"] != nil || schedule["days"] != nil

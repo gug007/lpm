@@ -8,11 +8,17 @@ export function formatQuote(text: string): string {
   return `${lines.map((l) => (l.trim() ? `> ${l}` : ">")).join("\n")}\n\n`;
 }
 
-// Insert multi-line `text` on lines of its own at the caret: a line already
-// holding text gets a break first. The caret ends up after the block.
-export function insertBlockAtCaret(root: HTMLElement, text: string): void {
+// Readies the caret for a block of lines: in the field, and the line break the
+// block needs first (when the caret's line already holds text) handed back.
+export function blockBreak(root: HTMLElement): string {
   root.focus();
   if (!caretInside(root)) placeCaretAtEnd(root);
   const line = lineBeforeCaret(root);
-  insertPlainText(root, line && line.trim() ? `\n${text}` : text);
+  return line && line.trim() ? "\n" : "";
+}
+
+// Insert multi-line `text` on lines of its own at the caret: a line already
+// holding text gets a break first. The caret ends up after the block.
+export function insertBlockAtCaret(root: HTMLElement, text: string): void {
+  insertPlainText(root, blockBreak(root) + text);
 }

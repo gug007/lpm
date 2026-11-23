@@ -43,6 +43,8 @@ const SKIPPED_OVERLAP: &str = "skipped-overlap";
 const SKIPPED_PENDING_COPY: &str = "skipped-pending-copy";
 const PENDING_WINDOW: &str = "pending-window";
 const SKIPPED_CAPACITY: &str = "skipped-capacity";
+// A job CI failures on one branch kept starting waits for that branch to pass.
+const SKIPPED_CI_ROUNDS: &str = "skipped-ci-rounds";
 // Event-only status emitted when a run starts, never written to history.
 const RUNNING: &str = "running";
 // Event-only status for a quiet job's run that found nothing: it leaves no
@@ -59,6 +61,9 @@ const ASK_INSTRUCTION: &str = "If you can't go on without a decision or informat
 
 pub(crate) mod ask;
 pub(crate) mod askform;
+pub(crate) mod event_rounds;
+pub(crate) mod event_runs;
+pub(crate) mod events;
 mod keyed;
 pub(crate) mod machines;
 mod runstep;
@@ -235,6 +240,14 @@ struct ScheduleDef {
     /// A five-field cron line, standing in for every other timing key.
     #[serde(default)]
     cron: String,
+    /// Something lpm sees happen, standing in for the clock (jobs/events.rs).
+    #[serde(default)]
+    on: String,
+    branches: Option<events::NameList>,
+    services: Option<events::NameList>,
+    from: Option<events::NameList>,
+    #[serde(default, rename = "atMost")]
+    at_most: String,
 }
 
 /// `every: 6h` / `every: 2d` (string with an h/d suffix) or a bare integer read
@@ -314,6 +327,8 @@ enum Schedule {
     Cron(crate::jobcron::CronSpec),
     /// Never fires automatically; runs only when started by hand.
     Manual,
+    /// Started by something that happened, never by the clock.
+    Event(events::EventSpec),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -506,6 +521,9 @@ fn resolve_pick_days(pick: Option<u32>, days: &[u8]) -> Result<Option<u32>, Stri
 }
 
 fn resolve_schedule(sched: &ScheduleDef) -> Result<Schedule, String> {
+    if !sched.on.trim().is_empty() {
+        return events::resolve(sched).map(Schedule::Event);
+    }
     if sched.manual {
         return Ok(Schedule::Manual);
     }
@@ -705,6 +723,7 @@ fn resolve_job(project: &str, id: &str, def: &JobDef) -> Result<JobResolved, Str
     if !verify.is_empty() && matches!(run, RunTarget::Action { .. }) {
         return Err("A check after the run isn't available for actions.".into());
     }
+    events::check_run(&schedule, &run)?;
     Ok(JobResolved {
         id: id.to_string(),
         label: if def.label.trim().is_empty() {
@@ -1107,7 +1126,7 @@ fn is_due(schedule: &Schedule, last_run: u64, now: u64, seed: u64) -> bool {
         Schedule::Cron(spec) => spec
             .last_at_or_before(now as i64)
             .is_some_and(|occ| occ as u64 > last_run),
-        Schedule::Manual => false,
+        Schedule::Manual | Schedule::Event(_) => false,
     }
 }
 
@@ -1132,7 +1151,7 @@ fn next_fire_at(schedule: &Schedule, last_run: u64, now: u64, seed: u64) -> Opti
         }
         Schedule::Calendar(spec) => next_fire_point(spec, now as i64, seed),
         Schedule::Cron(spec) => spec.next_after(now as i64),
-        Schedule::Manual => None,
+        Schedule::Manual | Schedule::Event(_) => None,
     }
 }
 
@@ -1167,6 +1186,9 @@ struct JobState {
     /// Questions asked under a key, which outlive the run that asked them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     keyed: Vec<Ask>,
+    /// The commit or day an event last started this job (jobs/events.rs).
+    #[serde(default, rename = "lastEvent", skip_serializing_if = "Option::is_none")]
+    last_event: Option<String>,
 }
 
 impl JobState {
@@ -1697,6 +1719,8 @@ enum Trigger {
     Reply,
     /// A keyed question's answer, handed to the job's `onAnswer` command.
     Answer,
+    /// Something the job listens for happened (jobs/events.rs).
+    Event,
 }
 
 impl Trigger {
@@ -1706,6 +1730,7 @@ impl Trigger {
             Trigger::Manual => "manual",
             Trigger::Reply => "reply",
             Trigger::Answer => "answer",
+            Trigger::Event => "event",
         }
     }
 }
@@ -1729,7 +1754,7 @@ fn due_fire_at(schedule: &Schedule, last_run: u64, now: u64, seed: u64) -> Optio
         Schedule::Calendar(spec) => most_recent_fire_point(spec, now as i64, seed)
             .map(|o| o as u64 + implicit_jitter(spec, seed)),
         Schedule::Cron(spec) => spec.last_at_or_before(now as i64).map(|o| o as u64),
-        Schedule::Manual => None,
+        Schedule::Manual | Schedule::Event(_) => None,
     }
 }
 
@@ -2762,7 +2787,7 @@ fn dispatch_run(
                 // A scheduled run stays on the project's fixed account.
                 let mut task = json!({ "kind": "action", "actionName": id, "fixedAccount": true });
                 if !prompt.is_empty() {
-                    task["prompt"] = json!(prompt);
+                    task["prompt"] = json!(event_runs::with_note(prompt, &env));
                 }
                 emit_or_park(app, key, target, task)
             } else {
@@ -2801,6 +2826,7 @@ fn dispatch_run(
             } else {
                 agent.clone()
             };
+            let prompt = event_runs::with_note(prompt, &env);
             let mut env = env;
             let memory = memory.then(|| crate::jobmemory::dir(project)).flatten();
             let memory_note = memory.as_ref().map(|dir| {
@@ -2821,7 +2847,7 @@ fn dispatch_run(
                         effort,
                         *full_access,
                         browser_tools(*full_access),
-                        &run_prompt(prompt, memory_note.as_deref(), *quiet),
+                        &run_prompt(&prompt, memory_note.as_deref(), *quiet),
                     ),
                     Some(agent),
                     copy,
@@ -2882,8 +2908,11 @@ fn pipeline_body(
     let scheduled_for = st
         .last_run_at
         .and_then(|last| due_fire_at(&job.schedule, last, now_secs(), job_seed(project, &job.id)));
+    let event = (trigger == Trigger::Event)
+        .then(|| event_runs::take(key))
+        .flatten();
     let context = |run_root: &str, copy: Option<&str>| {
-        run_env(
+        let mut env = run_env(
             project,
             &job.id,
             run_root,
@@ -2891,7 +2920,9 @@ fn pipeline_body(
             scheduled_for,
             st.last_run_at,
             copy,
-        )
+        );
+        env.extend(event.as_ref().map(event_runs::env).unwrap_or_default());
+        env
     };
 
     if !job.check.is_empty() {
@@ -3776,7 +3807,9 @@ fn tick(app: &AppHandle) {
     let now = now_secs();
     let mut due: Vec<(String, JobResolved, u64)> = Vec::new();
     let mut shared: Vec<(String, machines::Machines)> = Vec::new();
+    let mut listened: HashSet<events::EventKind> = HashSet::new();
     let mut consider = |project: &str, id: &str, job: JobResolved| {
+        listened.extend(events::kind_of(&job.schedule));
         if let Some(m) = &job.machines {
             shared.push((state_key(project, id), m.clone()));
         }
@@ -3799,6 +3832,9 @@ fn tick(app: &AppHandle) {
         consider("", &id, job);
     }
     machines::pull(app, shared);
+    event_runs::set_wanted(listened);
+    event_runs::scan_services(app);
+    event_runs::drain(app);
 
     // Longest-waiting first. The scan walks projects in a fixed order, so
     // taking them as they come would starve the same late-in-the-alphabet jobs
@@ -3902,6 +3938,7 @@ fn schedule_json(schedule: &Schedule) -> Value {
         }
         Schedule::Cron(spec) => json!({ "mode": "cron", "cron": spec.source }),
         Schedule::Manual => json!({ "mode": "manual" }),
+        Schedule::Event(spec) => events::schedule_json(spec),
     }
 }
 

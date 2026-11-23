@@ -79,6 +79,16 @@ export function NotificationsPane() {
           </SettingsRow>
         </SettingsSection>
       )}
+      {shows("notifications.appIconBadge") && (
+        <SettingsSection title="App icon">
+          <SettingsRow {...rowProps("notifications.appIconBadge")}>
+            <Toggle
+              enabled={settings.appIconBadge !== false}
+              onChange={(v) => void update({ appIconBadge: v })}
+            />
+          </SettingsRow>
+        </SettingsSection>
+      )}
       {shows("notifications.weeklyRecap") && (
         <SettingsSection title="Weekly recap">
           <SettingsRow {...rowProps("notifications.weeklyRecap")}>

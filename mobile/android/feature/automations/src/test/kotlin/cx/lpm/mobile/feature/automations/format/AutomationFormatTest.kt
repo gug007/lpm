@@ -23,6 +23,30 @@ class AutomationFormatTest {
         )
         assertEquals("Manual", automationScheduleText(job(""""schedule":{"mode":"manual"}""")))
         assertEquals(
+            "When CI fails on main",
+            automationScheduleText(
+                job(
+                    """"schedule":{"mode":"event","on":"ciFailed","branches":["main"],"atMost":"commit"}"""
+                )
+            )
+        )
+        assertEquals(
+            "When api or worker crashes",
+            automationScheduleText(
+                job(
+                    """"schedule":{"mode":"event","on":"serviceCrashed","services":["api","worker"]}"""
+                )
+            )
+        )
+        assertEquals(
+            "When an agent finishes in a, b or c, once a day",
+            automationScheduleText(
+                job(
+                    """"schedule":{"mode":"event","on":"agentFinished","from":["a","b","c"],"atMost":"day"}"""
+                )
+            )
+        )
+        assertEquals(
             "Cron 0 9 * * 1",
             automationScheduleText(job(""""schedule":{"mode":"cron","cron":"0 9 * * 1"}"""))
         )

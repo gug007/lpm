@@ -61,7 +61,7 @@ import { stepRecall } from "./composerRecall";
 import { recordMessage, saveDraft } from "../store/messageHistory";
 import { buildTerminalPayload } from "../composerPayload";
 import { captureGitMention, fencedBlock } from "../mentionGitCapture";
-import { insertBlockAtCaret } from "./composerQuote";
+import { blockBreak, insertBlockAtCaret } from "./composerQuote";
 import { sendToTerminal } from "../store/terminalTargets";
 import { openFileViewer } from "../store/fileViewer";
 import type { SendTargetRow } from "../sendTargets";
@@ -741,21 +741,6 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     });
   }, [terminalId, syncState, loadTab, refreshTabView]);
 
-  // A file mentioned from the Files tab lands at the caret, spaced off the word
-  // before it, the way the footer's memory pick does; a quote from the terminal
-  // goes on lines of its own.
-  useEffect(() => {
-    return subscribeComposerInsert(terminalId, (text: string, block: boolean) => {
-      const editor = editorRef.current;
-      if (!editor) return;
-      if (block) insertBlockAtCaret(editor, text);
-      else if (!insertSpacedAtCaret(editor, text)) return;
-      histIdx.current = -1;
-      normalizeComposer(editor);
-      syncState();
-    });
-  }, [terminalId, syncState]);
-
   // After a caret move, WebKit may have injected stray chars around a chip. Clean
   // them in a rAF (before the next paint, so no flash; coalesced across repeats)
   // rather than reacting to input — caret navigation fires no input event.
@@ -918,6 +903,26 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     // eslint-disable-next-line react-hooks/exhaustive-deps -- commitUndo is ref-only
     [syncState],
   );
+
+  // A file mentioned from the Files tab lands at the caret, spaced off the word
+  // before it, the way the footer's memory pick does; a quote from the terminal
+  // goes on lines of its own, and so does a pick from the browser with its picture.
+  useEffect(() => {
+    return subscribeComposerInsert(terminalId, (text: string, block: boolean, images: Record<string, string>) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      if (Object.keys(images).length > 0) {
+        const lead = block ? blockBreak(editor) : "";
+        insertItems(payloadToItems({ text: lead + text, images }, registerImagePath), false);
+        return;
+      }
+      if (block) insertBlockAtCaret(editor, text);
+      else if (!insertSpacedAtCaret(editor, text)) return;
+      histIdx.current = -1;
+      normalizeComposer(editor);
+      syncState();
+    });
+  }, [terminalId, syncState, insertItems, registerImagePath]);
 
   // Insert the chips that resolved and warn about any that didn't, so a failed
   // save (decode/temp-write error) never vanishes without feedback.

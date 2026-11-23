@@ -6,6 +6,7 @@ import { composerValueToText, EMPTY_COMPOSER, textToPrompt } from "./composerVal
 import type { ComposerValue } from "./composerValue";
 import { isOpenAsk, WAITING_LABEL, type JobAsk } from "./jobAsk";
 import { describeCronText } from "./cronDescribe";
+import { formatEvent, type JobEventKind, type JobEventLimit, type JobEventSchedule } from "./jobsEvents";
 import { DEFAULT_SEND_TO, readSendTo, writeSendTo } from "./sendTo";
 import { readMachines } from "./jobsMachines";
 import {
@@ -76,7 +77,8 @@ export type JobSchedule =
       pickDays?: number;
     } & DateRuleFields)
   | { mode: "cron"; cron: string }
-  | { mode: "manual" };
+  | { mode: "manual" }
+  | JobEventSchedule;
 
 // Which config layer defines the job: the project registry file, the repo's
 // .lpm.yml, or ~/.lpm/global.yml (applies to every project).
@@ -263,6 +265,7 @@ export type JobResult =
   | "skipped-overlap"
   | "skipped-pending-copy"
   | "skipped-capacity"
+  | "skipped-ci-rounds"
   | "pending-window";
 
 export type JobResultTone = "neutral" | "success" | "error" | "warning";
@@ -293,6 +296,7 @@ const RESULT_META: Record<string, ResultMeta> = {
     label: () => "Waiting — other automations were running",
     tone: "warning",
   },
+  "skipped-ci-rounds": { label: () => "Skipped — CI still fails", tone: "warning" },
   "pending-window": { label: () => "Waiting for the app window", tone: "warning" },
 };
 
@@ -503,6 +507,9 @@ export function formatSchedule(schedule: JobSchedule): string {
   if (schedule.mode === "manual") {
     return "Manual";
   }
+  if (schedule.mode === "event") {
+    return formatEvent(schedule);
+  }
   if (schedule.mode === "cron") {
     return describeCronText(schedule.cron) ?? `Cron ${schedule.cron}`;
   }
@@ -612,8 +619,9 @@ export function formatNextRun(
 
 export type ScheduleMode = "time" | "interval" | "manual";
 
-// How the schedule is written: with the form's controls, or as a cron line.
-export type ScheduleKind = "form" | "cron";
+// How the schedule is written: with the form's controls, as a cron line, or as
+// something that happens.
+export type ScheduleKind = "form" | "cron" | "event";
 
 // Which days a time-of-day job runs on: weekdays (`days`, empty = every day),
 // dates of the month, a position in the month, or one calendar date.
@@ -629,6 +637,13 @@ export interface JobDraft {
   // back and forth doesn't lose either.
   scheduleKind: ScheduleKind;
   cron: string;
+  // The event that starts the job, and the names it is narrowed to as typed:
+  // comma-separated branches, services or projects, each kept apart.
+  eventOn: JobEventKind;
+  eventBranches: string;
+  eventServices: string;
+  eventFrom: string;
+  eventAtMost: JobEventLimit;
   scheduleMode: ScheduleMode;
   time: string;
   // Further fixed times on the same days; unused while the time is drawn from
@@ -719,6 +734,11 @@ export function defaultJobDraft(): JobDraft {
     emoji: "",
     scheduleKind: "form",
     cron: "",
+    eventOn: "ciFailed",
+    eventBranches: "",
+    eventServices: "",
+    eventFrom: "",
+    eventAtMost: "commit",
     scheduleMode: "time",
     time: "09:00",
     moreTimes: [],

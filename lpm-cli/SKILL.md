@@ -54,7 +54,7 @@ description: "Operate lpm-managed projects through the `lpm` CLI: start or stop 
 
 ### Automations
 
-Automations are tasks the app runs on a schedule: a shell command, a project action, or a headless AI prompt, optionally after a cheap check and in a fresh copy. These commands need the app running. Read [references/automations.md](references/automations.md) before `add` or `edit`.
+Automations are tasks the app runs on a schedule, or when CI fails, a service crashes or an agent finishes (`--on`): a shell command, a project action, or a headless AI prompt, optionally after a cheap check and in a fresh copy. These commands need the app running. Read [references/automations.md](references/automations.md) before `add` or `edit`.
 
 - `lpm automations list [-p proj | --all] [--json]` — id, name, state (`waiting`, `running`, `enabled`, `paused`, `invalid`), schedule, last result, next run, and `NEW`, the count of runs the user hasn't read (`unread` in `--json`). `waiting` means a run asked the user something; with `--json` the row's `ask` holds the question. `valid: false` rows carry an `error`.
 - `lpm automations show <id> [-p proj | --global] [--json]` — the current definition.

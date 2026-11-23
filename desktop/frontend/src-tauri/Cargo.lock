@@ -2923,6 +2923,7 @@ dependencies = [
  "aes-gcm 0.11.1",
  "argon2",
  "base64 0.23.1",
+ "block2",
  "cc",
  "chrono",
  "core-foundation",

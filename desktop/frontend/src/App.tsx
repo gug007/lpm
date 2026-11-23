@@ -51,6 +51,7 @@ import { useTabSwitcher } from "./hooks/useTabSwitcher";
 import { useProjectsSync } from "./hooks/useProjectsSync";
 import { useGlobalAgentStatusSync } from "./hooks/useGlobalTerminalStatus";
 import { useAgentToasts } from "./hooks/useAgentToasts";
+import { useAttentionBadge } from "./hooks/useAttentionBadge";
 import { GLOBAL_TERMINALS_KEY } from "./terminals";
 import { tabHomeName } from "./components/ProjectNameDisplay";
 import { useAppEvents } from "./hooks/useAppEvents";
@@ -188,6 +189,7 @@ export default function App() {
   useCloseLeftArchived();
   useGlobalAgentStatusSync();
   useAgentToasts();
+  useAttentionBadge();
   useAppEvents();
   useEffect(() => startSendLaterRunner(), []);
   useEffect(() => startOpenLinks(), []);

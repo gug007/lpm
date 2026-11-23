@@ -203,9 +203,32 @@ private func automationDateRulePhrase(_ job: AutomationJob) -> String? {
     return "on the \(joinedWords(words)) of every month"
 }
 
+/// "When CI fails on main", "When api crashes", "When an agent finishes in
+/// docs-site, once a day": what starts an event's job, worded as the desktop
+/// words it (jobsEvents.ts).
+private func automationEventText(_ job: AutomationJob) -> String {
+    let text: String
+    switch job.eventOn {
+    case "ciFailed":
+        text = job.eventBranches.isEmpty ? "When CI fails" : "When CI fails on \(orWords(job.eventBranches))"
+    case "serviceCrashed":
+        text = job.eventServices.isEmpty ? "When a service crashes" : "When \(orWords(job.eventServices)) crashes"
+    default:
+        text = job.eventFrom.isEmpty ? "When an agent finishes" : "When an agent finishes in \(orWords(job.eventFrom))"
+    }
+    return job.eventAtMost == "day" ? "\(text), once a day" : text
+}
+
+/// "a, b or c".
+private func orWords(_ words: [String]) -> String {
+    guard let last = words.last, words.count > 1 else { return words.first ?? "" }
+    return words.dropLast().joined(separator: ", ") + " or " + last
+}
+
 func automationScheduleText(_ job: AutomationJob) -> String {
     switch job.scheduleMode {
     case "manual": return "Manual"
+    case "event": return automationEventText(job)
     case "cron": return "Cron \(job.cron)"
     case "interval": return intervalText(job)
     default: break
@@ -289,7 +312,7 @@ func automationResultColor(_ result: String) -> Color {
     if automationFailedResults.contains(result) { return .red }
     switch result {
     case "completed", "found-work": return .green
-    case "skipped-overlap", "skipped-pending-copy", "skipped-capacity", "pending-window": return .orange
+    case "skipped-overlap", "skipped-pending-copy", "skipped-capacity", "skipped-ci-rounds", "pending-window": return .orange
     default: return .secondary
     }
 }
@@ -306,6 +329,7 @@ func automationResultLabel(_ result: String) -> String {
     case "skipped-overlap": return "Skipped — still running"
     case "skipped-pending-copy": return "Waiting for the previous copy"
     case "skipped-capacity": return "Waiting — other automations were running"
+    case "skipped-ci-rounds": return "Skipped — CI still fails"
     case "pending-window": return "Waiting for the app window"
     default: return result.isEmpty ? "No runs yet" : result
     }

@@ -7,6 +7,7 @@ import { IntervalRows } from "./IntervalRows";
 import { TimeOfDayRows } from "./TimeOfDayRows";
 import { NextRunsPreview } from "./NextRunsPreview";
 import { CronScheduleEditor } from "./cron/CronScheduleEditor";
+import { EventScheduleRows } from "./EventScheduleRows";
 import type { CronAIContext } from "./cron/CronDescribeBox";
 import { Card, GroupLabel, Row, TIME_INPUT_CLASS } from "./JobFormRows";
 import type { JobDraft, ScheduleKind } from "../../../jobsFormat";
@@ -16,6 +17,7 @@ import { cronFormPatch, DEFAULT_CRON, formCron } from "../../../jobsCron";
 const KIND_OPTIONS: { value: ScheduleKind; label: string }[] = [
   { value: "form", label: "Simple" },
   { value: "cron", label: "Cron" },
+  { value: "event", label: "Event" },
 ];
 
 // "1 random day a week", "2 random days a week" … up to one short of the pool,
@@ -33,7 +35,7 @@ function pickOptions(pool: number): { value: string; label: string }[] {
 
 // When the job runs: how often it repeats, which days, and — for a job that
 // runs at a time of day — set times or a window the time is drawn from. Or a
-// cron line, for anyone who'd rather write one.
+// cron line, for anyone who'd rather write one, or something that happens.
 export function JobFrequencyCard({
   draft,
   patch,
@@ -58,6 +60,10 @@ export function JobFrequencyCard({
   // Each switch carries the schedule across when the other side can say it.
   const setKind = (next: ScheduleKind) => {
     if (next === draft.scheduleKind) return;
+    if (next === "event" || (next === "form" && draft.scheduleKind === "event")) {
+      patch({ scheduleKind: next });
+      return;
+    }
     if (next === "form") {
       const fromCron = cronFormPatch(draft.cron) ?? {};
       formAtLeave.current = formCron({ ...draft, ...fromCron });
@@ -81,6 +87,15 @@ export function JobFrequencyCard({
       options={KIND_OPTIONS}
     />
   );
+
+  if (draft.scheduleKind === "event") {
+    return (
+      <div>
+        <GroupLabel aside={kindToggle}>When</GroupLabel>
+        <EventScheduleRows draft={draft} patch={patch} problem={problem} />
+      </div>
+    );
+  }
 
   if (draft.scheduleKind === "cron") {
     return (

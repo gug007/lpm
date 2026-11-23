@@ -120,6 +120,7 @@ const [triageLast, triageBefore] = fires(WEEKDAYS, 9 * 60, -1, 2);
 const [bumpLast] = fires(EVERY_DAY, 2 * 60, -1, 1);
 const [notesLast] = fires(["fri"], 17 * 60, -1, 1);
 const flakyRun = fireOn(-2, 21 * 60 + 12);
+const ciFixRun = new Date(Date.now() - 3 * 3600 * 1000);
 
 const JOBS: JobSpec[] = [
   {
@@ -201,6 +202,26 @@ const JOBS: JobSpec[] = [
         result: "error",
         output: "Run aborted — postgres service was not up when the suite started.",
         durationSecs: 14,
+      },
+    ],
+  },
+  {
+    id: "fix-ci",
+    label: "Fix CI",
+    emoji: "🛠️",
+    agent: "claude",
+    prompt: "Make the failing checks pass, then push the fix to the same branch.",
+    schedule: { mode: "event", on: "ciFailed", atMost: "commit" },
+    enabled: true,
+    next: null,
+    scope: { project: "saas-app" },
+    runs: [
+      {
+        at: ciFixRun,
+        result: "completed",
+        output: "The billing test still expected the old plan names. Updated it and pushed; CI passes again.",
+        durationSecs: 214,
+        costUsd: 0.18,
       },
     ],
   },

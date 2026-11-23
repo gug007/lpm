@@ -331,15 +331,27 @@ impl CiWatch {
             Outcome::Failed => {
                 self.failing.insert(key);
                 if !looped {
-                    announce(app, &CiResult::of(w, &info, false));
+                    let result = CiResult::of(w, &info, false);
+                    announce(app, &result);
+                    crate::jobs::event_runs::ci_failed(
+                        app,
+                        &w.project,
+                        &w.branch,
+                        &w.sha,
+                        result.fix_prompt.as_deref(),
+                        &result.url,
+                    );
                 }
                 false
             }
             _ => {
                 if info.checks.iter().any(|c| c.state == "fail") {
                     self.failing.insert(key);
-                } else if self.failing.remove(&key) && !looped {
-                    announce(app, &CiResult::of(w, &info, true));
+                } else {
+                    crate::jobs::event_rounds::ci_passed(&w.project, &w.branch);
+                    if self.failing.remove(&key) && !looped {
+                        announce(app, &CiResult::of(w, &info, true));
+                    }
                 }
                 false
             }

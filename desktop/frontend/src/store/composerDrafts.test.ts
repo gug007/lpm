@@ -195,4 +195,49 @@ describe("insertComposerText", () => {
     expect(draft?.tabs.map((t) => t.text)).toEqual(["@README.md "]);
     expect(draft?.activeTabId).toBe(draft?.tabs[0].id);
   });
+
+  it("hands a mounted composer the images with the text", async () => {
+    const m = await import("./composerDrafts");
+    const seen: Record<string, string>[] = [];
+    m.subscribeComposerInsert("term-1", (_text, _block, images) => seen.push(images));
+
+    m.insertComposerText("term-1", "hk-1", "[Image #1]\nPicked\n\n", true, { "1": "/tmp/pick.png" });
+    m.insertComposerText("term-1", "hk-1", "@a.ts ");
+
+    expect(seen).toEqual([{ "1": "/tmp/pick.png" }, {}]);
+  });
+
+  it("numbers a parked block's image past the prompt's own", async () => {
+    const m = await import("./composerDrafts");
+    const mine = m.createInputTab();
+    mine.text = "see [Image #1] and [Image #2]";
+    mine.imagePaths.set(1, "/tmp/a.png");
+    mine.imagePaths.set(2, "/tmp/b.png");
+    mine.imgCounter = 2;
+    m.saveComposerDraft("term-1", { tabs: [mine], activeTabId: mine.id, history: [] }, "hk-1");
+
+    m.insertComposerText("term-1", "hk-1", "[Image #1]\nPicked\n\n", true, { "1": "/tmp/pick.png" });
+
+    const tab = m.loadComposerDraft("term-1", "hk-1")?.tabs[0];
+    expect(tab?.text).toBe("see [Image #1] and [Image #2]\n\n[Image #3]\nPicked\n\n");
+    expect(tab?.imagePaths.get(3)).toBe("/tmp/pick.png");
+    expect(tab?.imagePaths.get(1)).toBe("/tmp/a.png");
+    expect(tab?.imgCounter).toBe(3);
+  });
+
+  it("gives a new prompt the image under its own token", async () => {
+    const m = await import("./composerDrafts");
+    m.insertComposerText("term-1", "hk-1", "[Image #1]\nPicked\n\n", true, { "1": "/tmp/pick.png" });
+    const tab = m.loadComposerDraft("term-1", "hk-1")?.tabs[0];
+    expect(tab?.text).toBe("[Image #1]\nPicked\n\n");
+    expect(tab?.imagePaths.get(1)).toBe("/tmp/pick.png");
+  });
+
+  it("leaves a token with no image as text", async () => {
+    const m = await import("./composerDrafts");
+    m.insertComposerText("term-1", "hk-1", "[Image #4] stays", false, { "1": "/tmp/pick.png" });
+    const tab = m.loadComposerDraft("term-1", "hk-1")?.tabs[0];
+    expect(tab?.text).toBe("[Image #4] stays");
+    expect(tab?.imagePaths.size).toBe(0);
+  });
 });

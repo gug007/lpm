@@ -1,3 +1,4 @@
+use super::event::{validate_event, EVENT_FIELDS};
 use super::{
     text_at, validate_bool_field, validate_keys, validate_string_field, Mapping, Report, Value,
 };
@@ -34,7 +35,11 @@ enum Days {
 }
 
 pub(super) fn validate_schedule(map: &Mapping, path: &str, report: &mut Report) {
-    validate_keys(map, &SCHEDULE_FIELDS, path, report);
+    let fields: Vec<&str> = SCHEDULE_FIELDS.iter().chain(&EVENT_FIELDS).copied().collect();
+    validate_keys(map, &fields, path, report);
+    if validate_event(map, path, report) {
+        return;
+    }
     for key in ["until", "shortMonths", "cron"] {
         validate_string_field(map, key, &format!("{path}.{key}"), report);
     }

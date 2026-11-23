@@ -179,7 +179,7 @@ export function expandSchedule(
   window: Window,
   anchors: { nextFireAt?: number; lastRunAt?: number } = {},
 ): ExpandResult {
-  if (!schedule || schedule.mode === "manual" || window.to <= window.from) {
+  if (!schedule || schedule.mode === "manual" || schedule.mode === "event" || window.to <= window.from) {
     return { slots: [], truncated: false };
   }
   if (schedule.mode === "cron") return expandCron(schedule.cron, window);

@@ -220,3 +220,23 @@ fn on_answer_sits_with_the_other_steps_and_an_empty_one_removes_it() {
     assert_eq!(applied(start, &["--on-answer", ""]).unwrap(), "run:\n  cmd: x\n");
     assert!(!fields(&["--on-answer", "x"]).is_empty());
 }
+
+#[test]
+fn an_event_replaces_the_clock_and_keeps_only_its_filters() {
+    let start = "schedule: { at: '09:00', days: [mon] }\nrun: { prompt: fix }\n";
+    assert_eq!(
+        applied(start, &["--on", "ciFailed", "--branches", "main,release"]).unwrap(),
+        "schedule:\n  on: ciFailed\n  branches:\n  - main\n  - release\nrun:\n  prompt: fix\n"
+    );
+    assert_eq!(
+        applied("{}", &["--on", "agentFinished", "--from", "docs", "--at-most", "day"]).unwrap(),
+        "schedule:\n  on: agentFinished\n  from:\n  - docs\n  atMost: day\n"
+    );
+    assert_eq!(
+        applied("{}", &["--on", "serviceCrashed", "--at-most", "commit"]).unwrap(),
+        "schedule:\n  on: serviceCrashed\n"
+    );
+    assert!(Cli::try_parse_from(["t", "--on", "ciFailed", "--every", "6h"]).is_err());
+    assert!(Cli::try_parse_from(["t", "--branches", "main"]).is_err());
+    assert!(Cli::try_parse_from(["t", "--on", "prOpened"]).is_err());
+}

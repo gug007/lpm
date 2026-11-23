@@ -37,6 +37,8 @@ const DUPLICATE_FIELDS: [&str; 4] = ["mode", "pullLatest", "reinstallDeps", "exc
 const AGENTS: [&str; 4] = ["claude", "codex", "gemini", "opencode"];
 const SEND_TO_SERVICES: [&str; 1] = ["telegram"];
 
+#[path = "job_event.rs"]
+mod event;
 #[path = "job_schedule.rs"]
 mod schedule;
 
@@ -135,6 +137,15 @@ fn validate_job(map: &Mapping, kind: ConfigKind, path: &str, report: &mut Report
                     report.error(
                         &format!("{path}.verify"),
                         "a check after the run isn't available for actions",
+                    );
+                }
+                let schedule = map
+                    .get(Value::String("schedule".into()))
+                    .and_then(Value::as_mapping);
+                if schedule.is_some_and(|schedule| event::starts_itself(schedule, run)) {
+                    report.error(
+                        &format!("{path}.run"),
+                        "an automation an agent's finish starts runs a prompt or a cmd, not an action: the action's own agent would start it again",
                     );
                 }
             }
