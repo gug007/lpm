@@ -164,3 +164,66 @@ fn only_work_after_the_stop_redates_the_finish() {
     }
     .work_goes_on());
 }
+
+// A finish held for a background shell alone leaves the session idle at its
+// prompt: the tab shows that instead of work going on.
+#[test]
+fn a_hold_for_a_shell_alone_is_a_pause() {
+    let why = Why {
+        waits: true,
+        ..Default::default()
+    };
+    assert!(Observed { why, ..observed(60_000) }.paused());
+    assert!(!Observed { why, ..observed(40) }.paused());
+    assert!(!Observed { why, ..observed(WAIT_CAP_MS) }.paused());
+    let sub_agents = Observed {
+        children: true,
+        why,
+        ..observed(60_000)
+    };
+    assert!(!sub_agents.paused());
+    assert!(!observed(60_000).paused());
+}
+
+#[test]
+fn a_paused_turn_is_listed_with_its_shells() {
+    let (project, agent) = ("dh-paused", "claude_code_s1");
+    let bg = r#"[{"id":"b1","type":"shell","status":"running","description":"Run the test suite","command":"npm test"}]"#;
+    crate::bgtasks::stopped_beside(project, agent, bg);
+    let key = id(project, agent);
+    let held = Pending {
+        token: 7,
+        rev: 0,
+        since: 1_000,
+        why: Why {
+            waits: true,
+            ..Default::default()
+        },
+        done: StatusEntry::default(),
+        was_running: true,
+        extended: false,
+        paused: false,
+    };
+    pending().lock().unwrap().insert(key.clone(), held);
+    let store = StatusStore::default();
+    store.set(
+        project,
+        StatusEntry {
+            key: agent.into(),
+            value: STATUS_RUNNING.into(),
+            ..Default::default()
+        },
+    );
+    assert_eq!(store.list(project)[0].paused_at, 0);
+
+    assert!(mark_paused(&key, 7, true));
+    assert!(!mark_paused(&key, 7, true), "only a change is news");
+    let listed = store.list(project).remove(0);
+    assert_eq!(listed.paused_at, 1_000);
+    assert_eq!(listed.shells, ["Run the test suite"]);
+    assert_eq!(listed.value, STATUS_RUNNING);
+
+    assert!(!mark_paused(&key, 8, false), "another hold's flag");
+    pending().lock().unwrap().remove(&key);
+    assert_eq!(store.list(project)[0].paused_at, 0);
+}

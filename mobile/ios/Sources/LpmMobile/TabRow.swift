@@ -19,7 +19,7 @@ struct TabRow: View {
                 EmojiLabel(emoji: term.emoji, label: term.label, markSide: markSide) {
                     Text($0)
                         .lineLimit(1)
-                        .agentTone(agent?.state)
+                        .agentTone(agent)
                 }
                 if let agent, !agent.shared.isEmpty {
                     Text("+\(agent.shared.count)")
@@ -59,7 +59,8 @@ struct TabRow: View {
 
     private var accessibilityText: String {
         guard let agent else { return term.label }
-        return [term.label, agent.state.label, agent.elapsed(now: Int(Date().timeIntervalSince1970 * 1000))]
+        return [term.label, agent.stateLabel,
+                agent.pause?.shellsLabel ?? agent.elapsed(now: Int(Date().timeIntervalSince1970 * 1000))]
             .compactMap { $0 }
             .joined(separator: ", ")
     }

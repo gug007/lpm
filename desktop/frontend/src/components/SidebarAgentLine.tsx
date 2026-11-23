@@ -1,10 +1,12 @@
 import { Archive, Settings2 } from "lucide-react";
 import { useRef, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import { ARCHIVE_AGENT_CHORD } from "../agentArchive";
+import { PAUSED_TONE, pauseTooltip } from "../agentPause";
 import { AGENT_STATE_LABEL, AGENT_STATE_TONE } from "../agentStatus";
 import { chordLabel } from "../keys";
 import type { SidebarAgentRow } from "../sidebarAgents";
 import { archiveBlocked } from "../sidebarSeenAgents";
+import { AgentShellChip } from "./AgentShellChip";
 import { AgentStateIcon, MARK_SLOT } from "./AgentStateIcon";
 import { SidebarAgentElapsed } from "./SidebarAgentElapsed";
 import type { EdgeAgents } from "../sidebarAgentEdges";
@@ -77,6 +79,9 @@ export function SidebarAgentLine({
   const showsArchive = onArchive !== undefined || onSettings !== undefined;
   const givesWay = showsArchive ? GIVES_WAY : undefined;
   const state = `${AGENT_STATE_LABEL[agent.state]}${seen ? ", seen" : ""}`;
+  const title = agent.pause
+    ? pauseTooltip(agent.pause, agent.since, `${agent.provider} in ${where}`, agent.provider)
+    : `${state} — ${agent.provider} in ${where}`;
   const onKeyDown = (e: KeyboardEvent) => {
     if (!onArchive || (e.key !== "Delete" && e.key !== "Backspace")) return;
     e.preventDefault();
@@ -102,17 +107,17 @@ export function SidebarAgentLine({
         className={`flex w-full select-none items-center gap-2 rounded-md py-1 pr-3 text-left text-[12px] outline-none transition-colors ${lead} ${
           active ? ACTIVE_CLASS : settingsOpen ? OPEN_CLASS : RESTING_CLASS
         }`}
-        title={`${state} — ${agent.provider} in ${where}`}
+        title={title}
       >
         <span className={MARK_SLOT} />
         {/* The name is the state: it shimmers while the work runs, pulses
             amber while it waits on the user and turns blue when it lands, the
             same way the tab it runs in does. Only this row shimmers — the
-            project name above leaves the working state to it. Once seen, it
-            reads as the rest of the list does. */}
+            project name above leaves the working state to it. Paused, it holds
+            still. Once seen, it reads as the rest of the list does. */}
         <span
           className={`min-w-0 flex-1 truncate ${
-            seen || agent.state === "idle" ? "" : AGENT_STATE_TONE[agent.state]
+            seen || agent.state === "idle" ? "" : agent.pause ? PAUSED_TONE : AGENT_STATE_TONE[agent.state]
           }`}
         >
           {agent.title}
@@ -128,14 +133,20 @@ export function SidebarAgentLine({
             +{agent.shared.length}
           </span>
         )}
-        <span className={`flex shrink-0 ${givesWay ?? ""}`}>
-          <AgentStateIcon state={agent.state} muted={seen} />
-        </span>
-        {/* Holds a sliver of room even with no clock, so the buttons that
-            take its place never sit over the name. */}
-        <span className={`min-w-1.5 ${givesWay ?? ""}`}>
-          <SidebarAgentElapsed agent={agent} />
-        </span>
+        {agent.pause ? (
+          <AgentShellChip pause={agent.pause} className={givesWay} />
+        ) : (
+          <>
+            <span className={`flex shrink-0 ${givesWay ?? ""}`}>
+              <AgentStateIcon state={agent.state} muted={seen} />
+            </span>
+            {/* Holds a sliver of room even with no clock, so the buttons that
+                take its place never sit over the name. */}
+            <span className={`min-w-1.5 ${givesWay ?? ""}`}>
+              <SidebarAgentElapsed agent={agent} />
+            </span>
+          </>
+        )}
       </button>
       {showsArchive && (
         <div className={END_CLASS}>

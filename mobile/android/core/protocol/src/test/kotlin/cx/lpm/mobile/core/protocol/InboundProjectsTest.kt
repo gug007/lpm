@@ -96,7 +96,20 @@ class InboundProjectsTest {
         assertEquals("Running", f.entries.single().value)
         assertEquals(1_759_999_990_000L, f.entries.single().turnStart)
         assertEquals(0L, f.entries.single().endedAt)
+        assertEquals(0L, f.entries.single().pausedAt)
+        assertTrue(f.entries.single().shells.isEmpty())
         assertTrue(f.seen.isEmpty())
+    }
+
+    @Test
+    fun statusOfAPausedTurn() {
+        val f = decode<Inbound.Status>(
+            """{ "t": "status", "project": "storefront", "status": [{ "key": "claude_code_1", "value": "Running",
+                 "priority": 1, "timestamp": 1760000000000, "paneID": "storefront-1",
+                 "pausedAt": 1760000060000, "shells": ["Run the test suite"] }] }"""
+        )
+        assertEquals(1_760_000_060_000L, f.entries.single().pausedAt)
+        assertEquals(listOf("Run the test suite"), f.entries.single().shells)
     }
 
     @Test

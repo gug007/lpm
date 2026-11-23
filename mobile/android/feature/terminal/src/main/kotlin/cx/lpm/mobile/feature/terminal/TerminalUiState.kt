@@ -2,6 +2,7 @@ package cx.lpm.mobile.feature.terminal
 
 import cx.lpm.mobile.core.data.link.LinkStatusLine
 import cx.lpm.mobile.core.data.terminals.TerminalEnding
+import cx.lpm.mobile.core.model.AgentPause
 import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.LimitStop
@@ -60,6 +61,12 @@ data class TerminalUiState(
 
 /**
  * What the tab's agent is doing, and in millis when its reading counts from and
- * when it froze once the turn ended.
+ * when it froze once the turn ended. [pause] is set while the turn sits stopped
+ * beside background shells.
  */
-data class AgentTiming(val state: AgentState, val since: Long, val until: Long?)
+data class AgentTiming(
+    val state: AgentState,
+    val since: Long,
+    val until: Long?,
+    val pause: AgentPause? = null
+)

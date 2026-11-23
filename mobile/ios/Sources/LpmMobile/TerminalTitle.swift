@@ -23,7 +23,7 @@ struct TerminalTitle: View {
             if offline {
                 BarConnectionLine(line: model.link.statusLine)
             } else if let agent, let since = agent.since {
-                TerminalAgentLine(state: agent.state, since: since, until: agent.until)
+                TerminalAgentLine(state: agent.state, since: since, until: agent.until, pause: agent.pause)
             }
         }
     }
@@ -35,14 +35,19 @@ private struct TerminalAgentLine: View {
     let state: AgentState
     let since: Int
     let until: Int?
+    let pause: AgentPause?
 
     private var word: String? { state == .working ? nil : state.label }
     private var textColor: Color { state == .needsYou || state == .error ? state.tint : .secondary }
 
     var body: some View {
         HStack(spacing: 3) {
-            if let word { Text("\(word) ·") }
-            ElapsedText(since: since, until: until, precise: true)
+            if let pause {
+                Text("\(AgentPause.label) · \(pause.shellsLabel)")
+            } else {
+                if let word { Text("\(word) ·") }
+                ElapsedText(since: since, until: until, precise: true)
+            }
         }
         .font(BarTitleLine.font)
         .foregroundStyle(textColor)

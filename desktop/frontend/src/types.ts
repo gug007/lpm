@@ -788,6 +788,10 @@ export interface StatusEntry {
   endedAt?: number;
   // When the user opened this finished agent; only on `seenEntries`.
   seenAt?: number;
+  // On a Running whose turn stopped beside background shells and only waits for
+  // them: when it stopped, and what each shell is doing. See donehold.rs.
+  pausedAt?: number;
+  shells?: string[];
 }
 
 export type GeneratorIcon =

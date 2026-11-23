@@ -89,8 +89,8 @@ fun TabRow(
     val pressed by interaction.collectIsPressedAsState()
     val description = listOfNotNull(
         term.label,
-        agent?.state?.label,
-        agent?.elapsed(System.currentTimeMillis())
+        agent?.stateLabel,
+        agent?.pause?.shellsLabel ?: agent?.elapsed(System.currentTimeMillis())
     ).joinToString(", ")
     SwipeActionsBox(
         modifier = modifier.listSeparator(),
@@ -140,7 +140,12 @@ fun TabRow(
                     fontSize = LpmTheme.typography.body.fontSize,
                     modifier = Modifier.weight(1f, fill = false)
                 ) {
-                    AgentToneText(text = it, state = agent?.state, style = LpmTheme.typography.body)
+                    AgentToneText(
+                        text = it,
+                        state = agent?.state,
+                        style = LpmTheme.typography.body,
+                        paused = agent?.pause != null
+                    )
                 }
                 if (agent != null && agent.shared.isNotEmpty()) {
                     Text(

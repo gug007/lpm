@@ -1,5 +1,6 @@
 use super::*;
 use crate::git::{git_changed_files, git_diff, git_diffs, git_discard_all, git_discard_files};
+use std::time::Duration;
 
 fn repo() -> (tempfile::TempDir, String) {
     let dir = tempfile::tempdir().unwrap();
@@ -303,6 +304,31 @@ fn discard_all_keeps_every_kind_of_name() {
     assert_eq!(read(&root, "中文.txt").as_deref(), Some("new\n"));
     assert_eq!(read(&root, "[ab].txt").as_deref(), Some("new\n"));
     assert_eq!(read(&root, "新的.txt").as_deref(), Some("new\n"));
+}
+
+fn set_mtime(path: &Path, at: SystemTime) {
+    let file = std::fs::File::options().write(true).open(path).unwrap();
+    file.set_modified(at).unwrap();
+}
+
+#[test]
+fn discard_all_keeps_a_same_size_edit_made_as_the_index_was_written() {
+    let (_dir, root) = repo();
+    let file = Path::new(&root).join("a.txt");
+    let at = SystemTime::now() - Duration::from_secs(60);
+    git_out(&root, &["config", "core.trustctime", "false"]).unwrap();
+    write(&root, "a.txt", "old\n");
+    set_mtime(&file, at);
+    commit(&root);
+    write(&root, "a.txt", "new\n");
+    set_mtime(&file, at);
+    set_mtime(&Path::new(&root).join(".git/index"), at);
+
+    let id = git_discard_all(root.clone()).unwrap().expect("a copy");
+    assert_eq!(read(&root, "a.txt").as_deref(), Some("old\n"));
+
+    git_restore_discarded(root.clone(), id).unwrap();
+    assert_eq!(read(&root, "a.txt").as_deref(), Some("new\n"));
 }
 
 #[test]

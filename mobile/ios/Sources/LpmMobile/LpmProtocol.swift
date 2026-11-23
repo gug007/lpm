@@ -2428,6 +2428,10 @@ struct StatusEntry: Identifiable {
     let endedAt: Int
     // When it was last opened; set only on a project's `seenEntries`.
     var seenAt: Int
+    // On a Running whose turn stopped beside background shells and only waits for
+    // them: when it stopped, and what each shell is doing. 0 and empty otherwise.
+    let pausedAt: Int
+    let shells: [String]
 
     var id: String { key }
 
@@ -2440,6 +2444,8 @@ struct StatusEntry: Identifiable {
         turnStart = o["turnStart"] as? Int ?? 0
         endedAt = o["endedAt"] as? Int ?? 0
         seenAt = o["seenAt"] as? Int ?? 0
+        pausedAt = o["pausedAt"] as? Int ?? 0
+        shells = o["shells"] as? [String] ?? []
     }
 }
 

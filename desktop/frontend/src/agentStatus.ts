@@ -1,3 +1,4 @@
+import { PAUSED_TONE, pauseOf } from "./agentPause";
 import {
   STATUS_DONE,
   STATUS_ERROR,
@@ -60,13 +61,15 @@ export function computeProjectStatus(
   entries: StatusEntry[] | undefined,
 ): ProjectStatus {
   let isWorking = false;
+  let isPaused = false;
   let isDone = false;
   let isWaiting = false;
   let isError = false;
   for (const entry of entries ?? []) {
     switch (agentStateOf(entry.value)) {
       case "working":
-        isWorking = true;
+        if (pauseOf(entry)) isPaused = true;
+        else isWorking = true;
         break;
       case "done":
         isDone = true;
@@ -85,6 +88,8 @@ export function computeProjectStatus(
     ? ERROR_NAME_CLASS
     : isWorking
     ? "sidebar-shimmer"
+    : isPaused
+    ? PAUSED_TONE
     : null;
   return { isDone, isWaiting, isError, className };
 }

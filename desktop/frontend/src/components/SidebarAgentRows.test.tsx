@@ -93,6 +93,52 @@ describe("SidebarAgentRows", () => {
     expect(rows[3].querySelector("svg")).toBeNull();
   });
 
+  it("shows a paused task still, with the shells it waits on in place of its clock", () => {
+    // Three minutes and a few seconds into the turn, clear of the minute's edge.
+    const stopped = Date.now() - 50_000;
+    act(() => {
+      root.render(
+        <SidebarAgentRows
+          projectName="storefront"
+          agents={[
+            agent({
+              key: "claude_code_p",
+              state: "working",
+              title: "Permissions",
+              pause: { since: stopped, shells: ["Wait for Screen Recording permission"] },
+            }),
+            agent({
+              key: "claude_code_t",
+              state: "working",
+              title: "Run tests",
+              pause: { since: stopped, shells: ["Run unit tests", "Run the linter"] },
+            }),
+            agent({ key: "codex_1", state: "working", title: "Fix login", provider: "Codex" }),
+          ]}
+          onOpenAgent={vi.fn()}
+        />,
+      );
+    });
+
+    const rows = lines();
+    expect(rows[0].textContent).toBe("Permissions1 shell");
+    expect(rows[1].textContent).toBe("Run tests2 shells");
+    expect(rows[2].textContent).toBe("Fix login4m");
+    expect(rows[0].querySelector(".sidebar-shimmer")).toBeNull();
+    expect(rows[0].querySelector("[data-agent-shells]")).not.toBeNull();
+    expect(rows[2].querySelector(".sidebar-shimmer")).not.toBeNull();
+    expect(rows[2].querySelector("[data-agent-shells]")).toBeNull();
+    expect(rows[0].title).toBe(
+      [
+        "Paused after 3m — Claude Code in storefront",
+        "In the background: Wait for Screen Recording permission",
+        "Claude Code carries on when it ends.",
+      ].join("\n"),
+    );
+    expect(rows[1].title).toContain("In the background: Run unit tests · Run the linter");
+    expect(rows[1].title).toContain("carries on when one of them ends.");
+  });
+
   it("lights the end of the list only for agents still in play", () => {
     act(() => {
       root.render(

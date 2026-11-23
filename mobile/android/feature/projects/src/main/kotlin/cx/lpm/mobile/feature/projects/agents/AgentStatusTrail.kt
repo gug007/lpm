@@ -1,25 +1,32 @@
 package cx.lpm.mobile.feature.projects.agents
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.AgentPause
 import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.model.ProjectAgentRow
 import cx.lpm.mobile.core.ui.ElapsedText
+import cx.lpm.mobile.core.ui.agentPausedTint
 import cx.lpm.mobile.core.ui.pulseAlpha
 import cx.lpm.mobile.core.ui.tint
 
@@ -59,13 +66,56 @@ fun AgentStateMark(
 
 /**
  * The end of a tab's row, as the desktop sidebar ends one: the state's mark, then
- * how long the agent has been at it, or how long the finished turn took.
+ * how long the agent has been at it, or how long the finished turn took. A paused
+ * turn names the shells it waits on there instead.
  */
 @Composable
 fun AgentStatusTrail(
     agent: ProjectAgentRow,
     modifier: Modifier = Modifier,
     style: TextStyle = LocalTextStyle.current
+) {
+    val pause = agent.pause
+    if (pause != null && !agent.seen) {
+        AgentShellChip(pause, modifier)
+    } else {
+        AgentMarkAndClock(agent, style, modifier)
+    }
+}
+
+/** "1 shell": what a paused agent waits on. */
+@Composable
+fun AgentShellChip(pause: AgentPause, modifier: Modifier = Modifier) {
+    val tint = agentPausedTint
+    Row(
+        modifier = modifier
+            .background(tint.copy(alpha = CHIP_FILL_ALPHA), RoundedCornerShape(6.dp))
+            .padding(horizontal = 7.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_pause_fill),
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(11.dp)
+        )
+        Text(
+            text = pause.shellsLabel,
+            style = LpmTheme.typography.caption1.copy(fontWeight = FontWeight.Medium),
+            color = tint,
+            maxLines = 1
+        )
+    }
+}
+
+private const val CHIP_FILL_ALPHA = 0.16f
+
+@Composable
+private fun AgentMarkAndClock(
+    agent: ProjectAgentRow,
+    style: TextStyle,
+    modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier,

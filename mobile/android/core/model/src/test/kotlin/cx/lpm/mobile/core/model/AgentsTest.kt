@@ -38,6 +38,42 @@ class AgentsTest {
     }
 
     @Test
+    fun `a turn stopped beside background shells reads as working, paused`() {
+        val paused = entry("claude_code_a", "Running", 900_000, pane = "t1", turnStart = 700_000)
+            .copy(pausedAt = 940_000, shells = listOf("Run unit tests", "Run the linter"))
+        val rows = projectAgentRows(
+            project(paused, entry("codex_b", "Running", 950_000, pane = "t2")),
+            now,
+            emptyMap()
+        )
+        val row = rows.first { it.id == "claude_code_a" }
+        assertEquals(AgentState.Working, row.state)
+        assertEquals(AgentPause(940_000, listOf("Run unit tests", "Run the linter")), row.pause)
+        assertEquals("Paused", row.stateLabel)
+        assertEquals("2 shells", row.pause?.shellsLabel)
+        // The reading holds at how long the turn worked before it stopped.
+        assertEquals("4m", row.elapsed(now))
+        val working = rows.first { it.id == "codex_b" }
+        assertNull(working.pause)
+        assertEquals("Working", working.stateLabel)
+    }
+
+    @Test
+    fun `only a running turn is ever paused`() {
+        val shells = listOf("Build")
+        assertEquals("1 shell", AgentPause(1, shells).shellsLabel)
+        val done = entry("claude_code_a", "Done", 900_000, pane = "t1")
+            .copy(pausedAt = 940_000, shells = shells)
+        assertNull(projectAgentRows(project(done), now, emptyMap()).single().pause)
+        val bare = entry("claude_code_a", "Running", 900_000, pane = "t1").copy(pausedAt = 940_000)
+        assertNull(projectAgentRows(project(bare), now, emptyMap()).single().pause)
+        // A paired computer's clock can run ahead of this one.
+        val ahead = entry("claude_code_a", "Running", 900_000, pane = "t1")
+            .copy(pausedAt = now + 5_000, shells = shells)
+        assertEquals(now, projectAgentRows(project(ahead), now, emptyMap()).single().pause?.since)
+    }
+
+    @Test
     fun `rows come most urgent first and one per tab`() {
         val rows = projectAgentRows(
             project(

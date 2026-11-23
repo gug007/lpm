@@ -34,17 +34,27 @@ struct TabPeekCard: View {
                         HStack(spacing: 6) {
                             Circle()
                                 .frame(width: 7, height: 7)
-                                .agentTone(agent.state)
+                                .agentTone(agent)
                                 .foregroundStyle(agent.state.tint)
-                            Text(agent.state.label)
-                                .agentTone(agent.state)
+                            Text(agent.stateLabel)
+                                .agentTone(agent)
                                 .foregroundStyle(agent.state.tint)
                         }
                     }
                     if let since = agent.since {
                         GridRow {
-                            key(agent.until == nil ? "For" : "Took")
+                            key(agent.pause != nil ? "Worked" : agent.until == nil ? "For" : "Took")
                             timing(since: since, now: Int(context.date.timeIntervalSince1970 * 1000))
+                        }
+                    }
+                    if let pause = agent.pause {
+                        GridRow(alignment: .top) {
+                            key("Waits on")
+                            VStack(alignment: .leading, spacing: 2) {
+                                ForEach(Array(pause.shells.enumerated()), id: \.offset) { _, shell in
+                                    Text(shell).lineLimit(2)
+                                }
+                            }
                         }
                     }
                     GridRow {
@@ -64,13 +74,13 @@ struct TabPeekCard: View {
     }
 
     private func timing(since: Int, now: Int) -> some View {
-        let mark = agent.until ?? since
+        let mark = agent.until ?? agent.pause?.since ?? since
         let clock = Date(timeIntervalSince1970: Double(mark) / 1000)
             .formatted(date: .omitted, time: .shortened)
         return HStack(spacing: 4) {
             Text(agent.elapsed(now: now) ?? "")
                 .monospacedDigit()
-            Text("· \(agent.until == nil ? "since" : "ended") \(clock)")
+            Text("· \(agent.pause != nil ? "stopped" : agent.until == nil ? "since" : "ended") \(clock)")
                 .foregroundStyle(.secondary)
         }
         .lineLimit(1)

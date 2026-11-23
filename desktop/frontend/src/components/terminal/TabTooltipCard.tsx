@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AgentStatusChip } from "../AgentStatusChip";
+import { TabPauseRows } from "./TabPauseRows";
 import { actionTextColor } from "../../actionColors";
 import { formatDuration } from "../../jobsFormat";
 import { useSecondsClock } from "../../hooks/useSecondsClock";
@@ -11,9 +12,9 @@ import type { TerminalCommandState } from "../../store/terminalCommands";
 import { TAB_CARD_KEY as KEY, TabCardRow } from "./TabCardRow";
 
 // A working tab already shimmers in the strip, so the card leaves that state
-// word out and keeps only how long the turn has been running.
+// word out and keeps only how long the turn has been running. Paused, it says so.
 function showsState(status: PaneAgentStatus | null | undefined): status is PaneAgentStatus {
-  return !!status && status.state !== "working";
+  return !!status && (status.state !== "working" || !!status.pause);
 }
 
 /** Whether a tab has anything for the card beyond its title. */
@@ -31,7 +32,7 @@ export function tabCardHasDetails(
     !!command ||
     hasAccount ||
     hasPopup ||
-    (!!status && (status.state !== "working" || status.since !== null))
+    (!!status && (status.state !== "working" || status.since !== null || !!status.pause))
   );
 }
 
@@ -64,7 +65,9 @@ export function TabTooltipCard({
   popup?: ReactNode;
 }) {
   const since = agentStatus?.since ?? null;
-  const until = agentStatus?.until;
+  const pause = agentStatus?.pause;
+  // A paused turn's work ended when it stopped, though the turn has not.
+  const until = agentStatus?.until ?? pause?.since;
   const running = command?.running;
   const last = command?.last;
   const now = useSecondsClock((since === null || until !== undefined) && !running);
@@ -82,15 +85,16 @@ export function TabTooltipCard({
         )}
         {since !== null && (
           <>
-            <span className={KEY}>{until !== undefined ? "Took" : "For"}</span>
+            <span className={KEY}>{pause ? "Worked" : until !== undefined ? "Took" : "For"}</span>
             <span className="flex min-w-0 items-center gap-1.5 font-medium tabular-nums">
               {elapsed}
               <span className={`truncate font-normal ${KEY}`}>
-                · {until !== undefined ? "ended" : "since"} {clockLabel(until ?? since)}
+                · {pause ? "stopped" : until !== undefined ? "ended" : "since"} {clockLabel(until ?? since)}
               </span>
             </span>
           </>
         )}
+        {pause && <TabPauseRows pause={pause} />}
         {running && (
           <TabCardRow
             label="Running"

@@ -9,6 +9,7 @@ import { useAppStore } from "../../store/app";
 import { useMiniViews, type MiniView } from "../../store/miniViews";
 import { useTerminalTitles } from "../../store/terminalTitles";
 import type { AICLI } from "../../types";
+import { AgentShellChip } from "../AgentShellChip";
 import { AgentStateIcon } from "../AgentStateIcon";
 import { TerminalIcon, XIcon } from "../icons";
 import { SidebarAgentElapsed } from "../SidebarAgentElapsed";
@@ -77,11 +78,15 @@ export function MiniViewCard({ view }: { view: MiniView }) {
             {title}
           </span>
         </button>
-        {row && (
-          <span className="flex shrink-0 items-center gap-1 text-[var(--text-secondary)]">
-            <AgentStateIcon state={row.state} />
-            <SidebarAgentElapsed agent={row} />
-          </span>
+        {row?.pause ? (
+          <AgentShellChip pause={row.pause} />
+        ) : (
+          row && (
+            <span className="flex shrink-0 items-center gap-1 text-[var(--text-secondary)]">
+              <AgentStateIcon state={row.state} />
+              <SidebarAgentElapsed agent={row} />
+            </span>
+          )
         )}
         <button
           type="button"

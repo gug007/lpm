@@ -92,11 +92,18 @@ data class ProjectAgentRow(
      * Millis: when the row was last opened, for an agent kept after that as seen
      * (`seenEntries`) and listed muted until archived. Null for the others.
      */
-    val seenAt: Long? = null
+    val seenAt: Long? = null,
+    /** Set while the row's working turn sits paused ([AgentPause]). */
+    val pause: AgentPause? = null
 ) {
     val seen: Boolean get() = seenAt != null
 
-    fun elapsed(now: Long): String? = since?.let { shortDuration((until ?: now) - it) }
+    /** The state's word, which a paused turn replaces. */
+    val stateLabel: String get() = if (pause == null) state.label else AgentPause.LABEL
+
+    /** A paused turn's reading holds at how long it worked before it stopped. */
+    fun elapsed(now: Long): String? =
+        since?.let { shortDuration((until ?: pause?.since ?: now) - it) }
 }
 
 // A paired Mac stamps its statuses with its own clock, which can run ahead of
@@ -227,7 +234,10 @@ private fun agentRows(
         since = since,
         until = until,
         keys = listOf(entry.key),
-        seenAt = entry.seenAt.takeIf { it > 0 }
+        seenAt = entry.seenAt.takeIf { it > 0 },
+        pause = entry.pause
+            ?.takeIf { state == AgentState.Working }
+            ?.let { it.copy(since = minOf(it.since, now)) }
     )
 }
 

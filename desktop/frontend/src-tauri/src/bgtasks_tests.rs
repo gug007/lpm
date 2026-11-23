@@ -150,3 +150,31 @@ fn a_listed_teammate_keeps_every_sub_agent() {
     stopped_beside("w8", "claude_code_s1", &team);
     assert!(crate::agentchildren::busy("w8", "claude_code_s1"));
 }
+
+// What a paused tab names: the shells its finish is held for, not the server
+// the session works beside.
+#[test]
+fn a_stop_records_what_the_turn_waits_on() {
+    let bg = tasks(&[
+        shell(
+            "b1",
+            "Wait for Screen Recording permission",
+            "until ./granted; do sleep 2; done",
+        ),
+        shell(
+            "s1",
+            "Start the website dev server on port 3917",
+            "npx next dev -p 3917",
+        ),
+        shell("b2", "", "cargo build --release\n  && echo built"),
+    ]);
+    stopped_beside("w10", "claude_code_s1", &bg);
+    assert_eq!(
+        waited_on("w10", "claude_code_s1"),
+        [
+            "Wait for Screen Recording permission",
+            "cargo build --release"
+        ]
+    );
+    assert!(waited_on("w10", "claude_code_other").is_empty());
+}

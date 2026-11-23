@@ -64,6 +64,9 @@ struct Pending {
     was_running: bool,
     /// Work went on after the Stop, so the finish is dated when that ended.
     extended: bool,
+    /// Nothing but a background shell holds the finish now: the session sits
+    /// idle until the shell ends.
+    paused: bool,
 }
 
 type Id = (String, String);
@@ -116,6 +119,7 @@ pub fn hold(app: &AppHandle, project: &str, done: StatusEntry, why: Why) {
             .get(project, &done.key)
             .is_some_and(|e| e.value == STATUS_RUNNING),
         extended: false,
+        paused: false,
         done,
     };
     pending().lock().unwrap().insert(key.clone(), held);
@@ -131,9 +135,17 @@ pub fn hold(app: &AppHandle, project: &str, done: StatusEntry, why: Why) {
                 if observed.work_goes_on() {
                     extend(&key, token);
                 }
+                // The tab reads differently while paused, and no report says so.
+                if mark_paused(&key, token, observed.paused()) {
+                    let _ = app.emit("status-changed", &key.0);
+                }
             }
             Verdict::Drop => {
-                take(&key, token);
+                // The next turn's first report can leave the tab's status as it
+                // was, and the pause still ends with it.
+                if take(&key, token).is_some_and(|p| p.paused) {
+                    let _ = app.emit("status-changed", &key.0);
+                }
                 return;
             }
             Verdict::Publish => {
@@ -242,6 +254,11 @@ impl Observed {
     fn work_goes_on(&self) -> bool {
         self.children || self.asking || self.handing_back() || self.drawing_on()
     }
+
+    /// Whether a background shell is all the finish still waits for.
+    fn paused(&self) -> bool {
+        self.why.waits && (GRACE_MS..WAIT_CAP_MS).contains(&self.age) && !self.work_goes_on()
+    }
 }
 
 fn verdict(o: &Observed) -> Verdict {
@@ -273,6 +290,37 @@ fn extend(key: &Id, token: u64) {
     {
         p.extended = true;
     }
+}
+
+/// Records whether the hold is a pause now. True when that changed.
+fn mark_paused(key: &Id, token: u64, paused: bool) -> bool {
+    pending()
+        .lock()
+        .unwrap()
+        .get_mut(key)
+        .filter(|p| p.token == token)
+        .is_some_and(|p| std::mem::replace(&mut p.paused, paused) != paused)
+}
+
+/// A turn that stopped beside background shells and sits idle until one ends.
+pub struct Paused {
+    /// When the turn stopped.
+    pub since: i64,
+    /// The shells it waits on, as the model described each.
+    pub shells: Vec<String>,
+}
+
+/// What `key`'s tab shows in place of working while its finish waits for
+/// background shells only. The entry itself stays Running throughout.
+pub fn paused(project: &str, key: &str) -> Option<Paused> {
+    let since = pending()
+        .lock()
+        .unwrap()
+        .get(&id(project, key))
+        .filter(|p| p.paused)
+        .map(|p| p.since)?;
+    let shells = crate::bgtasks::waited_on(project, key);
+    (!shells.is_empty()).then_some(Paused { since, shells })
 }
 
 /// Whether a Done for `key` is being held: the session's work may go on, and

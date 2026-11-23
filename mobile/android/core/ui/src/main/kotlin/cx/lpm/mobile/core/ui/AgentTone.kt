@@ -35,11 +35,16 @@ val AgentState.tint: Color
         AgentState.Idle -> LpmTheme.colors.secondaryLabel
     }
 
+/** A paused turn's color, the desktop's `--accent-violet-text`: working's violet, held still. */
+val agentPausedTint: Color
+    @Composable @ReadOnlyComposable
+    get() = if (LpmTheme.colors.isDark) Color(0xFFA78BFA) else Color(0xFF6D28D9)
+
 /**
  * A tab's name colored by what its agent is doing, as the desktop does: a sweep
  * through the working colors, an orange pulse while it needs you, red for a
- * problem, blue once done. Idle (or no agent) leaves the text alone, and an agent
- * already [seen] reads gray.
+ * problem, blue once done. Idle (or no agent) leaves the text alone, an agent
+ * already [seen] reads gray, and a [paused] turn holds still in violet.
  */
 @Composable
 fun AgentToneText(
@@ -47,10 +52,11 @@ fun AgentToneText(
     state: AgentState?,
     modifier: Modifier = Modifier,
     style: TextStyle = LocalTextStyle.current,
-    seen: Boolean = false
+    seen: Boolean = false,
+    paused: Boolean = false
 ) {
     val tone = when {
-        seen -> modifier
+        seen || paused -> modifier
 
         state == AgentState.Working -> modifier.workingSweep(sweepProgress())
 
@@ -64,10 +70,12 @@ fun AgentToneText(
     Text(
         text = text,
         modifier = tone,
-        color = if (seen) {
-            LpmTheme.colors.secondaryLabel
-        } else {
-            when (state) {
+        color = when {
+            seen -> LpmTheme.colors.secondaryLabel
+
+            paused -> agentPausedTint
+
+            else -> when (state) {
                 AgentState.NeedsYou, AgentState.Error, AgentState.Done -> state.tint
                 else -> Color.Unspecified
             }

@@ -1,3 +1,4 @@
+import type { AgentPause } from "./agentPause";
 import { agentStateOf, providerMeta, statusProvider, type AgentState } from "./agentStatus";
 import { agentStatusOf } from "./hooks/usePaneStatus";
 import { byUrgency, foldByPane, paneHoldsError } from "./statusByPane";
@@ -35,6 +36,8 @@ export interface SidebarAgentRow {
   /** Millis: when the user last opened this finished agent, for a row kept
    *  after that as seen (sidebarSeenAgents.ts). Absent on every other row. */
   seenAt?: number;
+  /** Set while the row's working turn sits paused (agentPause.ts). */
+  pause?: AgentPause;
 }
 
 /** Whether one of these rows is the tab on screen. That row then carries the
@@ -96,6 +99,7 @@ export function projectAgentRows(
       shared: folded.map((e) => agentStateOf(e.value)),
       holdsError: paneHoldsError(held),
       keys: [entry.key, ...folded.map((e) => e.key)],
+      ...(turn?.pause && { pause: turn.pause }),
     };
   });
 }

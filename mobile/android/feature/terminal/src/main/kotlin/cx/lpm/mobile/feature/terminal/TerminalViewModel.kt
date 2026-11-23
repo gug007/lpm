@@ -252,7 +252,7 @@ class TerminalViewModel @AssistedInject constructor(
         project ?: return null
         val rows = projectAgentRows(project, clock.millis(), tabTitles = emptyMap())
         val agent = agentRowsByTerminal(rows)[terminalId]?.takeIf { it.state != AgentState.Idle }
-        return agent?.since?.let { AgentTiming(agent.state, it, agent.until) }
+        return agent?.since?.let { AgentTiming(agent.state, it, agent.until, agent.pause) }
     }
 
     /** A screen showing the terminal appeared; it streams through `hooks` until [closeScreen]. */

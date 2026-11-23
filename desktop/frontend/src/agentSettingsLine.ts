@@ -1,3 +1,4 @@
+import { PAUSED_LABEL } from "./agentPause";
 import { AGENT_STATE_LABEL } from "./agentStatus";
 import { archiveAfterMillis, describeArchiveAfter, type ArchiveAfter } from "./archiveAfter";
 import type { SidebarAgentRow } from "./sidebarAgents";
@@ -25,11 +26,11 @@ function span(ms: number, round: (n: number) => number = Math.floor): string {
 /** What the sidebar settings mean for one agent row, in its own terms:
  *  "Seen 12m ago · Archived in 48m". */
 export function agentSettingsLine(
-  row: Pick<SidebarAgentRow, "state" | "seenAt">,
+  row: Pick<SidebarAgentRow, "state" | "seenAt" | "pause">,
   rules: SeenAgentRules,
   now: number,
 ): string {
-  const state = AGENT_STATE_LABEL[row.state];
+  const state = row.pause ? PAUSED_LABEL : AGENT_STATE_LABEL[row.state];
   if (row.state === "working") return `${state} · Archive waits until the turn ends`;
   if (row.state === "needs-you") return `${state} · Archive waits for your answer`;
   if (row.state === "idle") return state;

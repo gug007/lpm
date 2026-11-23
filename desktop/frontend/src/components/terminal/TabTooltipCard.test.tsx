@@ -60,6 +60,19 @@ describe("TabTooltipCard", () => {
     expect(text).toContain(`Took4m 2s· ended ${clockLabel(ago(60))}`);
   });
 
+  it("says a paused turn is paused, how long it worked and what it waits on", () => {
+    const text = render({
+      state: "working",
+      since: ago(300),
+      pause: { since: ago(60), shells: ["Wait for Screen Recording permission"] },
+    });
+    expect(text).toContain("StatusPaused");
+    expect(text).not.toContain("Working");
+    expect(text).toContain(`Worked4m· stopped ${clockLabel(ago(60))}`);
+    expect(text).toContain("Waits onWait for Screen Recording permission");
+    expect(text).toContain("Carries on by itself when it ends");
+  });
+
   it("drops the time row when the start was never seen", () => {
     const text = render({ state: "error", since: null }, "Ultracode");
     expect(text).toContain("StatusProblem");
@@ -72,6 +85,9 @@ describe("tabCardHasDetails", () => {
     expect(tabCardHasDetails(null, undefined)).toBe(false);
     expect(tabCardHasDetails({ state: "working", since: null }, undefined)).toBe(false);
     expect(tabCardHasDetails({ state: "working", since: ago(5) }, undefined)).toBe(true);
+    expect(
+      tabCardHasDetails({ state: "working", since: null, pause: { since: ago(5), shells: ["Build"] } }, undefined),
+    ).toBe(true);
     expect(tabCardHasDetails({ state: "needs-you", since: null }, undefined)).toBe(true);
     expect(tabCardHasDetails(null, "Ultracode")).toBe(true);
   });

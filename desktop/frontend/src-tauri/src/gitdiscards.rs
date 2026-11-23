@@ -69,13 +69,23 @@ fn head(cwd: &str) -> Option<String> {
     git_out(cwd, &["rev-parse", "--verify", "-q", "HEAD^{commit}"]).ok()
 }
 
+/// Copies an index with its mtime, read first so a git writing meanwhile can only
+/// leave it older. Git trusts a file's cached stat only when it predates the index,
+/// so a newer copy would hide a same-size edit from the second it was written in.
+fn copy_index(from: &Path, to: &Path) -> std::io::Result<()> {
+    let written = std::fs::metadata(from)?.modified()?;
+    std::fs::copy(from, to)?;
+    let copy = std::fs::File::options().write(true).open(to)?;
+    copy.set_modified(written)
+}
+
 /// The tree of every tracked change in the repo: the index as it stands, with
 /// each tracked file's working copy (deletions included) folded in.
 fn tracked_tree_all(cwd: &str) -> Result<String, String> {
     let scratch = ScratchIndex::new(cwd, "tracked")?;
     let real = Path::new(cwd).join(git_out(cwd, &["rev-parse", "--git-path", "index"])?);
     if real.exists() {
-        std::fs::copy(&real, &scratch.path).map_err(|e| e.to_string())?;
+        copy_index(&real, &scratch.path).map_err(|e| e.to_string())?;
     } else {
         scratch.git(cwd, &["read-tree", "HEAD"])?;
     }

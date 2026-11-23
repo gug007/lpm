@@ -78,6 +78,27 @@ describe("derivePaneStatus", () => {
     expect(s.agents.get("%1")).toEqual({ state: "working", since: NOW - 300_000 });
   });
 
+  it("reads a turn stopped beside a background shell as working, paused", () => {
+    const paused = {
+      ...entry("a", STATUS_RUNNING, "%1", NOW - 10_000, { turnStart: NOW - 300_000 }),
+      pausedAt: NOW - 60_000,
+      shells: ["Run the test suite"],
+    };
+    const s = derivePaneStatus([paused], NOW);
+    expect(s.running.has("%1")).toBe(true);
+    expect(s.agents.get("%1")).toEqual({
+      state: "working",
+      since: NOW - 300_000,
+      pause: { since: NOW - 60_000, shells: ["Run the test suite"] },
+    });
+    // A paired computer's clock can run ahead of this one.
+    const ahead = derivePaneStatus([{ ...paused, pausedAt: NOW + 5_000 }], NOW);
+    expect(ahead.agents.get("%1")?.pause?.since).toBe(NOW);
+    // Only a Running is ever paused, whatever else an entry carries.
+    const done = derivePaneStatus([{ ...paused, value: STATUS_DONE }], NOW);
+    expect(done.agents.get("%1")?.pause).toBeUndefined();
+  });
+
   it("freezes a finished turn at how long the work took", () => {
     const s = derivePaneStatus(
       [

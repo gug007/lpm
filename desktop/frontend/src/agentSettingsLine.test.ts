@@ -10,6 +10,9 @@ const off: SeenAgentRules = { keep: false, after: { amount: 1, unit: "h" } };
 describe("agentSettingsLine", () => {
   it("says Archive waits while a turn runs or asks", () => {
     expect(agentSettingsLine({ state: "working" }, hour, NOW)).toBe("Working · Archive waits until the turn ends");
+    expect(agentSettingsLine({ state: "working", pause: { since: NOW, shells: ["Build"] } }, hour, NOW)).toBe(
+      "Paused · Archive waits until the turn ends",
+    );
     expect(agentSettingsLine({ state: "needs-you" }, hour, NOW)).toBe("Needs you · Archive waits for your answer");
     expect(agentSettingsLine({ state: "idle" }, hour, NOW)).toBe("Idle");
   });

@@ -121,6 +121,22 @@ describe("projectAgentRows", () => {
     expect(agents[1]).toMatchObject({ since: NOW - 90_000, until: NOW - 5_000 });
   });
 
+  it("carries a pause on the row of a turn stopped beside a background shell", () => {
+    const paused = {
+      ...entry("claude_code_a", STATUS_RUNNING),
+      turnStart: NOW - 300_000,
+      pausedAt: NOW - 60_000,
+      shells: ["Run the test suite"],
+    };
+    const agents = projectAgentRows(project({ statusEntries: [paused, entry("codex_1", STATUS_RUNNING)] }), NOW);
+    expect(agents[0]).toMatchObject({
+      state: "working",
+      since: NOW - 300_000,
+      pause: { since: NOW - 60_000, shells: ["Run the test suite"] },
+    });
+    expect(agents[1].pause).toBeUndefined();
+  });
+
   it("dates an entry stamped ahead by a paired Mac's clock from now", () => {
     const agents = projectAgentRows(
       project({ statusEntries: [entry("codex_1", STATUS_RUNNING, -60_000)] }),

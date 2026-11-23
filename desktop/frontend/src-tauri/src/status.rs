@@ -89,6 +89,13 @@ pub struct StatusEntry {
     /// already announced, so nothing announces it a second time.
     #[serde(skip)]
     pub revived: bool,
+    /// When the turn stopped beside background shells, on a Running that only
+    /// waits for them (donehold.rs). Set by `list` alone, never stored.
+    #[serde(rename = "pausedAt", skip_serializing_if = "is_zero")]
+    pub paused_at: i64,
+    /// What those shells are, as the model described each.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub shells: Vec<String>,
 }
 
 /// The `askers` entry of a question the main thread asked.
@@ -556,6 +563,12 @@ impl StatusStore {
     /// Missing project -> empty Vec (serializes to `[]`, never `null`).
     pub fn list(&self, project: &str) -> Vec<StatusEntry> {
         let mut out = self.visible_in(&self.entries, project);
+        for e in out.iter_mut().filter(|e| e.value == STATUS_RUNNING) {
+            if let Some(paused) = crate::donehold::paused(project, &e.key) {
+                e.paused_at = paused.since;
+                e.shells = paused.shells;
+            }
+        }
         out.sort_by(|a, b| {
             b.priority
                 .cmp(&a.priority)

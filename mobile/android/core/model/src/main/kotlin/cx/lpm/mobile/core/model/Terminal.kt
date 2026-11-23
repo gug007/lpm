@@ -93,7 +93,11 @@ data class StatusEntry(
     // When the turn finished; 0 while it is still running.
     val endedAt: Long,
     // When it was last opened; set only on a project's `seenEntries`.
-    val seenAt: Long = 0
+    val seenAt: Long = 0,
+    // On a Running whose turn stopped beside background shells and only waits for
+    // them: when it stopped, and what each shell is doing. 0 and empty otherwise.
+    val pausedAt: Long = 0,
+    val shells: List<String> = emptyList()
 ) {
     val id: String get() = key
 
@@ -106,7 +110,9 @@ data class StatusEntry(
             paneID = o.string("paneID").orEmpty(),
             turnStart = o.long("turnStart") ?: 0,
             endedAt = o.long("endedAt") ?: 0,
-            seenAt = o.long("seenAt") ?: 0
+            seenAt = o.long("seenAt") ?: 0,
+            pausedAt = o.long("pausedAt") ?: 0,
+            shells = o.strings("shells").orEmpty()
         )
     }
 }

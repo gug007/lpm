@@ -116,17 +116,22 @@ struct AgentStateMark: View {
 
 /// The end of a tab's row, as the desktop sidebar ends one: the state's mark,
 /// then how long the agent has been at it, or how long the finished turn took.
+/// A paused turn names the shells it waits on there instead.
 struct AgentStatusTrail: View {
     let agent: ProjectAgentRow
 
     var body: some View {
-        HStack(spacing: 4) {
-            AgentStateMark(state: agent.state, seen: agent.seen)
-            if let since = agent.since {
-                ElapsedText(since: since, until: agent.until)
-                    .foregroundStyle(.secondary)
+        if let pause = agent.pause, !agent.seen {
+            AgentShellChip(pause: pause)
+        } else {
+            HStack(spacing: 4) {
+                AgentStateMark(state: agent.state, seen: agent.seen)
+                if let since = agent.since {
+                    ElapsedText(since: since, until: agent.until)
+                        .foregroundStyle(.secondary)
+                }
             }
+            .lineLimit(1)
         }
-        .lineLimit(1)
     }
 }

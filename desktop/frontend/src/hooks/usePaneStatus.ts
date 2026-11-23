@@ -6,6 +6,7 @@ import {
   STATUS_WAITING,
   type StatusEntry,
 } from "../types";
+import { pauseOf, type AgentPause } from "../agentPause";
 import { statusProvider, type AgentState, type StatusProvider } from "../agentStatus";
 
 export interface PaneAgentStatus {
@@ -16,6 +17,9 @@ export interface PaneAgentStatus {
   /** When the turn ended. Present only once it has: the reading freezes here
    *  instead of counting on past the work it measures. */
   until?: number;
+  /** Set on a working turn that sits stopped beside background shells, which
+   *  reads as paused (agentPause.ts). */
+  pause?: AgentPause;
 }
 
 export interface PaneStatus {
@@ -71,7 +75,11 @@ export function agentStatusOf(entry: StatusEntry, now: number): PaneAgentStatus 
   if (state === "done") {
     return { state, since: turnStart, until: stampOf(entry.endedAt, now) ?? stateSince };
   }
-  if (state === "working") return { state, since: turnStart ?? stateSince };
+  if (state === "working") {
+    const pause = pauseOf(entry);
+    const since = turnStart ?? stateSince;
+    return pause ? { state, since, pause: { ...pause, since: Math.min(pause.since, now) } } : { state, since };
+  }
   return { state, since: stateSince };
 }
 

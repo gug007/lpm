@@ -91,6 +91,14 @@ describe("computeProjectStatus", () => {
     });
   });
 
+  it("holds the name still, in violet, when the only running agent is paused", () => {
+    const paused = { ...entry("claude_code_abc123", STATUS_RUNNING), pausedAt: 1_700_000_060_000, shells: ["Build"] };
+    expect(computeProjectStatus([paused]).className).toBe("text-[var(--accent-violet-text)]");
+    // Work going on elsewhere in the project still shimmers.
+    expect(computeProjectStatus([paused, entry("codex_%3", STATUS_RUNNING)]).className).toBe("sidebar-shimmer");
+    expect(computeProjectStatus([paused, entry("codex_%3", STATUS_WAITING)]).className).toBe("sidebar-waiting");
+  });
+
   it("marks Done without a className", () => {
     const status = computeProjectStatus([entry("codex_%3", STATUS_DONE)]);
     expect(status.isDone).toBe(true);

@@ -4,6 +4,7 @@ import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.data.terminals.TerminalHooks
+import cx.lpm.mobile.core.model.AgentPause
 import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.navigation.TerminalKey
 import cx.lpm.mobile.core.testing.FakeSocket
@@ -173,6 +174,21 @@ class TerminalViewModelTest {
         testScheduler.runCurrent()
         assertEquals(
             AgentTiming(AgentState.Done, now - 65_000, now - 2_000),
+            vm.uiState.value.agent
+        )
+
+        socket.status(
+            entry("Running", "t1", timestamp = now - 5_000, turnStart = now - 65_000)
+                .replace("}", ""","pausedAt":${now - 3_000},"shells":["Run the test suite"]}""")
+        )
+        testScheduler.runCurrent()
+        assertEquals(
+            AgentTiming(
+                AgentState.Working,
+                now - 65_000,
+                null,
+                AgentPause(now - 3_000, listOf("Run the test suite"))
+            ),
             vm.uiState.value.agent
         )
 

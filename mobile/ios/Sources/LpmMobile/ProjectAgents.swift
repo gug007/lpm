@@ -26,11 +26,14 @@ struct ProjectAgentRow: Identifiable, Equatable {
     /// Millis: when the row was last opened, for an agent kept after that as seen
     /// (`seenEntries`) and listed muted until archived. Nil for the others.
     var seenAt: Int?
+    /// Set while the row's working turn sits paused (AgentPause.swift).
+    var pause: AgentPause?
 
     var seen: Bool { seenAt != nil }
 
+    /// A paused turn's reading holds at how long it worked before it stopped.
     func elapsed(now: Int) -> String? {
-        since.map { shortDuration(millis: (until ?? now) - $0) }
+        since.map { shortDuration(millis: (until ?? pause?.since ?? now) - $0) }
     }
 }
 
@@ -128,12 +131,14 @@ private func agentRows(_ entries: [StatusEntry], now: Int, tabTitles: [String: S
         // there is no turn to time.
         var since: Int?
         var until: Int?
+        var pause: AgentPause?
         switch state {
         case .done:
             since = turnStart
             until = stamp(entry.endedAt, now: now) ?? stateSince
         case .working:
             since = turnStart ?? stateSince
+            pause = entry.pause.map { AgentPause(since: min($0.since, now), shells: $0.shells) }
         case .needsYou, .error:
             since = stateSince
         case .idle:
@@ -148,7 +153,8 @@ private func agentRows(_ entries: [StatusEntry], now: Int, tabTitles: [String: S
             since: since,
             until: until,
             keys: [entry.key],
-            seenAt: entry.seenAt > 0 ? entry.seenAt : nil
+            seenAt: entry.seenAt > 0 ? entry.seenAt : nil,
+            pause: pause
         )
     }
 }

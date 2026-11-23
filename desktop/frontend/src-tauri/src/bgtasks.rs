@@ -26,12 +26,13 @@ struct Task {
     command: String,
 }
 
-/// The background shells seen running at a Stop of each session, and those of
-/// them that no longer keep a Done back.
+/// The background shells seen running at a Stop of each session, those of
+/// them that no longer keep a Done back, and what the last Stop waits on.
 #[derive(Default)]
 struct Shells {
     seen: HashSet<String>,
     settled: HashSet<String>,
+    waited: Vec<String>,
 }
 
 fn shells() -> &'static Mutex<HashMap<Id, Shells>> {
@@ -53,6 +54,32 @@ impl Task {
     fn live(&self) -> bool {
         matches!(self.status.as_str(), "running" | "pending")
     }
+
+    /// What the shell is doing, in the model's words; its command when it
+    /// gave none.
+    fn label(&self) -> String {
+        let text = if self.description.trim().is_empty() {
+            &self.command
+        } else {
+            &self.description
+        };
+        let line = text.lines().next().unwrap_or_default().trim();
+        line.chars().take(LABEL_CHARS).collect()
+    }
+}
+
+/// Long enough for a sentence, short enough for a tooltip row.
+const LABEL_CHARS: usize = 120;
+
+/// The running shells whose exit a stopped turn waits for: not one that was
+/// running when the user last prompted, nor one that runs until stopped.
+fn waited<'a>(
+    tasks: &'a [Task],
+    settled: Option<&'a HashSet<String>>,
+) -> impl Iterator<Item = &'a Task> {
+    running_shells(tasks).filter(move |t| {
+        !settled.is_some_and(|s| s.contains(&t.id)) && !long_lived(&t.description, &t.command)
+    })
 }
 
 /// Background task types that finish without anyone being woken, or that only
@@ -67,7 +94,8 @@ const NOT_AGENTS: [&str; 6] = [
 ];
 
 /// What a Stop's task list (`background_tasks`, as JSON) says about the work
-/// still going: the shells running now, and which sub-agents are still alive —
+/// still going: the shells running now, the ones the turn waits on, and which
+/// sub-agents are still alive —
 /// one Claude stopped without a SubagentStop (Ctrl+C stops every background
 /// agent silently) is gone from the list. A teammate is listed under an id of
 /// its own, so while any teammate (or other agent work) is listed every
@@ -79,6 +107,9 @@ pub fn stopped_beside(project: &str, key: &str, background_tasks: &str) {
     shells
         .seen
         .extend(running_shells(&tasks).map(|t| t.id.clone()));
+    shells.waited = waited(&tasks, Some(&shells.settled))
+        .map(Task::label)
+        .collect();
     drop(all);
     if tasks
         .iter()
@@ -100,10 +131,19 @@ pub fn waits_on_shells(project: &str, key: &str, background_tasks: &str) -> bool
     let tasks = tasks(background_tasks);
     let all = shells().lock().unwrap();
     let settled = all.get(&id(project, key)).map(|s| &s.settled);
-    let waits = running_shells(&tasks).any(|t| {
-        !settled.is_some_and(|s| s.contains(&t.id)) && !long_lived(&t.description, &t.command)
-    });
+    let waits = waited(&tasks, settled).next().is_some();
     waits
+}
+
+/// The shells the turn that last stopped waits on, each as the model described
+/// it — what a UI names while the finish is held for them.
+pub fn waited_on(project: &str, key: &str) -> Vec<String> {
+    shells()
+        .lock()
+        .unwrap()
+        .get(&id(project, key))
+        .map(|s| s.waited.clone())
+        .unwrap_or_default()
 }
 
 /// The user sent a prompt (not a wake-up): whatever shell was running before it

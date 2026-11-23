@@ -250,9 +250,9 @@ fun ProjectTerminalRow(
 ) {
     val description = listOfNotNull(
         row.title,
-        row.state.label,
+        row.stateLabel,
         stringResource(ProjectsR.string.agent_seen).takeIf { row.seen },
-        row.elapsed(System.currentTimeMillis()),
+        row.pause?.shellsLabel ?: row.elapsed(System.currentTimeMillis()),
         row.provider.takeIf { it != row.title }
     ).joinToString(", ")
     val archiveLabel = stringResource(ProjectsR.string.agent_archive)
@@ -289,7 +289,8 @@ fun ProjectTerminalRow(
                 state = row.state,
                 style = LpmTheme.typography.subheadline,
                 modifier = Modifier.weight(1f, fill = false),
-                seen = row.seen
+                seen = row.seen,
+                paused = row.pause != null
             )
             if (row.shared.isNotEmpty()) {
                 Text(

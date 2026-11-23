@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import cx.lpm.mobile.core.data.link.LinkStatusLine
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.AgentPause
 import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.ui.BarConnectionLine
@@ -64,8 +65,13 @@ private fun AgentLine(agent: AgentTiming) {
         }
     }
     val elapsed = preciseDuration((now - agent.since).coerceAtLeast(0) / MILLIS_PER_SECOND)
+    val pause = agent.pause
     Text(
-        text = if (word != null) "$word · $elapsed" else elapsed,
+        text = when {
+            pause != null -> "${AgentPause.LABEL} · ${pause.shellsLabel}"
+            word != null -> "$word · $elapsed"
+            else -> elapsed
+        },
         style = barTitleLineStyle(FontWeight.SemiBold),
         color = textColor,
         maxLines = 1

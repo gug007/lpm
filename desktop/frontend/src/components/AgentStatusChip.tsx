@@ -1,3 +1,4 @@
+import { PAUSED_LABEL, PAUSED_TONE, shellsLabel } from "../agentPause";
 import { AGENT_STATE_LABEL, AGENT_STATE_TONE } from "../agentStatus";
 import { formatDuration } from "../jobsFormat";
 import { useSecondsClock } from "../hooks/useSecondsClock";
@@ -15,8 +16,8 @@ const DOT: Record<PaneAgentStatus["state"], string> = {
 };
 
 /** "● Working  2m 30s" — what the agent in a terminal is doing, and how long it
- *  has been doing it. Ticks off the shared seconds clock, so only this label
- *  re-renders. */
+ *  has been doing it; "● Paused  1 shell" while it sits waiting on one. Ticks
+ *  off the shared seconds clock, so only this label re-renders. */
 export function AgentStatusChip({
   status,
   className = "",
@@ -28,21 +29,25 @@ export function AgentStatusChip({
   mutedClassName?: string;
   showElapsed?: boolean;
 }) {
+  const { pause } = status;
   const frozen = status.until !== undefined;
-  const now = useSecondsClock(frozen || !showElapsed);
-  const dot = DOT[status.state];
-  const label = AGENT_STATE_LABEL[status.state];
-  const elapsed =
-    status.since === null || !showElapsed
-      ? null
-      : formatDuration(Math.max(0, (status.until ?? now) - status.since) / 1000);
+  const now = useSecondsClock(frozen || !showElapsed || !!pause);
+  const dot = pause ? "bg-[var(--accent-violet)]" : DOT[status.state];
+  const label = pause ? PAUSED_LABEL : AGENT_STATE_LABEL[status.state];
+  const elapsed = !showElapsed
+    ? null
+    : pause
+      ? shellsLabel(pause)
+      : status.since === null
+        ? null
+        : formatDuration(Math.max(0, (status.until ?? now) - status.since) / 1000);
 
   return (
     <span
       className={`flex min-w-0 items-center gap-1.5 text-[11px] font-medium ${className}`}
     >
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
-      <span className={`truncate ${AGENT_STATE_TONE[status.state]}`}>{label}</span>
+      <span className={`truncate ${pause ? PAUSED_TONE : AGENT_STATE_TONE[status.state]}`}>{label}</span>
       {elapsed !== null && (
         <span className={`shrink-0 tabular-nums ${mutedClassName}`}>
           {frozen ? `took ${elapsed}` : elapsed}

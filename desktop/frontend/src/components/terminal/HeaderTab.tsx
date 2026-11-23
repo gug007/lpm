@@ -3,6 +3,8 @@ import { Pin } from "lucide-react";
 import { XIcon } from "../icons";
 import { Tooltip } from "../ui/Tooltip";
 import { TabTooltipCard, tabCardHasDetails } from "./TabTooltipCard";
+import { AgentShellChip } from "../AgentShellChip";
+import { PAUSED_TONE } from "../../agentPause";
 import { useIsTruncated } from "../../hooks/useIsTruncated";
 import type { PaneAgentStatus } from "../../hooks/usePaneStatus";
 import type { TabFork } from "../../paneTree";
@@ -68,15 +70,21 @@ export function HeaderTab({
   const hasHoverIcon = closable || !!pinned;
   const { ref: labelRef, truncated } = useIsTruncated(label);
 
+  // A turn stopped beside a background shell is still running underneath, but
+  // nothing in it moves: the label holds still and names what it waits on, in
+  // room of its own so the name keeps the width it had.
+  const pause = shimmer && !waiting && !error ? agentStatus?.pause : undefined;
   const statusClassName = waiting
     ? "sidebar-waiting"
     : error
     ? "text-red-400"
+    : pause
+    ? PAUSED_TONE
     : shimmer
     ? "sidebar-shimmer"
     : "";
   const hasStatus = shimmer || waiting || error;
-  const running = !!shimmer && !waiting && !error;
+  const running = !!shimmer && !waiting && !error && !pause;
   const statusStyle =
     done && !hasStatus
       ? { color: "var(--accent-blue)" }
@@ -141,7 +149,7 @@ export function HeaderTab({
       data-active-tab={active || undefined}
       data-strip-tab={stripKey}
       style={accentStyle}
-      className={`group flex h-6 max-w-[150px] shrink-0 select-none items-center gap-1.5 overflow-hidden rounded-md px-2 font-mono text-[11px] font-medium transition-colors duration-150 ${
+      className={`group flex h-6 ${pause ? "max-w-[212px]" : "max-w-[150px]"} shrink-0 select-none items-center gap-1.5 overflow-hidden rounded-md px-2 font-mono text-[11px] font-medium transition-colors duration-150 ${
         active
           ? "bg-[var(--tab-accent-bg,var(--terminal-tab-active-bg))] text-[var(--terminal-tab-active)] shadow-[var(--tab-accent-ring,var(--terminal-tab-shadow))]"
           : "text-[var(--terminal-header-text)] hover:bg-[var(--tab-accent-hover,var(--terminal-header-hover))] hover:text-[var(--terminal-tab-active)]"
@@ -191,6 +199,7 @@ export function HeaderTab({
       ) : (
         labelNode
       )}
+      {pause && <AgentShellChip pause={pause} glyph={false} />}
       {trailing}
     </button>
   );

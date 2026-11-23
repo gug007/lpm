@@ -2012,7 +2012,18 @@ paneID?: string
 turnStart?: int  // unix millis the turn began; absent when never seen starting
 endedAt?: int    // unix millis the turn ended; absent while it runs
 seenAt?: int     // unix millis it was last opened; only on `seenEntries`
+pausedAt?: int   // unix millis the turn stopped; only on a paused "Running" (below)
+shells?: [string] // what each background shell it waits on is doing; with `pausedAt`
 ```
+
+A **paused** turn: Claude stopped with background shells still running and sits idle
+until one ends and wakes it. Its entry stays `"Running"` (the finish is held back, so
+nothing rings and keep-awake goes on) and carries `pausedAt` and `shells`, each shell
+as the agent described it. Both apps show such a tab still, in violet, with a
+"1 shell" / "2 shells" chip where the mark and the clock go, and "Paused" where the
+state is spelled out. The fields leave again, with a `status-changed`, when the agent
+carries on, or with the finish 15 minutes later. A Mac that doesn't send them shows
+the tab as working.
 
 ### KeepAwake
 

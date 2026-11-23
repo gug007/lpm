@@ -1,5 +1,6 @@
 import { Archive, ArrowUpRight, Circle, CircleDot, Copy, GitFork, Settings2, Users } from "lucide-react";
 import { ARCHIVE_AGENT_CHORD } from "../agentArchive";
+import { PAUSED_LABEL } from "../agentPause";
 import { AGENT_STATE_LABEL } from "../agentStatus";
 import { chordLabel } from "../keys";
 import { peerSlugOf } from "../peer/markers";
@@ -54,7 +55,7 @@ export function SidebarAgentMenu({
   return (
     <ContextMenuShell x={x} y={y} minWidth={190} onClose={onClose}>
       <div className="px-3 pb-1 pt-1.5 text-[10.5px] text-[var(--text-muted)]">
-        {agent.provider} · {AGENT_STATE_LABEL[agent.state]}
+        {agent.provider} · {agent.pause ? PAUSED_LABEL : AGENT_STATE_LABEL[agent.state]}
         {seen && " · Seen"}
       </div>
       <ContextMenuItem label="Open" icon={<ArrowUpRight size={12} />} onClick={close(onOpen)} />
