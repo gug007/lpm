@@ -1,4 +1,5 @@
 import { uriPath } from "../../path";
+import type { HostFile } from "../../sshProjects";
 import { formatBytes } from "../../syncApi";
 import { AudioFileView } from "../AudioFileView";
 import { GeneratedMedia } from "../GeneratedMedia";
@@ -23,6 +24,8 @@ interface FilesEditorProps {
   file: OpenFile | null;
   value: string;
   absPath: string;
+  // Set when the file is on an SSH project's host.
+  host: HostFile | null;
   // Set to show the file against HEAD instead of on its own.
   diff: DiffSource | null;
   // Set to render the file (Markdown) instead of editing its source.
@@ -52,6 +55,7 @@ export function FilesEditor({
   file,
   value,
   absPath,
+  host,
   diff,
   markdown,
   onChange,
@@ -60,9 +64,9 @@ export function FilesEditor({
 }: FilesEditorProps) {
   const media = mediaOf(file?.path ?? null);
   // A preview stays decoded while its tab is hidden; a tab comes back often.
-  const preview = useImagePreview(absPath, media === "image");
-  const playback = useMediaPreview(absPath, media === "video" || media === "audio" ? media : null);
-  const pdf = usePdfPreview(absPath, media === "pdf");
+  const preview = useImagePreview(absPath, media === "image", host);
+  const playback = useMediaPreview(absPath, media === "video" || media === "audio" ? media : null, !!host);
+  const pdf = usePdfPreview(absPath, media === "pdf", host);
 
   if (!file) {
     return (
@@ -70,7 +74,7 @@ export function FilesEditor({
         <EmptyState
           icon={<FolderIcon />}
           title="Select a file"
-          body="Pick one from the tree, or filter by name."
+          body="Pick one from the tree, or filter by name or path."
         />
       </div>
     );
@@ -102,14 +106,14 @@ export function FilesEditor({
   if (media === "video") return <VideoFileView video={playback} />;
   if (media === "audio") {
     return (
-      <GeneratedMedia absPath={absPath}>
+      <GeneratedMedia absPath={absPath} hidden={!!host}>
         <AudioFileView audio={playback} />
       </GeneratedMedia>
     );
   }
   if (media === "image") {
     return (
-      <GeneratedMedia absPath={absPath}>
+      <GeneratedMedia absPath={absPath} hidden={!!host}>
         <ImageFileView preview={preview} />
       </GeneratedMedia>
     );
@@ -130,7 +134,7 @@ export function FilesEditor({
     );
   }
   if (markdown) {
-    return <FilesMarkdownPreview text={value} path={file.path} {...markdown} />;
+    return <FilesMarkdownPreview text={value} path={file.path} hostRoot={host?.root} {...markdown} />;
   }
   const at = jump?.path === file.path ? jump : undefined;
   return (

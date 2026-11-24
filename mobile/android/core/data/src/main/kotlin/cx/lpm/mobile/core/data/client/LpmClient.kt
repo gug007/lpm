@@ -354,11 +354,13 @@ class LpmClient internal constructor(
         const val RESTART_TERMINAL_FEATURE = "restartTerminal"
 
         // `agentOptions` and `newTerminal` starting an agent; `agentSessions` and
-        // `resumeSession`; `runAction` with a `prompt`; `listDir` for Files.
+        // `resumeSession`; `runAction` with a `prompt`; `listDir` for Files;
+        // `locatePath` for a path typed into Go to File.
         const val AGENT_LAUNCH_FEATURE = "agentLaunch"
         const val AGENT_SESSIONS_FEATURE = "agentSessions"
         const val ACTION_PROMPT_FEATURE = "actionPrompt"
         const val LIST_DIR_FEATURE = "listDir"
+        const val LOCATE_PATH_FEATURE = "locatePath"
 
         // The tab menu's `forkTerminal`, `forkTerminalCopy`, `titleTerminal` and
         // `closeOtherTerminals`.
@@ -366,6 +368,9 @@ class LpmClient internal constructor(
 
         // `moveTerminal`: a tab to another project on the Mac.
         const val MOVE_TAB_FEATURE = "moveTab"
+
+        // `whenDone` on a close, and `keepTerminal`.
+        const val CLOSE_WHEN_DONE_FEATURE = "closeWhenDone"
 
         // `switchTerminalAccount`, and each terminal's Claude account fields.
         const val TAB_ACCOUNT_FEATURE = "tabAccount"

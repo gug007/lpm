@@ -42,7 +42,7 @@ const ALL_TIPS: AppTip[] = [
   { id: "move-tab", segments: ["Drag a tab into another pane, or onto a pane's edge to split it there"] },
   { id: "search", segments: ["Search output with ", cmd("f"), " · ", enter(), " next, ", enter({ shift: true }), " previous"] },
   { id: "review-diff", segments: ["Press ", cmd("r", { shift: true }), " to review every uncommitted change as one diff"] },
-  { id: "files-tab", segments: ["Press ", cmd("e", { shift: true }), " to browse project files, or ", cmd("p"), " to jump to one by name"] },
+  { id: "files-tab", segments: ["Press ", cmd("e", { shift: true }), " to browse project files, or ", cmd("p"), " to jump to one by name or path"] },
   { id: "ai-commit", segments: ["Generate a commit message from your diff with AI"] },
   { id: "review-changes", segments: ["Hit Review Changes to scan your diff before committing"] },
   { id: "smart-sync", segments: ["Use the branch sync button to pull or push in one click"] },

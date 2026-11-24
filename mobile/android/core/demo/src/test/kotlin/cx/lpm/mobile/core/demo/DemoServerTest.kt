@@ -95,6 +95,7 @@ class DemoServerTest {
         "newTerminal",
         "closeTerminal", "renameTerminal", "pinTerminal", "reorderTerminals", "restartTerminal",
         "forkTerminal", "forkTerminalCopy", "titleTerminal", "closeOtherTerminals",
+        "keepTerminal",
         "switchTerminalAccount", "dismissLimitStop",
         "slash", "mentions",
         "upload", "composerActions", "composerDraft", "transform", "history", "historyAdd", "git",
@@ -128,6 +129,6 @@ class DemoServerTest {
         "gitMergeContinue", "gitConflictTake", "gitConflictResolved",
         "gitScanSecrets", "gitBranchFiles", "gitBranchDiffs", "gitPrDiscussion", "gitCheckLog",
         "gitIssues", "gitIssue",
-        "writeFile", "agentOptions", "agentSessions", "resumeSession", "listDir"
+        "writeFile", "agentOptions", "agentSessions", "resumeSession", "listDir", "locatePath"
     )
 }

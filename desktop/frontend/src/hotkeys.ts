@@ -1,4 +1,5 @@
-import { canonicalShortcut, parseShortcut } from "./shortcutParse";
+import type { KeyboardShortcut } from "./hooks/useKeyboardShortcut";
+import { canonicalShortcut, parseShortcut, shortcutIdentity } from "./shortcutParse";
 import { isMac } from "./platform";
 
 export type HotkeyId =
@@ -7,6 +8,8 @@ export type HotkeyId =
   | "paneFocusNext"
   | "paneFocusPrev"
   | "renameProject"
+  | "duplicateProject"
+  | "pinProject"
   | "deleteProject"
   | "dictate";
 
@@ -47,6 +50,18 @@ const MAC_HOTKEYS: HotkeyDef[] = [
     label: "Rename project",
     description: "Rename the project or duplicate selected in the sidebar",
     default: "cmd+r",
+  },
+  {
+    id: "duplicateProject",
+    label: "Duplicate project",
+    description: "Open the Duplicate dialog for the project selected in the sidebar",
+    default: "cmd+n",
+  },
+  {
+    id: "pinProject",
+    label: "Pin project",
+    description: "Keep the project selected in the sidebar at its top. Press again to unpin",
+    default: "cmd+alt+p",
   },
   {
     id: "deleteProject",
@@ -104,6 +119,10 @@ export function resolveHotkey(cfg: HotkeysConfig | undefined, id: HotkeyId): str
   return typeof raw === "string" && raw ? raw : (HOTKEY_BY_ID.get(id)?.default ?? "");
 }
 
+function configuredShortcuts(cfg: HotkeysConfig | undefined, exceptId?: HotkeyId): KeyboardShortcut[] {
+  return HOTKEYS.flatMap((def) => (def.id === exceptId ? [] : (parseShortcut(resolveHotkey(cfg, def.id)) ?? [])));
+}
+
 // Canonical combos already claimed by configurable hotkeys, so the recorder and
 // the action-shortcut wizard keep them reserved. `exceptId` frees the row being
 // edited from clashing with itself.
@@ -111,11 +130,11 @@ export function configuredHotkeyCombos(
   cfg: HotkeysConfig | undefined,
   exceptId?: HotkeyId,
 ): Set<string> {
-  const out = new Set<string>();
-  for (const def of HOTKEYS) {
-    if (def.id === exceptId) continue;
-    const parsed = parseShortcut(resolveHotkey(cfg, def.id));
-    if (parsed) out.add(canonicalShortcut(parsed));
-  }
-  return out;
+  return new Set(configuredShortcuts(cfg, exceptId).map((shortcut) => canonicalShortcut(shortcut)));
+}
+
+// Whether one of the configurable hotkeys is set to this chord.
+export function hotkeyTakes(cfg: HotkeysConfig | undefined, shortcut: KeyboardShortcut): boolean {
+  const id = shortcutIdentity(shortcut);
+  return configuredShortcuts(cfg).some((taken) => shortcutIdentity(taken) === id);
 }

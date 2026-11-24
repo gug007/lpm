@@ -84,15 +84,31 @@ pub(super) fn matches(spec: &EventSpec, job_project: &str, h: &Happening) -> boo
         && (spec.services.is_empty() || spec.services.contains(&h.service))
 }
 
-/// What a job last reacted to, so the same commit, review or pull request (or
-/// day) starts it once. A folder without Git has no commit to go by, so each day
-/// counts as one.
+/// What a job remembers reacting to, so the same commit, review or pull request
+/// (or day) starts it once. A folder without Git has no commit to go by, so each
+/// day counts as one.
 pub(super) fn mark(at_most: AtMost, h: &Happening, today: &str) -> String {
     match at_most {
         AtMost::Commit if !h.once.is_empty() => h.once.clone(),
         AtMost::Commit if !h.commit.is_empty() => format!("commit:{}", h.commit),
         _ => format!("day:{today}"),
     }
+}
+
+/// Enough that projects and branches taking turns don't push each other's out.
+const MARKS_KEPT: usize = 100;
+
+/// Whether `mark` is new to a job that has reacted to `past`, oldest first. It
+/// is remembered from now on, in place of what hasn't come up for longest.
+pub(super) fn first_time(past: &mut Vec<String>, mark: String) -> bool {
+    let known = past.iter().position(|m| *m == mark);
+    if let Some(at) = known {
+        past.remove(at);
+    }
+    past.push(mark);
+    let over = past.len().saturating_sub(MARKS_KEPT);
+    past.drain(..over);
+    known.is_none()
 }
 
 /// Set when the run is in a checkout that is on the pull request's branch.

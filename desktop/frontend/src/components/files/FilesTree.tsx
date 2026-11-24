@@ -4,10 +4,13 @@ import { matchesChord } from "../../keys";
 import { TRASH_CHORD } from "./fileActions";
 import { FilesAllChangesRow } from "./FilesAllChangesRow";
 import { FilesFilterBox } from "./FilesFilterBox";
+import { FilesNote } from "./FilesNote";
 import { FILES_ROW_PX, type RowTarget } from "./FilesRow";
 import { FilesRows } from "./FilesRows";
 import type { IndexEntry } from "./filesFilter";
 import { createTreeCursorStore } from "./treeCursor";
+import { firstRow, type FolderList } from "./typedFolder";
+import type { EnterOptions } from "./useTypedPathRow";
 import { isUnder, withDraftRow, withoutPending } from "./treeEdits";
 import { useVirtualList } from "./useVirtualList";
 import { buildMatchTree, parentPath, type Item, type Listing, type TreeRow } from "./treeModel";
@@ -27,6 +30,7 @@ export interface ActivateOptions {
 
 const NO_ROWS: TreeRow[] = [];
 const NO_PATHS: readonly string[] = [];
+const NO_MENU = () => {};
 
 interface FilesTreeProps {
   rows: TreeRow[];
@@ -51,6 +55,12 @@ interface FilesTreeProps {
   resultsTotal?: number;
   // Shown in place of the list when nothing matches the filter.
   noMatches?: ReactNode;
+  // A path typed in the filter box, as a row of its own above the matches.
+  pathRow?: ReactNode;
+  // Takes Enter in the filter box when it returns true.
+  onEnter?: (opts: EnterOptions) => boolean;
+  // A folder outside the project, listed in place of the matches.
+  folder?: FolderList | null;
   cursorRequest: CursorRequest | null;
   // Bumped to put the caret in the filter box with its text selected.
   filterFocusRequest: number;
@@ -87,6 +97,9 @@ export function FilesTree({
   results,
   resultsTotal = 0,
   noMatches,
+  pathRow,
+  onEnter,
+  folder = null,
   cursorRequest,
   filterFocusRequest,
   onActivate,
@@ -102,9 +115,10 @@ export function FilesTree({
   const matchRows = useMemo(() => (results ? buildMatchTree(results) : NO_ROWS), [results]);
   const edit = edits?.edit ?? null;
   const pending = edits?.pending ?? NO_PATHS;
+  const outside = filtering ? folder : null;
   const items: TreeRow[] = useMemo(
-    () => withoutPending(withDraftRow(filtering ? matchRows : rows, edit), pending),
-    [filtering, matchRows, rows, edit, pending],
+    () => outside?.rows ?? withoutPending(withDraftRow(filtering ? matchRows : rows, edit), pending),
+    [outside, filtering, matchRows, rows, edit, pending],
   );
   const [cursorStore] = useState(createTreeCursorStore);
   const setCursorPath = useCallback(
@@ -138,6 +152,20 @@ export function FilesTree({
       if (s.listFocused && s.cursorPath !== prev.cursorPath) ensureVisible(indexOf(s.cursorPath));
     });
   }, [items, listKind, cursorStore, ensureVisible]);
+
+  // Going from one listed folder to the next starts at its top, and the keyboard
+  // on its first entry; going up, on the folder it came from.
+  const outsidePath = outside?.path;
+  useEffect(() => {
+    if (outsidePath !== undefined) listRef.current?.scrollTo({ top: 0 });
+  }, [outsidePath]);
+  useEffect(() => {
+    const { cursorPath, listFocused } = cursorStore.getState();
+    if (outsidePath === undefined || !listFocused || items.length === 0) return;
+    const at = items.findIndex((it) => it.path === cursorPath);
+    if (at < 0) setCursorPath(items[firstRow(items)].path);
+    else ensureVisible(at);
+  }, [outsidePath, items, cursorStore, setCursorPath, ensureVisible]);
 
   // A name field scrolls into view, so it is mounted to take the focus.
   const editPath = edits?.view?.path ?? null;
@@ -182,9 +210,10 @@ export function FilesTree({
   const activate = useCallback(
     (item: Item, opts?: ActivateOptions) => {
       setCursorPath(item.path);
-      onActivate(item, opts);
+      if (outside) outside.onOpen(item);
+      else onActivate(item, opts);
     },
-    [onActivate, setCursorPath],
+    [outside, onActivate, setCursorPath],
   );
 
   const moveCursor = (index: number) => {
@@ -196,7 +225,7 @@ export function FilesTree({
     const { cursorPath } = cursorStore.getState();
     const index = items.findIndex((it) => it.path === cursorPath);
     const current = index >= 0 ? items[index] : null;
-    if (edits && !edits.blocked && current && matchesChord(e.nativeEvent, TRASH_CHORD)) {
+    if (edits && !edits.blocked && !outside && current && matchesChord(e.nativeEvent, TRASH_CHORD)) {
       e.preventDefault();
       const next = items.slice(index + 1).find((it) => !isUnder(it.path, current.path)) ?? items[index - 1];
       edits.trash(current);
@@ -220,12 +249,18 @@ export function FilesTree({
         break;
       case "ArrowRight": {
         if (!current || !current.isDir) return;
+        if (outside) activate(current);
         // Matched folders are already open; there is nothing to toggle.
-        if (filtering || current.expanded) moveCursor(index + 1);
+        else if (filtering || current.expanded) moveCursor(index + 1);
         else onToggleDir(current.path);
         break;
       }
       case "ArrowLeft": {
+        if (outside) {
+          setCursorPath(outside.path);
+          outside.onUp();
+          break;
+        }
         if (!current) return;
         if (!filtering && current.isDir && current.expanded) {
           onToggleDir(current.path);
@@ -251,17 +286,26 @@ export function FilesTree({
     e.preventDefault();
   };
 
-  const onInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+  const focusList = () => {
     const { cursorPath } = cursorStore.getState();
+    const at = items.findIndex((it) => it.path === cursorPath);
+    moveCursor(at >= 0 ? at : outside ? firstRow(items) : 0);
+    listRef.current?.focus();
+  };
+
+  const onInputKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      moveCursor(Math.max(0, items.findIndex((it) => it.path === cursorPath)));
-      listRef.current?.focus();
+      focusList();
     } else if (e.key === "Enter") {
       // The cursor's row, else the best-ranked match rather than the tree's
       // first row, which is whichever folder sorts first.
+      const { cursorPath } = cursorStore.getState();
       const target: Item | undefined = items.find((it) => it.path === cursorPath) ?? results?.[0];
-      if (filtering && target) activate(target, { focusEditor: true });
+      const openBest = () => {
+        if (filtering && target) activate(target, { focusEditor: true });
+      };
+      if (!onEnter?.({ openBest, focusList })) openBest();
     } else if (e.key === "Escape" && query) {
       e.preventDefault();
       e.stopPropagation();
@@ -281,7 +325,7 @@ export function FilesTree({
       dirtyPaths={dirtyPaths}
       cursorStore={cursorStore}
       onActivate={activate}
-      onContextMenu={onRowMenu}
+      onContextMenu={outside ? NO_MENU : onRowMenu}
       onDiscard={onDiscard}
       checks={checks}
       onCheck={onCheck}
@@ -290,27 +334,36 @@ export function FilesTree({
   );
 
   const renderList = (): ReactNode => {
+    if (outside) {
+      return (
+        <>
+          {renderRows(items)}
+          {outside.note && <FilesNote tone={outside.note.bad ? "bad" : "muted"}>{outside.note.text}</FilesNote>}
+        </>
+      );
+    }
     if (filtering) {
-      if (results === null) return <Note>{changesOnly ? "Loading…" : "Indexing files…"}</Note>;
+      if (results === null) return <FilesNote>{changesOnly ? "Loading…" : "Indexing files…"}</FilesNote>;
       if (items.length === 0) {
+        if (pathRow) return null;
         if (noMatches && !changesOnly) return noMatches;
-        return <Note>{changesOnly ? "No matching changed files" : "No matching files"}</Note>;
+        return <FilesNote>{changesOnly ? "No matching changed files" : "No matching files"}</FilesNote>;
       }
       return renderRows(items);
     }
     if (changesOnly) {
       if (changes.status === "error") {
-        return <Note tone="bad">Couldn't list the changes: {changes.message}</Note>;
+        return <FilesNote tone="bad">Couldn't list the changes: {changes.message}</FilesNote>;
       }
-      if (changes.status === "loading") return <Note>Loading…</Note>;
-      if (items.length === 0) return <Note>No uncommitted changes</Note>;
+      if (changes.status === "loading") return <FilesNote>Loading…</FilesNote>;
+      if (items.length === 0) return <FilesNote>No uncommitted changes</FilesNote>;
       return renderRows(items);
     }
     if (rootListing?.status === "error") {
-      return <Note tone="bad">Couldn't read the project folder: {rootListing.message}</Note>;
+      return <FilesNote tone="bad">Couldn't read the project folder: {rootListing.message}</FilesNote>;
     }
-    if (!rootListing || rootListing.status === "loading") return <Note>Loading…</Note>;
-    if (items.length === 0) return <Note>This folder is empty</Note>;
+    if (!rootListing || rootListing.status === "loading") return <FilesNote>Loading…</FilesNote>;
+    if (items.length === 0) return <FilesNote>This folder is empty</FilesNote>;
     return renderRows(items);
   };
 
@@ -336,10 +389,11 @@ export function FilesTree({
           onToggle={() => onAllChangesChange(!allChanges)}
         />
       )}
+      {filtering && pathRow}
       <div
         ref={listRef}
         role="tree"
-        aria-label={filtering ? "Matching files" : changesOnly ? "Changed files" : "Project files"}
+        aria-label={outside ? "Folder contents" : filtering ? "Matching files" : changesOnly ? "Changed files" : "Project files"}
         tabIndex={0}
         onKeyDown={onListKeyDown}
         onFocus={() => cursorStore.setState({ listFocused: true })}
@@ -348,23 +402,11 @@ export function FilesTree({
       >
         {renderList()}
       </div>
-      {filtering && results && resultsTotal > results.length && (
+      {filtering && !outside && results && resultsTotal > results.length && (
         <p className="border-t border-[var(--border)] px-3 py-1.5 text-[10.5px] text-[var(--text-muted)]">
           {results.length.toLocaleString()} of {resultsTotal.toLocaleString()} shown · type more to narrow
         </p>
       )}
     </div>
-  );
-}
-
-function Note({ tone = "muted", children }: { tone?: "muted" | "bad"; children: ReactNode }) {
-  return (
-    <p
-      className={`break-words px-4 py-6 text-center text-[11px] ${
-        tone === "bad" ? "text-[var(--accent-red-text)]" : "text-[var(--text-muted)]"
-      }`}
-    >
-      {children}
-    </p>
   );
 }

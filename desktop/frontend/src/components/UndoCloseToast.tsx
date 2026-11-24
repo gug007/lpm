@@ -42,6 +42,10 @@ export function showUndoCloseToast(opts: {
   title: string;
   detail?: string;
   durationMs: number;
+  // Ends on time in a hidden window too, where the toast's clock stands still:
+  // closed by a phone, a command or an agent that is done, what ran there would
+  // go on until the window is next shown.
+  endsHidden?: boolean;
   onUndo: () => void;
   onFinalize: () => void;
 }) {
@@ -63,4 +67,7 @@ export function showUndoCloseToast(opts: {
       onDismiss: opts.onFinalize,
     },
   );
+  if (opts.endsHidden && document.hidden) {
+    setTimeout(() => document.hidden && opts.onFinalize(), opts.durationMs);
+  }
 }

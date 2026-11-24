@@ -40,13 +40,20 @@ export interface TerminalStartOpts {
   shell?: string;
 }
 
+// The tab a command runs in: a new one, or the open one its action reuses.
+export interface StartedTab {
+  id: string;
+  reused: boolean;
+}
+
 export interface UseTerminalsResult {
   tree: PaneNode | null;
   focusedPaneId: string | null;
   // Settles once the saved tabs are back; until then `tree` is not the real one.
   restoreSettled: RefObject<Promise<void>>;
   createTerminal: (background?: boolean, shell?: string) => Promise<void>;
-  createTerminalWithCmd: (label: string, cmd: string, opts?: TerminalStartOpts) => Promise<void>;
+  // Undefined when no terminal could start.
+  createTerminalWithCmd: (label: string, cmd: string, opts?: TerminalStartOpts) => Promise<StartedTab | undefined>;
   adoptTerminal: (
     id: string,
     label?: string,
@@ -80,6 +87,8 @@ export interface UseTerminalsResult {
   // Continue a Claude tab's session on another computer, or bring one here.
   continueSessionOn: (terminalId: string, target: HandoffTarget) => Promise<void>;
   closeOtherTerminals: (paneId: string, tabIdx: number) => void;
+  // Takes back a close that waits for the tab's agent to finish.
+  keepOpen: (termId: string) => void;
   focusTerminal: (paneId: string, tabIdx: number) => void;
   focusAdjacentPaneItem: (paneId: string, delta: 1 | -1, serviceNames: string[]) => void;
   focusService: (paneId: string, serviceName: string) => void;
@@ -96,6 +105,9 @@ export interface UseTerminalsResult {
   remoteForkTerminal: (termId: string) => void;
   remoteForkIntoCopy: (termId: string) => void;
   remoteCloseOthers: (termId: string) => void;
+  remoteCloseWhenDone: (termId: string) => void;
+  remoteCloseOthersWhenDone: (termId: string) => void;
+  remoteKeepOpen: (termId: string) => void;
   removeAdoptedTerminal: (termId: string) => void;
   remoteRenameTerminal: (termId: string, label: string, emoji?: string) => void;
   remoteRestoreTitle: (termId: string) => void;

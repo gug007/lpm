@@ -47,7 +47,7 @@ import { useKeyboardShortcut } from "../hooks/useKeyboardShortcut";
 import { usePaneNavKeys } from "../hooks/usePaneNavKeys";
 import { useServicePorts } from "../hooks/useServicePorts";
 import { linkedPorts, movedFromPort } from "../servicePorts";
-import { useTerminals, type TerminalStartOpts } from "../hooks/useTerminals";
+import { useTerminals, type StartedTab, type TerminalStartOpts } from "../hooks/useTerminals";
 import type { LaunchpadProject } from "../hooks/useLaunchpad";
 import type { RunActionOpts } from "../hooks/useProjectActions";
 import { nextId } from "../hooks/terminals/util";
@@ -135,7 +135,7 @@ export interface TerminalViewHandle {
   openLayout(root: SavedLayoutNode): void;
   // A command typed into an empty state's popup, run in a new terminal.
   runCommand(command: string, shell?: string): void;
-  createTerminalWithCmd(label: string, cmd: string, opts?: TerminalStartOpts): void;
+  createTerminalWithCmd(label: string, cmd: string, opts?: TerminalStartOpts): Promise<StartedTab | undefined>;
   // Adopt a peer-spawned pty as a tab (no new pty, no command injection).
   adoptTerminal(id: string, label?: string, opts?: AdoptedTabOpts): void;
   // `background`: opened for a phone, behind the tab in view.
@@ -149,6 +149,9 @@ export interface TerminalViewHandle {
   remoteForkTerminal(id: string): void;
   remoteForkIntoCopy(id: string): void;
   remoteCloseOthers(id: string): void;
+  remoteCloseWhenDone(id: string): void;
+  remoteCloseOthersWhenDone(id: string): void;
+  remoteKeepOpen(id: string): void;
   // A peer Mac closed this terminal — drop its tab (no second stop_terminal).
   removeAdoptedTerminal(id: string): void;
   // Hands a running tab to another project (tabMove.ts).
@@ -271,6 +274,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     openAppTab,
     closeTerminal,
     closeOtherTerminals,
+    keepOpen,
     restartTerminal,
     switchClaudeAccount,
     continueSessionOn,
@@ -285,6 +289,9 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
     remoteForkTerminal,
     remoteForkIntoCopy,
     remoteCloseOthers,
+    remoteCloseWhenDone,
+    remoteCloseOthersWhenDone,
+    remoteKeepOpen,
     removeAdoptedTerminal,
     remoteRenameTerminal,
     remoteRestoreTitle,
@@ -1237,6 +1244,9 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       remoteForkTerminal,
       remoteForkIntoCopy,
       remoteCloseOthers,
+      remoteCloseWhenDone,
+      remoteCloseOthersWhenDone,
+      remoteKeepOpen,
       removeAdoptedTerminal,
       moveTerminalOut,
       remoteRenameTerminal,
@@ -1267,6 +1277,9 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
       remoteForkTerminal,
       remoteForkIntoCopy,
       remoteCloseOthers,
+      remoteCloseWhenDone,
+      remoteCloseOthersWhenDone,
+      remoteKeepOpen,
       removeAdoptedTerminal,
       moveTerminalOut,
       remoteRenameTerminal,
@@ -1345,6 +1358,7 @@ export function TerminalView({ projectName, projectLabel, projectRoot, services,
             onResumeSession={onResumeSession}
             onCloseTerminal={closeTerminal}
             onCloseOtherTerminals={closeOtherTerminals}
+            onKeepOpen={keepOpen}
             onRestartTerminal={restartTerminal}
             onForkTerminal={forkTerminal}
             canForkIntoCopy={canForkIntoCopy}

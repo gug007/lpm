@@ -201,8 +201,8 @@ export function hasPeerListing(slug: string): boolean {
 function cachedPeerList(slug: string): ProjectInfo[] {
   const cached = peerListCache.get(slug);
   if (!cached) return [];
-  if (Date.now() - cached.at < PEER_STATUS_FRESH_MS) return cached.list;
-  return cached.list.map((project) => ({ ...project, statusEntries: [], seenEntries: [] }));
+  const gone = Date.now() - cached.at < PEER_STATUS_FRESH_MS ? {} : { statusEntries: [], seenEntries: [] };
+  return cached.list.map((project) => ({ ...project, ...gone, statusUnknown: true }));
 }
 
 // Every automation there is: this Mac's own and each connected host's, which

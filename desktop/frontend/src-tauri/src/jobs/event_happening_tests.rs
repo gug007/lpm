@@ -38,6 +38,49 @@ fn a_commit_starts_a_job_once_and_a_folder_without_git_counts_days() {
 }
 
 #[test]
+fn a_commit_starts_a_job_once_though_another_projects_comes_between() {
+    let mut past = Vec::new();
+    let mut starts = |commit: &str| {
+        let mut h = happening(EventKind::AgentFinished, "web");
+        h.commit = commit.into();
+        first_time(&mut past, mark(AtMost::Commit, &h, "d"))
+    };
+    assert!(starts("a"));
+    assert!(starts("b"));
+    assert!(!starts("a"));
+    assert!(!starts("b"));
+    assert!(starts("c"));
+    assert!(!starts("a"));
+}
+
+#[test]
+fn a_day_starts_a_job_once() {
+    let mut past = Vec::new();
+    let mut starts = |commit: &str, today: &str| {
+        let mut h = happening(EventKind::AgentFinished, "web");
+        h.commit = commit.into();
+        first_time(&mut past, mark(AtMost::Day, &h, today))
+    };
+    assert!(starts("a", "2026-11-23"));
+    assert!(!starts("b", "2026-11-23"));
+    assert!(starts("b", "2026-11-24"));
+}
+
+#[test]
+fn only_what_stayed_quiet_longest_is_forgotten() {
+    let mut past = Vec::new();
+    assert!(first_time(&mut past, "kept".into()));
+    assert!(first_time(&mut past, "quiet".into()));
+    for n in 0..MARKS_KEPT - 1 {
+        assert!(!first_time(&mut past, "kept".into()));
+        assert!(first_time(&mut past, format!("other {n}")));
+    }
+    assert_eq!(past.len(), MARKS_KEPT);
+    assert!(!first_time(&mut past, "kept".into()));
+    assert!(first_time(&mut past, "quiet".into()));
+}
+
+#[test]
 fn the_agent_is_told_why_it_was_started() {
     let mut h = happening(EventKind::CiFailed, "web");
     h.summary = "CI failed on main in web".into();

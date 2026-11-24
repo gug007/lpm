@@ -1,9 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { IBuffer, ILink, ILinkProvider, Terminal } from "@xterm/xterm";
 
 const mocks = vi.hoisted(() => ({
   index: [] as string[],
   openInDefaultApp: false,
+  sshRoot: "",
 }));
 
 vi.mock("../../platform", () => ({
@@ -14,6 +15,7 @@ vi.mock("../../platform", () => ({
 }));
 vi.mock("../../../bridge/commands", () => ({
   FileExists: vi.fn(() => Promise.resolve(false)),
+  LocatePath: vi.fn((_root: string, path: string) => Promise.resolve({ kind: "file", path, rel: null })),
   ListDirFiles: vi.fn(() => Promise.resolve(mocks.index.map((path) => ({ path, isDir: false })))),
   OpenPathInDefaultApp: vi.fn(() => Promise.resolve()),
   RevealInFinder: vi.fn(() => Promise.resolve()),
@@ -53,7 +55,7 @@ function bufferOf(text: string): IBuffer {
   } as unknown as IBuffer;
 }
 
-async function activate(text: string, linkText: string) {
+async function activate(text: string, linkText: string, cwd = CWD) {
   let provider: ILinkProvider | null = null;
   const term = {
     buffer: { active: bufferOf(text) },
@@ -62,7 +64,7 @@ async function activate(text: string, linkText: string) {
       return { dispose() {} };
     },
   } as unknown as Terminal;
-  registerPathLinkProvider(term, { getCwd: () => CWD });
+  registerPathLinkProvider(term, { getCwd: () => cwd, getSshRoot: () => mocks.sshRoot });
   const links = await new Promise<ILink[]>((resolve) =>
     provider!.provideLinks(1, (found) => resolve(found ?? [])),
   );
@@ -127,5 +129,22 @@ describe("Git Bash paths", () => {
     expect(vi.mocked(openFileViewer).mock.calls[0][0].absPath).toBe(
       "C:\\Program Files\\Git\\usr\\share\\doc\\README.md",
     );
+  });
+});
+
+describe("an SSH project's terminal on Windows", () => {
+  afterEach(() => {
+    mocks.sshRoot = "";
+  });
+
+  it("keeps the host's paths POSIX instead of reading them as Git Bash's", async () => {
+    mocks.sshRoot = "~/api";
+    await activate("wrote /tmp/build/out.log", "/tmp/build/out.log", "~/api");
+    await vi.waitFor(() => expect(openFileViewer).toHaveBeenCalled());
+    expect(vi.mocked(openFileViewer).mock.calls[0][0]).toMatchObject({
+      absPath: "/tmp/build/out.log",
+      projectRoot: "~/api",
+      onHost: true,
+    });
   });
 });

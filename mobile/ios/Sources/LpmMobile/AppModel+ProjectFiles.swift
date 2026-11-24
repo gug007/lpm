@@ -9,5 +9,6 @@ extension AppModel {
 
     func wireProjectFiles(_ c: LpmClient) {
         c.onListDir = { [weak self] contents in self?.projectFiles.apply(contents) }
+        c.onLocatePath = { [weak self] located in self?.projectFiles.apply(located) }
     }
 }

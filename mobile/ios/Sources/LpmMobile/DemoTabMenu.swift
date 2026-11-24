@@ -96,6 +96,14 @@ extension DemoServer {
             guard let list = self.world.terminals[project], let kept = list.first(where: { $0.id == id }) else { return }
             let closing = list.filter { $0.id != id && !$0.pinned }
             guard !closing.isEmpty else { return }
+            if o["whenDone"] as? Bool == true {
+                for t in closing {
+                    if self.demoBusy(project, t.id) { self.updateTerminal(t.id) { $0.closesWhenDone = true } }
+                    else { self.demoCloseTerminal(project, t.id) }
+                }
+                self.push(self.world.terminalsPayload(project))
+                return
+            }
             let closed = Set(closing.map(\.id))
             self.world.terminals[project] = list.filter { !closed.contains($0.id) }
             closed.forEach { self.world.composerDrafts[$0] = nil }
@@ -103,6 +111,38 @@ extension DemoServer {
                 self.demoSetAgentStatus(project: project, entries: [])
             }
             self.push(self.world.terminalsPayload(project))
+        }
+        register("keepTerminal") { [weak self] o in
+            guard let self, let project = o["project"] as? String, let id = o["id"] as? String else { return }
+            self.updateTerminal(id) { $0.closesWhenDone = false }
+            self.push(["t": "keepTerminal", "ok": true])
+            self.push(self.world.terminalsPayload(project))
+        }
+    }
+
+    func demoBusy(_ project: String, _ id: String) -> Bool {
+        world.project(named: project)?.status.contains {
+            $0.paneID == id && AgentState.of($0.value).isBusy
+        } ?? false
+    }
+
+    func demoCloseTerminal(_ project: String, _ id: String) {
+        let wasAgent = demoTerminal(id)?.cli == "claude"
+        world.terminals[project]?.removeAll { $0.id == id }
+        world.composerDrafts[id] = nil
+        demoDropSeenAgents(project: project, pane: id)
+        if wasAgent { demoSetAgentStatus(project: project, entries: []) }
+    }
+
+    /// The tabs that wait for their agent close a moment after it is done.
+    func demoCloseFinished(_ project: String) {
+        for t in world.terminals[project] ?? [] where t.closesWhenDone && !demoBusy(project, t.id) {
+            pushAfter(3) { [weak self] in
+                guard let self, self.demoTerminal(t.id)?.closesWhenDone == true, !self.demoBusy(project, t.id)
+                else { return nil }
+                self.demoCloseTerminal(project, t.id)
+                return self.world.terminalsPayload(project)
+            }
         }
     }
 

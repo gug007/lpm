@@ -24,15 +24,20 @@ pub fn runs_job(table: &[Proc], shell: u32, born: impl Fn(u32) -> Option<u64>) -
         .any(|p| !is_shell(&p.name) && !is_console_host(&p.name))
 }
 
-/// Whether anything but shells and console hosts runs on the console whose host
-/// is `host`. MSYS execs one of its own programs by replacing the forked
+/// Whether anything but console hosts and what counts as `idle` there runs on the
+/// console whose host is `host`. MSYS execs one of its own programs by replacing the forked
 /// process, so the Windows parent of a script's `sleep` no longer exists and
 /// `runs_job`'s walk from the shell never reaches it; its console still says
 /// which pane it runs in.
-pub fn console_runs_job(table: &[Proc], host: u32, host_of: impl Fn(u32) -> Option<u32>) -> bool {
+pub fn console_runs_job(
+    table: &[Proc],
+    host: u32,
+    idle: impl Fn(&Proc) -> bool,
+    host_of: impl Fn(u32) -> Option<u32>,
+) -> bool {
     table
         .iter()
-        .filter(|p| !is_shell(&p.name) && !is_console_host(&p.name))
+        .filter(|p| !idle(p) && !is_console_host(&p.name))
         .any(|p| host_of(p.pid) == Some(host))
 }
 
@@ -106,7 +111,8 @@ pub fn interrupt_and_wait(panes: &[std::sync::Arc<crate::sessionpane::Pane>]) {
                     let shell = pane.pid as u32;
                     runs_job(&table, shell, crate::procwin::created)
                         || crate::procwin::console_host(shell).is_some_and(|host| {
-                            console_runs_job(&table, host, |pid| hosts.get(&pid).copied())
+                            let idle = |p: &Proc| is_shell(&p.name);
+                            console_runs_job(&table, host, idle, |pid| hosts.get(&pid).copied())
                         })
                 })
                 .collect()
@@ -184,11 +190,12 @@ mod tests {
         let hosts: HashMap<u32, u32> =
             [(10, 30), (11, 30), (20, 30), (21, 30), (30, 30), (40, 31)].into_iter().collect();
         let host_of = |pid| hosts.get(&pid).copied();
+        let shell = |p: &Proc| is_shell(&p.name);
         let busy = table(&rows);
         assert!(!runs_job(&busy, 10, times(&[])));
-        assert!(console_runs_job(&busy, 30, host_of));
+        assert!(console_runs_job(&busy, 30, shell, host_of));
         let idle = table(&[rows[0], rows[1], rows[2], rows[4], rows[5]]);
-        assert!(!console_runs_job(&idle, 30, host_of));
+        assert!(!console_runs_job(&idle, 30, shell, host_of));
     }
 
     #[test]

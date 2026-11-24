@@ -4,7 +4,7 @@
 // agent finishing its turn (socketsrv.rs), and a pull request being opened or
 // reviewed (pr_watch.rs). A run is told what happened in its environment and,
 // when it hands an agent a prompt, at the top of it.
-use super::event_happening::{mark, matches, Happening};
+use super::event_happening::{first_time, mark, matches, Happening};
 use super::event_pulls::{self, PullRequestsWanted};
 use super::events::EventKind;
 use super::{
@@ -118,8 +118,15 @@ pub(crate) fn agent_finished(app: &AppHandle, project: &str, entry: &StatusEntry
     });
 }
 
-fn seen_crashes() -> &'static Mutex<Option<HashSet<String>>> {
-    static SEEN: OnceLock<Mutex<Option<HashSet<String>>>> = OnceLock::new();
+/// A pane and when the service in it started, as a restart keeps the pane.
+type Run = (String, i64);
+
+fn run_of(pane: &PaneInfo) -> Run {
+    (pane.id.clone(), pane.started)
+}
+
+fn seen_crashes() -> &'static Mutex<Option<HashSet<Run>>> {
+    static SEEN: OnceLock<Mutex<Option<HashSet<Run>>>> = OnceLock::new();
     SEEN.get_or_init(Default::default)
 }
 
@@ -139,11 +146,11 @@ pub(super) fn scan_services(app: &AppHandle) {
         .into_iter()
         .filter(crashed)
         .collect();
-    let now: HashSet<String> = crashes.iter().map(|p| p.id.clone()).collect();
+    let now: HashSet<Run> = crashes.iter().map(run_of).collect();
     let Some(before) = seen_crashes().lock().unwrap().replace(now) else {
         return;
     };
-    let fresh: Vec<&PaneInfo> = crashes.iter().filter(|p| !before.contains(&p.id)).collect();
+    let fresh: Vec<&PaneInfo> = crashes.iter().filter(|p| !before.contains(&run_of(p))).collect();
     if fresh.is_empty() {
         return;
     }
@@ -265,11 +272,7 @@ pub(super) fn offer(app: &AppHandle, project: &str, job: JobResolved, h: &Happen
     let mark = mark(spec.at_most, h, today);
     let fresh = with_state(|f| {
         let st = f.jobs.entry(key.clone()).or_default();
-        if st.last_event.as_deref() == Some(mark.as_str()) {
-            return false;
-        }
-        st.last_event = Some(mark.clone());
-        true
+        first_time(&mut st.past_events, mark)
     })
     .unwrap_or(false);
     let subject = match h.pull {

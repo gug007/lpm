@@ -14,7 +14,9 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -23,9 +25,14 @@ class ProjectFilesViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
-    private fun TestScope.connected(): Pair<TestSession, FakeSocket> {
+    private fun TestScope.connected(
+        features: List<String> = listOf(
+            LpmClient.LIST_DIR_FEATURE,
+            LpmClient.LOCATE_PATH_FEATURE
+        )
+    ): Pair<TestSession, FakeSocket> {
         val t = TestSession(this, setOf(SessionStore.Factory(::ProjectFilesStore)))
-        val socket = t.connectReady(features = listOf(LpmClient.LIST_DIR_FEATURE))
+        val socket = t.connectReady(features = features)
         return t to socket
     }
 
@@ -103,5 +110,59 @@ class ProjectFilesViewModelTest {
         vm.retry()
         testScheduler.runCurrent()
         assertEquals(2, socket.sentOf("listDir").size)
+    }
+
+    @Test
+    fun `a typed path is asked about after a pause, once`() = runTest {
+        val (t, socket) = connected()
+        val vm = subscribed(t)
+        vm.setQuery("/etc/ho")
+        vm.setQuery("/etc/hosts ")
+        testScheduler.runCurrent()
+        assertTrue(vm.uiState.value.showsPath)
+        assertNull(vm.uiState.value.located)
+        assertEquals(0, socket.sentOf("locatePath").size)
+        testScheduler.advanceTimeBy(300)
+        testScheduler.runCurrent()
+        assertEquals(JsonPrimitive("/etc/hosts"), socket.sentOf("locatePath").single()["path"])
+
+        receive(
+            socket,
+            """{"t":"locatePath","project":"storefront","path":"/etc/hosts","ok":true,""" +
+                """"kind":"file","at":"/etc/hosts","rel":null}"""
+        )
+        assertEquals("/etc/hosts", vm.uiState.value.located?.path)
+        assertTrue(vm.uiState.value.showsPath)
+        assertFalse(vm.uiState.value.pathMissing)
+
+        vm.setQuery("hosts")
+        testScheduler.advanceTimeBy(300)
+        testScheduler.runCurrent()
+        assertNull(vm.uiState.value.path)
+        assertEquals(1, socket.sentOf("locatePath").size)
+    }
+
+    @Test
+    fun `a path that leads nowhere has no row, and an older Mac is never asked`() = runTest {
+        val (t, socket) = connected()
+        val vm = subscribed(t)
+        vm.setQuery("/api")
+        testScheduler.advanceTimeBy(300)
+        testScheduler.runCurrent()
+        receive(
+            socket,
+            """{"t":"locatePath","project":"storefront","path":"/api","ok":true,""" +
+                """"kind":"missing","at":"/api","rel":null}"""
+        )
+        assertFalse(vm.uiState.value.showsPath)
+        assertTrue(vm.uiState.value.pathMissing)
+
+        val (older, quiet) = connected(listOf(LpmClient.LIST_DIR_FEATURE))
+        val old = subscribed(older)
+        old.setQuery("/api")
+        testScheduler.advanceTimeBy(300)
+        testScheduler.runCurrent()
+        assertNull(old.uiState.value.path)
+        assertEquals(0, quiet.sentOf("locatePath").size)
     }
 }

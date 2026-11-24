@@ -11,6 +11,7 @@ struct ProjectDetail: View {
     @State private var renaming: TabRename?
     @State private var forkingIntoCopy: TerminalInfo?
     @State private var closingOthers: TerminalInfo?
+    @State private var closingBusy: TerminalInfo?
     @State private var openTerminal: TerminalInfo?
     @State private var activeBgRun: BackgroundRunInfo?
     @State private var logsForService: Service?
@@ -94,6 +95,7 @@ struct ProjectDetail: View {
                 ProjectTabsSection(project: project.name, terminals: terminals, agents: agentByTerminal,
                                    creating: creating, renaming: $renaming,
                                    forkingIntoCopy: $forkingIntoCopy, closingOthers: $closingOthers,
+                                   closingBusy: $closingBusy,
                                    onOpen: { openTerminal = $0 }, onSpawned: openSpawned, onNew: newTab)
             }
 
@@ -182,6 +184,7 @@ struct ProjectDetail: View {
         .navigationDestination(item: $openTerminal) { TerminalScreen(term: $0, project: live).environment(model) }
         .tabRenameAlert($renaming)
         .tabMenuConfirmations(forkingIntoCopy: $forkingIntoCopy, closingOthers: $closingOthers)
+        .busyTabCloseConfirmation($closingBusy)
         .safeAreaInset(edge: .bottom) {
             let pending = model.pendingTabClose
             UndoBar(message: pending.map { "\($0.tab.title) closed" }, id: pending?.tab.id) {

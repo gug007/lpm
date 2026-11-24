@@ -52,5 +52,55 @@ data class ProjectDirContents(
     }
 }
 
-/** A project-relative path: `dir` joined with `name`, `/`-separated. */
-fun projectPath(dir: String, name: String): String = if (dir.isEmpty()) name else "$dir/$name"
+/** What a typed path turned out to be; [MISSING] covers what nothing can open. */
+enum class LocatedKind { FILE, DIR, MISSING }
+
+/** One `locatePath` reply: where a path typed into Go to File leads on the Mac. */
+data class LocatedPath(
+    val project: String,
+    /** The path as it was typed. */
+    val typed: String,
+    /** Null when the Mac couldn't say. */
+    val kind: LocatedKind?,
+    /** Absolute on the Mac. */
+    val path: String,
+    /** Its place in the project, empty for the project's own folder; null outside it. */
+    val rel: String?
+) {
+    companion object {
+        fun parse(o: JsonObject): LocatedPath = LocatedPath(
+            project = o.string("project").orEmpty(),
+            typed = o.string("path").orEmpty(),
+            kind = if (o.bool("ok") == true) kindOf(o.string("kind")) else null,
+            path = o.string("at").orEmpty(),
+            rel = o.string("rel")
+        )
+
+        private fun kindOf(name: String?): LocatedKind? = when (name) {
+            "file" -> LocatedKind.FILE
+            "dir" -> LocatedKind.DIR
+            "missing" -> LocatedKind.MISSING
+            else -> null
+        }
+    }
+}
+
+/** `dir` joined with `name`, `/`-separated. */
+fun projectPath(dir: String, name: String): String =
+    if (dir.isEmpty() || dir.endsWith('/')) dir + name else "$dir/$name"
+
+/**
+ * A folder by its place in the project, where it has one: a folder outside can hold the
+ * project's own.
+ */
+fun projectDir(dir: String, root: String?): String =
+    if (root == null) dir else dir.removePrefix("$root/")
+
+/**
+ * A folder outside the project goes by its absolute path on the machine: `/…`, or a
+ * drive's or a share's on a Windows PC.
+ */
+fun isOutsideProject(dir: String): Boolean =
+    dir.startsWith("/") || dir.startsWith("\\\\") || WINDOWS_DRIVE.containsMatchIn(dir)
+
+private val WINDOWS_DRIVE = Regex("^[A-Za-z]:[\\\\/]")

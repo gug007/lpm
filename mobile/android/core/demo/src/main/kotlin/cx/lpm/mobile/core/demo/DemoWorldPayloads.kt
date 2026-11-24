@@ -109,6 +109,7 @@ internal fun terminalDict(t: DemoWorld.Terminal): Dict {
         put("canFork", agent)
         put("canForkCopy", agent && !t.remote)
         put("canTitle", agent && t.label != DemoWorld.CONVERSATION_TITLE)
+        put("closesWhenDone", t.closesWhenDone)
         put("canSwitchAccount", agent && !t.remote)
         if (agent && !t.remote) put("claudeAccount", t.claudeAccount)
         t.switchingTo?.let { put("switchingTo", it) }

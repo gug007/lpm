@@ -8,6 +8,7 @@ import cx.lpm.mobile.core.model.BackgroundRunSummary
 import cx.lpm.mobile.core.model.ControlOwner
 import cx.lpm.mobile.core.model.DictationEvent
 import cx.lpm.mobile.core.model.FileChunk
+import cx.lpm.mobile.core.model.LocatedPath
 import cx.lpm.mobile.core.model.ProjectDirContents
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.model.UploadStep
@@ -63,6 +64,7 @@ internal val terminalParsers = parsers {
     put("agentOptions") { o -> Inbound.AgentOptions(o.list("agents", AgentOption::parse)) }
     put("agentSessions") { o -> Inbound.AgentSessions(AgentSessionsPage.parse(o)) }
     put("listDir") { o -> Inbound.ListDir(ProjectDirContents.parse(o)) }
+    put("locatePath") { o -> Inbound.LocatePath(LocatedPath.parse(o)) }
     put("actionPopup") { o -> Inbound.ActionPopup(ActionPopupReply.parse(o)) }
     put("actionApp") { o -> Inbound.ActionPopup(ActionPopupReply.parse(o)) }
     put("actionBgOutput") { o ->

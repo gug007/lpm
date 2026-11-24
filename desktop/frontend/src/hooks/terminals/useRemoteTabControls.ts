@@ -1,5 +1,5 @@
 import { useCallback, type RefObject } from "react";
-import { type PaneNode, collectPanes, isTerminalTab } from "../../paneTree";
+import { type PaneNode, collectPanes, otherTerminals } from "../../paneTree";
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { paneOrderFollowing } from "./remoteTabOrder";
 
@@ -11,6 +11,9 @@ interface UseRemoteTabControlsProps {
     tabIdx: number,
     opts?: { stop?: boolean; force?: boolean },
   ) => void;
+  closeTabWhenDone: (termId: string) => void;
+  closeOthersEverywhereWhenDone: (termId: string) => Promise<void>;
+  keepOpen: (termId: string) => void;
   renameTerminal: (paneId: string, tabIdx: number, label: string, emoji?: string) => void;
   restoreSessionTitle: (paneId: string, tabIdx: number) => void;
   toggleTabPinned: (paneId: string, tabIdx: number) => void;
@@ -24,6 +27,9 @@ export function useRemoteTabControls({
   treeRef,
   restoreSettled,
   closeTerminal,
+  closeTabWhenDone,
+  closeOthersEverywhereWhenDone,
+  keepOpen,
   renameTerminal,
   restoreSessionTitle,
   toggleTabPinned,
@@ -51,6 +57,18 @@ export function useRemoteTabControls({
       void locateTerminal(termId).then((hit) => hit && closeTerminal(hit.paneId, hit.idx));
     },
     [locateTerminal, closeTerminal],
+  );
+  const remoteCloseWhenDone = useCallback(
+    (termId: string) => void restoreSettled.current.then(() => closeTabWhenDone(termId)),
+    [closeTabWhenDone],
+  );
+  const remoteCloseOthersWhenDone = useCallback(
+    (termId: string) => void restoreSettled.current.then(() => closeOthersEverywhereWhenDone(termId)),
+    [closeOthersEverywhereWhenDone],
+  );
+  const remoteKeepOpen = useCallback(
+    (termId: string) => void restoreSettled.current.then(() => keepOpen(termId)),
+    [keepOpen],
   );
   // Mirror of adoptTerminal: a peer Mac closed this terminal, so drop its tab
   // from the live tree. The backend pty is already gone — remove without a
@@ -118,18 +136,11 @@ export function useRemoteTabControls({
     },
     [locateTerminal, forkTerminalIntoCopy],
   );
-  // A phone lists the project's terminals, not one pane's, so its "Close Other
-  // Tabs" closes every other unpinned terminal in any pane.
   const remoteCloseOthers = useCallback(
     (termId: string) => {
       void restoreSettled.current.then(() => {
         const current = treeRef.current;
-        if (!current) return;
-        const tabs = collectPanes(current).flatMap((p) => p.tabs);
-        if (!tabs.some((t) => t.id === termId)) return;
-        const ids = tabs
-          .filter((t) => t.id !== termId && t.pinned !== true && isTerminalTab(t))
-          .map((t) => t.id);
+        const ids = current ? otherTerminals(current, termId).map((t) => t.id) : [];
         if (ids.length > 0) closeTerminalsById(ids);
       });
     },
@@ -141,6 +152,9 @@ export function useRemoteTabControls({
     remoteForkTerminal,
     remoteForkIntoCopy,
     remoteCloseOthers,
+    remoteCloseWhenDone,
+    remoteCloseOthersWhenDone,
+    remoteKeepOpen,
     removeAdoptedTerminal,
     remoteRenameTerminal,
     remoteRestoreTitle,

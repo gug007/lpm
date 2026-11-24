@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type SyntheticEvent } from "react";
-import { NotesReadFileAsInput } from "../../bridge/commands";
 import { useContentZoom, type ContentZoom } from "../hooks/useContentZoom";
+import type { HostFile } from "../sshProjects";
 import { formatBytes } from "../syncApi";
+import { readFileBytes } from "./fileBytes";
 import {
   base64ByteLength,
   formatImageMeta,
@@ -25,7 +26,12 @@ export interface ImagePreview {
   onImgError: () => void;
 }
 
-export function useImagePreview(path: string, active: boolean): ImagePreview {
+// `host` reads the image from an SSH project's host.
+export function useImagePreview(
+  path: string,
+  active: boolean,
+  host: HostFile | null = null,
+): ImagePreview {
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [bytes, setBytes] = useState(0);
   const [natural, setNatural] = useState<Size | null>(null);
@@ -50,8 +56,8 @@ export function useImagePreview(path: string, active: boolean): ImagePreview {
     setDataUrl(null);
     setBytes(0);
     setReadError(null);
-    NotesReadFileAsInput(path, IMAGE_PREVIEW_MAX_BYTES)
-      .then((input: { mimeType?: string; data: string }) => {
+    readFileBytes(path, host, IMAGE_PREVIEW_MAX_BYTES)
+      .then((input) => {
         if (cancelled) return;
         setBytes(base64ByteLength(input.data));
         setDataUrl(`data:${input.mimeType || "image/png"};base64,${input.data}`);
@@ -63,7 +69,7 @@ export function useImagePreview(path: string, active: boolean): ImagePreview {
     return () => {
       cancelled = true;
     };
-  }, [path, active, zoomReset]);
+  }, [path, active, host, zoomReset]);
 
   // Damped so a sub-pixel container change can't drive a measure/fit loop.
   const setFit = useCallback(

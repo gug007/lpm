@@ -1,4 +1,4 @@
-import { FileExists, ListDirFiles } from "../../../bridge/commands";
+import { FileExists, FilesExist, ListDirFiles } from "../../../bridge/commands";
 import { basename, normalizePath, toSlash, windowsRules } from "../../path";
 
 // How long a project's file list answers link hovers and clicks before the
@@ -7,6 +7,8 @@ const FRESH_MS = 30_000;
 // Hovering asks again for every row the pointer crosses, so a file's verdict
 // is kept for a moment instead of asking the disk, or a paired Mac, each time.
 const EXISTS_FRESH_MS = 3_000;
+// Longer for an SSH host, where each ask is a round trip.
+const HOST_EXISTS_FRESH_MS = 15_000;
 
 export interface FileIndex {
   paths: ReadonlySet<string>;
@@ -15,6 +17,7 @@ export interface FileIndex {
 
 const cache = new Map<string, { at: number; index: Promise<FileIndex | null> }>();
 const exists = new Map<string, { at: number; found: Promise<boolean> }>();
+const onHost = new Map<string, { at: number; found: Promise<boolean> }>();
 
 // `slash`: the walk came back with Windows separators, which the index keeps
 // in the `/` form printed references are matched in.
@@ -55,9 +58,47 @@ export function fileExists(abs: string): Promise<boolean> {
   return found;
 }
 
+// A host answers one ask at a time: a pointer sweeping a terminal's rows asks
+// about each, and what comes in meanwhile goes together in the next.
+const asking = new Map<string, Promise<unknown>>();
+const queued = new Map<string, { paths: string[]; files: Promise<ReadonlySet<string>> }>();
+
+function filesAmong(root: string, paths: string[]): Promise<ReadonlySet<string>> {
+  const next = queued.get(root);
+  if (next) {
+    next.paths.push(...paths);
+    return next.files;
+  }
+  const batch = [...paths];
+  const files = (async () => {
+    await asking.get(root);
+    queued.delete(root);
+    const found: unknown = await Promise.resolve(FilesExist(root, batch)).catch(() => []);
+    return new Set(Array.isArray(found) ? batch.filter((_, i) => found[i] === true) : []);
+  })();
+  queued.set(root, { paths: batch, files });
+  asking.set(root, files);
+  return files;
+}
+
+// Which paths are files on the host of the SSH project at `root`, the ones not
+// known yet asked about in one call.
+export function hostFilesExist(root: string, paths: string[]): Promise<boolean[]> {
+  const now = Date.now();
+  for (const [key, entry] of onHost) if (now - entry.at >= HOST_EXISTS_FRESH_MS) onHost.delete(key);
+  const keyOf = (path: string) => `${root}\0${path}`;
+  const unknown = [...new Set(paths)].filter((path) => !onHost.has(keyOf(path)));
+  if (unknown.length > 0) {
+    const files = filesAmong(root, unknown);
+    for (const path of unknown) onHost.set(keyOf(path), { at: now, found: files.then((f) => f.has(path)) });
+  }
+  return Promise.all(paths.map((path) => onHost.get(keyOf(path))!.found));
+}
+
 export function forgetFileIndexes(): void {
   cache.clear();
   exists.clear();
+  onHost.clear();
 }
 
 const shallowFirst = (a: string, b: string) =>

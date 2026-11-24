@@ -219,7 +219,7 @@ fn pane_infos(session: &str, detail: bool) -> Vec<PaneInfo> {
 /// A pane as `Panes` lists it without detail. A pane whose shell has gone
 /// reports no pid: the number may already belong to another process.
 fn brief(session: &str, pane: &Pane) -> PaneInfo {
-    let (ended, code) = pane.outcome();
+    let (ended, code, started) = pane.outcome();
     PaneInfo {
         id: pane.id.clone(),
         session: session.to_string(),
@@ -227,6 +227,7 @@ fn brief(session: &str, pane: &Pane) -> PaneInfo {
         pid: if pane.alive() { pane.pid as i64 } else { 0 },
         ended,
         code,
+        started,
         ..Default::default()
     }
 }

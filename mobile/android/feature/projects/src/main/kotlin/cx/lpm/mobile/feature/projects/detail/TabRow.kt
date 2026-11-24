@@ -57,7 +57,8 @@ class TabMenuExtras(
     val forkCopy: (() -> Unit)? = null,
     val closeOthers: (() -> Unit)? = null,
     val claudeAccount: (@Composable ColumnScope.() -> Unit)? = null,
-    val moveTo: (@Composable ColumnScope.() -> Unit)? = null
+    val moveTo: (@Composable ColumnScope.() -> Unit)? = null,
+    val keepOpen: (() -> Unit)? = null
 )
 
 /**
@@ -90,7 +91,9 @@ fun TabRow(
     val description = listOfNotNull(
         term.label,
         agent?.stateLabel,
-        agent?.pause?.shellsLabel ?: agent?.elapsed(System.currentTimeMillis())
+        agent?.pause?.shellsLabel ?: agent?.elapsed(System.currentTimeMillis()),
+        stringResource(ProjectsR.string.tab_closes_when_done)
+            .takeIf { agent != null && term.closesWhenDone }
     ).joinToString(", ")
     SwipeActionsBox(
         modifier = modifier.listSeparator(),
@@ -162,6 +165,14 @@ fun TabRow(
                         modifier = Modifier.size(13.dp)
                     )
                 }
+                if (term.closesWhenDone) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_timer),
+                        contentDescription = null,
+                        tint = colors.secondaryLabel,
+                        modifier = Modifier.size(13.dp)
+                    )
+                }
             }
         }
         Box {
@@ -195,6 +206,13 @@ fun TabRow(
                 }
                 extras.claudeAccount?.invoke(this)
                 extras.moveTo?.invoke(this)
+                extras.keepOpen?.let {
+                    ContextMenuItem(
+                        title = stringResource(ProjectsR.string.tab_keep_open),
+                        onClick = it,
+                        icon = painterResource(R.drawable.ic_timer)
+                    )
+                }
                 ContextMenuItem(
                     title = closeLabel,
                     onClick = onClose,

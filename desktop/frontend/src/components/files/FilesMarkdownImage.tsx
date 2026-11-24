@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { NotesReadFileAsInput } from "../../../bridge/commands";
 import { basename } from "../../path";
+import { readFileBytes } from "../fileBytes";
+import { viewerLocation } from "../useFileViewerFile";
 
 // A document can name many images, all read as it opens, so each is held to
 // less than an image opened on its own.
@@ -8,14 +9,16 @@ const INLINE_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 
 interface FilesMarkdownImageProps {
   absPath: string;
+  // The SSH project's folder, for an image on its host.
+  hostRoot?: string;
   alt: string;
   width?: number | string;
   height?: number | string;
 }
 
-// An image a Markdown file names by path, read from disk like an opened image;
+// An image a Markdown file names by path, read where the file is, like an opened image;
 // one that can't be read or decoded shows as its alt text.
-export function FilesMarkdownImage({ absPath, alt, width, height }: FilesMarkdownImageProps) {
+export function FilesMarkdownImage({ absPath, hostRoot, alt, width, height }: FilesMarkdownImageProps) {
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -23,8 +26,9 @@ export function FilesMarkdownImage({ absPath, alt, width, height }: FilesMarkdow
     let cancelled = false;
     setSrc(null);
     setFailed(false);
-    NotesReadFileAsInput(absPath, INLINE_IMAGE_MAX_BYTES)
-      .then((input: { mimeType?: string; data: string }) => {
+    const host = hostRoot === undefined ? null : viewerLocation(absPath, hostRoot, true);
+    readFileBytes(absPath, host, INLINE_IMAGE_MAX_BYTES)
+      .then((input) => {
         if (!cancelled) setSrc(`data:${input.mimeType || "image/png"};base64,${input.data}`);
       })
       .catch(() => {
@@ -33,7 +37,7 @@ export function FilesMarkdownImage({ absPath, alt, width, height }: FilesMarkdow
     return () => {
       cancelled = true;
     };
-  }, [absPath]);
+  }, [absPath, hostRoot]);
 
   if (failed) {
     return <span className="text-[var(--text-muted)]">{alt || basename(absPath)}</span>;

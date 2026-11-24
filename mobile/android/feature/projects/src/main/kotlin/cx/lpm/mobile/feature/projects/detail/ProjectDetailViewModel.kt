@@ -15,12 +15,15 @@ import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.session.SessionAlerts
 import cx.lpm.mobile.core.data.terminals.AgentTabsStore
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
+import cx.lpm.mobile.core.data.terminals.canCloseWhenDone
 import cx.lpm.mobile.core.data.terminals.canMoveTabs
 import cx.lpm.mobile.core.data.terminals.canUseTabMenu
 import cx.lpm.mobile.core.data.terminals.closeOtherTerminals
 import cx.lpm.mobile.core.data.terminals.closeTerminal
+import cx.lpm.mobile.core.data.terminals.closeTerminalWhenDone
 import cx.lpm.mobile.core.data.terminals.forkTerminal
 import cx.lpm.mobile.core.data.terminals.forkTerminalIntoCopy
+import cx.lpm.mobile.core.data.terminals.keepTerminalOpen
 import cx.lpm.mobile.core.data.terminals.moveTerminal
 import cx.lpm.mobile.core.data.terminals.otherClosableTerminals
 import cx.lpm.mobile.core.data.terminals.undoTabClose
@@ -29,6 +32,7 @@ import cx.lpm.mobile.core.data.tips.TipsStore
 import cx.lpm.mobile.core.model.AppTip
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.TerminalInfo
+import cx.lpm.mobile.core.model.busyAgents
 import cx.lpm.mobile.core.navigation.ProjectKey
 import cx.lpm.mobile.feature.projects.visit.listedProject
 import dagger.assisted.Assisted
@@ -110,6 +114,7 @@ class ProjectDetailViewModel @AssistedInject constructor(
             canLaunchAgents = s.store<AgentLaunchStore>().canLaunchAgents,
             canUseTabMenu = s.store<TerminalsStore>().canUseTabMenu,
             canMoveTabs = s.store<TerminalsStore>().canMoveTabs,
+            canCloseWhenDone = s.store<TerminalsStore>().canCloseWhenDone,
             pendingClose = t.pendingTabClose,
             now = clock.millis(),
             closedTips = closedTips
@@ -195,6 +200,18 @@ class ProjectDetailViewModel @AssistedInject constructor(
         terminals?.closeTerminal(key.project, id)
     }
 
+    /** The agents a close of the tab would end mid-task. */
+    fun busyAgents(id: String): Int =
+        projects?.state?.value?.project(key.project)?.busyAgents(id) ?: 0
+
+    fun closeWhenDone(term: TerminalInfo) {
+        terminals?.closeTerminalWhenDone(term)
+    }
+
+    fun keepOpen(term: TerminalInfo) {
+        terminals?.keepTerminalOpen(term)
+    }
+
     fun undoClose() {
         terminals?.undoTabClose()
     }
@@ -221,6 +238,14 @@ class ProjectDetailViewModel @AssistedInject constructor(
 
     fun closeOthers(term: TerminalInfo) {
         terminals?.closeOtherTerminals(term)
+    }
+
+    fun othersBusy(term: TerminalInfo): Int =
+        terminals?.otherClosableTerminals(term).orEmpty().sumOf { busyAgents(it.id) }
+
+    fun closeOthersWhenDone(term: TerminalInfo) {
+        val others = terminals?.otherClosableTerminals(term).orEmpty().map { it.id }
+        terminals?.closeOtherTerminals(term, others.filter { busyAgents(it) > 0 }.toSet())
     }
 
     /** [label] is already trimmed and differs from the tab's name (see [tabRenameResult]). */

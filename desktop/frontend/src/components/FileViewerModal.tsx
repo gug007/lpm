@@ -12,6 +12,7 @@ interface FileViewerModalProps {
   line: number;
   col: number;
   projectRoot: string;
+  onHost?: boolean;
   choices?: string[];
   layout?: FileViewerLayout;
   overDialog?: boolean;
@@ -45,6 +46,7 @@ export function FileViewerModal({
   line,
   col,
   projectRoot,
+  onHost,
   choices,
   layout,
   overDialog,
@@ -76,6 +78,7 @@ export function FileViewerModal({
           line={line}
           col={col}
           projectRoot={projectRoot}
+          onHost={onHost}
           onClose={onClose}
         />
       ) : (
@@ -85,6 +88,7 @@ export function FileViewerModal({
           line={line}
           col={col}
           projectRoot={projectRoot}
+          onHost={onHost}
           editing={editing}
           onEditingChange={setEditing}
           layout={layout}

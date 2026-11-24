@@ -73,7 +73,7 @@ const FEATURES: Feature[] = [
   {
     icon: FolderTree,
     title: "Browse the remote project",
-    body: "The Files tab lists the remote project's tree and opens files for reading, and git status, branches, commits, and pull requests run on the host over the same connection. Open with sends the folder to VS Code or Cursor over Remote-SSH.",
+    body: "The Files tab lists the remote project's tree and opens files for reading. Type a path, or click one printed in the terminal, and it opens from the host wherever it is there. Git status, branches, commits, and pull requests run on the host over the same connection. Open with sends the folder to VS Code or Cursor over Remote-SSH.",
   },
   {
     icon: Activity,

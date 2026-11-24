@@ -46,6 +46,13 @@ export function agentStateOf(value: string): AgentState {
   return "idle";
 }
 
+/** How many of `states` are mid-task (working, or stopped on a question), and
+ *  how many of those ask. */
+export function countBusy(states: readonly AgentState[]): { count: number; asking: number } {
+  const asking = states.filter((state) => state === "needs-you").length;
+  return { count: asking + states.filter((state) => state === "working").length, asking };
+}
+
 export interface ProjectStatus {
   isDone: boolean;
   isWaiting: boolean;

@@ -18,6 +18,46 @@ fn changed(path: &str, status: &str) -> ChangedFile {
 }
 
 #[test]
+fn a_typed_path_is_answered_with_where_it_leads() {
+    use crate::project_paths::PathKind;
+    let found = LocatedPath {
+        kind: PathKind::Dir,
+        path: "/work/shop/src".into(),
+        rel: Some("src".into()),
+    };
+    assert_eq!(
+        locate_reply("shop", "./src", Ok(found)),
+        json!({ "t": "locatePath", "project": "shop", "path": "./src", "ok": true,
+                "kind": "dir", "at": "/work/shop/src", "rel": "src" })
+    );
+    let outside = LocatedPath {
+        kind: PathKind::File,
+        path: "/var/log/app.log".into(),
+        rel: None,
+    };
+    assert!(locate_reply("shop", "/var/log/app.log", Ok(outside))["rel"].is_null());
+    let failed = locate_reply("shop", "/x", Err("no such project".into()));
+    assert_eq!((&failed["ok"], &failed["error"]), (&json!(false), &json!("no such project")));
+}
+
+#[test]
+fn a_folder_outside_the_project_is_listed_by_its_absolute_path() {
+    let (project, other) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    std::fs::write(other.path().join("notes 10.md"), "x").unwrap();
+    std::fs::write(other.path().join("notes 2.md"), "x").unwrap();
+    std::fs::create_dir(other.path().join("sub")).unwrap();
+    let root = project.path().to_string_lossy().into_owned();
+    let rows = outside_rows(&root, &other.path().to_string_lossy()).unwrap();
+    let names: Vec<&str> = rows.iter().filter_map(|r| r["name"].as_str()).collect();
+    assert_eq!(names, ["sub", "notes 2.md", "notes 10.md"]);
+    assert_eq!(rows[0], json!({ "name": "sub", "dir": true, "ignored": false }));
+
+    // Trimmed to a project folder of that name, it isn't there.
+    assert!(project_rows(&root, &other.path().to_string_lossy()).is_err());
+    assert!(outside_rows(&root, "/no/such/folder").is_err());
+}
+
+#[test]
 fn folders_come_first_then_names_in_natural_order() {
     let mut list = vec![
         entry("file10.ts", false),

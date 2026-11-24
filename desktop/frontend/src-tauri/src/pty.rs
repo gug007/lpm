@@ -137,6 +137,18 @@ impl PtySession {
         None
     }
 
+    /// `shell_at_prompt`, where it's worth looking at every process: that is how
+    /// it's told on Windows (shellprompt.rs).
+    pub fn shell_at_prompt_now(&self) -> Option<bool> {
+        let told = self.shell_at_prompt();
+        #[cfg(windows)]
+        let told = told.or_else(|| {
+            let shell = self.child.lock().unwrap().process_id().filter(|_| !self.remote)?;
+            crate::shellprompt::at_prompt_now(shell)
+        });
+        told
+    }
+
     /// Whether `pid` is in the job holding the terminal. Windows has no such job.
     pub fn holds_terminal(&self, pid: i32) -> bool {
         #[cfg(unix)]

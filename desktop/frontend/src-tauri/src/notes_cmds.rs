@@ -29,6 +29,16 @@ pub struct NotesAttachmentInput {
     pub data: String,
 }
 
+impl NotesAttachmentInput {
+    pub(crate) fn of(name: String, data: &[u8]) -> Self {
+        Self {
+            mime_type: mime_for(Path::new(&name), data),
+            name,
+            data: B64.encode(data),
+        }
+    }
+}
+
 struct NotesBundle {
     store: Store,
     blobs: BlobStore,
@@ -331,11 +341,7 @@ pub async fn notes_read_file_as_input(
         match crate::mediapeer::split_peer_path(&path) {
             Some((slug, host_path)) => {
                 let (name, data) = crate::peerread::read_whole(&hub, slug, host_path, cap)?;
-                Ok(NotesAttachmentInput {
-                    mime_type: mime_for(Path::new(&name), &data),
-                    name,
-                    data: B64.encode(&data),
-                })
+                Ok(NotesAttachmentInput::of(name, &data))
             }
             None => read_file_as_input(&path, cap),
         }
@@ -359,12 +365,7 @@ fn read_file_as_input(path: &str, cap: u64) -> Result<NotesAttachmentInput, Stri
         return Err(format!("{name} exceeds {}MB limit", cap / (1024 * 1024)));
     }
     let data = read_file_capped(p, cap)?;
-    let mime_type = mime_for(p, &data);
-    Ok(NotesAttachmentInput {
-        name,
-        mime_type,
-        data: B64.encode(&data),
-    })
+    Ok(NotesAttachmentInput::of(name, &data))
 }
 
 #[tauri::command]

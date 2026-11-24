@@ -36,12 +36,12 @@ import cx.lpm.mobile.core.model.ProjectFileEntry
 import cx.lpm.mobile.core.ui.GitStatusBadge
 import cx.lpm.mobile.feature.files.R
 
-/** What a row's tap and long-press menu do; a null [copyPath] leaves "Copy Path" out. */
+/** What a row's tap and long-press menu do; a null copy leaves its item out. */
 @Immutable
 class FileRowActions(
     val open: () -> Unit = {},
     val copyPath: (() -> Unit)? = null,
-    val copyRelativePath: () -> Unit = {}
+    val copyRelativePath: (() -> Unit)? = null
 )
 
 /**
@@ -120,19 +120,21 @@ internal fun ProjectFileRow(
                         onClick = actions.open,
                         icon = painterResource(DesignR.drawable.ic_visibility)
                     )
-                    actions.copyPath?.let { copy ->
-                        ContextMenuItem(
-                            title = stringResource(R.string.files_copy_path),
-                            onClick = copy,
-                            icon = painterResource(DesignR.drawable.ic_content_copy)
-                        )
-                    }
                 }
-                ContextMenuItem(
-                    title = stringResource(R.string.files_copy_relative_path),
-                    onClick = actions.copyRelativePath,
-                    icon = painterResource(DesignR.drawable.ic_content_copy)
-                )
+                actions.copyPath?.let {
+                    ContextMenuItem(
+                        title = stringResource(R.string.files_copy_path),
+                        onClick = it,
+                        icon = painterResource(DesignR.drawable.ic_content_copy)
+                    )
+                }
+                actions.copyRelativePath?.let {
+                    ContextMenuItem(
+                        title = stringResource(R.string.files_copy_relative_path),
+                        onClick = it,
+                        icon = painterResource(DesignR.drawable.ic_content_copy)
+                    )
+                }
             }
         }
     }
@@ -141,6 +143,6 @@ internal fun ProjectFileRow(
 /** A file row's icon column: 24 dp wide, 12 dp from the name. */
 internal val FileIconSlot = ListLeadingSlot(width = 24.dp, spacing = 12.dp)
 
-private val FolderIcon = DesignR.drawable.ic_folder_fill
-private val FileIcon = DesignR.drawable.ic_description
+internal val FolderIcon = DesignR.drawable.ic_folder_fill
+internal val FileIcon = DesignR.drawable.ic_description
 private const val IGNORED_ALPHA = 0.5f

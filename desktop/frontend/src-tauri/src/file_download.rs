@@ -15,7 +15,7 @@ use serde_json::json;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::config::{ensure_ssh_control_dir, SshSettings};
-use crate::file_browser::checked_rel;
+use crate::file_browser::{checked_rel, host_target};
 use crate::fsatomic::{self, Mode};
 use crate::mediapeer::split_peer_path;
 use crate::osproc;
@@ -38,8 +38,11 @@ type Received = Option<(u64, u64)>;
 /// a shell profile printed first can be told from the file, and a file still
 /// being written comes down as it was. `-f` goes first because opening a FIFO
 /// waits for a writer that may never come, and BSD `head` refuses a count of 0.
+/// A file over `$2` bytes, when one is given, isn't sent at all.
 const SEND_SCRIPT: &str = r#"[ -f "$1" ] || { printf '%s\n' "${1##*/} isn't a file" >&2; exit 1; }
-size=$(wc -c < "$1") && size=$((size)) && printf 'lpm-file-size:%s\n' "$size" && { [ "$size" = 0 ] || exec head -c "$size" "$1"; }"#;
+size=$(wc -c < "$1") && size=$((size)) || exit 1
+[ -z "$2" ] || [ "$size" -le "$2" ] || { printf '%s\n' "${1##*/} is too large to show here" >&2; exit 1; }
+printf 'lpm-file-size:%s\n' "$size" && { [ "$size" = 0 ] || exec head -c "$size" "$1"; }"#;
 
 enum Source {
     Host {
@@ -80,13 +83,12 @@ impl Source {
     fn copy_to(
         &self,
         out: &mut File,
-        name: &str,
         transfer: &Transfer,
         progress: &mut impl FnMut(u64, u64),
     ) -> Result<(), String> {
         match self {
             Source::Host { ssh, root, rel } => {
-                from_host(ssh, root, rel, name, transfer, out, progress)
+                from_host(ssh, root, rel, None, transfer, out, progress)
             }
             Source::Paired {
                 hub,
@@ -269,18 +271,38 @@ fn capture(mut stderr: ChildStderr) -> JoinHandle<String> {
     })
 }
 
+/// A whole file held in memory, for a preview. One over `cap` bytes is refused
+/// before any of it is sent.
+pub(crate) fn read_from_host(
+    ssh: &SshSettings,
+    root: &str,
+    rel: &str,
+    cap: u64,
+) -> Result<(String, Vec<u8>), String> {
+    let mut data = Vec::new();
+    let transfer = Transfer::default();
+    from_host(ssh, root, rel, Some(cap), &transfer, &mut data, &mut |_, _| {})?;
+    Ok((name_of(rel).to_string(), data))
+}
+
+fn name_of(rel: &str) -> &str {
+    rel.rsplit('/').next().unwrap_or_default()
+}
+
 fn from_host(
     ssh: &SshSettings,
     root: &str,
     rel: &str,
-    name: &str,
+    cap: Option<u64>,
     transfer: &Transfer,
-    out: &mut File,
+    out: &mut impl Write,
     progress: &mut impl FnMut(u64, u64),
 ) -> Result<(), String> {
     let _ = ensure_ssh_control_dir();
-    let target = format!("./{rel}");
-    let mut child = remote_command(ssh, root, "sh", &["-c", SEND_SCRIPT, "sh", &target], &[])
+    let target = host_target(rel)?;
+    let limit = cap.map(|bytes| bytes.to_string()).unwrap_or_default();
+    let args = ["-c", SEND_SCRIPT, "sh", &target, &limit];
+    let mut child = remote_command(ssh, root, "sh", &args, &[])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -298,14 +320,13 @@ fn from_host(
     let stderr = stderr
         .and_then(|thread| thread.join().ok())
         .unwrap_or_default();
-    settle(received, exited_ok, &stderr, name)
+    settle(received, exited_ok, &stderr, name_of(rel))
 }
 
 fn save(
     app: &AppHandle,
     id: &str,
     source: &Source,
-    name: &str,
     dest: &Path,
 ) -> Result<Option<String>, String> {
     let transfer = Arc::new(Transfer::default());
@@ -322,19 +343,18 @@ fn save(
         }
     };
     progress(0, 0);
-    store(source, name, dest, &transfer, &mut progress)
+    store(source, dest, &transfer, &mut progress)
 }
 
 fn store(
     source: &Source,
-    name: &str,
     dest: &Path,
     transfer: &Transfer,
     progress: &mut impl FnMut(u64, u64),
 ) -> Result<Option<String>, String> {
     let stored = fsatomic::write_with(dest, Mode::Preserve(0o644), |out| {
         source
-            .copy_to(out, name, transfer, progress)
+            .copy_to(out, transfer, progress)
             .map_err(io::Error::other)
     });
     match stored {
@@ -354,17 +374,19 @@ pub async fn download_project_file(
     root: String,
     rel: String,
 ) -> Result<Option<String>, String> {
-    let rel = checked_rel(&rel)?;
-    let name = rel.rsplit('/').next().unwrap_or_default().to_string();
+    // Only an SSH host is read outside the project, by absolute path.
+    let on_host = rel.starts_with('/') && remote_project_for_path(&root).is_some();
+    let rel = if on_host { rel } else { checked_rel(&rel)? };
+    let name = name_of(&rel);
     if name.is_empty() {
         return Err("not a file".into());
     }
     let source = Source::of(hub.inner(), &root, &rel)?;
-    let portable = crate::fsname::portable(&name);
+    let portable = crate::fsname::portable(name);
     let Some(dest) = crate::files::pick_save_path(app.clone(), portable).await? else {
         return Ok(None);
     };
-    tauri::async_runtime::spawn_blocking(move || save(&app, &id, &source, &name, &dest))
+    tauri::async_runtime::spawn_blocking(move || save(&app, &id, &source, &dest))
         .await
         .map_err(|e| e.to_string())?
 }

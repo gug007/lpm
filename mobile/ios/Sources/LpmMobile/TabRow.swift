@@ -32,6 +32,11 @@ struct TabRow: View {
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }
+                if term.closesWhenDone {
+                    Image(systemName: "timer")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer(minLength: 8)
                 if term.remote {
                     Text("Remote")
@@ -60,7 +65,8 @@ struct TabRow: View {
     private var accessibilityText: String {
         guard let agent else { return term.label }
         return [term.label, agent.stateLabel,
-                agent.pause?.shellsLabel ?? agent.elapsed(now: Int(Date().timeIntervalSince1970 * 1000))]
+                agent.pause?.shellsLabel ?? agent.elapsed(now: Int(Date().timeIntervalSince1970 * 1000)),
+                term.closesWhenDone ? "closes when done" : nil]
             .compactMap { $0 }
             .joined(separator: ", ")
     }

@@ -14,6 +14,8 @@ const HOTKEY_GROUP: Record<HotkeyId, string> = {
   paneFocusNext: "tabs",
   paneFocusPrev: "tabs",
   renameProject: "projects",
+  duplicateProject: "projects",
+  pinProject: "projects",
   deleteProject: "projects",
   dictate: "input",
 };

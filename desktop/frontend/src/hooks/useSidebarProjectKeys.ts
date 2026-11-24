@@ -2,8 +2,9 @@ import { useMemo, useRef } from "react";
 import { resolveHotkey, type HotkeyId, type HotkeysConfig } from "../hotkeys";
 import { formatShortcut, parseShortcut } from "../shortcutParse";
 import { useSettingsStore } from "../store/settings";
+import { actionTakes } from "./useActionShortcuts";
 import { useEventListener } from "./useEventListener";
-import { useKeyboardShortcut } from "./useKeyboardShortcut";
+import { useKeyboardShortcut, type KeyboardShortcut } from "./useKeyboardShortcut";
 
 const ROW_ATTR = "data-project-row";
 
@@ -34,8 +35,33 @@ function hotkey(hotkeys: HotkeysConfig | undefined, id: HotkeyId) {
   return parsed ? { ...parsed, preventDefault: false } : null;
 }
 
-// Both hotkeys act on the open menu's row, else the selected project. The
-// delete hotkey is captured so the focused terminal or field never also acts on it.
+function cmdHotkey(hotkeys: HotkeysConfig | undefined, id: HotkeyId) {
+  const parsed = hotkey(hotkeys, id);
+  return parsed && { ...parsed, cmdOnly: true };
+}
+
+function useActionYieldingKey(
+  shortcut: KeyboardShortcut | null,
+  target: string | null,
+  run: (name: string) => void,
+) {
+  useKeyboardShortcut(
+    shortcut ?? [],
+    (event, matched) => {
+      if (!target || modalOpen() || actionTakes(matched)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!event.repeat) run(target);
+    },
+    shortcut !== null,
+    true,
+  );
+}
+
+// The hotkeys act on the open menu's row, else the selected project. All but
+// rename are captured, so the focused terminal, field or editor never also acts
+// on them. Duplicate and pin take ⌘ alone (⌃N steps through a shell's history),
+// and an action already on their keys keeps them.
 //
 // A plain Delete acts on the row just clicked (or the open menu's row): picking
 // a project hands focus to its terminal, so the click arms the row until the
@@ -44,15 +70,26 @@ export function useSidebarProjectKeys({
   selected,
   menuTarget,
   onRename,
+  onDuplicate,
+  onTogglePin,
   onDelete,
 }: {
   selected: string | null;
   menuTarget: string | null;
   onRename: (name: string) => void;
+  onDuplicate: (name: string) => void;
+  onTogglePin: (name: string) => void;
   onDelete: (name: string) => void;
-}): { renameShortcut?: string; deleteShortcut?: string } {
+}): {
+  renameShortcut?: string;
+  duplicateShortcut?: string;
+  pinShortcut?: string;
+  deleteShortcut?: string;
+} {
   const hotkeys = useSettingsStore((s) => s.hotkeys);
   const rename = useMemo(() => hotkey(hotkeys, "renameProject"), [hotkeys]);
+  const duplicate = useMemo(() => cmdHotkey(hotkeys, "duplicateProject"), [hotkeys]);
+  const pin = useMemo(() => cmdHotkey(hotkeys, "pinProject"), [hotkeys]);
   const remove = useMemo(() => hotkey(hotkeys, "deleteProject"), [hotkeys]);
   const target = menuTarget ?? selected;
 
@@ -65,6 +102,9 @@ export function useSidebarProjectKeys({
     },
     rename !== null,
   );
+
+  useActionYieldingKey(duplicate, target, onDuplicate);
+  useActionYieldingKey(pin, target, onTogglePin);
 
   useKeyboardShortcut(
     remove ?? [],
@@ -110,6 +150,8 @@ export function useSidebarProjectKeys({
 
   return {
     renameShortcut: rename ? formatShortcut(rename) : undefined,
+    duplicateShortcut: duplicate ? formatShortcut(duplicate) : undefined,
+    pinShortcut: pin ? formatShortcut(pin) : undefined,
     deleteShortcut: remove ? formatShortcut(remove) : undefined,
   };
 }

@@ -94,7 +94,7 @@ const RESERVED_SHARED = [
   "cmd+b",
   "cmd+t",
   // App.tsx — the Ports view
-  "cmd+alt+p",
+  "cmd+y",
   // TerminalView.tsx — tabs, panes, search, composer, utility tabs, zoom
   "cmd+w",
   "cmd+d",
@@ -139,7 +139,6 @@ const RESERVED_SHARED = [
   "cmd+q",
   "cmd+m",
   "cmd+h",
-  "cmd+n",
   "cmd+o",
   // Modal submit (CommitModal / PRModal / FeedbackModal)
   "cmd+enter",

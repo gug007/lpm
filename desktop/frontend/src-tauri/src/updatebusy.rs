@@ -38,9 +38,10 @@ pub fn busy(app: &AppHandle, with_terminals: bool) -> Vec<Busy> {
         places.entry(project).or_default().actions += 1;
     }
     if with_terminals {
-        for (project, pane) in busy_terminals(&app.state::<PtyState>()) {
-            let counts = places.entry(project).or_default();
-            if !counts.agent_panes.contains(&pane) {
+        let jobs = front_jobs(&app.state::<PtyState>(), None);
+        for job in jobs.into_iter().filter(|job| job.busy == Some(true)) {
+            let counts = places.entry(job.project).or_default();
+            if !counts.agent_panes.contains(&job.pane) {
                 counts.terminals += 1;
             }
         }
@@ -56,25 +57,43 @@ pub fn busy(app: &AppHandle, with_terminals: bool) -> Vec<Busy> {
         .collect()
 }
 
-/// (project, pane) of each local terminal whose shell has a job in front of it
-/// that won't come back by itself.
-fn busy_terminals(ptys: &PtyState) -> Vec<(String, String)> {
-    let sessions: Vec<_> = ptys.sessions.lock().unwrap().values().cloned().collect();
+pub(crate) struct FrontJob {
+    pub project: String,
+    pub pane: String,
+    /// Whether a job that won't come back by itself is in front of the shell;
+    /// None where that can't be told, as on another machine.
+    pub busy: Option<bool>,
+}
+
+/// What each terminal's shell has in front of it, of one project or of all.
+pub(crate) fn front_jobs(ptys: &PtyState, project: Option<&str>) -> Vec<FrontJob> {
+    let sessions: Vec<_> = ptys
+        .sessions
+        .lock()
+        .unwrap()
+        .values()
+        .filter(|sess| project.is_none_or(|p| sess.project() == p))
+        .cloned()
+        .collect();
     #[cfg(windows)]
     let table = crate::procwin::snapshot();
     sessions
         .into_iter()
-        .filter(|sess| {
-            let at_prompt = sess.shell_at_prompt();
-            // Windows has no foreground group: a job is a program under the shell.
+        .map(|sess| {
+            let at_prompt = sess.shell_at_prompt_now();
+            // A program with its own window isn't on the console its shell waits at.
             #[cfg(windows)]
-            let at_prompt = at_prompt.or_else(|| {
-                let shell = crate::pty::local_session_pid(ptys, &sess.id)? as u32;
-                Some(crate::procwin::foreground(&table, shell, crate::procwin::created) == shell)
+            let at_prompt = at_prompt.map(|idle| {
+                idle && !crate::pty::local_session_pid(ptys, &sess.id).is_some_and(|shell| {
+                    crate::panestop::runs_job(&table, shell as u32, crate::procwin::created)
+                })
             });
-            at_prompt == Some(false) && !crate::agentexit::resumes(&sess.id)
+            FrontJob {
+                project: sess.project(),
+                pane: sess.id.clone(),
+                busy: at_prompt.map(|idle| !idle && !crate::agentexit::resumes(&sess.id)),
+            }
         })
-        .map(|sess| (sess.project(), sess.id.clone()))
         .collect()
 }
 

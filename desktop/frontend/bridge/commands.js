@@ -383,6 +383,15 @@ export function ExportConfig() {
 export function FileExists(absPath) {
   return invoke("file_exists", { absPath });
 }
+export function FilesExist(root, paths) {
+  return invoke("files_exist", { root, paths });
+}
+export function ListFolder(root, path) {
+  return invoke("list_folder", { root, path });
+}
+export function LocatePath(root, path) {
+  return invoke("locate_path", { root, path });
+}
 export function ListDirEntries(root, rel) {
   return invoke("list_dir_entries", { root, rel });
 }
@@ -713,6 +722,12 @@ export function MoveTerminal(id, to) {
 }
 export function TerminalTabOp(projectName, op, id, label, emoji, order, account) {
   return invoke("terminal_tab_op", { projectName, op, id, label, emoji, order, account });
+}
+export function AnswerTabRequest(request, answer) {
+  return invoke("answer_tab_request", { request, answer });
+}
+export function TerminalUnsentText(id, from, unsent) {
+  return invoke("terminal_unsent_text", { id, from, unsent });
 }
 export function ListBranches(cwd) {
   return invoke("list_branches", { cwd });
@@ -1070,6 +1085,9 @@ export function ReadConfig(name) {
 }
 export function ReadProjectFile(root, rel) {
   return invoke("read_project_file", { root, rel });
+}
+export function ReadHostFile(root, rel, maxBytes) {
+  return invoke("read_host_file", { root, rel, maxBytes });
 }
 export function HtmlPreviewRoot(path) {
   return invoke("html_preview_root", { path });

@@ -258,6 +258,7 @@ internal fun DemoServer.demoSetAgentStatus(project: String, entries: List<Dict>)
     val reporting = world.projects[idx].status.map { it.paneID }.toSet()
     world.projects[idx].seen = world.projects[idx].seen.filterNot { it.paneID in reporting }
     push(mapOf("t" to "status-changed", "project" to project))
+    demoCloseFinished(project)
 }
 
 // helpers

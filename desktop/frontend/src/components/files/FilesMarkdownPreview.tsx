@@ -14,6 +14,8 @@ export interface MarkdownPreviewOptions {
   zoom: ContentZoom;
   projectRoot: string;
   onOpenFile: (path: string) => void;
+  // The SSH project's folder, for a file on its host, where its images are too.
+  hostRoot?: string;
 }
 
 interface FilesMarkdownPreviewProps extends MarkdownPreviewOptions {
@@ -37,6 +39,7 @@ export function FilesMarkdownPreview({
   zoom,
   projectRoot,
   onOpenFile,
+  hostRoot,
 }: FilesMarkdownPreviewProps) {
   const components = useMemo<Components>(
     () => ({
@@ -64,6 +67,7 @@ export function FilesMarkdownPreview({
           return (
             <FilesMarkdownImage
               absPath={joinAbs(projectRoot, target.path)}
+              hostRoot={hostRoot}
               alt={alt ?? ""}
               width={width}
               height={height}
@@ -94,7 +98,7 @@ export function FilesMarkdownPreview({
         return <h3 className="mb-2 mt-4 text-base font-semibold first:mt-0">{children}</h3>;
       },
     }),
-    [path, projectRoot, onOpenFile],
+    [path, projectRoot, onOpenFile, hostRoot],
   );
 
   return (

@@ -71,6 +71,11 @@ describe("stripArgs", () => {
 });
 
 describe("translateResult", () => {
+  it("marks a path found on the host, to be opened there", () => {
+    const found = { kind: "file", path: "/var/log/api.log", rel: null };
+    expect(translateResult("locate_path", A, found)).toEqual({ ...found, path: `/@peer-${A}/var/log/api.log` });
+  });
+
   it("marks a popup page's file as the host's", () => {
     const out = translateResult("action_popup", A, { html: "<p></p>", file: "/srv/app/page.html" }) as { file: string };
     expect(isPeerMarked(out.file)).toBe(true);

@@ -147,6 +147,7 @@ interface InteractivePaneProps {
   themeOverride?: ITheme | null;
   onExit?: (exitCode: number) => void;
   cwd?: string;
+  sshRoot?: string;
   ref?: Ref<InteractivePaneHandle>;
 }
 
@@ -265,6 +266,8 @@ interface InteractiveSession {
   delivering: boolean;
 
   cwd: string;
+  // The SSH project the terminal is in, by its folder on the host.
+  sshRoot: string;
   pathLinkDisposable: IDisposable | null;
   commandLinkDisposable: IDisposable | null;
   osc52Disposable: IDisposable | null;
@@ -820,6 +823,7 @@ function createInteractiveSession(
     delivering: false,
     themeOverride: null,
     cwd,
+    sshRoot: "",
     pathLinkDisposable: null,
     commandLinkDisposable: null,
     osc52Disposable: null,
@@ -831,6 +835,7 @@ function createInteractiveSession(
   try {
     session.pathLinkDisposable = registerPathLinkProvider(term, {
       getCwd: () => session.cwd,
+      getSshRoot: () => session.sshRoot,
     });
   } catch {}
 
@@ -1438,6 +1443,7 @@ export function InteractivePane({
   themeOverride,
   onExit,
   cwd = "",
+  sshRoot = "",
   ref,
 }: InteractivePaneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -1530,6 +1536,7 @@ export function InteractivePane({
     initFileDrop();
 
     const { session, reused } = getOrCreateInteractiveSession(terminalId, cwd);
+    session.sshRoot = sshRoot;
     // A pane is showing this session again, so any retention held over a peer
     // drop is done: the stream it resumed into is back on screen. The link that
     // dropped may have failed a write on the way out, so the session also gets
@@ -1635,7 +1642,8 @@ export function InteractivePane({
     const session = sessionRef.current;
     if (!session) return;
     session.cwd = cwd;
-  }, [cwd]);
+    session.sshRoot = sshRoot;
+  }, [cwd, sshRoot]);
 
   useEffect(() => {
     if (!visible) {

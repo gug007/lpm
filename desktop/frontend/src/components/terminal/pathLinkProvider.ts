@@ -19,7 +19,8 @@ import { isPeerMarked, windowsRootMarker } from "../../peer/markers";
 import { isWindows } from "../../platform";
 import { getSettings } from "../../store/settings";
 import { openFileViewer } from "../../store/fileViewer";
-import { candidatesFor, fileExists, loadFileIndex } from "./fileIndex";
+import { candidatesFor, fileExists, hostFilesExist, loadFileIndex } from "./fileIndex";
+import { openHostPath } from "./hostPath";
 import { type LineWindow, readLineWindow } from "./lineWindow";
 import { msysMounts } from "./msysMounts";
 import { openInDefaultApp } from "./openInDefaultApp";
@@ -216,11 +217,17 @@ export interface PathLinkProviderOptions {
   // Used for resolving relative paths and as the working dir for git operations
   // in the file viewer modal.
   getCwd: () => string;
+  // The folder of the SSH project the terminal is in, whose host its output's
+  // paths are on. Empty for any other terminal.
+  getSshRoot: () => string;
 }
 
-// A terminal on a paired Windows host prints Windows paths wherever it is shown.
-const windowsCwd = (cwd: string) => isWindows || windowsRules(cwd);
-const isAbsolute = (raw: string, cwd: string) => isAbsolutePath(raw, windowsCwd(cwd));
+// A terminal on a paired Windows host prints Windows paths wherever it is
+// shown; one on an SSH host prints POSIX ones, on Windows too.
+const windowsCwd = (cwd: string, sshRoot: string) =>
+  (isWindows && !sshRoot) || windowsRules(cwd, false);
+const isAbsolute = (raw: string, cwd: string, sshRoot: string) =>
+  isAbsolutePath(raw, windowsCwd(cwd, sshRoot));
 const RELOOK_MS = 5_000;
 
 // Where a printed path points: against the cwd, and on Windows with Git Bash's
@@ -241,19 +248,23 @@ export function resolvePrinted(
   return joinAbs(cwd, local, windows);
 }
 
+async function filesExist(paths: string[], cwd: string, sshRoot: string): Promise<boolean[]> {
+  if (sshRoot) return hostFilesExist(sshRoot, paths.map((raw) => joinAbs(cwd, raw, false)));
+  const mounts = await msysMounts();
+  return Promise.all(paths.map((raw) => fileExists(resolvePrinted(cwd, raw, isWindows, mounts))));
+}
+
 // The first reading of each group that names a file: the longest of a spaced
 // run, or a path read across an agent's cut.
-async function confirmOnDisk(groups: PathMatch[][], cwd: string): Promise<PathMatch[]> {
-  const mounts = await msysMounts();
-  const picks = await Promise.all(
-    groups.map(async (group) => {
-      const found = await Promise.all(
-        group.map((m) => fileExists(resolvePrinted(cwd, m.raw, isWindows, mounts))),
-      );
-      return group[found.indexOf(true)];
-    }),
-  );
-  return picks.filter((m): m is PathMatch => m !== undefined);
+async function confirmOnDisk(groups: PathMatch[][], cwd: string, sshRoot: string): Promise<PathMatch[]> {
+  if (groups.length === 0) return [];
+  const found = await filesExist(groups.flat().map((m) => m.raw), cwd, sshRoot);
+  let at = 0;
+  return groups.flatMap((group) => {
+    const hits = found.slice(at, (at += group.length));
+    const pick = group[hits.indexOf(true)];
+    return pick ? [pick] : [];
+  });
 }
 
 const atOrBefore = (a: IBufferCellPosition, b: IBufferCellPosition) =>
@@ -264,8 +275,8 @@ const overlaps = (a: IBufferRange, b: IBufferRange) =>
 // A relative reference names a project file when the index can say which: the
 // path as printed if it exists, the one file it is the tail of, or several to
 // choose from. A file too new for the cached index gets one fresher look.
-async function projectFiles(cwd: string, raw: string): Promise<string[]> {
-  if (!cwd || isAbsolute(raw, cwd)) return [];
+async function projectFiles(cwd: string, sshRoot: string, raw: string): Promise<string[]> {
+  if (!cwd || isAbsolute(raw, cwd, sshRoot)) return [];
   const printed = windowsRules(cwd) ? toSlash(raw, true) : raw;
   const cached = await loadFileIndex(cwd);
   const found = cached ? candidatesFor(cached, printed) : [];
@@ -274,8 +285,12 @@ async function projectFiles(cwd: string, raw: string): Promise<string[]> {
   return fresh && fresh !== cached ? candidatesFor(fresh, printed) : [];
 }
 
-async function openMatch(m: PathMatch, cwd: string): Promise<void> {
-  const files = (await projectFiles(cwd, m.raw)).map((rel) => joinAbs(cwd, rel));
+async function openMatch(m: PathMatch, cwd: string, sshRoot: string): Promise<void> {
+  const files = (await projectFiles(cwd, sshRoot, m.raw)).map((rel) => joinAbs(cwd, rel));
+  if (sshRoot) {
+    await openHostPath(sshRoot, joinAbs(cwd, m.raw, false), files, m);
+    return;
+  }
   const abs = files[0] ?? resolvePrinted(cwd, m.raw, isWindows, await msysMounts());
   // A connected Mac's file always gets the viewer, which reads it where it is;
   // a default app here could only be handed a read-only copy of it.
@@ -303,20 +318,21 @@ export function registerPathLinkProvider(
   const provider: ILinkProvider = {
     provideLinks(bufferLineNumber, callback) {
       const cwd = opts.getCwd();
+      const sshRoot = opts.getSshRoot();
       const { paths, names, spaced, cut } = scanLine(
         term.buffer.active,
         bufferLineNumber,
         term.cols,
-        windowsCwd(cwd),
+        windowsCwd(cwd, sshRoot),
       );
       const link = (m: PathMatch): ILink => ({
         range: m.range,
         text: m.text,
-        activate: () => void openMatch(m, cwd),
+        activate: () => void openMatch(m, cwd, sshRoot),
       });
       // Tilde and absolute matches don't need a cwd; relative ones do — drop
       // them when we have nothing to resolve against.
-      const direct = paths.filter((m) => isAbsolute(m.raw, cwd) || cwd);
+      const direct = paths.filter((m) => isAbsolute(m.raw, cwd, sshRoot) || cwd);
       const projectNames =
         cwd && names.length > 0
           ? loadFileIndex(cwd).then((index) => names.filter((m) => index?.byName.has(m.raw)))
@@ -324,11 +340,11 @@ export function registerPathLinkProvider(
       const readings = [...spaced, ...cut.map((m) => [m])];
       if (!projectNames && readings.length === 0) {
         // Hovering warms the index, so a click resolves at once.
-        if (cwd && paths.some((m) => !isAbsolute(m.raw, cwd))) void loadFileIndex(cwd);
+        if (cwd && paths.some((m) => !isAbsolute(m.raw, cwd, sshRoot))) void loadFileIndex(cwd);
         callback(direct.length > 0 ? direct.map(link) : undefined);
         return;
       }
-      void Promise.all([confirmOnDisk(readings, cwd), projectNames ?? []]).then(([long, short]) => {
+      void Promise.all([confirmOnDisk(readings, cwd, sshRoot), projectNames ?? []]).then(([long, short]) => {
         // A path with spaces or cut by the agent outranks the pieces of it that
         // read as paths alone.
         const rest = [...direct, ...short].filter((m) => !long.some((l) => overlaps(l.range, m.range)));

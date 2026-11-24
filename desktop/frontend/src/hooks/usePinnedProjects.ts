@@ -1,5 +1,8 @@
 import { useMemo } from "react";
-import { reorderPins, shownPins, withPin } from "../pinnedProjects";
+import { showUndoCloseToast } from "../components/UndoCloseToast";
+import { toast } from "../notifications/toast";
+import { UNDO_CLOSE_DURATION_MS } from "../pendingClose";
+import { reorderPins, shownPins, withPin, withPinAt } from "../pinnedProjects";
 import { useSettingsStore } from "../store/settings";
 import type { ProjectInfo } from "../types";
 
@@ -11,6 +14,26 @@ const save = (pinnedProjects: string[] | undefined) =>
 
 export function togglePinned(name: string, pinned: boolean) {
   save(withPin(currentPins(), name, pinned));
+}
+
+const PIN_TOAST_ID = "pin-project";
+
+// The pin key has no menu that says what it did, and the sidebar can be hidden:
+// name the project, and offer it back.
+export function togglePinnedWithUndo(name: string, label: string) {
+  const at = currentPins()?.indexOf(name) ?? -1;
+  togglePinned(name, at < 0);
+  showUndoCloseToast({
+    toastId: PIN_TOAST_ID,
+    title: at < 0 ? `${label} pinned` : `${label} unpinned`,
+    durationMs: UNDO_CLOSE_DURATION_MS,
+    onUndo: () => {
+      if (at < 0) togglePinned(name, false);
+      else save(withPinAt(currentPins(), name, at));
+      toast.dismiss(PIN_TOAST_ID);
+    },
+    onFinalize: () => {},
+  });
 }
 
 export function reorderPinned(order: string[]) {

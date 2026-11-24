@@ -6,7 +6,7 @@ struct PendingTabClose: Equatable {
     let index: Int
 }
 
-/// The tab menu: closing with undo, forking a tab's conversation here or into a
+/// The tab menu: closing with undo, or once its agent is done, forking a tab's conversation here or into a
 /// copy of the project, giving a tab back its conversation title, and closing
 /// every other tab — what the desktop's tab menu offers.
 extension AppModel {
@@ -44,6 +44,29 @@ extension AppModel {
     func finishPendingTabClose() {
         guard let pending = takePendingTabClose() else { return }
         sendClose(pending.tab.project, id: pending.tab.id)
+    }
+
+    /// The agents a close of the tab would end mid-task.
+    func busyAgents(in term: TerminalInfo) -> Int {
+        projects.first { $0.name == term.project }?.busyAgents(in: term.id) ?? 0
+    }
+
+    /// The Mac lets a tab's agent finish before it closes it (`closeWhenDone`).
+    var canCloseWhenDone: Bool {
+        client?.hostFeatures.contains(LpmClient.closeWhenDoneFeature) == true
+    }
+
+    /// Have the Mac close the tab once its agent is done. It stays listed until then.
+    func closeTerminalWhenDone(_ term: TerminalInfo) {
+        guard canCloseWhenDone else { return }
+        client?.closeTerminal(project: term.project, id: term.id, whenDone: true)
+        reloadTerminalsSoon(term.project)
+    }
+
+    func keepTerminalOpen(_ term: TerminalInfo) {
+        guard canCloseWhenDone else { return }
+        client?.keepTerminal(project: term.project, id: term.id)
+        reloadTerminalsSoon(term.project)
     }
 
     /// Continue the tab's conversation in a new tab beside it, then open that tab.
@@ -97,18 +120,20 @@ extension AppModel {
         (terminals[term.project] ?? []).filter { $0.id != term.id && !$0.pinned }
     }
 
-    /// Close every other unpinned tab of the project, at once and for good, as the
-    /// desktop's Close Other Tabs does.
-    func closeOtherTerminals(keeping term: TerminalInfo) {
-        guard canUseTabMenu else { return }
+    /// Close every other unpinned tab of the project, for good, as the desktop's
+    /// Close Other Tabs does: at once, or `whenDone`, those with an agent mid-task
+    /// once it is done.
+    func closeOtherTerminals(keeping term: TerminalInfo, whenDone: Bool = false) {
+        guard canUseTabMenu, !whenDone || canCloseWhenDone else { return }
         finishPendingTabClose()
         let others = otherClosableTerminals(term)
         guard !others.isEmpty else { return }
-        for other in others {
+        for other in others where !whenDone || busyAgents(in: other) == 0 {
             hideClosingTerminal(term.project, id: other.id)
             awaitClosedTerminal(term.project, id: other.id)
         }
-        client?.closeOtherTerminals(project: term.project, id: term.id)
+        client?.closeOtherTerminals(project: term.project, id: term.id, whenDone: whenDone)
+        if whenDone { reloadTerminalsSoon(term.project) }
     }
 
     private func takePendingTabClose() -> PendingTabClose? {

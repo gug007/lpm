@@ -1,5 +1,7 @@
 # Go to File: Files' search reads the project's @-mention index, files only,
-# name matches first; a result opens in the preview.
+# name matches first; a result opens in the preview. A typed path gets a row of
+# its own: a file the index leaves out opens, a folder is pushed, one outside the
+# project too, and one that leads nowhere says so.
 appId: cx.lpm.mobile
 name: 143-files-go-to
 tags: [demo, files]
@@ -37,3 +39,42 @@ tags: [demo, files]
 - extendedWaitUntil:
     visible: "CheckoutForm.tsx"
     timeout: 5000
+- tapOn: "Checkout"
+- eraseText: 20
+- inputText: "./node_modules/react"
+- extendedWaitUntil:
+    visible: "node_modules"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 3-path-folder
+- eraseText: 40
+- inputText: "/srv/nothing-here"
+- extendedWaitUntil:
+    visible: "Nothing at “/srv/nothing-here”"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 4-path-missing
+- eraseText: 40
+- inputText: "~/dev/"
+- extendedWaitUntil:
+    visible: "Outside the project"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 5-path-outside
+- tapOn: "Outside the project"
+- extendedWaitUntil:
+    visible: "api-gateway"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 6-outside
+- tapOn: "api-gateway"
+- extendedWaitUntil:
+    visible: "go.mod"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 7-outside-inner

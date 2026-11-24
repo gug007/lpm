@@ -259,8 +259,22 @@ enum Wire {
     static func listDir(project: String, dir: String) -> String {
         json(["t": "listDir", "project": project, "dir": dir])
     }
-    static func closeTerminal(project: String, id: String) -> String {
-        json(["t": "closeTerminal", "project": project, "id": id])
+    static func locatePath(project: String, path: String) -> String {
+        json(["t": "locatePath", "project": project, "path": path])
+    }
+    /// `whenDone` lets the agents it would end finish first, only when `features`
+    /// has "closeWhenDone"; the same for the other tabs below.
+    static func closeTerminal(project: String, id: String, whenDone: Bool = false) -> String {
+        json(close("closeTerminal", project: project, id: id, whenDone: whenDone))
+    }
+    private static func close(_ t: String, project: String, id: String, whenDone: Bool) -> [String: Any] {
+        var o: [String: Any] = ["t": t, "project": project, "id": id]
+        if whenDone { o["whenDone"] = true }
+        return o
+    }
+    /// Takes back a close that waits; only when `features` has "closeWhenDone".
+    static func keepTerminal(project: String, id: String) -> String {
+        json(["t": "keepTerminal", "project": project, "id": id])
     }
     static func renameTerminal(project: String, id: String, label: String) -> String {
         json(["t": "renameTerminal", "project": project, "id": id, "label": label])
@@ -288,8 +302,8 @@ enum Wire {
     static func titleTerminal(project: String, id: String) -> String {
         json(["t": "titleTerminal", "project": project, "id": id])
     }
-    static func closeOtherTerminals(project: String, id: String) -> String {
-        json(["t": "closeOtherTerminals", "project": project, "id": id])
+    static func closeOtherTerminals(project: String, id: String, whenDone: Bool = false) -> String {
+        json(close("closeOtherTerminals", project: project, id: id, whenDone: whenDone))
     }
     /// Continue a Claude tab's conversation on another account; only when
     /// `features` has "tabAccount".
@@ -857,11 +871,12 @@ enum Wire {
         // A runAction/newTerminal request the Mac couldn't execute (e.g. the
         // app isn't open there). Success acks carry nothing and stay .unknown.
         case actionFailed(project: String, error: String)
-        // The agents a new tab can start, past conversations to resume, and one
-        // project folder for Files.
+        // The agents a new tab can start, past conversations to resume, one
+        // project folder for Files, and where a path typed into Go to File leads.
         case agentOptions([AgentOption])
         case agentSessions(AgentSessionsPage)
         case listDir(ProjectDirContents)
+        case locatePath(LocatedPath)
         case serviceOp(error: String?)
         case projectsChanged
         case statusChanged(project: String)
@@ -1279,6 +1294,7 @@ enum Wire {
                 return .agentOptions((obj["agents"] as? [[String: Any]] ?? []).map(AgentOption.init))
             case "agentSessions": return .agentSessions(AgentSessionsPage(obj))
             case "listDir": return .listDir(ProjectDirContents(obj))
+            case "locatePath": return .locatePath(LocatedPath(obj))
             case "projects-changed": return .projectsChanged
             case "status-changed": return .statusChanged(project: obj["project"] as? String ?? "")
             case "git":
@@ -2360,6 +2376,8 @@ struct TerminalInfo: Identifiable, Hashable {
     let canFork: Bool
     let canForkCopy: Bool
     let canTitle: Bool
+    // Waits for its agent to finish, then closes by itself.
+    let closesWhenDone: Bool
     // The tab menu's Claude Account, for a Claude tab on a Mac with "tabAccount":
     // the account the tab runs as.
     let canSwitchAccount: Bool
@@ -2386,6 +2404,7 @@ struct TerminalInfo: Identifiable, Hashable {
         canFork = o["canFork"] as? Bool ?? false
         canForkCopy = o["canForkCopy"] as? Bool ?? false
         canTitle = o["canTitle"] as? Bool ?? false
+        closesWhenDone = o["closesWhenDone"] as? Bool ?? false
         canSwitchAccount = o["canSwitchAccount"] as? Bool ?? false
         claudeAccount = o["claudeAccount"] as? String
         switchingTo = o["switchingTo"] as? String

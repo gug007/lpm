@@ -18,7 +18,9 @@
 //                     [--pull-latest=BOOL] [--run-action=X | --run-command=X]
 //                     [--prompt=TEXT] [--issue=N]   (--issue: worktrees only)
 //   remove_project <project>
-//   run_task <project> [--action=X | --command=X] [--prompt=TEXT]
+//   run_task <project> [--action=X | --command=X] [--prompt=TEXT] [--report-tab]
+//               (--report-tab: wait for the tab it opens and reply with its id)
+//   close_tab --request-hex=JSON   (tab_close.rs)
 //   refresh_label <project> [action]
 //   lpm_commands <kind> --payload-hex=JSON   (lpm_commands_cmds.rs)
 //   set_resume <project> <pane_id> <session_id> [--provider=codex|claude] [--reporter-pid=N]
@@ -289,6 +291,7 @@ fn process_command(line: &str, store: &StatusStore, app: &AppHandle) -> String {
         "archive_project" => crate::project_archive::cmd_set_archived(args, app, true),
         "unarchive_project" => crate::project_archive::cmd_set_archived(args, app, false),
         "run_task" => cmd_run_task(args, app),
+        "close_tab" => crate::tab_close::cmd_close_tab(args, store, app),
         "lpm_commands" => crate::lpm_commands_cmds::cmd_lpm_commands(args, app),
         "set_resume" => cmd_set_resume(args, store, app),
         "agent_limits" => cmd_agent_limits(args, app),
@@ -735,11 +738,26 @@ fn cmd_run_task(args: &[String], app: &AppHandle) -> String {
         }
         (None, Some(c)) => serde_json::json!({ "kind": "command", "command": c, "prompt": prompt }),
     };
-    let _ = app.emit(
-        "remote-run-task",
-        serde_json::json!({ "project": positional[0], "task": task }),
-    );
+    let run = serde_json::json!({ "project": positional[0], "task": task });
+    if options.contains_key("report-tab") {
+        return run_reporting_tab(app, run);
+    }
+    let _ = app.emit("remote-run-task", run);
     "OK".into()
+}
+
+/// Queues a task and says which tab it opened. None for a task with no tab of
+/// its own, and for one whose tab is still to come.
+fn run_reporting_tab(app: &AppHandle, run: serde_json::Value) -> String {
+    let opened = crate::tab_requests::ask(app, "remote-run-task", run).unwrap_or_default();
+    if let Some(error) = opened["error"].as_str() {
+        return format!("ERROR: {error}");
+    }
+    let reused = opened["reused"] == true;
+    if let Some(id) = opened["tab"].as_str().filter(|_| !reused) {
+        crate::tab_close::opened(id, opened["startsTurn"] == true);
+    }
+    serde_json::json!({ "ok": true, "tab": opened["tab"].as_str(), "reused": reused }).to_string()
 }
 
 /// Agent SessionStart hooks report the real session id here. Validated
@@ -1284,8 +1302,11 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
         }
         return "OK".into();
     }
-    if crate::status::is_agent_key(&entry.key) && speaks_for_the_turn(&entry, answered, &options) {
-        store.note_report(project, &entry.key);
+    if crate::status::is_agent_key(&entry.key) {
+        crate::tab_close::agent_reported(&entry.pane_id);
+        if speaks_for_the_turn(&entry, answered, &options) {
+            store.note_report(project, &entry.key);
+        }
     }
     if options.contains_key("approval") {
         crate::approvalgrace::defer(app, project, entry);

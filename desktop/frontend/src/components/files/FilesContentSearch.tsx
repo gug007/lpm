@@ -2,16 +2,20 @@ import { SearchIcon } from "../icons";
 
 interface FilesContentSearchProps {
   query: string;
+  // Said instead of "No file name matches", for a path that leads nowhere.
+  headline?: string;
   onSearch: (query: string) => void;
 }
 
 // What the filter offers when no file name matches: the same text searched
 // inside the files, in the Search view.
-export function FilesContentSearch({ query, onSearch }: FilesContentSearchProps) {
+export function FilesContentSearch({ query, headline, onSearch }: FilesContentSearchProps) {
   const needle = query.trim();
   return (
     <div className="flex flex-col gap-1 px-2 py-3 text-[11px]">
-      <p className="break-words px-2 pb-1 text-center text-[var(--text-muted)]">No file name matches “{needle}”</p>
+      <p className="break-words px-2 pb-1 text-center text-[var(--text-muted)]">
+        {headline ?? `No file name matches “${needle}”`}
+      </p>
       <button
         type="button"
         onClick={() => onSearch(needle)}

@@ -61,6 +61,7 @@ import {
 } from "../terminals";
 import { type SessionRow } from "../agentSessions";
 import { spawnPrompt } from "../spawnPrompt";
+import { reportOpenedTab, type OpenedTab } from "../tabClose/openedTab";
 import { useAppStore } from "../store/app";
 import { CopyClaudeSessionForFork } from "../../bridge/commands";
 import { loadLevelMap, levelOf as levelOfMap, type LevelMap } from "../actionLevels";
@@ -244,13 +245,23 @@ export function ProjectDetail({
     spawnConsumed.current = spawnTasks.nonce;
     consumeSpawnTasks(project.name);
     for (const task of spawnTasks.tasks) {
+      const request = task.kind === "fork" ? undefined : task.request;
+      const report = request === undefined ? undefined : (opened: OpenedTab) => reportOpenedTab(request, opened);
       if (task.kind === "command") {
         switchDetailView("terminal");
-        terminalRef.current?.createTerminalWithCmd(
-          commandName(task.command) || "Command",
-          task.command,
-          { prompt: spawnPrompt(task, task.command), launchModel: task.launchModel },
-        );
+        const prompt = spawnPrompt(task, task.command);
+        void terminalRef.current
+          ?.createTerminalWithCmd(commandName(task.command) || "Command", task.command, {
+            prompt,
+            launchModel: task.launchModel,
+          })
+          .then((tab) =>
+            report?.(
+              tab
+                ? { tab, cmd: task.command, prompted: !!prompt?.length }
+                : { error: `couldn't open a terminal in ${project.name}` },
+            ),
+          );
       } else if (task.kind === "fork") {
         switchDetailView("terminal");
         // Claude keys transcripts by cwd, so the source session must land in
@@ -285,11 +296,14 @@ export function ProjectDetail({
             prompt: spawnPrompt(task, action.cmd),
             launchModel: task.launchModel,
             fixedAccount: task.fixedAccount,
+            onTab: report,
           });
-        else
+        else {
           toast.error(
             `Couldn't run "${task.actionName}" in ${project.name} — no matching action.`,
           );
+          report?.({ error: `no action "${task.actionName}" in ${project.name}` });
+        }
       }
     }
   }, [spawnTasks, project.actions, project.name, consumeSpawnTasks, handleRunAction, switchDetailView]);

@@ -16,7 +16,11 @@ vi.mock("../../../bridge/commands", () => bridge);
 vi.mock("../../mirror", () => ({ IS_MIRROR_WINDOW: false }));
 vi.mock("../../sendLater/closeout", () => ({ onTerminalsClosed: vi.fn() }));
 vi.mock("../../components/InteractivePane", () => ({ disposeInteractivePaneSession: vi.fn() }));
-vi.mock("../../components/UndoCloseToast", () => ({ showUndoCloseToast: toast.show }));
+vi.mock("../../components/UndoCloseToast", async (actual) => {
+  const real = await actual<typeof import("../../components/UndoCloseToast")>();
+  toast.show.mockImplementation(real.showUndoCloseToast);
+  return { ...real, showUndoCloseToast: toast.show };
+});
 vi.mock("../../projectStatusEntries", () => ({
   projectStatusEntries: () => [{ paneID: "t1", value: "Running", key: "claude" }],
 }));
@@ -105,6 +109,24 @@ describe("closing a pane", () => {
     onUndo();
     expect(bridge.StopTerminal.mock.calls.map(([id]) => id)).toEqual(["t1", "t2"]);
     expect(treeRef.current).toEqual(original.b);
+  });
+
+  it("stops them on time in a hidden window, and leaves a shown one to its toast", async () => {
+    vi.useFakeTimers();
+    const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+    api.closePane("p1");
+    await vi.advanceTimersByTimeAsync(4_900);
+    expect(bridge.StopTerminal).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(200);
+    expect(bridge.StopTerminal.mock.calls.map(([id]) => id)).toEqual(["t1", "t2"]);
+
+    hidden.mockReturnValue(false);
+    api.closePane("p2");
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect(bridge.StopTerminal).toHaveBeenCalledTimes(2);
+    hidden.mockRestore();
+    vi.useRealTimers();
+    lastToast().onUndo();
   });
 
   it("stops held tabs when the project view goes away", () => {

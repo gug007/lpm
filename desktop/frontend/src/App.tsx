@@ -30,6 +30,7 @@ import { PairApprovalHost } from "./components/PairApprovalHost";
 import { AgentFilesApproval } from "./components/AgentFilesApproval";
 import { GenerateApproval } from "./components/GenerateApproval";
 import { QuitGuardHost } from "./components/QuitGuardHost";
+import { CloseGuardHost } from "./components/CloseGuardHost";
 import { PairRequestDialog } from "./components/connections/PairRequestDialog";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { InstructionsDialogHost } from "./components/InstructionsDialogHost";
@@ -448,6 +449,7 @@ export default function App() {
       <AgentFilesApproval />
       <GenerateApproval />
       <QuitGuardHost />
+      <CloseGuardHost />
       <PairRequestDialog />
       <TabShareHosts />
       <FileViewerHost />

@@ -158,6 +158,8 @@ internal fun LpmClientCallbacks.route(frame: Inbound) {
 
         is Inbound.ListDir -> onListDir?.invoke(frame.contents)
 
+        is Inbound.LocatePath -> onLocatePath?.invoke(frame.located)
+
         Inbound.ProjectsChanged -> onProjectsChanged?.invoke()
 
         is Inbound.StatusChanged -> onStatusChanged?.invoke(frame.project)

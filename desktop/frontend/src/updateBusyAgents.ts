@@ -1,3 +1,4 @@
+import { countBusy } from "./agentStatus";
 import { displayNameForProjectName } from "./components/ProjectNameDisplay";
 import { isPeerName } from "./peer/markers";
 import { projectAgentRows } from "./sidebarAgents";
@@ -12,10 +13,8 @@ export interface BusyAgentPlace {
   asking: number;
 }
 
-function busyCounts(entries: StatusEntry[] | undefined, now: number): { count: number; asking: number } {
-  const states = projectAgentRows({ statusEntries: entries ?? [] }, now).map((row) => row.state);
-  const asking = states.filter((state) => state === "needs-you").length;
-  return { count: asking + states.filter((state) => state === "working").length, asking };
+function busyCounts(entries: StatusEntry[] | undefined, now: number) {
+  return countBusy(projectAgentRows({ statusEntries: entries ?? [] }, now).map((row) => row.state));
 }
 
 export function busyTotal(places: BusyAgentPlace[]): number {

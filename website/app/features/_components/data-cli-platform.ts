@@ -50,7 +50,12 @@ export const CLI_AREA: FeatureArea = {
     },
     {
       title: "lpm run",
-      body: "Open a terminal in the app and run an action or any command in it, optionally with a prompt for an agent.",
+      body: "Open a terminal in the app and run an action or any command in it, optionally with a prompt for an agent. It prints the tab it opened.",
+      mono: true,
+    },
+    {
+      title: "lpm close",
+      body: "Close a terminal tab, now or once its agent is done. A tab that would lose a working agent, a running command, or an unsent message is refused.",
       mono: true,
     },
     {

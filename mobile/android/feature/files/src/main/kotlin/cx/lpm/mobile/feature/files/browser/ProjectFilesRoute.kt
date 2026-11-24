@@ -54,7 +54,14 @@ fun ProjectFilesRoute(
         actions = ProjectFilesActions(
             back = onBack,
             search = viewModel::setQuery,
-            openFolder = { onNavigate(ProjectFilesKey(key.project, it, key.session)) },
+            // The same key again would share this screen, search and all.
+            openFolder = {
+                if (it == key.dir) {
+                    viewModel.setQuery("")
+                } else {
+                    onNavigate(ProjectFilesKey(key.project, it, key.session))
+                }
+            },
             openFile = { path ->
                 haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
                 onNavigate(FilePreviewKey(key.project, listOf(path), session = key.session))

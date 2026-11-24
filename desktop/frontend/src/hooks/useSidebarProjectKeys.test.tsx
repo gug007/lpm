@@ -3,6 +3,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSettingsStore } from "../store/settings";
+import type { ActionInfo } from "../types";
+import { useActionShortcuts } from "./useActionShortcuts";
 import { useSidebarProjectKeys } from "./useSidebarProjectKeys";
 
 let container: HTMLDivElement;
@@ -18,13 +20,27 @@ function Harness(props: {
   selected: string | null;
   menuTarget?: string | null;
   onRename: (name: string) => void;
+  onDuplicate?: (name: string) => void;
+  onTogglePin?: (name: string) => void;
   onDelete: (name: string) => void;
 }) {
-  const { renameShortcut, deleteShortcut } = useSidebarProjectKeys({ menuTarget: null, ...props });
-  return <span>{`${renameShortcut} ${deleteShortcut}`}</span>;
+  const { renameShortcut, duplicateShortcut, pinShortcut, deleteShortcut } = useSidebarProjectKeys({
+    menuTarget: null,
+    onDuplicate: () => {},
+    onTogglePin: () => {},
+    ...props,
+  });
+  return (
+    <>
+      <span>{`${renameShortcut} ${deleteShortcut}`}</span>
+      <i>{`${duplicateShortcut} ${pinShortcut}`}</i>
+    </>
+  );
 }
 
-function press(target: Element, key: string, modifiers: { metaKey?: boolean; shiftKey?: boolean } = {}) {
+const menuLabels = () => container.querySelector("span")!.textContent;
+
+function press(target: Element, key: string, modifiers: Partial<KeyboardEventInit> = {}) {
   const event = new KeyboardEvent("keydown", { key, ...modifiers, bubbles: true, cancelable: true });
   target.dispatchEvent(event);
   return event;
@@ -36,9 +52,12 @@ function pointerDown(target: Element) {
 
 function render(props: Partial<Parameters<typeof Harness>[0]> = {}) {
   const onRename = vi.fn();
+  const onDuplicate = vi.fn();
+  const onTogglePin = vi.fn();
   const onDelete = vi.fn();
-  act(() => root.render(<Harness selected="api" onRename={onRename} onDelete={onDelete} {...props} />));
-  return { onRename, onDelete };
+  const handlers = { onRename, onDuplicate, onTogglePin, onDelete };
+  act(() => root.render(<Harness selected="api" {...handlers} {...props} />));
+  return handlers;
 }
 
 function openModal() {
@@ -84,7 +103,7 @@ describe("rename hotkey", () => {
 
     expect(onRename).toHaveBeenCalledWith("api");
     expect(event.defaultPrevented).toBe(true);
-    expect(container.textContent).toBe("⌘R ⌘⇧⌫");
+    expect(menuLabels()).toBe("⌘R ⌘⇧⌫");
   });
 
   it("prefers the row whose menu is open", () => {
@@ -113,7 +132,78 @@ describe("rename hotkey", () => {
     press(document.body, "y", { metaKey: true, shiftKey: true });
 
     expect(onRename).toHaveBeenCalledOnce();
-    expect(container.textContent).toBe("⌘⇧Y ⌘⇧⌫");
+    expect(menuLabels()).toBe("⌘⇧Y ⌘⇧⌫");
+  });
+});
+
+describe("duplicate and pin hotkeys", () => {
+  const PIN = { metaKey: true, altKey: true };
+
+  it("act on the selected project from any field before it sees the key", () => {
+    const { onDuplicate, onTogglePin } = render();
+
+    for (const field of [terminal, composer, input]) {
+      expect(press(field, "n", { metaKey: true }).defaultPrevented).toBe(true);
+      expect(press(field, "π", { ...PIN, code: "KeyP" }).defaultPrevented).toBe(true);
+    }
+
+    expect(onDuplicate.mock.calls).toEqual([["api"], ["api"], ["api"]]);
+    expect(onTogglePin.mock.calls).toEqual([["api"], ["api"], ["api"]]);
+    expect(fieldKeys).toEqual([]);
+    expect(container.querySelector("i")!.textContent).toBe("⌘N ⌘⌥P");
+  });
+
+  it("leave the same keys with Ctrl to the terminal", () => {
+    const { onDuplicate, onTogglePin } = render();
+
+    const events = [press(terminal, "n", { ctrlKey: true }), press(terminal, "p", { ctrlKey: true, altKey: true })];
+
+    expect(events.some((e) => e.defaultPrevented)).toBe(false);
+    expect(onDuplicate).not.toHaveBeenCalled();
+    expect(onTogglePin).not.toHaveBeenCalled();
+    expect(fieldKeys).toEqual(["n", "p"]);
+  });
+
+  it("toggle once while the key is held down", () => {
+    const { onTogglePin } = render();
+    press(terminal, "p", PIN);
+    press(terminal, "p", { ...PIN, repeat: true });
+    expect(onTogglePin).toHaveBeenCalledOnce();
+    expect(fieldKeys).toEqual([]);
+  });
+
+  it("prefer the row whose menu is open, and stand down with a modal open or nothing selected", () => {
+    const { onDuplicate, onTogglePin } = render({ menuTarget: "web" });
+    press(document.body, "n", { metaKey: true });
+    press(document.body, "p", PIN);
+    expect(onDuplicate).toHaveBeenCalledWith("web");
+    expect(onTogglePin).toHaveBeenCalledWith("web");
+
+    const idle = render({ selected: null });
+    press(document.body, "n", { metaKey: true });
+    const busy = render();
+    press(openModal(), "p", PIN);
+    expect(idle.onDuplicate).not.toHaveBeenCalled();
+    expect(busy.onTogglePin).not.toHaveBeenCalled();
+  });
+
+  it("leave a key an action already runs on to that action", () => {
+    const run = vi.fn();
+    function Actions() {
+      useActionShortcuts([{ name: "dup", cmd: "lpm duplicate", shortcut: "cmd+n" } as ActionInfo], run, true);
+      return null;
+    }
+    const { onDuplicate } = render();
+    const other = createRoot(document.createElement("div"));
+    act(() => other.render(<Actions />));
+
+    press(terminal, "n", { metaKey: true });
+    expect(run).toHaveBeenCalledOnce();
+    expect(onDuplicate).not.toHaveBeenCalled();
+
+    act(() => other.unmount());
+    press(terminal, "n", { metaKey: true });
+    expect(onDuplicate).toHaveBeenCalledOnce();
   });
 });
 
@@ -174,7 +264,7 @@ describe("delete hotkey", () => {
     terminal.dispatchEvent(custom);
 
     expect(onDelete).toHaveBeenCalledOnce();
-    expect(container.textContent).toBe("⌘R ⌘⌥⌫");
+    expect(menuLabels()).toBe("⌘R ⌘⌥⌫");
   });
 });
 

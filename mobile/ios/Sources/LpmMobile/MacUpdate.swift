@@ -59,10 +59,7 @@ struct BusyAgentPlace: Identifiable, Equatable {
 
 func busyAgentPlaces(_ projects: [Project]) -> [BusyAgentPlace] {
     projects.compactMap { project in
-        let count = project.statusEntries.filter {
-            let state = AgentState.of($0.value)
-            return state == .working || state == .needsYou
-        }.count
+        let count = project.busyAgents()
         return count > 0 ? BusyAgentPlace(id: project.name, label: project.label, count: count) : nil
     }
 }

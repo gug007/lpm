@@ -1,5 +1,6 @@
 import type { ContentZoom } from "../hooks/useContentZoom";
 import { uriPath } from "../path";
+import type { HostFile } from "../sshProjects";
 import { formatBytes } from "../syncApi";
 import { AudioFileView } from "./AudioFileView";
 import { FileViewerHtml } from "./FileViewerHtml";
@@ -21,6 +22,8 @@ import type { FileViewerView } from "./useFileViewerView";
 interface FileViewerContentProps {
   absPath: string;
   projectRoot: string;
+  // Set when the file is on an SSH project's host.
+  host: HostFile | null;
   line: number;
   col: number;
   view: FileViewerView;
@@ -46,6 +49,7 @@ interface FileViewerContentProps {
 export function FileViewerContent({
   absPath,
   projectRoot,
+  host,
   line,
   col,
   view,
@@ -68,14 +72,14 @@ export function FileViewerContent({
   if (video) return <VideoFileView video={video} compact={compact} />;
   if (audio) {
     return (
-      <GeneratedMedia absPath={absPath} compact={compact}>
+      <GeneratedMedia absPath={absPath} compact={compact} hidden={!!host}>
         <AudioFileView audio={audio} compact={compact} />
       </GeneratedMedia>
     );
   }
   if (image) {
     return (
-      <GeneratedMedia absPath={absPath} compact={compact}>
+      <GeneratedMedia absPath={absPath} compact={compact} hidden={!!host}>
         <ImageFileView preview={image} compact={compact} />
       </GeneratedMedia>
     );
@@ -111,9 +115,15 @@ export function FileViewerContent({
     );
   }
   if (view === "preview") {
-    if (isHtmlPath(absPath)) return <FileViewerHtml text={value} absPath={absPath} />;
+    if (isHtmlPath(absPath)) return <FileViewerHtml text={value} absPath={absPath} onHost={!!host} />;
     return (
-      <FileViewerMarkdown text={value} absPath={absPath} projectRoot={projectRoot} zoom={textZoom} />
+      <FileViewerMarkdown
+        text={value}
+        absPath={absPath}
+        projectRoot={projectRoot}
+        onHost={!!host}
+        zoom={textZoom}
+      />
     );
   }
   return (

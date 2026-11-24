@@ -9,13 +9,15 @@ interface FileViewerMarkdownProps {
   text: string;
   absPath: string;
   projectRoot: string;
+  // The file is on the SSH project's host, and so is what it links.
+  onHost?: boolean;
   zoom: ContentZoom;
 }
 
 // Links and images resolve against the project, or against the filesystem of
 // the machine the file is on for a file outside one; a linked file opens in
 // this viewer in place of this one.
-export function FileViewerMarkdown({ text, absPath, projectRoot, zoom }: FileViewerMarkdownProps) {
+export function FileViewerMarkdown({ text, absPath, projectRoot, onHost = false, zoom }: FileViewerMarkdownProps) {
   const inProject = !!projectRoot && relTo(absPath, projectRoot) !== absPath;
   // A Windows host's drive or share root keeps the marker that routes there.
   const slug = windowsRootMarker(absPath) ? null : peerSlugOf(absPath);
@@ -24,8 +26,8 @@ export function FileViewerMarkdown({ text, absPath, projectRoot, zoom }: FileVie
   const path = inProject ? relTo(absPath, projectRoot) : outside.rest;
   const onOpenFile = useCallback(
     (target: string) =>
-      openFileViewer({ absPath: joinAbs(root, target), line: 0, col: 0, projectRoot }),
-    [root, projectRoot],
+      openFileViewer({ absPath: joinAbs(root, target), line: 0, col: 0, projectRoot, onHost }),
+    [root, projectRoot, onHost],
   );
 
   return (
@@ -35,6 +37,7 @@ export function FileViewerMarkdown({ text, absPath, projectRoot, zoom }: FileVie
       zoom={zoom}
       projectRoot={root}
       onOpenFile={onOpenFile}
+      hostRoot={onHost ? projectRoot : undefined}
     />
   );
 }

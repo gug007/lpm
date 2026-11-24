@@ -413,6 +413,10 @@ jobs:
   # not fail the step.
   build-windows:
     runs-on: windows-2025
+    # Signing reads this run and downloads the installer it uploaded.
+    permissions:
+      actions: read
+      contents: read
     env:
       AWS_LC_SYS_PREBUILT_NASM: "1"
     steps:
@@ -509,8 +513,11 @@ jobs:
       # SignPath Foundation signs the installer through its free open-source
       # program (https://lpm.cx/code-signing): it checks that this run built the
       # file from the tagged commit, then waits for a maintainer to approve the
-      # request in SignPath. Tags only, and only once the SIGNPATH_API_TOKEN
-      # secret and the SIGNPATH_ORGANIZATION_ID variable are set; until then the
+      # request in SignPath. Needs the SIGNPATH_API_TOKEN secret and the
+      # SIGNPATH_ORGANIZATION_ID variable. A dispatch run then signs with the
+      # self-signed test certificate, which nothing trusts and nothing publishes.
+      # A tag signs only once the SIGNPATH_SIGN_RELEASES variable is "true" too,
+      # set when SignPath has imported the release certificate; until then the
       # installer ships unsigned. SignPath's artifact configuration "installer" is
       # .github/signpath/installer.xml.
       - name: Check for signing
@@ -519,16 +526,23 @@ jobs:
         env:
           SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
           SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_SIGN_RELEASES: ${{ vars.SIGNPATH_SIGN_RELEASES }}
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/* && -n "$SIGNPATH_API_TOKEN" && -n "$SIGNPATH_ORGANIZATION_ID" ]]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          if [[ -z "$SIGNPATH_API_TOKEN" || -z "$SIGNPATH_ORGANIZATION_ID" ]]; then
+            echo "Not signing: SIGNPATH_API_TOKEN and SIGNPATH_ORGANIZATION_ID aren't both set."
+          elif [[ "$GITHUB_REF" != refs/tags/* ]]; then
+            echo "Signing with the test certificate."
+            echo "policy=test-signing" >> "$GITHUB_OUTPUT"
+          elif [[ "$SIGNPATH_SIGN_RELEASES" == "true" ]]; then
+            echo "Signing with the release certificate."
+            echo "policy=release-signing" >> "$GITHUB_OUTPUT"
           else
-            echo "Not signing: tags only, with SIGNPATH_API_TOKEN and SIGNPATH_ORGANIZATION_ID set."
+            echo "Not signing this release: SIGNPATH_SIGN_RELEASES isn't \"true\"."
           fi
 
       - name: Upload installer for signing
         id: unsigned
-        if: steps.signing.outputs.enabled == 'true'
+        if: steps.signing.outputs.policy != ''
         uses: actions/upload-artifact@v7
         with:
           name: windows-installer-unsigned
@@ -537,20 +551,22 @@ jobs:
           retention-days: 1
 
       - name: Sign installer
-        if: steps.signing.outputs.enabled == 'true'
+        if: steps.signing.outputs.policy != ''
         uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: lpm
-          signing-policy-slug: release-signing
+          signing-policy-slug: ${{ steps.signing.outputs.policy }}
           artifact-configuration-slug: installer
+          parameters: |
+            version: "${{ env.VERSION }}"
           github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
           wait-for-completion-timeout-in-seconds: 7200
           output-artifact-directory: signed
 
       - name: Use the signed installer
-        if: steps.signing.outputs.enabled == 'true'
+        if: steps.signing.outputs.policy != ''
         shell: bash
         run: |
           cp signed/lpm-desktop-windows-amd64-setup.exe lpm-desktop-windows-amd64-setup.exe

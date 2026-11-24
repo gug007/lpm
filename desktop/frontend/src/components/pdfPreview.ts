@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { NotesReadFileAsInput } from "../../bridge/commands";
 import { base64ToBytes } from "../download";
 import { useContentZoom, type ContentZoom } from "../hooks/useContentZoom";
+import type { HostFile } from "../sshProjects";
 import { formatBytes } from "../syncApi";
+import { readFileBytes } from "./fileBytes";
 import type { PdfLoading, PdfPage } from "./pdf/pdfEngine";
 
 // For a file on this Mac or a paired one, which comes a chunk at a time; a
@@ -31,9 +32,9 @@ function describe(bytes: number, pages: number): string | null {
   return `${formatBytes(bytes)} · ${pages} ${pages === 1 ? "page" : "pages"}`;
 }
 
-// The bytes are read the same way from this Mac or a paired one, and drawn
+// The bytes are read the same way from this Mac, a paired one or an SSH host, and drawn
 // here by PDF.js, so the page looks the same whatever macOS the Mac runs.
-export function usePdfPreview(path: string, active: boolean): PdfPreview {
+export function usePdfPreview(path: string, active: boolean, host: HostFile | null = null): PdfPreview {
   const [pages, setPages] = useState<PdfPage[] | null>(null);
   const [bytes, setBytes] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +51,7 @@ export function usePdfPreview(path: string, active: boolean): PdfPreview {
     let loading: PdfLoading | null = null;
     (async () => {
       const [input, { openPdf }] = await Promise.all([
-        NotesReadFileAsInput(path, MAX_BYTES) as Promise<{ data: string }>,
+        readFileBytes(path, host, MAX_BYTES),
         import("./pdf/pdfEngine"),
       ]);
       if (cancelled) return;
@@ -66,7 +67,7 @@ export function usePdfPreview(path: string, active: boolean): PdfPreview {
       cancelled = true;
       void loading?.destroy();
     };
-  }, [path, active, zoomReset]);
+  }, [path, active, host, zoomReset]);
 
   return { pages, error, meta: describe(bytes, pages?.length ?? 0), zoom };
 }

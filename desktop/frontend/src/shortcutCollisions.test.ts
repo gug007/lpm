@@ -66,13 +66,13 @@ describe("built-in chords on Linux and Windows", () => {
 describe("built-in chords on macOS", () => {
   it("keep the reserved set exactly as before", () => {
     const before = [
-      "cmd+b", "cmd+t", "cmd+alt+p", "cmd+w", "cmd+d", "cmd+shift+d", "cmd+f", "cmd+i",
+      "cmd+b", "cmd+t", "cmd+y", "cmd+w", "cmd+d", "cmd+shift+d", "cmd+f", "cmd+i",
       "cmd+shift+r", "cmd+shift+m", "cmd+shift+k", "cmd+shift+e", "cmd+shift+j", "cmd+p",
       "cmd+=", "cmd++", "cmd+-", "cmd+0", "cmd+shift+v", "cmd+alt+r",
       "cmd+alt+c", "cmd+alt+shift+c", "cmd+alt+arrowup", "cmd+alt+arrowdown",
       "cmd+e", "cmd+shift+n", "cmd+s", "cmd+shift+l", "cmd+shift+s",
       "cmd+shift+p", "cmd+,", "cmd+/", "cmd+c", "cmd+v", "cmd+x", "cmd+a", "cmd+z",
-      "cmd+shift+z", "cmd+q", "cmd+m", "cmd+h", "cmd+n", "cmd+o",
+      "cmd+shift+z", "cmd+q", "cmd+m", "cmd+h", "cmd+o",
       "cmd+enter", "alt+enter",
       ...Array.from({ length: 9 }, (_, i) => `cmd+${i + 1}`),
     ];
@@ -101,6 +101,8 @@ describe("built-in chords on macOS", () => {
       paneFocusNext: "cmd+alt+arrowdown",
       paneFocusPrev: "cmd+alt+arrowup",
       renameProject: "cmd+r",
+      duplicateProject: "cmd+n",
+      pinProject: "cmd+alt+p",
       deleteProject: "cmd+shift+backspace",
       dictate: "cmd+alt+v",
     });

@@ -2,6 +2,7 @@ package cx.lpm.mobile.core.data.files
 
 import cx.lpm.mobile.core.data.client.LpmClient
 import cx.lpm.mobile.core.data.testing.SessionHarness
+import cx.lpm.mobile.core.model.LocatedKind
 import cx.lpm.mobile.core.model.Project
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -105,5 +106,49 @@ class ProjectFilesStoreTest {
         socket.receive(listing)
         settle()
         assertTrue(done)
+    }
+
+    @Test
+    fun `a folder outside the project is listed by its absolute path`() = runTest {
+        val h = SessionHarness(this)
+        val socket = h.connectReady(listOf(LpmClient.LOCATE_PATH_FEATURE))
+        val store = h.session.store<ProjectFilesStore>()
+        store.load("storefront", "/var/log")
+        assertEquals(JsonPrimitive("/var/log"), socket.sentOf("listDir").single()["dir"])
+        socket.receive(
+            """{"t":"listDir","project":"storefront","dir":"/var/log","ok":true,""" +
+                """"root":"/work/storefront","entries":[{"name":"api","dir":true,"ignored":false}]}"""
+        )
+        settle()
+        assertEquals(
+            listOf("api"),
+            store.state.value.folder("storefront", "/var/log").entries?.map { it.name }
+        )
+        assertNull(store.state.value.folder("storefront", "var/log").entries)
+    }
+
+    @Test
+    fun `a typed path is located, and silence leaves it to the index`() = runTest {
+        val h = SessionHarness(this)
+        val socket = h.connectReady(listOf(LpmClient.LOCATE_PATH_FEATURE))
+        val store = h.session.store<ProjectFilesStore>()
+        assertTrue(store.canLocatePaths)
+        store.locate("storefront", "/etc/hosts")
+        assertEquals(JsonPrimitive("/etc/hosts"), socket.sentOf("locatePath").single()["path"])
+        assertNull(store.state.value.located("storefront", "/etc/hosts"))
+
+        socket.receive(
+            """{"t":"locatePath","project":"storefront","path":"/etc/hosts","ok":true,""" +
+                """"kind":"file","at":"/etc/hosts","rel":null}"""
+        )
+        settle()
+        assertEquals(LocatedKind.FILE, store.state.value.located("storefront", "/etc/hosts")?.kind)
+        assertNull(store.state.value.located("storefront", "/etc/host"))
+
+        store.locate("storefront", "/srv")
+        settle(10_000)
+        val silent = store.state.value.located("storefront", "/srv")
+        assertEquals("/srv", silent?.typed)
+        assertNull(silent?.kind)
     }
 }

@@ -13,6 +13,7 @@ use std::borrow::Cow;
 use serde_json::Value;
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 const TRUSTED: &str = "hasTrustDialogAccepted";
 
@@ -52,6 +53,10 @@ fn keys_of(dir: &Path) -> Vec<String> {
 }
 
 fn carry_in(file: &Path, source_keys: &[String], copy_name: &str) -> Result<(), String> {
+    // Copies made at once take turns, as they share the temp file and each must
+    // read what the one before it wrote.
+    static CARRYING: Mutex<()> = Mutex::new(());
+    let _carrying = CARRYING.lock().unwrap_or_else(|broken| broken.into_inner());
     for _ in 0..5 {
         let Ok(meta) = std::fs::metadata(file) else {
             return Ok(());

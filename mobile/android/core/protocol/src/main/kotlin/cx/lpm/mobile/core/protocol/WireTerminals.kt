@@ -70,7 +70,24 @@ sealed interface WireTerminals {
         put("dir", dir)
     }
 
-    fun closeTerminal(project: String, id: String): String = frame("closeTerminal") {
+    fun locatePath(project: String, path: String): String = frame("locatePath") {
+        put("project", project)
+        put("path", path)
+    }
+
+    /**
+     * `whenDone` lets the agents it would end finish first, only when `features` has
+     * "closeWhenDone"; the same for the other tabs below.
+     */
+    fun closeTerminal(project: String, id: String, whenDone: Boolean = false): String =
+        frame("closeTerminal") {
+            put("project", project)
+            put("id", id)
+            if (whenDone) put("whenDone", true)
+        }
+
+    /** Takes back a close that waits; only when `features` has "closeWhenDone". */
+    fun keepTerminal(project: String, id: String): String = frame("keepTerminal") {
         put("project", project)
         put("id", id)
     }
@@ -116,10 +133,12 @@ sealed interface WireTerminals {
         put("id", id)
     }
 
-    fun closeOtherTerminals(project: String, id: String): String = frame("closeOtherTerminals") {
-        put("project", project)
-        put("id", id)
-    }
+    fun closeOtherTerminals(project: String, id: String, whenDone: Boolean = false): String =
+        frame("closeOtherTerminals") {
+            put("project", project)
+            put("id", id)
+            if (whenDone) put("whenDone", true)
+        }
 
     /** Continue a Claude tab's conversation on another account; only when `features` has "tabAccount". */
     fun switchTerminalAccount(project: String, id: String, account: String): String =

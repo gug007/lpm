@@ -13,6 +13,7 @@ import { actionRunKey, clearActionRun, markActionRun, setActionRunReopen } from 
 import { runState } from "../components/project-detail/runCardPlacement";
 import { appTabSeed } from "../popup/appTab";
 import { givenInputs, whenRunEnds, type PageRunResult } from "../popup/pageRun";
+import type { OpenedTab } from "../tabClose/openedTab";
 import { runBackgroundAction } from "./backgroundActionRun";
 
 export interface UseProjectActionsOptions {
@@ -71,6 +72,9 @@ export interface RunActionOpts {
   // Hears how the run went: once it ends, once it starts in a terminal, or
   // that it was canceled.
   onDone?: (result: PageRunResult) => void;
+  // Hears which tab the run opened, or that it opens none, as soon as that is
+  // known: a run that asks for something first may still open one later.
+  onTab?: (opened: OpenedTab) => void;
 }
 
 export interface UseProjectActionsResult {
@@ -223,6 +227,7 @@ export function useProjectActions({
     const done = opts.onDone;
     if (!(await ensurePortFree(action))) {
       done?.({ ok: false, error: "It didn't run: its port is in use." });
+      opts.onTab?.({ error: `${action.label} didn't run: its port is in use` });
       return;
     }
     if (action.type === "terminal") {
@@ -239,7 +244,8 @@ export function useProjectActions({
                 Object.entries(action.env).map(([k, v]) => [k, substituteText(v, inputValues)]),
               )
             : undefined;
-        await terminalViewRef.current?.createTerminalWithCmd(action.label, cmd, {
+        const prompt = actionPrompt(action, inputValues, opts);
+        const tab = await terminalViewRef.current?.createTerminalWithCmd(action.label, cmd, {
           ...(templated
             ? { cwd: action.cwd && substituteText(action.cwd, inputValues), env }
             : { configName: action.name }),
@@ -247,19 +253,22 @@ export function useProjectActions({
           reuse: action.reuse,
           emoji: action.emoji,
           color: action.color,
-          prompt: actionPrompt(action, inputValues, opts),
+          prompt,
           launchModel: opts.launchModel,
           fixedAccount: opts.fixedAccount,
           background: opts.background,
           paneId: opts.paneId,
         });
+        opts.onTab?.(tab ? { tab, cmd, prompted: !!prompt?.length } : { error: `${action.label} couldn't start in a terminal` });
         done?.({ ok: true });
       } catch (err) {
         toast.error(`${action.label}: ${err}`);
+        opts.onTab?.({ error: `${action.label}: ${err}` });
         done?.({ ok: false, error: String(err) });
       }
       return;
     }
+    opts.onTab?.({});
     if (action.type === "app") {
       onSwitchToTerminal();
       await terminalViewRef.current?.openAppTab(appTabSeed(action), opts.paneId);
@@ -320,6 +329,7 @@ export function useProjectActions({
       executeAction(action, given.values, opts);
       return;
     }
+    opts.onTab?.({});
     // One run asks at a time: this one takes the place of one waiting.
     if (inputsAction || confirmAction) cancelPending();
     pendingOptsRef.current = opts;

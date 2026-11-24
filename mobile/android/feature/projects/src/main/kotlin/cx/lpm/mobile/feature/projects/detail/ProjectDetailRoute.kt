@@ -60,6 +60,7 @@ fun ProjectDetailRoute(
     var renaming by remember { mutableStateOf<TerminalInfo?>(null) }
     var forkingIntoCopy by remember { mutableStateOf<TerminalInfo?>(null) }
     var closingOthers by remember { mutableStateOf<TerminalInfo?>(null) }
+    var closingBusy by remember { mutableStateOf<TerminalInfo?>(null) }
     var logsFor by remember { mutableStateOf<Service?>(null) }
     var newTabOpen by remember { mutableStateOf(false) }
     var checksOpen by remember { mutableStateOf(false) }
@@ -123,11 +124,13 @@ fun ProjectDetailRoute(
             newTerminal = newTab,
             pin = { viewModel.pin(it.id) },
             rename = { renaming = it },
-            // A close takes effect at once; the screen offers Undo for a few seconds.
+            // A close takes effect at once and the screen offers Undo for a few seconds,
+            // unless it would end an agent mid-task: then it asks.
             close = {
                 haptics.performHapticFeedback(HapticFeedbackType.Reject)
-                viewModel.close(it.id)
+                if (viewModel.busyAgents(it.id) > 0) closingBusy = it else viewModel.close(it.id)
             },
+            keepOpen = viewModel::keepOpen,
             useTitle = viewModel::useConversationTitle,
             moveTo = viewModel::moveTerminal,
             fork = { viewModel.fork(it, openSpawned) },
@@ -186,11 +189,28 @@ fun ProjectDetailRoute(
     closingOthers?.let { term ->
         CloseOtherTabsDialog(
             count = viewModel.othersClosable(term),
+            busy = viewModel.othersBusy(term),
+            onWaitToClose = { viewModel.closeOthersWhenDone(term) }
+                .takeIf { state.canCloseWhenDone },
             onClose = {
                 haptics.performHapticFeedback(HapticFeedbackType.Reject)
                 viewModel.closeOthers(term)
             },
             onDismiss = { closingOthers = null }
+        )
+    }
+    closingBusy?.let { term ->
+        BusyTabCloseDialog(
+            term = term,
+            busy = viewModel.busyAgents(term.id),
+            onCloseNow = {
+                haptics.performHapticFeedback(HapticFeedbackType.Reject)
+                viewModel.close(term.id)
+            },
+            onWait = {
+                if (term.closesWhenDone) viewModel.keepOpen(term) else viewModel.closeWhenDone(term)
+            }.takeIf { state.canCloseWhenDone },
+            onDismiss = { closingBusy = null }
         )
     }
     if (newTabOpen) {
@@ -252,13 +272,30 @@ private fun ForkIntoCopyDialog(term: TerminalInfo, onFork: () -> Unit, onDismiss
     )
 }
 
-/** Close Other Tabs asks first: whatever runs in them stops. */
+/**
+ * Close Other Tabs asks first: whatever runs in them stops, unless an agent mid-task is
+ * let finish.
+ */
 @Composable
-private fun CloseOtherTabsDialog(count: Int, onClose: () -> Unit, onDismiss: () -> Unit) {
+private fun CloseOtherTabsDialog(
+    count: Int,
+    busy: Int,
+    onWaitToClose: (() -> Unit)?,
+    onClose: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val stops = stringResource(R.string.tab_close_others_message)
     LpmConfirmationDialog(
         title = pluralStringResource(R.plurals.tab_close_others_title, count, count),
-        message = stringResource(R.string.tab_close_others_message),
-        buttons = listOf(
+        message = if (busy == 0) {
+            stops
+        } else {
+            pluralStringResource(R.plurals.tab_close_others_busy, busy, busy, stops)
+        },
+        buttons = listOfNotNull(
+            onWaitToClose?.takeIf { busy > 0 }?.let {
+                AlertButton(stringResource(R.string.tab_close_when_done), onClick = it)
+            },
             AlertButton(
                 pluralStringResource(R.plurals.tab_close_others_confirm, count, count),
                 AlertRole.Destructive,

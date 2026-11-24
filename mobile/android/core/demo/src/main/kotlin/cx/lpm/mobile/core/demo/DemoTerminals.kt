@@ -108,11 +108,13 @@ private fun DemoServer.registerTerminalLifecycleHandlers() {
     register("closeTerminal") { o ->
         val project = o.string("project") ?: return@register
         val id = o.string("id") ?: return@register
-        val wasAgent = demoTerminal(id)?.cli == "claude"
-        world.terminals[project]?.removeAll { it.id == id }
-        world.composerDrafts.remove(id)
-        demoDropSeenAgents(project = project, pane = id)
-        if (wasAgent) demoSetAgentStatus(project = project, entries = emptyList())
+        if (o.bool("whenDone") == true && demoBusy(project, id)) {
+            updateTerminal(id) { it.closesWhenDone = true }
+            push(mapOf("t" to "closeTerminal", "ok" to true))
+            push(world.terminalsPayload(project))
+            return@register
+        }
+        demoCloseTerminal(project, id)
         push(mapOf("t" to "closeTerminal", "ok" to true))
     }
     register("renameTerminal") { o ->

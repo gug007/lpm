@@ -2365,6 +2365,8 @@ fn is_denied(cmd: &str) -> bool {
         "terminal_claim_control"
             | "terminal_present_control"
             | "terminal_unpresent_control"
+            // this machine's window answering lpm itself
+            | "answer_tab_request"
             // global host mutators (sidebar / project order / composer + generator
             // + work-status config / saved terminals / stop-everything) — not
             // project-scoped.

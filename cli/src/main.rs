@@ -8,6 +8,7 @@
 mod ask;
 mod auto_pull;
 mod awake;
+mod close;
 mod config;
 mod config_cmd;
 mod os_cmd;
@@ -79,7 +80,7 @@ control projects — start, stop, restart services, set agent status — by aski
 app over that socket (so the app stays the single owner of run-state).\n\n\
 Inspection commands: `list`, `project`, `logs`, `status`, `config resolve`, `config validate`. \
 Config transactions (need the app running): `config get`, `config apply`. Control commands: \
-`start`, `stop`, `service`, `set-status`, `clear-status`, `rename`, `work-status`, `duplicate`, `worktree`, `remove`, `run`, `refresh-label`, `automations`, `skills`. \
+`start`, `stop`, `service`, `set-status`, `clear-status`, `rename`, `work-status`, `duplicate`, `worktree`, `remove`, `run`, `close`, `refresh-label`, `automations`, `skills`. \
 `auto-pull` shows whether the app pulls a project by itself; `auto-pull --set` changes it \
 through the running app. \
 Inside an automation run, `ask` puts a question to the user and waits for the answer. \
@@ -536,7 +537,36 @@ of the tab. Exits with the command's exit code; stopping lpm exec stops the comm
         #[arg(long)]
         json: bool,
     },
+    /// Close a terminal tab (via the running app).
+    ///
+    /// As its × does: Undo stays in the app for a few seconds, and an agent's
+    /// conversation stays in Resume session. A tab that would lose something is
+    /// refused: one whose agent is working, waiting for an answer or just
+    /// starting, one with a command still running, and one holding a message
+    /// that hasn't been sent. A pinned tab is always refused, and so is the tab
+    /// the command runs in, except with --when-done. Exit codes: 0 closed (or set
+    /// to close), 1 refused, 2 no such tab, several, or the app isn't running.
+    Close {
+        /// The tab's id, as `run` and `status` print it, or its name in the tab
+        /// strip. Omit with --when-done for the tab the command runs in.
+        tab: Option<String>,
+        /// Project to look in; omit to infer from the environment / cwd. A tab's
+        /// id is found wherever it is.
+        #[arg(long, short = 'p')]
+        project: Option<String>,
+        /// Close it once its agent's turn ends, instead of now.
+        #[arg(long, conflicts_with = "force")]
+        when_done: bool,
+        /// Close it even if its agent, a command or an unsent message goes with it.
+        #[arg(long)]
+        force: bool,
+        /// Emit a single machine-readable JSON object.
+        #[arg(long)]
+        json: bool,
+    },
     /// Queue an action/command in a new terminal in the app (fire-and-forget).
+    ///
+    /// Prints the id of the tab it opens, for `close`.
     Run {
         /// Action name (exact or unambiguous prefix). Omit when using --command.
         action: Option<String>,
@@ -820,6 +850,22 @@ fn main() -> ExitCode {
         Commands::RefreshLabel { action, project } => {
             refreshlabel::run(&ctx, action.as_deref(), project.as_deref())
         }
+        Commands::Close {
+            tab,
+            project,
+            when_done,
+            force,
+            json,
+        } => close::run(
+            &ctx,
+            &close::Args {
+                tab: tab.as_deref(),
+                project: project.as_deref(),
+                force,
+                when_done,
+                json,
+            },
+        ),
         Commands::Run {
             action,
             command,

@@ -93,6 +93,11 @@ pub struct PaneInfo {
     /// without one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub code: Option<i32>,
+    /// When its service was last started, in milliseconds since the Unix epoch:
+    /// a restart keeps the pane, so this is what tells its runs apart. 0 before
+    /// the first, and from a daemon older than this.
+    #[serde(default)]
+    pub started: i64,
 }
 
 /// One reply. `ok` is the only field always present; each op fills in exactly

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CircleDot, Copy, GitFork, Link2, PictureInPicture2, Pin, PinOff, Sparkles, Users } from "lucide-react";
+import { CircleDot, Copy, GitFork, Link2, PictureInPicture2, Pin, PinOff, Sparkles, TimerOff, Users } from "lucide-react";
 import { PencilIcon, XIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuSeparator } from "../ui/ContextMenuSeparator";
@@ -40,6 +40,8 @@ interface TabContextMenuProps {
   // (a detached window, a service log).
   onToggleMiniView?: () => void;
   miniViewKept?: boolean;
+  // Set on a tab waiting for its agent before it closes: takes that back.
+  onKeepOpen?: () => void;
   onCloseTab: () => void;
   onCloseOthers: () => void;
   onClose: () => void;
@@ -68,6 +70,7 @@ export function TabContextMenu({
   onMoveToNewPane,
   onToggleMiniView,
   miniViewKept = false,
+  onKeepOpen,
   onCloseTab,
   onCloseOthers,
   onClose,
@@ -156,6 +159,9 @@ export function TabContextMenu({
           />
           <ContextMenuSeparator />
         </>
+      )}
+      {onKeepOpen && (
+        <ContextMenuItem label="Keep open" icon={<TimerOff size={12} />} onClick={close(onKeepOpen)} />
       )}
       <ContextMenuItem
         label="Close"

@@ -13,6 +13,11 @@ export interface KeyboardShortcut {
    * physical form only (keys.ts toPhysical: ⌘T is Ctrl+Shift+T, never Ctrl+T).
    */
   meta?: boolean;
+  /**
+   * On macOS, take ⌘ alone and leave Ctrl to the terminal, whose ⌃N and ⌃Y are
+   * its own.
+   */
+  cmdOnly?: boolean;
   /** Require Shift. When omitted, shift state is ignored. */
   shift?: boolean;
   /**
@@ -35,6 +40,7 @@ export interface KeyboardShortcut {
 function matchesMac(event: KeyEventLike, shortcut: KeyboardShortcut): boolean {
   const pressed = (isAsciiLetter(shortcut.key) && optionLetter(event)) || event.key;
   if (pressed.toLowerCase() !== shortcut.key.toLowerCase()) return false;
+  if (shortcut.cmdOnly && event.ctrlKey) return false;
   if (shortcut.meta !== undefined) {
     const mod = event.metaKey || event.ctrlKey;
     if (mod !== shortcut.meta) return false;

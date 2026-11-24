@@ -53,6 +53,9 @@ export interface TerminalInstance {
   // started in, and a restart opens it there (tabMove.ts). Absent: the root.
   cwd?: string;
   pinned?: boolean;
+  // Closes by itself, or along with the rest of its pane, once its agents are
+  // done (useCloseWhenDone). Not kept over a restart, which ends them anyway.
+  closeWhenDone?: "tab" | "pane";
   // Custom emoji shown as the tab icon (in place of the terminal icon).
   // Inherited from the action that launched the terminal.
   emoji?: string;
@@ -452,6 +455,18 @@ export function splitAtPane(
  */
 export function isTabPinned(pane: PaneLeaf, idx: number): boolean {
   return pane.tabs[idx]?.pinned === true;
+}
+
+// What closing the tabs around `keptId` takes along.
+export function otherClosableTabs(tabs: readonly TerminalInstance[], keptId: string): TerminalInstance[] {
+  return tabs.filter((t) => t.id !== keptId && t.pinned !== true);
+}
+
+// A phone lists the project's terminals, not one pane's, so its "Close Other
+// Tabs" reaches every pane; a tab it can't see stays. None when `keptId` is gone.
+export function otherTerminals(tree: PaneNode, keptId: string): TerminalInstance[] {
+  const tabs = collectTerminals(tree);
+  return tabs.some((t) => t.id === keptId) ? otherClosableTabs(tabs, keptId).filter(isTerminalTab) : [];
 }
 
 export function clampIdx(idx: number | undefined, length: number): number {

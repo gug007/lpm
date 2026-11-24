@@ -93,7 +93,7 @@ export function ReviewGuide() {
       <p className={P}>
         The Files tab (<GuideKey mac="⌘⇧E" />) is a file tree with Git status
         colors beside a code editor. <GuideKey mac="⌘P" />{" "}jumps to a file by
-        name. It is a light editor, not an IDE: any file can be sent to
+        name, or by its full path. It is a light editor, not an IDE: any file can be sent to
         Cursor, VS Code, Windsurf, Zed, Sublime Text or WebStorm at the same
         line.
       </p>

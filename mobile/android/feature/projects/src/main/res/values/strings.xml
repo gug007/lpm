@@ -310,6 +310,20 @@
         <item quantity="other">Close %1$d Tabs</item>
     </plurals>
     <string name="tab_close_others_message">Whatever is running in them stops. Pinned tabs stay open.</string>
+    <plurals name="tab_close_others_busy">
+        <item quantity="one">An agent is still working. %2$s</item>
+        <item quantity="other">%1$d agents are still working. %2$s</item>
+    </plurals>
+    <plurals name="tab_close_busy_title">
+        <item quantity="one">An Agent Is Still Working</item>
+        <item quantity="other">%1$d Agents Are Still Working</item>
+    </plurals>
+    <string name="tab_close_busy_message">Closing “%1$s” ends its agent mid-task.</string>
+    <string name="tab_close_waiting_message">“%1$s” closes by itself when its agent is done. Closing it now ends the agent mid-task.</string>
+    <string name="tab_close_now">Close Now</string>
+    <string name="tab_close_when_done">Close When Done</string>
+    <string name="tab_closes_when_done">closes when done</string>
+    <string name="tab_keep_open">Keep Open</string>
     <string name="tab_closed">%1$s closed</string>
     <string name="tab_undo">Undo</string>
 

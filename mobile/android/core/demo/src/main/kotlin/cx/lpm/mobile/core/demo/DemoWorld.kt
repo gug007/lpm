@@ -168,7 +168,9 @@ internal class DemoWorld(val clock: Clock) {
         // The tab's own identity, kept when it moves to a new terminal; its id until then.
         var tabKey: String? = null,
         // A Claude tab whose turn stopped at a usage limit, as the Mac lists it.
-        var limitStop: Dict? = null
+        var limitStop: Dict? = null,
+        // Waits for its agent, then closes.
+        var closesWhenDone: Boolean = false
     )
 
     val terminals = mutableMapOf<String, MutableList<Terminal>>() // project -> terminals

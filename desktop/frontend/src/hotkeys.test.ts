@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   configuredHotkeyCombos,
   hotkeyDefs,
+  hotkeyTakes,
   normalizeHotkeys,
   resolveHotkey,
 } from "./hotkeys";
@@ -14,6 +15,8 @@ describe("hotkeyDefs", () => {
       paneFocusNext: "cmd+shift+pagedown",
       paneFocusPrev: "cmd+shift+pageup",
       renameProject: "cmd+r",
+      duplicateProject: "cmd+n",
+      pinProject: "cmd+alt+p",
       deleteProject: "cmd+shift+backspace",
     });
   });
@@ -32,6 +35,8 @@ describe("normalizeHotkeys", () => {
       paneFocusNext: "cmd+alt+arrowdown",
       paneFocusPrev: "cmd+alt+arrowup",
       renameProject: "cmd+r",
+      duplicateProject: "cmd+n",
+      pinProject: "cmd+alt+p",
       deleteProject: "cmd+shift+backspace",
       dictate: "cmd+alt+v",
     });
@@ -44,6 +49,8 @@ describe("normalizeHotkeys", () => {
       paneFocusNext: "cmd+alt+arrowdown",
       paneFocusPrev: "cmd+alt+arrowup",
       renameProject: "cmd+r",
+      duplicateProject: "cmd+n",
+      pinProject: "cmd+alt+p",
       deleteProject: "cmd+shift+backspace",
       dictate: "cmd+alt+v",
     });
@@ -70,6 +77,8 @@ describe("configuredHotkeyCombos", () => {
         "cmd+alt+arrowdown",
         "cmd+alt+arrowup",
         "cmd+r",
+        "cmd+n",
+        "cmd+alt+p",
         "cmd+shift+backspace",
         "cmd+alt+v",
       ]),
@@ -78,7 +87,16 @@ describe("configuredHotkeyCombos", () => {
 
   it("excludes the row being edited", () => {
     expect(configuredHotkeyCombos(undefined, "tabSwitchNext")).toEqual(
-      new Set(["cmd+alt+arrowleft", "cmd+alt+arrowdown", "cmd+alt+arrowup", "cmd+r", "cmd+shift+backspace", "cmd+alt+v"]),
+      new Set(["cmd+alt+arrowleft", "cmd+alt+arrowdown", "cmd+alt+arrowup", "cmd+r", "cmd+n", "cmd+alt+p", "cmd+shift+backspace", "cmd+alt+v"]),
     );
+  });
+});
+
+describe("hotkeyTakes", () => {
+  const y = { key: "y", meta: true, shift: false, alt: false };
+
+  it("finds a chord recorded for a hotkey", () => {
+    expect(hotkeyTakes(undefined, y)).toBe(false);
+    expect(hotkeyTakes({ dictate: "cmd+y" }, y)).toBe(true);
   });
 });

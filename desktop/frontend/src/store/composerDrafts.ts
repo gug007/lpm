@@ -59,6 +59,25 @@ function cloneDraft(draft: ComposerDraft): ComposerDraft {
   };
 }
 
+// Terminals with unsent text in a composer this window doesn't hold, by who
+// holds it (useReportUnsentText.ts).
+const unsentElsewhere = new Map<string, Set<string>>();
+
+export function noteUnsentElsewhere(terminalId: string, from: string, unsent: boolean): void {
+  const held = unsentElsewhere.get(terminalId) ?? new Set<string>();
+  if (unsent) held.add(from);
+  else held.delete(from);
+  if (held.size > 0) unsentElsewhere.set(terminalId, held);
+  else unsentElsewhere.delete(terminalId);
+}
+
+/** Whether something is written in a terminal's composer and not sent yet. */
+export function hasComposerText(terminalId: string, historyKey?: string): boolean {
+  if (unsentElsewhere.has(terminalId)) return true;
+  const draft = loadComposerDraft(terminalId, historyKey);
+  return draft?.tabs.some((tab) => tab.text.trim() !== "" || tab.imagePaths.size > 0) ?? false;
+}
+
 export function createInputTab(): ComposerInputTab {
   return { id: crypto.randomUUID(), text: "", imagePaths: new Map(), imgCounter: 0, histIdx: -1, stash: null };
 }
@@ -86,6 +105,7 @@ export function saveComposerDraft(terminalId: string, draft: ComposerDraft, hist
 
 export function forgetComposerDraft(terminalId: string, historyKey?: string): void {
   drafts.delete(terminalId);
+  unsentElsewhere.delete(terminalId);
   if (historyKey) deletePersistedDraft(historyKey);
 }
 

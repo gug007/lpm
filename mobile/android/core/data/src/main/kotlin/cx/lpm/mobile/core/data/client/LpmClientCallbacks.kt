@@ -37,6 +37,7 @@ import cx.lpm.mobile.core.model.HistoryPage
 import cx.lpm.mobile.core.model.HistoryRow
 import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
+import cx.lpm.mobile.core.model.LocatedPath
 import cx.lpm.mobile.core.model.MacBuild
 import cx.lpm.mobile.core.model.MacKeepAwake
 import cx.lpm.mobile.core.model.MacPower
@@ -179,6 +180,7 @@ abstract class LpmClientCallbacks {
     var onAgentOptions: ((agents: List<AgentOption>) -> Unit)? = null
     var onAgentSessions: ((page: AgentSessionsPage) -> Unit)? = null
     var onListDir: ((contents: ProjectDirContents) -> Unit)? = null
+    var onLocatePath: ((located: LocatedPath) -> Unit)? = null
 
     // Git review replies; a null `snapshot` means the `git` request hard-failed.
     var onGit: ((project: String, snapshot: GitSnapshot?, error: String?) -> Unit)? = null

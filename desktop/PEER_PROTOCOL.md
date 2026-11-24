@@ -746,6 +746,12 @@ After a host restart (a new `run`) the client asks `terminal_exists` about each
 of its tabs the host no longer lists and closes the ones that are gone; the host's
 restored tabs open in their place.
 
+**Unsent text.** What is typed for a host's terminal in the client's composer stays
+on the client. The client only says whether there is any, with
+`terminal_unsent_text { id, from, unsent }` (`from` is an id the client makes up for
+its run), so the host doesn't close that tab for `lpm close`, nor once its agent is
+done. A host that predates it answers an error, which the client ignores.
+
 **Compatibility.** A host that predates `withTabs` ignores it and answers with the
 plain array, and the client closes nothing. A client that predates it never asks.
 A host without `follow` gets no `terminal_tab_op`: the client keeps its own names

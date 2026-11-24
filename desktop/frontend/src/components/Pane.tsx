@@ -46,6 +46,8 @@ interface PaneSession {
   staleBuffer: boolean;
   stickToBottom: boolean;
   cwd: string;
+  // The SSH project the service is in, by its folder on the host.
+  sshRoot: string;
   pathLinkDisposable: IDisposable | null;
   onScrollState?: (atBottom: boolean) => void;
   // Run after the pane is cleared so a live filter overlay refreshes too.
@@ -101,6 +103,7 @@ function createPaneSession(opts: {
     staleBuffer: false,
     stickToBottom: true,
     cwd: opts.cwd,
+    sshRoot: "",
     pathLinkDisposable: null,
     tally: EMPTY_TALLY,
   };
@@ -108,6 +111,7 @@ function createPaneSession(opts: {
   try {
     session.pathLinkDisposable = registerPathLinkProvider(term, {
       getCwd: () => session.cwd,
+      getSshRoot: () => session.sshRoot,
     });
   } catch {}
 
@@ -204,10 +208,11 @@ interface PaneProps {
   themeOverride?: ITheme | null;
   sessionKey?: string;
   cwd?: string;
+  sshRoot?: string;
   ref?: Ref<PaneHandle>;
 }
 
-export function Pane({ label, labelLead, labelHint, labelDetail, onLabelClick, labelActions, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride, sessionKey, cwd = "", ref }: PaneProps) {
+export function Pane({ label, labelLead, labelHint, labelDetail, onLabelClick, labelActions, output, visible = true, fontSize = 12, onScrollStateChange, themeOverride, sessionKey, cwd = "", sshRoot = "", ref }: PaneProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const sessionRef = useRef<PaneSession | null>(null);
     const filterRef = useRef<FilterMirror | null>(null);
@@ -328,6 +333,7 @@ export function Pane({ label, labelLead, labelHint, labelDetail, onLabelClick, l
       session.term.options.lineHeight = lineHeightRef.current;
       session.term.options.theme = initialTheme;
       session.cwd = cwd;
+      session.sshRoot = sshRoot;
 
       el.appendChild(session.host);
 
@@ -422,7 +428,8 @@ export function Pane({ label, labelLead, labelHint, labelDetail, onLabelClick, l
       const session = sessionRef.current;
       if (!session) return;
       session.cwd = cwd;
-    }, [cwd]);
+      session.sshRoot = sshRoot;
+    }, [cwd, sshRoot]);
 
     useEffect(() => {
       const session = sessionRef.current;

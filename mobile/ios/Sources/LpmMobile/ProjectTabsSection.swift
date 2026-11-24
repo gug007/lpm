@@ -2,7 +2,8 @@ import SwiftUI
 
 /// The project screen's open tabs, each with its swipe actions and long-press
 /// menu, then New tab. Close takes effect at once and the screen offers Undo;
-/// Fork into Copy and Close Other Tabs only ask for it, and the screen confirms.
+/// Fork into Copy, Close Other Tabs and closing a tab whose agent is mid-task only
+/// ask for it, and the screen confirms.
 struct ProjectTabsSection: View {
     @Environment(AppModel.self) private var model
     let project: String
@@ -12,6 +13,7 @@ struct ProjectTabsSection: View {
     @Binding var renaming: TabRename?
     @Binding var forkingIntoCopy: TerminalInfo?
     @Binding var closingOthers: TerminalInfo?
+    @Binding var closingBusy: TerminalInfo?
     let onOpen: (TerminalInfo) -> Void
     // A tab this phone asked the Mac for, such as a fork, once it lands.
     let onSpawned: (TerminalInfo) -> Void
@@ -29,6 +31,7 @@ struct ProjectTabsSection: View {
                         TabMenuExtras(term: t, onSpawned: onSpawned, forkingIntoCopy: $forkingIntoCopy)
                         TabClaudeAccountMenu(term: t, working: agents[t.id]?.state == .working)
                         TabMoveToMenu(term: t)
+                        KeepTabOpenButton(term: t)
                         closeButton(t)
                         CloseOtherTabsButton(term: t, closingOthers: $closingOthers)
                     }
@@ -92,6 +95,10 @@ struct ProjectTabsSection: View {
 
     private func close(_ t: TerminalInfo) {
         Haptics.warning()
+        if model.busyAgents(in: t) > 0 {
+            closingBusy = t
+            return
+        }
         withAnimation { model.closeTerminal(project, id: t.id) }
     }
 

@@ -82,8 +82,16 @@ pub fn list_dir_entries(root: String, rel: String) -> Result<Vec<DirEntryInfo>, 
         return remote_list(&ssh, &root, &rel);
     }
     let dir = resolve(&root, &rel)?;
+    let mut out = entries_of(&dir)?;
+    let ignored = ignored_names(&dir, &names_of(&out));
+    mark_ignored(&mut out, &ignored);
+    Ok(out)
+}
+
+/// What a folder on this computer holds, with no say on what git ignores.
+pub(crate) fn entries_of(dir: &Path) -> Result<Vec<DirEntryInfo>, String> {
     let entries =
-        std::fs::read_dir(&dir).map_err(|e| format!("cannot open {}: {e}", dir.display()))?;
+        std::fs::read_dir(dir).map_err(|e| format!("cannot open {}: {e}", dir.display()))?;
     let mut out = Vec::new();
     for entry in entries.filter_map(Result::ok) {
         let Ok(file_type) = entry.file_type() else {
@@ -108,8 +116,6 @@ pub fn list_dir_entries(root: String, rel: String) -> Result<Vec<DirEntryInfo>, 
             is_ignored: false,
         });
     }
-    let ignored = ignored_names(&dir, &names_of(&out));
-    mark_ignored(&mut out, &ignored);
     Ok(out)
 }
 
@@ -218,7 +224,7 @@ fn remote_list(ssh: &SshSettings, root: &str, rel: &str) -> Result<Vec<DirEntryI
     Ok(entries)
 }
 
-fn parse_tagged_listing(text: &str) -> Vec<DirEntryInfo> {
+pub(crate) fn parse_tagged_listing(text: &str) -> Vec<DirEntryInfo> {
     let mut out = Vec::new();
     let mut fields = text.split('\0');
     while let (Some(kind), Some(path)) = (fields.next(), fields.next()) {
@@ -237,15 +243,24 @@ fn parse_tagged_listing(text: &str) -> Vec<DirEntryInfo> {
     out
 }
 
-/// `head -c` caps the transfer at the same ceiling the local read enforces; one
-/// byte over marks the file too large without pulling the rest across.
-fn remote_read(ssh: &SshSettings, root: &str, rel: &str) -> Result<ProjectFileContent, String> {
+/// How a file is named to its SSH host, from the project's folder there: one a
+/// listing handed back, or the absolute path a terminal printed or someone typed.
+pub(crate) fn host_target(rel: &str) -> Result<String, String> {
+    if rel.starts_with('/') {
+        return Ok(rel.to_string());
+    }
     let rel = checked_rel(rel)?;
     if rel.is_empty() {
         return Err("not a file".into());
     }
+    Ok(format!("./{rel}"))
+}
+
+/// `head -c` caps the transfer at the same ceiling the local read enforces; one
+/// byte over marks the file too large without pulling the rest across.
+fn remote_read(ssh: &SshSettings, root: &str, rel: &str) -> Result<ProjectFileContent, String> {
+    let target = host_target(rel)?;
     let limit = (READ_FILE_MAX_BYTES + 1).to_string();
-    let target = format!("./{rel}");
     let bytes = remote_output(ssh, root, "head", &["-c", &limit, &target])?;
     Ok(content_of(bytes, false))
 }
@@ -262,6 +277,22 @@ mod tests {
         assert!(checked_rel("../x").is_err());
         assert!(checked_rel("src/../../x").is_err());
         assert!(checked_rel("/etc/passwd").is_err());
+    }
+
+    #[test]
+    fn a_host_file_is_the_projects_own_or_an_absolute_path() {
+        assert_eq!(host_target("src/a.rs").unwrap(), "./src/a.rs");
+        assert_eq!(host_target("-n").unwrap(), "./-n");
+        assert_eq!(host_target("/var/log/app.log").unwrap(), "/var/log/app.log");
+        assert!(host_target("../x").is_err());
+        assert!(host_target("").is_err());
+    }
+
+    #[test]
+    fn a_project_here_is_never_read_past_its_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_string_lossy().into_owned();
+        assert!(read_project_file(root, "/etc/hosts".into()).is_err());
     }
 
     #[test]

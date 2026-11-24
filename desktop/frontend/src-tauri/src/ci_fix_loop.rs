@@ -6,8 +6,8 @@
 // ends with a single alert.
 use crate::ci_checks::{commit_checks, short_sha, upstream_head};
 use crate::ci_fix_loop_rules::{
-    alert_text, cant_go_on, describe, fix_verdict, read_agent, read_checks, round_prompt, Agent,
-    Checks,
+    alert_text, describe, fix_verdict, hand_over, read_agent, read_checks, round_prompt, Agent,
+    Checks, Handover,
 };
 pub use crate::ci_fix_loop_rules::{first_prompt, FixLoop, Phase, MAX_ROUNDS};
 use crate::notifychannels::NotificationEvent;
@@ -257,20 +257,18 @@ fn bind(app: &AppHandle, run: &Run) -> Step {
     }
 }
 
-fn agent_now(app: &AppHandle, run: &Run) -> Agent {
+/// The agent in the fix tab, and whether that tab's shell is back at its prompt.
+fn agent_now(app: &AppHandle, run: &Run) -> (Agent, Option<bool>) {
     let Some(terminal) = run.terminal.as_deref() else {
-        return Agent::Quiet;
+        return (Agent::Quiet, None);
     };
     let Some(session) = crate::pty::session(&app.state::<crate::pty::PtyState>(), terminal) else {
-        return Agent::Gone;
+        return (Agent::Gone, None);
     };
     let entries = app.state::<Arc<StatusStore>>().list(&run.view.project);
-    read_agent(
-        &entries,
-        terminal,
-        run.phase_started,
-        session.shell_at_prompt(),
-    )
+    let at_prompt = session.shell_at_prompt_now();
+    let agent = read_agent(&entries, terminal, run.phase_started, at_prompt);
+    (agent, at_prompt)
 }
 
 /// A push since `sha`: its checks are the ones to watch now.
@@ -288,7 +286,7 @@ fn fixing(app: &AppHandle, run: &Run) -> Step {
         return step;
     }
     let verdict = fix_verdict(
-        agent_now(app, run),
+        agent_now(app, run).0,
         &run.view.agent,
         run.phase_since.elapsed(),
         now_millis(),
@@ -331,14 +329,11 @@ fn watching(app: &AppHandle, run: &Run) -> Step {
 
 fn next_round(app: &AppHandle, run: &Run, commit_prompt: Option<String>) -> Step {
     let agent = &run.view.agent;
-    let now = agent_now(app, run);
-    if let Some(reason) = cant_go_on(&now, agent) {
-        return stop(reason);
-    }
-    match now {
-        Agent::Exited => return stop(format!("{agent} quit, so the next failure can't go to it.")),
-        Agent::Working => return Step::Stay(0),
-        _ => {}
+    let (now, at_prompt) = agent_now(app, run);
+    match hand_over(&now, at_prompt, agent) {
+        Handover::Stop(reason) => return stop(reason),
+        Handover::Wait => return Step::Stay(0),
+        Handover::Send => {}
     }
     let pr = branch_pull_request_with_merge(&run.path).filter(|pr| pr.state == "OPEN");
     let Some(prompt) = pr.and_then(|pr| pr.fix_prompt).or(commit_prompt) else {

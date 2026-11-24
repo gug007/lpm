@@ -10,6 +10,7 @@ interface FileViewerChoicesProps {
   line: number;
   col: number;
   projectRoot: string;
+  onHost?: boolean;
   onClose: () => void;
 }
 
@@ -24,7 +25,7 @@ function moveFocus(e: KeyboardEvent<HTMLUListElement>) {
 
 // A terminal reference that fits several project files, such as a bare
 // `README.md`: pick one and the viewer opens it at the same line.
-export function FileViewerChoices({ choices, line, col, projectRoot, onClose }: FileViewerChoicesProps) {
+export function FileViewerChoices({ choices, line, col, projectRoot, onHost, onClose }: FileViewerChoicesProps) {
   return (
     <div className="flex max-h-[70vh] w-[min(640px,calc(100vw-32px))] flex-col">
       <header className="flex items-center justify-between gap-4 border-b border-[var(--border)] px-6 py-3">
@@ -51,7 +52,7 @@ export function FileViewerChoices({ choices, line, col, projectRoot, onClose }: 
             <button
               type="button"
               autoFocus={i === 0}
-              onClick={() => openFileViewer({ absPath: abs, line, col, projectRoot })}
+              onClick={() => openFileViewer({ absPath: abs, line, col, projectRoot, onHost })}
               className="flex w-full items-center rounded-lg py-1.5 pr-3 text-left text-[13px] text-[var(--text-primary)] outline-none hover:bg-[var(--bg-hover)] focus-visible:bg-[var(--bg-hover)]"
             >
               <FileTypeIcon name={basename(abs)} />

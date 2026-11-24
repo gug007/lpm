@@ -162,6 +162,17 @@ private func agentRows(_ entries: [StatusEntry], now: Int, tabTitles: [String: S
 extension AgentState {
     /// A turn that ended, well or not: what can be marked seen and archived.
     var isFinished: Bool { self == .done || self == .error }
+    /// Mid-task: working, or stopped on a question.
+    var isBusy: Bool { self == .working || self == .needsYou }
+}
+
+extension Project {
+    /// Its agents mid-task, or those in one terminal.
+    func busyAgents(in terminal: String? = nil) -> Int {
+        statusEntries.filter {
+            (terminal == nil || $0.paneID == terminal) && AgentState.of($0.value).isBusy
+        }.count
+    }
 }
 
 /// The agent each terminal reads as; `projectAgentRows` already holds one per tab.

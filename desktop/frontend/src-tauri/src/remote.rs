@@ -174,11 +174,13 @@ const PHONE_FEATURES: &[&str] = &[
     RESTART_TERMINAL_FEATURE,
     tab_menu::FEATURE,
     tab_menu::MOVE_FEATURE,
+    tab_menu::CLOSE_WHEN_DONE_FEATURE,
     tab_account::FEATURE,
     crate::remote_agents::LAUNCH_FEATURE,
     crate::remote_agents::SESSIONS_FEATURE,
     crate::remote_agents::ACTION_PROMPT_FEATURE,
     crate::remote_files::FEATURE,
+    crate::remote_files::LOCATE_FEATURE,
     answer::FEATURE,
     dialog::FEATURE,
     GIT_DISCARD_FILES_FEATURE,
@@ -3491,8 +3493,9 @@ fn handle_msg(
             }
         }
         "listDir" => crate::remote_files::handle(out, &v),
+        "locatePath" => crate::remote_files::handle_locate(out, &v),
         // Terminal tab ops (close / rename / pin / restart, and the tab menu's fork /
-        // title / close others) are also frontend pane-tree edits, so they take the
+        // title / close others / keep open) are also frontend pane-tree edits, so they take the
         // same owner-window relay: emit an event the mounted ProjectDetail resolves
         // back to its tab id and runs the normal handler. A restart runs an ended terminal again in its own tab,
         // under a new id the next `terminals` push carries.
@@ -3504,6 +3507,7 @@ fn handle_msg(
         | "forkTerminalCopy"
         | "titleTerminal"
         | "closeOtherTerminals"
+        | "keepTerminal"
         | "moveTerminal"
         | "switchTerminalAccount" => {
             let project = str_field("project").unwrap_or_default();
@@ -3516,6 +3520,7 @@ fn handle_msg(
                 "switchTerminalAccount" => "account",
                 _ => tab_menu::op(t).unwrap_or_default(),
             };
+            let op = tab_menu::when_done(op, &v);
             if !project.is_empty() && !id.is_empty() {
                 let _ = app.emit(
                     "remote-terminal-op",

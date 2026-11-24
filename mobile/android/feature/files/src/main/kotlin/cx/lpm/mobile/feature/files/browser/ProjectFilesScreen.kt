@@ -25,10 +25,12 @@ import cx.lpm.mobile.core.designsystem.component.ListSectionSpacing
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
 import cx.lpm.mobile.core.designsystem.component.SearchField
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.isOutsideProject
+import cx.lpm.mobile.core.model.projectDir
 import cx.lpm.mobile.core.model.projectPath
 import cx.lpm.mobile.feature.files.R
 
-/** What the Files screen's rows and bar do; paths are project-relative. */
+/** What the Files screen's rows and bar do; paths are project-relative, or absolute outside it. */
 @Immutable
 class ProjectFilesActions(
     val back: () -> Unit = {},
@@ -89,7 +91,7 @@ fun ProjectFilesScreen(
                     FolderOverlay(state, actions.retry)
                 }
             } else {
-                GoToFileList(state, actions.openFile)
+                GoToFileList(state, actions)
             }
         }
     }
@@ -117,21 +119,22 @@ private fun FolderList(state: ProjectFilesUiState, dir: String, actions: Project
                 entries.forEach { entry ->
                     key(entry.name) {
                         val path = projectPath(dir, entry.name)
-                        val root = state.root
+                        val outside = isOutsideProject(dir)
+                        val full = if (outside) path else state.root?.let { projectPath(it, path) }
                         ProjectFileRow(
                             entry = entry,
                             actions = FileRowActions(
                                 open = {
                                     if (entry.dir) {
-                                        actions.openFolder(
-                                            path
-                                        )
+                                        actions.openFolder(projectDir(path, state.root))
                                     } else {
                                         actions.openFile(path)
                                     }
                                 },
-                                copyPath = root?.let { { actions.copy(projectPath(it, path)) } },
-                                copyRelativePath = { actions.copy(path) }
+                                // A project folder offers its relative path alone.
+                                copyPath = full?.takeIf { outside || !entry.dir }
+                                    ?.let { { actions.copy(it) } },
+                                copyRelativePath = { actions.copy(path) }.takeIf { !outside }
                             )
                         )
                     }
@@ -161,31 +164,44 @@ private fun FolderOverlay(state: ProjectFilesUiState, onRetry: () -> Unit) {
     }
 }
 
-/** Go to File: the project's files whose path holds the query, or none. */
+/** Go to File: the typed path's own row, then the project's files whose path holds the query, or none. */
 @Composable
-private fun GoToFileList(state: ProjectFilesUiState, onOpen: (String) -> Unit) {
+private fun GoToFileList(state: ProjectFilesUiState, actions: ProjectFilesActions) {
     val hits = state.hits
-    if (hits?.isEmpty() == true) {
+    if (hits?.isEmpty() == true && !state.showsPath) {
         FilesUnavailable(
-            title = stringResource(R.string.files_no_results, state.search),
+            title = if (state.pathMissing) {
+                stringResource(R.string.files_path_missing, state.search)
+            } else {
+                stringResource(R.string.files_no_results, state.search)
+            },
             icon = painterResource(DesignR.drawable.ic_search),
-            description = stringResource(R.string.files_no_results_message)
+            description = stringResource(
+                if (state.pathMissing) {
+                    R.string.files_path_missing_message
+                } else {
+                    R.string.files_no_results_message
+                }
+            )
         )
         return
     }
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = ListDefaults.ContentTopPadding, bottom = 24.dp),
-        userScrollEnabled = hits != null
+        userScrollEnabled = hits != null || state.showsPath
     ) {
         item(key = "hits") {
             ListSection(spacing = ListSectionSpacing.Compact) {
+                if (state.showsPath) {
+                    GoToPathRow(state.located, actions.openFolder, actions.openFile)
+                }
                 if (hits == null) {
                     SearchSkeletonWidths.forEach { FileRowSkeleton(it) }
                     return@ListSection
                 }
                 hits.forEach { hit ->
-                    key(hit.path) { GoToFileRow(hit.path, onOpen = { onOpen(hit.path) }) }
+                    key(hit.path) { GoToFileRow(hit.path, { actions.openFile(hit.path) }) }
                 }
             }
         }

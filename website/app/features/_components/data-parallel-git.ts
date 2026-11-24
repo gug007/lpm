@@ -173,7 +173,7 @@ export const GIT_AREA: FeatureArea = {
     },
     {
       title: "Files tab",
-      body: "A file tree with Git status colors beside a code editor with syntax highlighting. Jump to any file by name and save with ⌘S (Ctrl+S on Windows and Linux).",
+      body: "A file tree with Git status colors beside a code editor with syntax highlighting. Jump to any file by name or path and save with ⌘S (Ctrl+S on Windows and Linux).",
       note: "A lightweight editor, not an IDE.",
       keys: ["⌘⇧E", "⌘P"],
     },

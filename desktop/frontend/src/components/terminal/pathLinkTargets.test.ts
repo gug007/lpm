@@ -5,10 +5,18 @@ const mocks = vi.hoisted(() => ({
   index: [] as string[],
   files: [] as string[],
   openInDefaultApp: false,
+  sshRoot: "",
+  located: {} as Record<string, { kind: string; path: string; rel: string | null }>,
 }));
 
 vi.mock("../../../bridge/commands", () => ({
   FileExists: vi.fn((path: string) => Promise.resolve(mocks.files.includes(path))),
+  FilesExist: vi.fn((_root: string, paths: string[]) =>
+    Promise.resolve(paths.map((path) => mocks.files.includes(path))),
+  ),
+  LocatePath: vi.fn((_root: string, path: string) =>
+    Promise.resolve(mocks.located[path] ?? { kind: "missing", path, rel: null }),
+  ),
   ListDirFiles: vi.fn(() => Promise.resolve(mocks.index.map((path) => ({ path, isDir: false })))),
   OpenPathInDefaultApp: vi.fn(() => Promise.resolve()),
 }));
@@ -18,7 +26,7 @@ vi.mock("../../store/settings", () => ({
   getSettings: () => ({ terminalOpenInDefaultApp: mocks.openInDefaultApp }),
 }));
 
-import { OpenPathInDefaultApp } from "../../../bridge/commands";
+import { FileExists, FilesExist, LocatePath, OpenPathInDefaultApp } from "../../../bridge/commands";
 import { openFileViewer } from "../../store/fileViewer";
 import { registerPathLinkProvider } from "./pathLinkProvider";
 import { forgetFileIndexes } from "./fileIndex";
@@ -54,7 +62,7 @@ async function linksOn(text: string | string[], cwd = "/repo", line = 1): Promis
       return { dispose() {} };
     },
   } as unknown as Terminal;
-  registerPathLinkProvider(term, { getCwd: () => cwd });
+  registerPathLinkProvider(term, { getCwd: () => cwd, getSshRoot: () => mocks.sshRoot });
   return new Promise((resolve) => provider!.provideLinks(line, (links) => resolve(links ?? [])));
 }
 
@@ -70,6 +78,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   forgetFileIndexes();
   mocks.openInDefaultApp = false;
+  mocks.sshRoot = "";
+  mocks.located = {};
   mocks.files = [];
   mocks.index = [
     "desktop/frontend/src/components/FileViewer.tsx",
@@ -199,5 +209,91 @@ describe("paths an agent cut at the right edge", () => {
   it("links nothing when the joined path is not a file", async () => {
     expect(await linksOn(rows, "/repo", 1)).toEqual([]);
     expect(await linksOn(rows, "/repo", 2)).toEqual([]);
+  });
+});
+
+describe("an SSH project's terminal", () => {
+  const cwd = "~/api";
+  beforeEach(() => {
+    mocks.sshRoot = cwd;
+  });
+
+  it("opens a path outside the project on the host", async () => {
+    const path = "/var/log/api/error.log";
+    mocks.located[path] = { kind: "file", path, rel: null };
+    const req = await click(`see ${path}:12`, `${path}:12`, cwd);
+    expect(req).toMatchObject({ absPath: path, line: 12, projectRoot: cwd, onHost: true });
+  });
+
+  it("finds the host's home, not this computer's", async () => {
+    mocks.located["~/.claude/settings.json"] = {
+      kind: "file",
+      path: "/home/deploy/.claude/settings.json",
+      rel: null,
+    };
+    const req = await click("read ~/.claude/settings.json", "~/.claude/settings.json", cwd);
+    expect(req).toMatchObject({ absPath: "/home/deploy/.claude/settings.json", onHost: true });
+  });
+
+  it("opens the project's own file by another spelling of its folder", async () => {
+    const path = "/home/deploy/api/src/a.ts";
+    mocks.located[path] = { kind: "file", path, rel: "src/a.ts" };
+    const req = await click(`at ${path}`, path, cwd);
+    expect(req).toMatchObject({ absPath: "~/api/src/a.ts", projectRoot: cwd });
+  });
+
+  it("opens a project file without asking the host where it is", async () => {
+    const req = await click("edit src/a.ts", "src/a.ts", cwd);
+    expect(req).toMatchObject({ absPath: "~/api/src/a.ts", onHost: true });
+    expect(LocatePath).not.toHaveBeenCalled();
+  });
+
+  it("reads a relative path from a service's own folder", async () => {
+    mocks.index = [];
+    mocks.located["~/api/web/src/b.ts"] = {
+      kind: "file",
+      path: "/home/deploy/api/web/src/b.ts",
+      rel: "web/src/b.ts",
+    };
+    const req = await click("edit src/b.ts", "src/b.ts", "~/api/web");
+    expect(req).toMatchObject({ absPath: "~/api/web/src/b.ts", projectRoot: cwd });
+  });
+
+  it("opens what the host lacks as printed, for the viewer to say so", async () => {
+    const req = await click("at /srv/gone.ts", "/srv/gone.ts", cwd);
+    expect(req).toMatchObject({ absPath: "/srv/gone.ts", onHost: true });
+  });
+
+  it("opens as printed when the host can't be asked", async () => {
+    vi.mocked(LocatePath).mockRejectedValueOnce("ssh: connect to host timed out");
+    const req = await click("at /srv/api.log", "/srv/api.log", cwd);
+    expect(req).toMatchObject({ absPath: "/srv/api.log", onHost: true });
+  });
+
+  it("never hands a host's path to an app here", async () => {
+    mocks.openInDefaultApp = true;
+    await click("wrote /var/log/app.log", "/var/log/app.log", cwd);
+    expect(OpenPathInDefaultApp).not.toHaveBeenCalled();
+  });
+
+  it("links a path with spaces the host has, asking once for its readings", async () => {
+    const path = "/srv/exports/Q3 Report (final, v2).csv";
+    mocks.files = [path];
+    const links = await linksOn(`saved ${path}`, cwd);
+    expect(links.map((l) => l.text)).toEqual([path]);
+    expect(FilesExist).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(FilesExist).mock.calls[0][0]).toBe(cwd);
+    expect(FileExists).not.toHaveBeenCalled();
+    await linksOn(`saved ${path}`, cwd);
+    expect(FilesExist).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens a connected computer's SSH project there", async () => {
+    const root = "/@peer-abcd1234~/api";
+    mocks.sshRoot = root;
+    const marked = "/@peer-abcd1234/var/log/api.log";
+    mocks.located[marked] = { kind: "file", path: marked, rel: null };
+    const req = await click("see /var/log/api.log", "/var/log/api.log", root);
+    expect(req).toMatchObject({ absPath: marked, projectRoot: root, onHost: true });
   });
 });

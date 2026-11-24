@@ -19,6 +19,7 @@ import {
   splitAtPane,
 } from "../../paneTree";
 import { pickTerminalLabel } from "../../terminalLabels";
+import { withoutCloseWhenDone } from "../../closeWhenDone";
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { tellHost } from "../../peer/tellHost";
 import { nextId } from "./util";
@@ -164,7 +165,7 @@ export function usePaneOps({
       const next = mapPane(current, paneId, (p) => ({
         ...p,
         tabs: p.tabs.map((t, i) =>
-          i === tabIdx ? { ...t, pinned: !t.pinned } : t,
+          i === tabIdx ? { ...withoutCloseWhenDone(t), pinned: !t.pinned } : t,
         ),
       }));
       applyTree(next);

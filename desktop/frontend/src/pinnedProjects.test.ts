@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { jumpTargets, reorderPins, shownPins, withPin } from "./pinnedProjects";
+import { jumpTargets, reorderPins, shownPins, withPin, withPinAt } from "./pinnedProjects";
 
 describe("shownPins", () => {
   it("keeps pinned order and drops pins with no project", () => {
@@ -27,6 +27,18 @@ describe("withPin", () => {
   it("removes a pin and clears the setting when the last one goes", () => {
     expect(withPin(["web", "api"], "web", false)).toEqual(["api"]);
     expect(withPin(["web"], "web", false)).toBeUndefined();
+  });
+});
+
+describe("withPinAt", () => {
+  it("puts an unpinned project back where it was", () => {
+    expect(withPinAt(["web", "docs"], "api", 1)).toEqual(["web", "api", "docs"]);
+    expect(withPinAt(undefined, "api", 0)).toEqual(["api"]);
+  });
+
+  it("moves it there when it was pinned again meanwhile, and goes last when the list got shorter", () => {
+    expect(withPinAt(["web", "api"], "api", 0)).toEqual(["api", "web"]);
+    expect(withPinAt(["web"], "api", 4)).toEqual(["web", "api"]);
   });
 });
 

@@ -51,6 +51,7 @@ fn only_answering_replying_pairing_starting_tasks_and_reaching_other_computers_a
         "set_status",
         "rename_project",
         "set_project_status",
+        "close_tab",
         "list_jobs",
         "run_job",
         "ping",

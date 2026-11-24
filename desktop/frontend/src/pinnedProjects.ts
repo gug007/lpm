@@ -17,6 +17,12 @@ export function withPin(
   return next.length > 0 ? next : undefined;
 }
 
+/** `pins` with `name` back at `index`, where it was before it was unpinned. */
+export function withPinAt(pins: readonly string[] | undefined, name: string, index: number): string[] {
+  const rest = (pins ?? []).filter((n) => n !== name);
+  return [...rest.slice(0, index), name, ...rest.slice(index)];
+}
+
 /** The pins after the shown ones were dragged into `order`; pins with nothing
  *  to show keep their places at the end. */
 export function reorderPins(pins: readonly string[] | undefined, order: readonly string[]): string[] {

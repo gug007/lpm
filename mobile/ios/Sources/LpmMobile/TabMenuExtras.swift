@@ -62,6 +62,16 @@ private struct TabMenuConfirmations: ViewModifier {
 
     private var othersCount: Int { closingOthers.map { model.otherClosableTerminals($0).count } ?? 0 }
     private var othersNoun: String { othersCount == 1 ? "Tab" : "Tabs" }
+    private var othersBusy: Int {
+        closingOthers.map { model.otherClosableTerminals($0).reduce(0) { $0 + model.busyAgents(in: $1) } } ?? 0
+    }
+    private var busyNote: String {
+        switch othersBusy {
+        case 0: ""
+        case 1: "An agent is still working. "
+        default: "\(othersBusy) agents are still working. "
+        }
+    }
 
     func body(content: Content) -> some View {
         content
@@ -81,13 +91,19 @@ private struct TabMenuConfirmations: ViewModifier {
                                 isPresented: Binding(get: { closingOthers != nil },
                                                      set: { if !$0 { closingOthers = nil } }),
                                 titleVisibility: .visible, presenting: closingOthers) { t in
+                if othersBusy > 0 && model.canCloseWhenDone {
+                    Button("Close When Done") {
+                        Haptics.tap()
+                        withAnimation { model.closeOtherTerminals(keeping: t, whenDone: true) }
+                    }
+                }
                 Button("Close \(othersCount) \(othersNoun)", role: .destructive) {
                     Haptics.warning()
                     withAnimation { model.closeOtherTerminals(keeping: t) }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: { _ in
-                Text("Whatever is running in them stops. Pinned tabs stay open.")
+                Text(busyNote + "Whatever is running in them stops. Pinned tabs stay open.")
             }
     }
 }

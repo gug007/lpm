@@ -9,8 +9,7 @@ import {
   requestQuit,
   useQuitGuard,
 } from "../quitGuard";
-import { useAppStore } from "../store/app";
-import { useGlobalAgentStatus } from "../store/globalAgentStatus";
+import { onStatusEntriesChange } from "../projectStatusEntries";
 import { QuitBusyAgentsDialog } from "./QuitBusyAgentsDialog";
 
 /** The app menu's Quit, asked here first: agents mid-task are listed and the
@@ -32,16 +31,7 @@ export function QuitGuardHost() {
   useEffect(() => {
     if (!waiting) return;
     checkWaitingToQuit();
-    const offProjects = useAppStore.subscribe((s, prev) => {
-      if (s.projects !== prev.projects) checkWaitingToQuit();
-    });
-    const offTerminals = useGlobalAgentStatus.subscribe((s, prev) => {
-      if (s.entries !== prev.entries) checkWaitingToQuit();
-    });
-    return () => {
-      offProjects();
-      offTerminals();
-    };
+    return onStatusEntriesChange(checkWaitingToQuit);
   }, [waiting]);
 
   return (

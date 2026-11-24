@@ -90,6 +90,7 @@ final class LpmClient: NSObject {
     var onAgentOptions: ((_ agents: [AgentOption]) -> Void)?
     var onAgentSessions: ((AgentSessionsPage) -> Void)?
     var onListDir: ((ProjectDirContents) -> Void)?
+    var onLocatePath: ((LocatedPath) -> Void)?
     // Git review replies, one callback per request kind. `error` is nil on
     // success; a nil `snapshot` means the `git` request hard-failed.
     var onGit: ((_ project: String, _ snapshot: GitSnapshot?, _ error: String?) -> Void)?
@@ -300,8 +301,10 @@ final class LpmClient: NSObject {
     static let agentSessionsFeature = "agentSessions"
     static let actionPromptFeature = "actionPrompt"
     static let listDirFeature = "listDir"
+    static let locatePathFeature = "locatePath"
     static let tabMenuFeature = "tabMenu"
     static let moveTabFeature = "moveTab"
+    static let closeWhenDoneFeature = "closeWhenDone"
     static let tabAccountFeature = "tabAccount"
     static let answerAgentFeature = "answerAgent"
     static let liveActivityFeature = "liveActivity"
@@ -576,8 +579,8 @@ final class LpmClient: NSObject {
                 "features": [ChunkedUpload.feature, Self.serviceLogsWatchFeature, Self.agentAnswersFeature,
                              Self.agentConversationFeature,
                              Self.restartTerminalFeature, Self.agentLaunchFeature, Self.agentSessionsFeature,
-                             Self.actionPromptFeature, Self.listDirFeature, Self.tabMenuFeature,
-                             Self.moveTabFeature,
+                             Self.actionPromptFeature, Self.listDirFeature, Self.locatePathFeature, Self.tabMenuFeature,
+                             Self.moveTabFeature, Self.closeWhenDoneFeature,
                              Self.tabAccountFeature,
                              Self.weeklyRecapFeature, Self.recapMonthFeature, Self.agentArchiveFeature,
                              Self.limitRemindersFeature, Self.readUsageFeature, Self.projectPinsFeature, Self.gitHistoryFeature,
@@ -1095,7 +1098,11 @@ final class LpmClient: NSObject {
                                 sessionId: session.sessionId, title: session.title))
     }
     func requestListDir(project: String, dir: String) { send(Wire.listDir(project: project, dir: dir)) }
-    func closeTerminal(project: String, id: String) { send(Wire.closeTerminal(project: project, id: id)) }
+    func requestLocatePath(project: String, path: String) { send(Wire.locatePath(project: project, path: path)) }
+    func closeTerminal(project: String, id: String, whenDone: Bool = false) {
+        send(Wire.closeTerminal(project: project, id: id, whenDone: whenDone))
+    }
+    func keepTerminal(project: String, id: String) { send(Wire.keepTerminal(project: project, id: id)) }
     func renameTerminal(project: String, id: String, label: String) {
         send(Wire.renameTerminal(project: project, id: id, label: label))
     }
@@ -1113,8 +1120,8 @@ final class LpmClient: NSObject {
         send(Wire.moveTerminal(project: project, id: id, to: to))
     }
     func titleTerminal(project: String, id: String) { send(Wire.titleTerminal(project: project, id: id)) }
-    func closeOtherTerminals(project: String, id: String) {
-        send(Wire.closeOtherTerminals(project: project, id: id))
+    func closeOtherTerminals(project: String, id: String, whenDone: Bool = false) {
+        send(Wire.closeOtherTerminals(project: project, id: id, whenDone: whenDone))
     }
     func reorderTerminals(project: String, order: [String]) {
         send(Wire.reorderTerminals(project: project, order: order))
@@ -1696,6 +1703,7 @@ final class LpmClient: NSObject {
             case .agentOptions(let agents): self.onAgentOptions?(agents)
             case .agentSessions(let page): self.onAgentSessions?(page)
             case .listDir(let contents): self.onListDir?(contents)
+            case .locatePath(let located): self.onLocatePath?(located)
             case .serviceOp(let error):
                 if let error { self.onActionError?(error) } else { self.onProjectsChanged?() }
             case .projectsChanged: self.onProjectsChanged?()

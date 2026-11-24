@@ -7,6 +7,8 @@ const ICON_BUTTON =
 
 interface FileViewerCompactHeaderProps {
   absPath: string;
+  // The SSH host the file is on.
+  hostName?: string;
   meta: string | null;
   mode: "minimized" | "docked";
   onModeChange: (mode: FileViewerMode) => void;
@@ -17,6 +19,7 @@ interface FileViewerCompactHeaderProps {
 // one or back to the full viewer from here.
 export function FileViewerCompactHeader({
   absPath,
+  hostName,
   meta,
   mode,
   onModeChange,
@@ -33,6 +36,9 @@ export function FileViewerCompactHeader({
       <span title={absPath} className="min-w-0 truncate text-[12px] font-semibold text-[var(--text-primary)]">
         {basename(absPath)}
       </span>
+      {hostName && !minimized && (
+        <span className="shrink-0 text-[11px] text-[var(--accent-cyan)]">On {hostName}</span>
+      )}
       {meta && !minimized && (
         <span className="shrink-0 font-mono text-[11px] text-[var(--text-muted)]">{meta}</span>
       )}

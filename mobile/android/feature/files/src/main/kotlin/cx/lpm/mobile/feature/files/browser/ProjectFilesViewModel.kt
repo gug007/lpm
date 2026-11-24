@@ -6,6 +6,8 @@ import cx.lpm.mobile.core.data.files.ProjectFilesStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
+import cx.lpm.mobile.core.model.LocatedKind
+import cx.lpm.mobile.core.model.LocatedPath
 import cx.lpm.mobile.core.model.MentionEntry
 import cx.lpm.mobile.core.model.ProjectFileEntry
 import cx.lpm.mobile.core.model.trimmingWhitespace
@@ -15,6 +17,8 @@ import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +26,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 data class ProjectFilesUiState(
     /** The folder's name; empty for the project's own folder ("Files"). */
@@ -33,10 +38,22 @@ data class ProjectFilesUiState(
     val root: String? = null,
     val query: String = "",
     /** Go to File's results; null while the project's file index loads. */
-    val hits: List<MentionEntry>? = null
+    val hits: List<MentionEntry>? = null,
+    /** The query when it is a path the Mac can be asked about. */
+    val path: String? = null,
+    /** Where [path] leads; null until the Mac has said. */
+    val located: LocatedPath? = null
 ) {
     /** The trimmed query; while it holds anything, Go to File's results replace the folder. */
     val search: String get() = query.trimmingWhitespace()
+
+    /** [path] gets a row of its own above the results: it's being looked for, or is there. */
+    val showsPath: Boolean
+        get() = path != null &&
+            (located == null || located.kind == LocatedKind.FILE || located.kind == LocatedKind.DIR)
+
+    /** [path] leads nowhere. */
+    val pathMissing: Boolean get() = path != null && located?.kind == LocatedKind.MISSING
 }
 
 /**
@@ -52,6 +69,7 @@ class ProjectFilesViewModel @AssistedInject constructor(
 ) : ViewModel() {
     private val session: MacSession? get() = sessions[key.session]
     private val query = MutableStateFlow("")
+    private var locating: Job? = null
 
     val uiState: StateFlow<ProjectFilesUiState> = sessions.session(key.session)
         .flatMapLatest { s -> s?.let(::filesState) ?: flowOf(ProjectFilesUiState()) }
@@ -64,8 +82,9 @@ class ProjectFilesViewModel @AssistedInject constructor(
     ) { files, terminals, query ->
         val folder = files.folder(key.project, key.dir)
         val search = query.trimmingWhitespace()
+        val path = typedPath(query)?.takeIf { s.store<ProjectFilesStore>().canLocatePaths }
         ProjectFilesUiState(
-            folderName = fileName(key.dir),
+            folderName = fileName(key.dir).ifEmpty { key.dir },
             entries = folder.entries,
             error = folder.error,
             root = files.roots[key.project],
@@ -74,7 +93,9 @@ class ProjectFilesViewModel @AssistedInject constructor(
                 null
             } else {
                 terminals.mentions[key.project]?.let { goToFileMatches(it, search) }
-            }
+            },
+            path = path,
+            located = path?.let { files.located(key.project, it) }
         )
     }
 
@@ -95,10 +116,21 @@ class ProjectFilesViewModel @AssistedInject constructor(
 
     fun setQuery(text: String) {
         query.value = text
+        locating?.cancel()
+        val store = session?.store<ProjectFilesStore>() ?: return
+        val path = typedPath(text)?.takeIf { store.canLocatePaths } ?: return
+        locating = viewModelScope.launch {
+            delay(LOCATE_PAUSE_MS)
+            store.locate(key.project, path)
+        }
     }
 
     @AssistedFactory
     interface Factory {
         fun create(key: ProjectFilesKey): ProjectFilesViewModel
+    }
+
+    private companion object {
+        const val LOCATE_PAUSE_MS = 250L
     }
 }

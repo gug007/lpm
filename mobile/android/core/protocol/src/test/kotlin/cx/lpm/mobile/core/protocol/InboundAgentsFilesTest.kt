@@ -2,6 +2,7 @@ package cx.lpm.mobile.core.protocol
 
 import cx.lpm.mobile.core.model.AgentEffortOption
 import cx.lpm.mobile.core.model.AgentSession
+import cx.lpm.mobile.core.model.LocatedKind
 import cx.lpm.mobile.core.model.ProjectFileEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -136,5 +137,33 @@ class InboundAgentsFilesTest {
         assertNull(contents.entries)
         assertEquals("No such folder", contents.error)
         assertNull(contents.root)
+    }
+
+    @Test
+    fun locatePath() {
+        val inside = decode<Inbound.LocatePath>(
+            """{ "t": "locatePath", "project": "storefront", "path": "./src", "ok": true,
+                 "kind": "dir", "at": "/Users/me/dev/storefront/src", "rel": "src" }"""
+        ).located
+        assertEquals(LocatedKind.DIR, inside.kind)
+        assertEquals("./src", inside.typed)
+        assertEquals("src", inside.rel)
+
+        val outside = decode<Inbound.LocatePath>(
+            """{ "t": "locatePath", "project": "storefront", "path": "/etc/hosts", "ok": true,
+                 "kind": "file", "at": "/etc/hosts", "rel": null }"""
+        ).located
+        assertEquals(LocatedKind.FILE, outside.kind)
+        assertEquals("/etc/hosts", outside.path)
+        assertNull(outside.rel)
+    }
+
+    @Test
+    fun locatePathFailure() {
+        val failed = decode<Inbound.LocatePath>(
+            """{ "t": "locatePath", "project": "gone", "path": "/x", "ok": false, "error": "no such project" }"""
+        ).located
+        assertNull(failed.kind)
+        assertEquals("/x", failed.typed)
     }
 }

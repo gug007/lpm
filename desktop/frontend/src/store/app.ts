@@ -127,6 +127,9 @@ export type RemoteTerminalOp =
   | "fork"
   | "forkCopy"
   | "closeOthers"
+  | "closeWhenDone"
+  | "closeOthersWhenDone"
+  | "keepOpen"
   | "copyAnswer"
   | "account"
   | "move";

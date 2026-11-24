@@ -159,6 +159,8 @@ struct DemoWorld {
         var tabKey: String?
         // A Claude tab whose turn stopped at a usage limit, as the Mac lists it.
         var limitStop: [String: Any]?
+        // Waits for its agent, then closes.
+        var closesWhenDone = false
     }
 
     var terminals: [String: [Terminal]] = [:] // project -> terminals
@@ -792,6 +794,7 @@ extension DemoWorld {
             "pinned": t.pinned, "emoji": t.emoji, "cli": t.cli,
             "canFork": agent, "canForkCopy": agent && !t.remote,
             "canTitle": agent && t.label != Self.conversationTitle,
+            "closesWhenDone": t.closesWhenDone,
             "canSwitchAccount": agent && !t.remote,
         ]
         if agent && !t.remote { d["claudeAccount"] = t.claudeAccount }

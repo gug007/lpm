@@ -347,6 +347,10 @@
 {"at": 43000, "frame": {"t": "ciFixLoop", "project": "api-gateway", "on": false}}
 {"at": 43500, "frame": {"t": "gitChecks", "project": "api-gateway"}}
 {"at": 43500, "frame": {"t": "ciFixLoop", "project": "nope", "on": false}}
+{"at": 44150, "frame": {"t": "closeTerminal", "project": "storefront", "id": "demo-storefront-claude", "whenDone": true}}
+{"at": 44160, "frame": {"t": "keepTerminal", "project": "storefront", "id": "demo-storefront-claude"}}
+{"at": 44160, "frame": {"t": "keepTerminal", "project": "storefront", "id": "nope"}}
+{"at": 44170, "frame": {"t": "closeOtherTerminals", "project": "storefront", "id": "nope", "whenDone": true}}
 {"at": 44400, "frame": {"t": "agentDialog", "project": "storefront", "terminalId": "demo-storefront-claude"}}
 {"at": 44400, "frame": {"t": "agentDialog", "project": "storefront", "terminalId": "demo-storefront-1", "reqId": "d1"}}
 {"at": 44400, "frame": {"t": "agentDialog", "project": "nope", "terminalId": "x"}}
@@ -732,10 +736,33 @@
 {"at": 77000, "frame": {"t": "agentSessions", "project": "blog"}}
 {"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": ""}}
 {"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": "app"}}
-{"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": "/components/"}}
+{"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": "components/"}}
 {"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": "node_modules"}}
 {"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": "nope"}}
+{"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": "/Users/demo"}}
+{"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": "/Users/demo/dev"}}
+{"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": "/Users/demo/dev/api-gateway"}}
+{"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": "/Users/demo/dev/api-gateway/go.mod"}}
+{"at": 77000, "frame": {"t": "listDir", "project": "storefront", "dir": "/etc"}}
 {"at": 77000, "frame": {"t": "listDir", "project": "blog", "dir": ""}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "/Users/demo/dev/storefront/package.json"}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "~/dev/storefront/components"}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "./app"}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "."}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "/Users/demo/dev/storefront"}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "./app/../package.json"}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "../storefront/components/"}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "/etc/hosts"}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "/Users/demo/dev/storefront2"}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "/api"}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "../../../../.."}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "~/"}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "../"}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "../api-gateway/"}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "~/dev/api-gateway/go.mod"}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront", "path": "~/dev/api-gateway/nope"}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "nope", "path": "/x"}}
+{"at": 77000, "frame": {"t": "locatePath", "project": "storefront"}}
 {"at": 77100, "frame": {"t": "newTerminal", "project": "storefront", "agent": "claude", "model": "opus", "effort": "high", "prompt": "Fix the tax rounding\nThen run the tests"}}
 {"at": 77100, "frame": {"t": "newTerminal", "project": "storefront", "agent": "codex", "model": "", "effort": "", "prompt": ""}}
 {"at": 77100, "frame": {"t": "newTerminal", "project": "storefront", "agent": "nope"}}

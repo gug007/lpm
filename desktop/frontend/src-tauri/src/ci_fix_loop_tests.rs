@@ -73,6 +73,45 @@ fn a_question_outranks_work_and_a_finish_counts_from_this_round_on() {
 }
 
 #[test]
+fn a_failure_is_typed_only_where_the_agent_still_is() {
+    let nothing_reported: &[StatusEntry] = &[];
+    let unseen_finish = &[entry("codex_t1", "Done", "t1", 500)];
+    for entries in [nothing_reported, unseen_finish] {
+        for since in [400, 600] {
+            let given = |at_prompt| {
+                hand_over(&read_agent(entries, "t1", since, at_prompt), at_prompt, "Codex")
+            };
+            assert_eq!(given(Some(false)), Handover::Send);
+            assert_eq!(
+                given(Some(true)),
+                Handover::Stop("Codex quit, so the next failure can't go to it.".into())
+            );
+            assert!(
+                matches!(given(None), Handover::Stop(_)),
+                "a finish it reported doesn't show it's still there"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_failure_waits_for_an_agent_at_work_and_stops_at_a_question() {
+    let working = [entry("codex_t1", "Running", "t1", 10)];
+    for at_prompt in [Some(false), Some(true), None] {
+        let now = read_agent(&working, "t1", 0, at_prompt);
+        assert_eq!(hand_over(&now, at_prompt, "Codex"), Handover::Wait);
+    }
+    assert_eq!(
+        hand_over(&Agent::Waiting, Some(false), "Codex"),
+        Handover::Stop("Codex is asking you something.".into())
+    );
+    assert_eq!(
+        hand_over(&Agent::Gone, None, "Codex"),
+        Handover::Stop("The Codex tab was closed.".into())
+    );
+}
+
+#[test]
 fn waiting_for_the_push_ends_only_when_the_agent_cant_get_there() {
     let minute = Duration::from_secs(60);
     let now = 10 * 60 * 1000;

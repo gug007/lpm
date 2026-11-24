@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- SignPath artifact configuration "installer" for release.yml's Sign installer step. -->
+<!-- SignPath artifact configuration "installer" for release.yml's Sign installer
+     step, which passes the version. SignPath refuses a file whose product name or
+     version differs. -->
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
   <zip-file>
-    <pe-file path="lpm-desktop-windows-amd64-setup.exe" product-name="lpm">
+    <pe-file path="lpm-desktop-windows-amd64-setup.exe" product-name="lpm" product-version="${version}">
       <authenticode-sign />
     </pe-file>
   </zip-file>

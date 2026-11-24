@@ -28,6 +28,7 @@ export interface RemoteTab {
   canForkCopy: boolean;
   canTitle: boolean;
   canSwitchAccount: boolean;
+  closesWhenDone: boolean;
   switchingTo: string | null;
   switchedFrom: string | null;
 }
@@ -60,6 +61,7 @@ export function remoteTabOf(
     canForkCopy: canFork && sessionsReachable,
     canTitle: !followsAgentTitle(t) && !!session,
     canSwitchAccount: local && isClaudeTab(t),
+    closesWhenDone: t.closeWhenDone !== undefined,
     switchingTo: move?.to ?? null,
     switchedFrom: move && move.from !== t.id ? move.from : null,
   };
@@ -83,6 +85,7 @@ export function sameRemoteTabs(a: RemoteTab[], b: RemoteTab[]): boolean {
         p.canForkCopy === b[i].canForkCopy &&
         p.canTitle === b[i].canTitle &&
         p.canSwitchAccount === b[i].canSwitchAccount &&
+        p.closesWhenDone === b[i].closesWhenDone &&
         p.switchingTo === b[i].switchingTo &&
         p.switchedFrom === b[i].switchedFrom,
     )

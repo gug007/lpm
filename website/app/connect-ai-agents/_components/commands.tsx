@@ -46,6 +46,9 @@ export default function Commands() {
             <Comment># Open Claude Code in a new lpm terminal with a prompt</Comment>
             {"\n"}lpm run claude --prompt &quot;fix the failing spec&quot;
             {"\n\n"}
+            <Comment># Close the tab it opened once that agent is done</Comment>
+            {"\n"}lpm close myapp-1795290097781 --when-done
+            {"\n\n"}
             <Comment># Flag the project as waiting on you in the sidebar</Comment>
             {"\n"}lpm set-status review Waiting
           </CodeBlock>

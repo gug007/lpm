@@ -179,6 +179,14 @@ export function dirname(p: string, win = isWindows): string {
   return cut > 0 ? p.slice(0, cut) : root || "/";
 }
 
+// The folder holding an absolute path, null at the top of a filesystem. A paired
+// host's bare `/` or `~` keeps the separator its marker needs to route there.
+export function folderAbove(p: string): string | null {
+  const dir = dirname(p);
+  const above = isPeerRoot(p) && !isPeerRoot(dir) ? `${dir}/` : dir;
+  return above === p ? null : above;
+}
+
 // An absolute path as its filesystem root plus the rest in `/` form, so links
 // in a file outside any project resolve against that root.
 export function splitRoot(p: string, win = isWindows): { root: string; rest: string } {

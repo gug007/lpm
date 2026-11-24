@@ -7,7 +7,7 @@ import UIKit
 struct ProjectFilesScreen: View {
     @Environment(AppModel.self) private var model
     let project: Project
-    /// Project-relative; empty for the project's own folder.
+    /// Project-relative; empty for the project's own folder, absolute for one outside it.
     var dir = ""
 
     @State private var query = ""
@@ -15,6 +15,7 @@ struct ProjectFilesScreen: View {
 
     private var listing: ProjectFolderListing { model.projectFiles.folder(project.name, dir) }
     private var root: String? { model.projectFiles.roots[project.name] }
+    private var outside: Bool { isOutsideProject(dir) }
     private var search: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
@@ -22,7 +23,7 @@ struct ProjectFilesScreen: View {
             if search.isEmpty {
                 folderList
             } else {
-                GoToFileResults(project: project.name, query: search, onOpen: open)
+                GoToFileResults(project: project, query: search, onOpen: open)
             }
         }
         .navigationTitle(dir.isEmpty ? "Files" : (dir as NSString).lastPathComponent)
@@ -42,22 +43,24 @@ struct ProjectFilesScreen: View {
                     let path = projectPath(dir, entry.name)
                     if entry.dir {
                         NavigationLink {
-                            ProjectFilesScreen(project: project, dir: path)
+                            ProjectFilesScreen(project: project, dir: projectDir(path, root: root))
                         } label: {
                             ProjectFileRow(entry: entry)
                         }
-                        .contextMenu { copyRelativePath(path) }
+                        .contextMenu {
+                            if outside { copyPath(path) } else { copyRelativePath(path) }
+                        }
                         .compactRow()
                     } else {
                         Button { open(path) } label: { ProjectFileRow(entry: entry) }
                             .contextMenu {
                                 Button { open(path) } label: { Label("Preview", systemImage: "eye") }
-                                if let root {
-                                    Button { UIPasteboard.general.string = projectPath(root, path) } label: {
-                                        Label("Copy Path", systemImage: "doc.on.doc")
-                                    }
+                                if outside {
+                                    copyPath(path)
+                                } else {
+                                    if let root { copyPath(projectPath(root, path)) }
+                                    copyRelativePath(path)
                                 }
-                                copyRelativePath(path)
                             }
                             .compactRow()
                     }
@@ -83,6 +86,12 @@ struct ProjectFilesScreen: View {
             } else if listing.entries?.isEmpty == true {
                 ContentUnavailableView("Empty Folder", systemImage: "folder")
             }
+        }
+    }
+
+    private func copyPath(_ path: String) -> some View {
+        Button { UIPasteboard.general.string = path } label: {
+            Label("Copy Path", systemImage: "doc.on.doc")
         }
     }
 

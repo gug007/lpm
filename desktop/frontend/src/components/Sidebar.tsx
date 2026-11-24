@@ -17,7 +17,7 @@ import { ProjectStatusLight } from "./ProjectStatusLight";
 import { projectNoteLine } from "./projectNoteLine";
 import { RowMenuButton } from "./RowMenuButton";
 import { getSettings, saveSettings, useSettingsStore } from "../store/settings";
-import { useAppStore } from "../store/app";
+import { type RemoteTerminalOp, useAppStore } from "../store/app";
 import { useTabShares } from "../store/tabShares";
 import { pickClaudeAccount } from "../store/claudeAccountPick";
 import { openClaudeAccountSettings } from "../store/claudeAccountPin";
@@ -38,6 +38,7 @@ import { computeProjectStatus, rowNameClass } from "../agentStatus";
 import { agentOnScreen, sidebarProjectAlert, type SidebarAgentRow } from "../sidebarAgents";
 import { sidebarAgentRows } from "../sidebarSeenAgents";
 import { hiddenKeys, useArchivingAgents } from "../agentArchive";
+import { askClose, busyInRow } from "../closeGuard";
 import { useArchiveAgentShortcut } from "../hooks/useArchiveAgentShortcut";
 import { useCollapsedAgents, useCollapsedDecks } from "../sidebarCollapsed";
 import { SidebarAgentChevron } from "./SidebarAgentChevron";
@@ -170,7 +171,7 @@ import { peerAlias, usePeerState } from "../peer/usePeerState";
 import { useMacUpdateWatch } from "../peer/useMacUpdateWatch";
 import { SidebarSendLaterMark } from "./SidebarSendLaterMark";
 import { SidebarPinned } from "./SidebarPinned";
-import { reorderPinned, togglePinned, usePinnedProjects } from "../hooks/usePinnedProjects";
+import { reorderPinned, togglePinned, togglePinnedWithUndo, usePinnedProjects } from "../hooks/usePinnedProjects";
 import { askArchiveProject } from "../store/projectArchive";
 import { openReleasePage, UPDATES_INSTALL_IN_APP } from "../releasePage";
 import { checkForUpdate, noteUpdateCheck, useUpdateCheck } from "../store/updateCheck";
@@ -374,7 +375,16 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
         });
         return;
       }
-      useAppStore.getState().triggerRemoteTerminalOp(projectName, action, id, "", []);
+      const run = (op: RemoteTerminalOp) =>
+        useAppStore.getState().triggerRemoteTerminalOp(projectName, op, id, "", []);
+      const busy = action === "close" ? busyInRow(agent) : null;
+      if (!busy) return run(action);
+      askClose({
+        what: "tab",
+        agents: [busy],
+        closeNow: () => run("close"),
+        closeWhenDone: () => run("closeWhenDone"),
+      });
     },
     [],
   );
@@ -794,13 +804,24 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
     selectMode && !contextMenu && !groupMenu && !selectionBarMenu,
   );
 
-  const { renameShortcut, deleteShortcut } = useSidebarProjectKeys({
+  const { renameShortcut, duplicateShortcut, pinShortcut, deleteShortcut } = useSidebarProjectKeys({
     selected,
     menuTarget: contextMenu?.name ?? null,
     onRename: (name) => {
       if (selectMode || !allByName.has(name)) return;
       setContextMenu(null);
       setRenamingName(name);
+    },
+    onDuplicate: (name) => {
+      if (selectMode || !allByName.has(name) || removingNames.has(name)) return;
+      setContextMenu(null);
+      setBulkDuplicate({ name, mode: "copy" });
+    },
+    onTogglePin: (name) => {
+      const project = allByName.get(name);
+      if (selectMode || !project) return;
+      setContextMenu(null);
+      togglePinnedWithUndo(name, projectDisplayName(project, findParentProject(project, projects)));
     },
     onDelete: (name) => {
       setContextMenu(null);
@@ -1930,6 +1951,8 @@ export function Sidebar({ projects, groups, sidebarOrder, selected, collapsed, o
             }
             onRename={() => setRenamingName(contextMenu.name)}
             renameShortcut={renameShortcut}
+            duplicateShortcut={duplicateShortcut}
+            pinShortcut={pinShortcut}
             deleteShortcut={deleteShortcut}
             workStatus={contextProject?.workStatus}
             customWorkStatuses={customWorkStatuses}

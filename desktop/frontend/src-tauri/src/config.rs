@@ -2707,6 +2707,9 @@ fn to_project_info(
         "worktree": yaml.worktree,
         "isRemote": is_remote,
     });
+    if is_remote {
+        info["sshHost"] = json!(ssh.host);
+    }
     if let Some(branch) = own_worktree_branch(yaml.worktree_branch.as_ref()) {
         info["worktreeBranch"] = json!(branch);
     }

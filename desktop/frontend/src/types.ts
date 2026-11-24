@@ -186,6 +186,7 @@ export interface ActionInfo {
 export type SpawnTask =
   // `fixedAccount`: a scheduled job's run, which never switches Claude accounts.
   // `agentOnly`: the prompt holds someone else's text (see spawnPrompt).
+  // `request`: an `lpm run` waiting to hear which tab it opened (openedTab.ts).
   | {
       kind: "action";
       actionName: string;
@@ -193,6 +194,7 @@ export type SpawnTask =
       agentOnly?: boolean;
       launchModel?: ModelPick;
       fixedAccount?: boolean;
+      request?: number;
     }
   | {
       kind: "command";
@@ -200,6 +202,7 @@ export type SpawnTask =
       prompt?: string | string[];
       agentOnly?: boolean;
       launchModel?: ModelPick;
+      request?: number;
     }
   // Continue an agent conversation in a new tab: a fork in a copy, an automation
   // run taken over, or a session handed to the same project on another
@@ -287,6 +290,9 @@ export interface ProjectInfo {
   statusEntries: StatusEntry[];
   // Finished agents already opened, kept until archived (status/seen.rs).
   seenEntries?: StatusEntry[];
+  // A connected computer that isn't answering: what its agents do now isn't
+  // known, whatever the two lists above hold.
+  statusUnknown?: boolean;
   configError?: string;
   // Actions left out because they don't parse, each naming where and why.
   actionErrors?: string[];
@@ -299,6 +305,9 @@ export interface ProjectInfo {
   // started from an issue.
   worktreeBranch?: string;
   isRemote: boolean;
+  // The SSH host a remote project is on, as its config names it. Absent from a
+  // connected computer too old to say.
+  sshHost?: string;
   // An archived project opened for now: listed by this window only, under
   // "From the Archive", and still archived everywhere else.
   archived?: boolean;

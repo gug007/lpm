@@ -73,6 +73,8 @@ interface ProjectContextMenuProps extends ProjectMoreSubmenuProps {
   onArchive?: () => void;
   onRename: () => void;
   renameShortcut?: string;
+  duplicateShortcut?: string;
+  pinShortcut?: string;
   deleteShortcut?: string;
   onBulkDuplicate: () => void;
   onWorktree: () => void;
@@ -122,6 +124,8 @@ export function ProjectContextMenu(props: ProjectContextMenuProps) {
     onArchive,
     onRename,
     renameShortcut,
+    duplicateShortcut,
+    pinShortcut,
     deleteShortcut,
     onBulkDuplicate,
     onWorktree,
@@ -212,6 +216,7 @@ export function ProjectContextMenu(props: ProjectContextMenuProps) {
       <ContextMenuItem
         label="Duplicate"
         icon={<CopyIcon />}
+        shortcut={duplicateShortcut}
         onClick={close(onBulkDuplicate)}
         disabled={duplicateDisabled}
       />
@@ -274,6 +279,7 @@ export function ProjectContextMenu(props: ProjectContextMenuProps) {
       <ContextMenuItem
         label={pinned ? "Unpin" : "Pin to top"}
         icon={pinned ? <PinOff size={14} /> : <Pin size={14} />}
+        shortcut={pinShortcut}
         onClick={close(() => onTogglePin(!pinned))}
       />
       {onArchive && (

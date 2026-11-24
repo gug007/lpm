@@ -502,6 +502,11 @@ at(66000, 'uploadBegin', id='demo-storefront-1')
 at(48500, 'gitCheckout', project='storefront', branch='release', remote='origin')
 at(48600, 'gitBranches', project='storefront')
 at(48600, 'git', project='storefront')
+# a close that waits for the agent
+at(44150, 'closeTerminal', project='storefront', id='demo-storefront-claude', whenDone=True)
+at(44160, 'keepTerminal', project='storefront', id='demo-storefront-claude')
+at(44160, 'keepTerminal', project='storefront', id='nope')
+at(44170, 'closeOtherTerminals', project='storefront', id='nope', whenDone=True)
 at(79500, 'closeOtherTerminals', project='storefront', id='nope')
 at(79500, 'closeOtherTerminals', project='storefront', id='demo-storefront-1')
 at(79600, 'terminals', project='storefront')
@@ -693,9 +698,14 @@ at(77000, 'agentOptions')
 at(77000, 'agentSessions', project='storefront', search='', limit=40)
 at(77000, 'agentSessions', project='storefront', search='CHECKOUT', limit=1)
 at(77000, 'agentSessions', project='api-gateway'); at(77000, 'agentSessions', project='blog')
-for d in ['', 'app', '/components/', 'node_modules', 'nope']:
+for d in ['', 'app', 'components/', 'node_modules', 'nope', '/Users/demo', '/Users/demo/dev', '/Users/demo/dev/api-gateway', '/Users/demo/dev/api-gateway/go.mod', '/etc']:
     at(77000, 'listDir', project='storefront', dir=d)
 at(77000, 'listDir', project='blog', dir='')
+for p in ['/Users/demo/dev/storefront/package.json', '~/dev/storefront/components', './app', '.', '/Users/demo/dev/storefront',
+          './app/../package.json', '../storefront/components/', '/etc/hosts', '/Users/demo/dev/storefront2', '/api', '../../../../..',
+          '~/', '../', '../api-gateway/', '~/dev/api-gateway/go.mod', '~/dev/api-gateway/nope']:
+    at(77000, 'locatePath', project='storefront', path=p)
+at(77000, 'locatePath', project='nope', path='/x'); at(77000, 'locatePath', project='storefront')
 at(77100, 'newTerminal', project='storefront', agent='claude', model='opus', effort='high', prompt='Fix the tax rounding\nThen run the tests')
 at(77100, 'newTerminal', project='storefront', agent='codex', model='', effort='', prompt='')
 at(77100, 'newTerminal', project='storefront', agent='nope')

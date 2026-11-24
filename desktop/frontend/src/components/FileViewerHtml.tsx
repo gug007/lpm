@@ -5,6 +5,8 @@ import { useHtmlPreviewSrc } from "./htmlPreview";
 interface FileViewerHtmlProps {
   text: string;
   absPath: string;
+  // The page is on an SSH host, where nothing beside it can be loaded from.
+  onHost?: boolean;
 }
 
 const FRAME = "block h-full w-full border-0 bg-white";
@@ -14,8 +16,8 @@ const FRAME = "block h-full w-full border-0 bg-white";
 // host renders from its text alone. Either way it runs outside the app's
 // origin: an inline page would share it if its sandbox allowed same-origin.
 // A change to the file reloads the page.
-export function FileViewerHtml({ text, absPath }: FileViewerHtmlProps) {
-  const src = useHtmlPreviewSrc(absPath);
+export function FileViewerHtml({ text, absPath, onHost = false }: FileViewerHtmlProps) {
+  const src = useHtmlPreviewSrc(onHost ? undefined : absPath);
   const [rev, setRev] = useState({ text, n: 0 });
   if (rev.text !== text) setRev({ text, n: rev.n + 1 });
 

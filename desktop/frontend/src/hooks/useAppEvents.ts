@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { toast } from "../notifications/toast";
 import { EventsOn } from "../../bridge/runtime";
 import {
+  AnswerTabRequest,
   DrainPendingJobTasks,
   RemoteSetAgentOptions,
   RemoteTakeRestoreRequests,
@@ -10,7 +11,8 @@ import {
 import { agentOptionsForRemote, type RemoteTabRequest } from "../remoteAgentTabs";
 import { type RemoteTerminalOp, useAppStore } from "../store/app";
 import { useAutomationOpen } from "../store/automationOpen";
-import { applyRemoteDraft } from "../store/composerDrafts";
+import { applyRemoteDraft, noteUnsentElsewhere } from "../store/composerDrafts";
+import { closeTabAsked, type CloseTabRequest } from "../tabClose/request";
 import { onFocusMainTerminal } from "../windowFocus";
 import { getSettings, useSettingsStore } from "../store/settings";
 import { applySettingsOutsideStore } from "../settingsEffects";
@@ -201,13 +203,17 @@ export function useAppEvents(): void {
     // spawnTasks and mount the copy, exactly like bulkDuplicate does.
     const cancelRemoteRunTask = EventsOn(
       "remote-run-task",
-      (payload: { project: string; task?: SpawnTask | null; select?: boolean }) => {
+      (payload: { project: string; task?: SpawnTask | null; select?: boolean; request?: number }) => {
         if (payload?.project && payload?.task) {
           const store = useAppStore.getState();
           // A freshly-duplicated copy is flagged for selection so its detail
           // mounts and the queued task fires without a manual click.
           if (payload.select) store.selectProject(payload.project);
-          store.queueSpawnTask(payload.project, payload.task);
+          const { task, request } = payload;
+          store.queueSpawnTask(
+            payload.project,
+            request !== undefined && task.kind !== "fork" ? { ...task, request } : task,
+          );
         }
       },
     );
@@ -239,6 +245,16 @@ export function useAppEvents(): void {
           );
         }
       },
+    );
+    // `lpm close`, waiting to hear whether the tab closed.
+    const cancelCloseTab = EventsOn("close-tab-request", (asked: CloseTabRequest & { request: number }) => {
+      closeTabAsked(asked)
+        .then((answer) => AnswerTabRequest(asked.request, answer))
+        .catch(() => {});
+    });
+    const cancelUnsent = EventsOn(
+      "terminal-unsent-text",
+      ({ id, from, unsent }: { id: string; from: string; unsent: boolean }) => noteUnsentElsewhere(id, from, unsent),
     );
     // A phone or a paired Mac asked for the tabs of a project not shown since
     // launch: mount it off screen so its saved tabs come back. Asks made before
@@ -320,6 +336,8 @@ export function useAppEvents(): void {
       if (typeof cancelRemoteAction === "function") cancelRemoteAction();
       if (typeof cancelRemoteRunTask === "function") cancelRemoteRunTask();
       if (typeof cancelRemoteTermOp === "function") cancelRemoteTermOp();
+      if (typeof cancelCloseTab === "function") cancelCloseTab();
+      if (typeof cancelUnsent === "function") cancelUnsent();
       if (typeof cancelRestoreProject === "function") cancelRestoreProject();
       if (typeof cancelComposerDraft === "function") cancelComposerDraft();
       if (typeof cancelNavView === "function") cancelNavView();

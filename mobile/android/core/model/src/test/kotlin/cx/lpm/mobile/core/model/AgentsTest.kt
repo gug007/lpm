@@ -223,6 +223,10 @@ class AgentsTest {
             listOf(AgentState.Error, AgentState.Done),
             AgentState.entries.filter { it.isFinished }
         )
+        assertEquals(
+            listOf(AgentState.NeedsYou, AgentState.Working),
+            AgentState.entries.filter { it.isBusy }
+        )
     }
 
     @Test

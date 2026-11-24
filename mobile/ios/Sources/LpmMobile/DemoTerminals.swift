@@ -100,11 +100,13 @@ extension DemoServer {
         register("closeTerminal") { [weak self] o in
             guard let self, let project = o["project"] as? String,
                   let id = o["id"] as? String else { return }
-            let wasAgent = self.demoTerminal(id)?.cli == "claude"
-            self.world.terminals[project]?.removeAll { $0.id == id }
-            self.world.composerDrafts[id] = nil
-            self.demoDropSeenAgents(project: project, pane: id)
-            if wasAgent { self.demoSetAgentStatus(project: project, entries: []) }
+            if o["whenDone"] as? Bool == true, self.demoBusy(project, id) {
+                self.updateTerminal(id) { $0.closesWhenDone = true }
+                self.push(["t": "closeTerminal", "ok": true])
+                self.push(self.world.terminalsPayload(project))
+                return
+            }
+            self.demoCloseTerminal(project, id)
             self.push(["t": "closeTerminal", "ok": true])
         }
         register("renameTerminal") { [weak self] o in
@@ -912,7 +914,7 @@ extension DemoServer {
         return (n, "demo-\(project)-\(n)")
     }
 
-    private func updateTerminal(_ id: String, _ mutate: (inout DemoWorld.Terminal) -> Void) {
+    func updateTerminal(_ id: String, _ mutate: (inout DemoWorld.Terminal) -> Void) {
         for (project, var list) in world.terminals {
             if let idx = list.firstIndex(where: { $0.id == id }) {
                 mutate(&list[idx])

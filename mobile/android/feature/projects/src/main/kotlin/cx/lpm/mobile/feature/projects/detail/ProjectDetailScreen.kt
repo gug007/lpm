@@ -59,6 +59,7 @@ class ProjectDetailActions(
     val fork: (TerminalInfo) -> Unit = {},
     val forkCopy: (TerminalInfo) -> Unit = {},
     val closeOthers: (TerminalInfo) -> Unit = {},
+    val keepOpen: (TerminalInfo) -> Unit = {},
     val undoClose: () -> Unit = {},
     val toggleService: (Service) -> Unit = {},
     val restartService: (Service) -> Unit = {},
@@ -309,7 +310,11 @@ private fun tabMenuExtras(
     }?.let {
         { TabMoveToMenu(it) { p -> actions.moveTo(term, p.name) } }
     }
-    if (!state.canUseTabMenu) return TabMenuExtras(claudeAccount = claudeAccount, moveTo = moveTo)
+    val keepOpen = { actions.keepOpen(term) }
+        .takeIf { term.closesWhenDone && state.canCloseWhenDone }
+    if (!state.canUseTabMenu) {
+        return TabMenuExtras(claudeAccount = claudeAccount, moveTo = moveTo, keepOpen = keepOpen)
+    }
     val others = tabs.any { it.terminal.id != term.id && !it.terminal.pinned }
     return TabMenuExtras(
         useTitle = { actions.useTitle(term) }.takeIf { term.canTitle },
@@ -317,7 +322,8 @@ private fun tabMenuExtras(
         forkCopy = { actions.forkCopy(term) }.takeIf { term.canForkCopy },
         closeOthers = { actions.closeOthers(term) }.takeIf { others },
         claudeAccount = claudeAccount,
-        moveTo = moveTo
+        moveTo = moveTo,
+        keepOpen = keepOpen
     )
 }
 

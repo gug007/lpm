@@ -35,7 +35,7 @@ export const BUILTIN_SHORTCUT_GROUPS: BuiltinShortcutGroup[] = [
       { id: "sidebar", label: "Show or hide the sidebar", description: "Gives the terminals the whole window", keys: cmd("b") },
       { id: "config", label: "Edit the project's config", description: "Press again to go back to its terminals", keys: cmd("e") },
       { id: "notes", label: "Project notes", description: "Press again to go back to its terminals", keys: cmd("n", { shift: true }) },
-      { id: "ports", label: "Every listening port", description: "Press again to go back to your projects", keys: cmd("p", { alt: true }) },
+      { id: "ports", label: "Every listening port", description: "Press again to go back to your projects", keys: cmd("y") },
     ],
   },
   {
@@ -43,7 +43,7 @@ export const BUILTIN_SHORTCUT_GROUPS: BuiltinShortcutGroup[] = [
     title: "Tabs and panes",
     shortcuts: [
       { id: "new-tab", label: "New terminal tab", description: "Opens in the focused pane", keys: cmd("t") },
-      { id: "close-tab", label: "Close tab", description: "A pinned tab stays open", keys: cmd("w") },
+      { id: "close-tab", label: "Close tab", description: "Asks first while its agent works. A pinned tab stays open", keys: cmd("w") },
       { id: "archive-agent", label: "Archive the agent on screen", description: "Takes its sidebar row away, the tab stays open", keys: cmd("a", { shift: true }) },
       { id: "mini-view", label: "Keep the tab in a mini view", description: "It shows in the corner while you work elsewhere. Press again to take it out", keys: cmd("k", { alt: true }) },
       { id: "split-right", label: "Split sideways", description: "A new pane to the right", keys: cmd("d") },

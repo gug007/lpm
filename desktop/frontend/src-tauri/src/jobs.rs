@@ -1190,9 +1190,9 @@ struct JobState {
     /// Questions asked under a key, which outlive the run that asked them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     keyed: Vec<Ask>,
-    /// The commit or day an event last started this job (jobs/events.rs).
-    #[serde(default, rename = "lastEvent", skip_serializing_if = "Option::is_none")]
-    last_event: Option<String>,
+    /// What events have started this job for, oldest first (jobs/event_happening.rs).
+    #[serde(default, rename = "pastEvents", skip_serializing_if = "Vec::is_empty")]
+    past_events: Vec<String>,
 }
 
 impl JobState {

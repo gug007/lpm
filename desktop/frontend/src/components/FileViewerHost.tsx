@@ -29,6 +29,7 @@ export function FileViewerHost() {
       line={current?.line ?? 0}
       col={current?.col ?? 0}
       projectRoot={current?.projectRoot ?? ""}
+      onHost={current?.onHost}
       choices={current?.choices}
       overDialog={current?.overDialog}
       layout={{

@@ -8,7 +8,9 @@ import {
 } from "react";
 import { useContentZoom } from "../../hooks/useContentZoom";
 import { useResizableWidth } from "../../hooks/useResizableWidth";
+import { useHostFile } from "../useHostFile";
 import { basename, joinAbs } from "../../path";
+import { stripMarker } from "../../peer/markers";
 import type { RailView } from "../../store/filesView";
 import { useAppStore } from "../../store/app";
 import { useSettingsStore } from "../../store/settings";
@@ -52,6 +54,7 @@ import { useFilesChords } from "./useFilesChords";
 import { useFilesSearch } from "./useFilesSearch";
 import { useTreeEdits } from "./useTreeEdits";
 import { useTreeExpansion } from "./useTreeExpansion";
+import { useTypedPathRow } from "./useTypedPathRow";
 import { FilesStart } from "./FilesStart";
 import { useSelectedLineCounts } from "../../hooks/useSelectedLineCounts";
 import type { ChangedFile } from "./useChangedFiles";
@@ -277,7 +280,17 @@ export function FilesPane({
     [git.onBranch, filtering, openFile, revealDir, toggleDir, focusEditor],
   );
 
+  const typed = useTypedPathRow({
+    root: projectRoot,
+    query,
+    onQuery: setQuery,
+    enabled: !changesOnly && !review,
+    hasMatches: !!ranked && ranked.total > 0,
+    holdsQuery: !!ranked?.entries[0]?.lower.includes(query.trim().toLowerCase()),
+    onActivate: activate,
+  });
   const absPath = selectedPath ? joinAbs(projectRoot, selectedPath) : null;
+  const host = useHostFile(projectRoot, projectRoot, selectedPath ?? "");
   const edits = useTreeEdits({
     root: projectRoot,
     projectName,
@@ -309,7 +322,7 @@ export function FilesPane({
     prevFile: () => stepFile(-1),
     reveal: () => {
       const path = chordPath();
-      void revealInFinder(path ? joinAbs(projectRoot, path) : projectRoot);
+      void revealInFinder(path ? joinAbs(projectRoot, path) : projectRoot, !!host && !!path?.startsWith("/"));
     },
     copyPath: () => {
       const path = chordPath();
@@ -317,7 +330,7 @@ export function FilesPane({
     },
     copyRelativePath: () => {
       const path = chordPath();
-      if (path) void copyText(path);
+      if (path) void copyText(stripMarker(path));
     },
   }, rootRef);
 
@@ -367,7 +380,14 @@ export function FilesPane({
           onQueryChange={setQuery}
           results={ranked?.entries ?? null}
           resultsTotal={ranked?.total}
-          noMatches={review ? undefined : <FilesContentSearch query={query} onSearch={showSearch} />}
+          noMatches={
+            review ? undefined : (
+              <FilesContentSearch query={query} headline={typed.headline} onSearch={showSearch} />
+            )
+          }
+          pathRow={typed.row}
+          onEnter={typed.onEnter}
+          folder={typed.folder}
           cursorRequest={cursorRequest}
           filterFocusRequest={filterFocusRequest}
           onActivate={activate}
@@ -487,6 +507,7 @@ export function FilesPane({
               file={buffer.file}
               value={buffer.value}
               absPath={absPath ?? ""}
+              host={host?.file ?? null}
               diff={git.diff.diff}
               markdown={
                 fileView.previewing

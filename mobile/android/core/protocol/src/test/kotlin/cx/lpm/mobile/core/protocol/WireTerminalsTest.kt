@@ -30,6 +30,22 @@ class WireTerminalsTest {
             Wire.closeTerminal("api", "api-2")
         )
         assertFrame(
+            """{ "t": "closeTerminal", "project": "api", "id": "api-2", "whenDone": true }""",
+            Wire.closeTerminal("api", "api-2", whenDone = true)
+        )
+        assertFrame(
+            """{ "t": "closeOtherTerminals", "project": "api", "id": "api-2" }""",
+            Wire.closeOtherTerminals("api", "api-2")
+        )
+        assertFrame(
+            """{ "t": "closeOtherTerminals", "project": "api", "id": "api-2", "whenDone": true }""",
+            Wire.closeOtherTerminals("api", "api-2", whenDone = true)
+        )
+        assertFrame(
+            """{ "t": "keepTerminal", "project": "api", "id": "api-2" }""",
+            Wire.keepTerminal("api", "api-2")
+        )
+        assertFrame(
             """{ "t": "renameTerminal", "project": "api", "id": "api-2", "label": "Logs" }""",
             Wire.renameTerminal("api", "api-2", "Logs")
         )
@@ -167,6 +183,10 @@ class WireTerminalsTest {
         assertFrame(
             """{ "t": "listDir", "project": "api", "dir": "src/app" }""",
             Wire.listDir("api", "src/app")
+        )
+        assertFrame(
+            """{ "t": "locatePath", "project": "api", "path": "~/notes.md" }""",
+            Wire.locatePath("api", "~/notes.md")
         )
     }
 }

@@ -112,6 +112,17 @@ internal fun DemoServer.registerTabMenuHandlers() {
         val kept = list.firstOrNull { it.id == id } ?: return@register
         val closing = list.filter { it.id != id && !it.pinned }
         if (closing.isEmpty()) return@register
+        if (o.bool("whenDone") == true) {
+            for (t in closing) {
+                if (demoBusy(project, t.id)) {
+                    t.closesWhenDone = true
+                } else {
+                    demoCloseTerminal(project, t.id)
+                }
+            }
+            push(world.terminalsPayload(project))
+            return@register
+        }
         val closed = closing.map { it.id }.toSet()
         list.removeAll { it.id in closed }
         closed.forEach { world.composerDrafts.remove(it) }
@@ -119,6 +130,38 @@ internal fun DemoServer.registerTabMenuHandlers() {
             demoSetAgentStatus(project = project, entries = emptyList())
         }
         push(world.terminalsPayload(project))
+    }
+    register("keepTerminal") { o ->
+        val project = o.string("project") ?: return@register
+        val id = o.string("id") ?: return@register
+        updateTerminal(id) { it.closesWhenDone = false }
+        push(mapOf("t" to "keepTerminal", "ok" to true))
+        push(world.terminalsPayload(project))
+    }
+}
+
+internal fun DemoServer.demoBusy(project: String, id: String): Boolean =
+    world.project(project)?.status.orEmpty().any {
+        it.paneID == id && it.value in listOf("Running", "Waiting")
+    }
+
+internal fun DemoServer.demoCloseTerminal(project: String, id: String) {
+    val wasAgent = demoTerminal(id)?.cli == "claude"
+    world.terminals[project]?.removeAll { it.id == id }
+    world.composerDrafts.remove(id)
+    demoDropSeenAgents(project = project, pane = id)
+    if (wasAgent) demoSetAgentStatus(project = project, entries = emptyList())
+}
+
+/** The tabs that wait for their agent close a moment after it is done. */
+internal fun DemoServer.demoCloseFinished(project: String) {
+    for (t in world.terminals[project].orEmpty()) {
+        if (!t.closesWhenDone || demoBusy(project, t.id)) continue
+        after(CLOSE_FINISHED_SECONDS) {
+            if (demoTerminal(t.id)?.closesWhenDone != true || demoBusy(project, t.id)) return@after
+            demoCloseTerminal(project, t.id)
+            push(world.terminalsPayload(project))
+        }
     }
 }
 
@@ -142,3 +185,4 @@ private fun DemoServer.fork(source: DemoWorld.Terminal, project: String) = DemoW
 
 private const val FORK_COPY_SECONDS = 0.7
 private const val ACCOUNT_MOVE_SECONDS = 1.2
+private const val CLOSE_FINISHED_SECONDS = 3.0

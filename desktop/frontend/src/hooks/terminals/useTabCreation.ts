@@ -54,7 +54,7 @@ import {
 import { IS_MIRROR_WINDOW } from "../../mirror";
 import { noteOpenedByOtherMac } from "../../peer/openedByOtherMac";
 import { nextId, appendTerminal, configLaunchCmds, foldAgentPrompt, reuseLaunch } from "./util";
-import { type TerminalStartOpts } from "./types";
+import { type StartedTab, type TerminalStartOpts } from "./types";
 import { pinLaunchCommand } from "../../agentLaunchModel";
 import { agentFolderRoots, withAgentFolders } from "../../agentFolders";
 import { DEFAULT_SHELL } from "../../shells";
@@ -173,9 +173,11 @@ export function useTabCreation({
   );
 
   const createTerminalWithCmd = useCallback(
-    async (label: string, cmd: string, opts?: TerminalStartOpts) => {
-      if (IS_MIRROR_WINDOW)
-        return forward("createTerminalWithCmd", label, cmd, opts);
+    async (label: string, cmd: string, opts?: TerminalStartOpts): Promise<StartedTab | undefined> => {
+      if (IS_MIRROR_WINDOW) {
+        forward("createTerminalWithCmd", label, cmd, opts);
+        return undefined;
+      }
       await restoreSettled.current;
       const folders = agentFolderRoots(projectName);
       cmd = withAgentFolders(pinLaunchCommand(cmd, opts?.launchModel), folders);
@@ -211,7 +213,7 @@ export function useTabCreation({
             const reused = reuseLaunch(cmd, opts.prompt, busy);
             if (reused.cmd) await sendTerminalInput(tabId, reused.cmd + "\n");
             scheduleSeedInject(tabId, reused.prompt);
-            return;
+            return { id: tabId, reused: true };
           }
         }
       }
@@ -228,7 +230,7 @@ export function useTabCreation({
           started = await StartTerminalForConfig(projectName, opts.configName, opts.fixedAccount, tab);
         } catch (err) {
           terminalStartFailed(err, label);
-          return;
+          return undefined;
         }
         const launch = {
           ...started,
@@ -250,7 +252,7 @@ export function useTabCreation({
         } else {
           scheduleSeedInject(launch.id, opts.prompt);
         }
-        return;
+        return { id: launch.id, reused: false };
       }
 
       // Ad-hoc command terminals (e.g. action-as-terminal invocations) are
@@ -272,7 +274,7 @@ export function useTabCreation({
             : await StartTerminal(projectName, sessionId, opts?.fixedAccount, tab, undefined, opts?.shell);
       } catch (err) {
         terminalStartFailed(err, label);
-        return;
+        return undefined;
       }
       addTerminal(
         makeTerminal(id, label, {
@@ -289,6 +291,7 @@ export function useTabCreation({
       );
       const folded = foldAgentPrompt(cmd, opts?.prompt);
       scheduleCmdInject(id, folded.cmd, folded.prompt);
+      return { id, reused: false };
     },
     [
       projectName,

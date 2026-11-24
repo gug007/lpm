@@ -80,3 +80,33 @@ describe("start_terminal", () => {
     expect(invokeMock.mock.calls.some(([cmd]) => cmd === "peer_term_attach")).toBe(false);
   });
 });
+
+// Whatever is decided by what an agent does has to know when that isn't known.
+describe("a computer that stops answering", () => {
+  it("keeps its projects listed, marked as unknown, and drops statuses that got old", async () => {
+    vi.useFakeTimers();
+    const running = { key: "claude", value: "Running", priority: 0, timestamp: 1, paneID: "t1" };
+    let answers = true;
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === "peer_state") return h.state.current;
+      if (cmd !== "peer_invoke") return [];
+      return answers ? [{ name: "demo", root: "/r", statusEntries: [running] }] : new Promise(() => {});
+    });
+    h.state.current = { peers: [{ slug: "aaaaaaaa", connected: true }] };
+    emit("peer-state-changed", null);
+    const list = async () => {
+      const listed = routedInvoke("list_projects") as Promise<{ statusEntries: unknown[]; statusUnknown?: boolean }[]>;
+      await vi.advanceTimersByTimeAsync(5_000);
+      return (await listed)[0];
+    };
+
+    expect(await list()).toMatchObject({ statusEntries: [{ value: "Running" }] });
+    expect((await list()).statusUnknown).toBeUndefined();
+
+    answers = false;
+    expect(await list()).toMatchObject({ statusEntries: [{ value: "Running" }], statusUnknown: true });
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(await list()).toMatchObject({ statusEntries: [], statusUnknown: true });
+    vi.useRealTimers();
+  });
+});

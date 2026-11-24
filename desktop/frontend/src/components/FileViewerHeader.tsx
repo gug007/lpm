@@ -16,6 +16,8 @@ const QUIET_BUTTON =
 interface FileViewerHeaderProps {
   absPath: string;
   label: string;
+  // The SSH host the file is on.
+  hostName?: string;
   line: number;
   col: number;
   meta: string | null;
@@ -46,6 +48,7 @@ interface FileViewerHeaderProps {
 export function FileViewerHeader({
   absPath,
   label,
+  hostName,
   line,
   col,
   meta,
@@ -73,6 +76,14 @@ export function FileViewerHeader({
           {statusLabel && (
             <span className="rounded bg-[var(--accent-cyan)]/15 px-1.5 py-0.5 text-[11px] font-medium text-[var(--accent-cyan)]">
               {statusLabel}
+            </span>
+          )}
+          {hostName && (
+            <span
+              title={`This file is on ${hostName}, over SSH`}
+              className="shrink-0 rounded bg-[var(--accent-cyan)]/15 px-1.5 py-0.5 text-[11px] font-medium text-[var(--accent-cyan)]"
+            >
+              On {hostName}
             </span>
           )}
         </div>
@@ -125,7 +136,7 @@ export function FileViewerHeader({
                 Download
               </button>
             )}
-            <OpenFileWithDropdown absPath={absPath} line={line} col={col} />
+            {!hostName && <OpenFileWithDropdown absPath={absPath} line={line} col={col} />}
             {onDock && (
               <button
                 type="button"

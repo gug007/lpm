@@ -89,6 +89,54 @@ class TabMenuTest {
     }
 
     @Test
+    fun `a close that waits leaves the tab listed, and can be taken back`() = runTest {
+        val h = SessionHarness(this)
+        val socket = h.connectReady(listOf(LpmClient.CLOSE_WHEN_DONE_FEATURE))
+        socket.terminals("t1", "t2")
+        settle()
+        val store = h.terminals
+        store.closeTerminalWhenDone(store.tab("t2"))
+        assertEquals(listOf("t1", "t2"), store.ids())
+        assertNull(store.state.value.pendingTabClose)
+        assertEquals(true, socket.sentOf("closeTerminal").single().toString().contains("whenDone"))
+
+        store.keepTerminalOpen(store.tab("t2"))
+        assertEquals(1, socket.sentOf("keepTerminal").size)
+    }
+
+    @Test
+    fun `close other tabs when done hides only the idle ones`() = runTest {
+        val h = SessionHarness(this)
+        val socket = h.connectReady(
+            listOf(LpmClient.TAB_MENU_FEATURE, LpmClient.CLOSE_WHEN_DONE_FEATURE)
+        )
+        socket.terminals("t1", "t2:p", "t3", "t4")
+        settle()
+        val store = h.terminals
+        store.closeOtherTerminals(store.tab("t1"), busy = setOf("t4"))
+        assertEquals(listOf("t1", "t2", "t4"), store.ids())
+        val sent = socket.sentOf("closeOtherTerminals").single().toString()
+        assertEquals(true, sent.contains("whenDone"))
+    }
+
+    @Test
+    fun `a Mac that cannot wait is never asked to`() = runTest {
+        val h = SessionHarness(this)
+        val socket = h.connectReady(listOf(LpmClient.TAB_MENU_FEATURE))
+        socket.terminals("t1", "t2")
+        settle()
+        val store = h.terminals
+        assertEquals(false, store.canCloseWhenDone)
+        store.closeTerminalWhenDone(store.tab("t2"))
+        store.closeOtherTerminals(store.tab("t1"), busy = emptySet())
+        store.keepTerminalOpen(store.tab("t2"))
+        assertEquals(listOf("t1", "t2"), store.ids())
+        assertEquals(0, socket.sentOf("closeTerminal").size)
+        assertEquals(0, socket.sentOf("closeOtherTerminals").size)
+        assertEquals(0, socket.sentOf("keepTerminal").size)
+    }
+
+    @Test
     fun `the tab menu needs a Mac that takes it, and a tab that offers it`() = runTest {
         val h = SessionHarness(this)
         val socket = h.connectReady()

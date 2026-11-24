@@ -1,6 +1,7 @@
 //! `lpm run [action] [--command CMD] [--prompt TEXT] [-p project]` — queue an
-//! action or command in a new terminal in the running app. Fire-and-forget: the
-//! CLI can't await terminal output; observe it with `lpm logs` / `lpm status`.
+//! action or command in a new terminal in the running app and print the tab it
+//! opens, for `lpm close`. Fire-and-forget: the CLI can't await terminal output;
+//! observe it with `lpm logs` / `lpm status`.
 
 use crate::config::{self, Ctx, ResolvedAction, ResolvedProject};
 use crate::control;
@@ -176,7 +177,8 @@ pub fn run(
         line.push_str(&text_opt("prompt", pr));
     }
 
-    control::send_within(ctx, &line, control::SSH_REPLY)?;
+    line.push_str(" --report-tab=1");
+    let tab = tab_of(&control::send_within(ctx, &line, control::SSH_REPLY)?);
 
     if as_json {
         crate::util::print_json(&json!({
@@ -185,7 +187,15 @@ pub fn run(
             "action": action_name,
             "command": command_str,
             "prompt": prompt,
+            "tab": tab.as_ref().map(|t| &t.id),
+            "reused": tab.as_ref().is_some_and(|t| t.reused),
         }));
+    } else if let Some(Tab { id, reused }) = tab {
+        println!("{} {id} in {file_name}", if reused { "reused" } else { "opened" });
+        eprintln!(
+            "note: fire-and-forget — the task runs in that tab; watch it with `lpm status`, \
+close it with `lpm close {id}`"
+        );
     } else {
         let what = action_name
             .as_deref()
@@ -201,9 +211,40 @@ watch it with `lpm logs` / `lpm status`"
     Ok(())
 }
 
+struct Tab {
+    id: String,
+    /// Already open: the action runs in the same tab every time.
+    reused: bool,
+}
+
+/// The tab the app says the task runs in. None from a task with no tab of its
+/// own, and from an app that only says `OK`.
+fn tab_of(reply: &str) -> Option<Tab> {
+    let reply: serde_json::Value = serde_json::from_str(reply).ok()?;
+    Some(Tab {
+        id: reply.get("tab")?.as_str()?.to_string(),
+        reused: reply.get("reused").and_then(|r| r.as_bool()) == Some(true),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_the_tab_a_task_runs_in() {
+        let told = |reply| tab_of(reply).map(|t| (t.id, t.reused));
+        assert_eq!(
+            told(r#"{"ok":true,"tab":"api-1","reused":false}"#),
+            Some(("api-1".into(), false))
+        );
+        assert_eq!(
+            told(r#"{"ok":true,"tab":"api-1","reused":true}"#),
+            Some(("api-1".into(), true))
+        );
+        assert_eq!(told(r#"{"ok":true,"tab":null,"reused":false}"#), None);
+        assert_eq!(told("OK"), None);
+    }
 
     fn target(id: &str, label: &str) -> RunTarget {
         RunTarget {

@@ -3,9 +3,8 @@ import { interactivePaneOutputAt } from "../components/InteractivePane";
 import { buildTerminalPayload } from "../composerPayload";
 import { isSwitchingModel } from "../hooks/useAgentModelSwitch";
 import { derivePaneStatus, paneAgentStatus } from "../hooks/usePaneStatus";
-import { projectStatusEntries } from "../projectStatusEntries";
+import { onStatusEntriesChange, projectStatusEntries } from "../projectStatusEntries";
 import { useAppStore } from "../store/app";
-import { useGlobalAgentStatus } from "../store/globalAgentStatus";
 import { recordMessage } from "../store/messageHistory";
 import { markPromptSent, setHold, useSendLater, type ScheduledPrompt } from "../store/sendLater";
 import { sendToTerminal, useTerminalTargets, type TerminalTargetInfo } from "../store/terminalTargets";
@@ -199,12 +198,7 @@ export function startSendLaterRunner(): () => void {
       held.clear();
       pumpSoon();
     }),
-    useAppStore.subscribe((s, prev) => {
-      if (s.projects !== prev.projects) pumpSoon();
-    }),
-    useGlobalAgentStatus.subscribe((s, prev) => {
-      if (s.entries !== prev.entries) pumpSoon();
-    }),
+    onStatusEntriesChange(pumpSoon),
     useTerminalTargets.subscribe((s, prev) => {
       if (s.byProject !== prev.byProject) pumpSoon();
     }),

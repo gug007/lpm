@@ -86,7 +86,7 @@ export function FilesStart({ files, lineCounts, onOpen, onReviewAll }: FilesStar
           )}
         </div>
         <p className="text-[11px] text-[var(--text-muted)]">
-          Pick any file from the tree, or press {chordLabel({ key: "p", meta: true })} to jump to one by name.
+          Pick any file from the tree, or press {chordLabel({ key: "p", meta: true })} to jump to one by name or path.
         </p>
       </div>
     </div>

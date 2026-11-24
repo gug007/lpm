@@ -1,0 +1,76 @@
+# Closing a tab whose agent is mid-task asks first: let it finish, close it now, or
+# neither. A tab that waits says so and can be kept open.
+appId: cx.lpm.mobile
+name: 136-close-busy-tab
+tags: [demo, projects, terminal]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: ".*Claude.*"
+    timeout: 5000
+# Opening the tab sets its agent to work.
+- tapOn: ".*Claude.*"
+- extendedWaitUntil:
+    visible: "Add Apple Pay.*"
+    timeout: 15000
+- runFlow: subflows/back.yaml
+- extendedWaitUntil:
+    visible: "Terminal 1"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- longPressOn: ".*Claude.*"
+- waitForAnimationToEnd:
+    timeout: 3000
+- assertNotVisible: "Keep Open"
+- tapOn: "^Close$"
+- extendedWaitUntil:
+    visible: "An Agent Is Still Working"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-asked
+- tapOn: "Close When Done"
+- extendedWaitUntil:
+    visible: ".*closes when done.*"
+    timeout: 5000
+- takeScreenshot: 2-waiting
+- longPressOn: ".*closes when done.*"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 3-menu
+- tapOn: "Keep Open"
+- extendedWaitUntil:
+    notVisible: ".*closes when done.*"
+    timeout: 5000
+# Close Other Tabs offers the same.
+- longPressOn: "Terminal 1"
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn: "Close Other Tabs"
+- extendedWaitUntil:
+    visible: "Close When Done"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 4-others
+- tapOn: "Close When Done"
+- extendedWaitUntil:
+    visible: ".*closes when done.*"
+    timeout: 5000
+# Asked again, it offers to keep the tab; Close Now still closes it behind Undo.
+- longPressOn: ".*closes when done.*"
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn: "^Close$"
+- extendedWaitUntil:
+    visible: "Close Now"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 5-asked-again
+- tapOn: "Close Now"
+- extendedWaitUntil:
+    visible: ".*Claude closed"
+    timeout: 5000

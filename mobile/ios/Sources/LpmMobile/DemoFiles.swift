@@ -8,12 +8,13 @@ extension DemoServer {
         register("listDir") { [weak self] o in
             guard let self, let project = o["project"] as? String else { return }
             let asked = o["dir"] as? String ?? ""
-            let dir = asked.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            let entries = asked.hasPrefix("/") ? self.demoOutside(asked)?.entries
+                : self.demoListing(project, dir: asked.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
             var reply: [String: Any] = ["t": "listDir", "project": project, "dir": asked]
             if self.world.project(named: project)?.isRemote == true {
                 reply["ok"] = false
                 reply["error"] = "Files on an SSH host open on your Mac."
-            } else if let entries = self.demoListing(project, dir: dir) {
+            } else if let entries {
                 reply["ok"] = true
                 reply["entries"] = entries
                 reply["root"] = "/Users/demo/dev/\(project)"
@@ -23,9 +24,57 @@ extension DemoServer {
             }
             self.pushAfter(0.25, reply)
         }
+        register("locatePath") { [weak self] o in
+            guard let self, let project = o["project"] as? String, let typed = o["path"] as? String else { return }
+            var reply: [String: Any] = ["t": "locatePath", "project": project, "path": typed]
+            if self.world.project(named: project)?.isRemote == true {
+                reply["ok"] = false
+                reply["error"] = "Files on an SSH host open on your Mac."
+            } else {
+                reply["ok"] = true
+                reply.merge(self.demoLocated(project, typed)) { _, new in new }
+            }
+            self.pushAfter(0.15, reply)
+        }
     }
 
-    private func demoListing(_ project: String, dir: String) -> [[String: Any]]? {
+    private func demoLocated(_ project: String, _ typed: String) -> [String: Any] {
+        let root = "/Users/demo/dev/\(project)"
+        var parts: [String] = []
+        let full = typed.hasPrefix("~/") ? "/Users/demo/" + typed.dropFirst(2)
+            : typed.hasPrefix("/") ? typed : root + "/" + typed
+        for part in full.split(separator: "/") where part != "." {
+            if part == ".." { _ = parts.popLast() } else { parts.append(String(part)) }
+        }
+        let path = "/" + parts.joined(separator: "/")
+        guard path == root || path.hasPrefix(root + "/") else {
+            return ["kind": demoOutside(path)?.kind ?? "missing", "at": path]
+        }
+        let rel = String(path.dropFirst(root.count + 1))
+        let tree = demoTree(project)
+        let kind = tree.files.contains(rel) ? "file" : tree.dirs.contains(rel) ? "dir" : "missing"
+        return ["kind": kind, "at": path, "rel": rel]
+    }
+
+    /// Every project is in ~/dev: outside one there are the others, and the folders
+    /// that hold them.
+    private func demoOutside(_ path: String) -> (kind: String, entries: [[String: Any]]?)? {
+        let roots = world.projects.filter { !$0.isRemote }.map { (name: $0.name, path: "/Users/demo/dev/\($0.name)") }
+        if let root = roots.first(where: { path == $0.path || path.hasPrefix($0.path + "/") }) {
+            let rel = String(path.dropFirst(root.path.count + 1))
+            if demoTree(root.name).files.contains(rel) { return ("file", nil) }
+            return demoListing(root.name, dir: rel).map { rows in
+                ("dir", rows.map { ["name": $0["name"] ?? "", "dir": $0["dir"] ?? false, "ignored": false] })
+            }
+        }
+        let prefix = path.hasSuffix("/") ? path : path + "/"
+        let inside = roots.map(\.path).filter { $0.hasPrefix(prefix) }
+        let names = Set(inside.map { String($0.dropFirst(prefix.count).prefix { $0 != "/" }) })
+        guard !names.isEmpty else { return nil }
+        return ("dir", names.sorted().map { ["name": $0, "dir": true, "ignored": false] })
+    }
+
+    private func demoTree(_ project: String) -> (dirs: Set<String>, files: Set<String>, ignored: [String]) {
         var dirs: Set<String> = [""]
         var files: Set<String> = []
         let changes = world.git[project]?.files ?? []
@@ -49,6 +98,12 @@ extension DemoServer {
             dirs.insert(path)
             addParents(path)
         }
+        return (dirs, files, ignored)
+    }
+
+    private func demoListing(_ project: String, dir: String) -> [[String: Any]]? {
+        let changes = world.git[project]?.files ?? []
+        let (dirs, files, ignored) = demoTree(project)
         guard dirs.contains(dir) else { return nil }
 
         func inDir(_ path: String) -> Bool { (path as NSString).deletingLastPathComponent == dir }

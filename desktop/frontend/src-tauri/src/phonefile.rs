@@ -6,7 +6,7 @@
 use base64::Engine as _;
 use serde_json::{json, Value};
 use std::io::{Read, Seek, SeekFrom};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 pub const MAX_CHUNK: u64 = 1024 * 1024;
@@ -83,28 +83,11 @@ fn read_chunk(path: &Path, offset: u64, length: u64) -> Result<Chunk, String> {
     Ok(Chunk { size, mtime, data })
 }
 
-fn relative_to(path: &Path, root: &Path) -> Option<String> {
-    let rel = path.strip_prefix(root).ok()?;
-    let mut parts = Vec::new();
-    for c in rel.components() {
-        match c {
-            Component::Normal(s) => parts.push(s.to_string_lossy().into_owned()),
-            Component::CurDir => {}
-            _ => return None,
-        }
-    }
-    (!parts.is_empty()).then(|| parts.join("/"))
-}
-
 /// The file's path inside the project at `root`, `/`-separated as git lists it;
-/// empty when it lies outside. Tried as named first, so a symlink in the project
-/// keeps its own name, then with both sides resolved (`/tmp` is `/private/tmp`).
+/// empty when it lies outside.
 fn in_project(root: Option<&str>, path: &Path) -> String {
-    let Some(root) = root.filter(|r| !r.is_empty()).map(Path::new) else {
-        return String::new();
-    };
-    relative_to(path, root)
-        .or_else(|| relative_to(&path.canonicalize().ok()?, &root.canonicalize().ok()?))
+    root.filter(|r| !r.is_empty())
+        .and_then(|r| crate::project_paths::place_in(Path::new(r), path))
         .unwrap_or_default()
 }
 

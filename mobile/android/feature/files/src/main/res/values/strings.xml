@@ -31,6 +31,9 @@
     <string name="files_try_again">Try Again</string>
     <string name="files_no_results">No Results for “%1$s”</string>
     <string name="files_no_results_message">Check the spelling or try a new search.</string>
+    <string name="files_path_missing">Nothing at “%1$s”</string>
+    <string name="files_path_missing_message">Check the path or try a new search.</string>
+    <string name="files_outside_project">Outside the project</string>
     <string name="files_edit">Edit</string>
     <string name="files_edit_cancel">Cancel</string>
     <string name="files_edit_back">Back</string>

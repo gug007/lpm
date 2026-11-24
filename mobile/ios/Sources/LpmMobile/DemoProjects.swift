@@ -677,6 +677,7 @@ extension DemoServer {
         let reporting = Set(world.projects[idx].status.map(\.paneID))
         world.projects[idx].seen.removeAll { reporting.contains($0.paneID) }
         push(["t": "status-changed", "project": project])
+        demoCloseFinished(project)
     }
 
     // MARK: helpers

@@ -14,6 +14,7 @@ import { useMediaPreview } from "./mediaPreview";
 import { usePdfPreview } from "./pdfPreview";
 import { DiffConflictBanner } from "./review/DiffConflictBanner";
 import { useFileViewerFile } from "./useFileViewerFile";
+import { useHostFile } from "./useHostFile";
 import { useFileViewerView } from "./useFileViewerView";
 import { matchesChord } from "../keys";
 import { useAppStore } from "../store/app";
@@ -29,6 +30,7 @@ interface FileViewerProps {
   line: number;
   col: number;
   projectRoot: string;
+  onHost?: boolean;
   editing: boolean;
   onEditingChange: (editing: boolean) => void;
   // Minimize and dock are offered only when the host lays the viewer out.
@@ -43,14 +45,17 @@ export function FileViewer({
   line,
   col,
   projectRoot,
+  onHost,
   editing,
   onEditingChange,
   layout,
   onClose,
 }: FileViewerProps) {
   const mode = layout?.mode ?? "open";
-  const file = useFileViewerFile(absPath, projectRoot);
+  const file = useFileViewerFile(absPath, projectRoot, onHost);
   const { buffer } = file;
+  const host = useHostFile(projectRoot, file.root, file.rel);
+  const hostFile = host?.file ?? null;
   const svg = file.kind === "image" && isSourceImage(absPath);
   const html = isHtmlPath(absPath);
   const textView = useFileViewerView({
@@ -66,9 +71,9 @@ export function FileViewer({
   const showVideo = file.kind === "video";
   const showAudio = file.kind === "audio";
   const showPdf = file.kind === "pdf";
-  const image = useImagePreview(absPath, showImage);
-  const playback = useMediaPreview(absPath, showVideo ? "video" : showAudio ? "audio" : null);
-  const pdf = usePdfPreview(absPath, showPdf);
+  const image = useImagePreview(absPath, showImage, hostFile);
+  const playback = useMediaPreview(absPath, showVideo ? "video" : showAudio ? "audio" : null, !!hostFile);
+  const pdf = usePdfPreview(absPath, showPdf, hostFile);
   // The previews whose zoom the header drives.
   const zoomed = showImage ? image : showPdf ? pdf : null;
   const playing = showVideo || showAudio;
@@ -159,6 +164,7 @@ export function FileViewer({
       {layout && mode !== "open" ? (
         <FileViewerCompactHeader
           absPath={absPath}
+          hostName={host?.name}
           meta={meta}
           mode={mode}
           onModeChange={layout.onModeChange}
@@ -168,6 +174,7 @@ export function FileViewer({
         <FileViewerHeader
           absPath={absPath}
           label={file.label}
+          hostName={host?.name}
           line={line}
           col={col}
           meta={meta}
@@ -208,6 +215,7 @@ export function FileViewer({
         <FileViewerContent
           absPath={absPath}
           projectRoot={projectRoot}
+          host={hostFile}
           line={line}
           col={col}
           view={editing && textView.view === "preview" ? "source" : textView.view}

@@ -34,6 +34,7 @@ import cx.lpm.mobile.core.model.HistoryPage
 import cx.lpm.mobile.core.model.HistoryRow
 import cx.lpm.mobile.core.model.LimitReminder
 import cx.lpm.mobile.core.model.LimitsSnapshot
+import cx.lpm.mobile.core.model.LocatedPath
 import cx.lpm.mobile.core.model.MacBuild
 import cx.lpm.mobile.core.model.MacKeepAwake
 import cx.lpm.mobile.core.model.MacPower
@@ -258,11 +259,12 @@ sealed interface Inbound {
     // A runAction/newTerminal/resumeSession the Mac couldn't execute; success acks parse to null.
     data class ActionFailed(val project: String, val error: String) : Inbound
 
-    // The agents a new tab can start, past conversations to resume, and one project
-    // folder for Files.
+    // The agents a new tab can start, past conversations to resume, one project folder
+    // for Files, and where a path typed into Go to File leads.
     data class AgentOptions(val agents: List<AgentOption>) : Inbound
     data class AgentSessions(val page: AgentSessionsPage) : Inbound
     data class ListDir(val contents: ProjectDirContents) : Inbound
+    data class LocatePath(val located: LocatedPath) : Inbound
     data object ProjectsChanged : Inbound
     data class StatusChanged(val project: String) : Inbound
 

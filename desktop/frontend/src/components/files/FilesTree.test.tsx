@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isMac } from "../../platform";
 import type { NameEditView } from "./FilesNameInput";
 import { FilesTree } from "./FilesTree";
+import { indexEntry } from "./filesFilter";
 import { DRAFT_PATH } from "./treeEdits";
 import type { Listing, TreeRow } from "./treeModel";
 import type { Changes } from "./useChangedFiles";
@@ -80,6 +81,96 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+});
+
+describe("FilesTree filter", () => {
+  const results = [indexEntry("src/a.ts", false), indexEntry("src/b.ts", false)];
+
+  it("hands Enter to a typed path first, with the best match for when it declines", () => {
+    const onEnter = vi.fn((_opts: { openBest: () => void }) => true);
+    const { input, onActivate, rerender } = render({ query: "/api", results, onEnter });
+    press(input, "Enter");
+    expect(onActivate).not.toHaveBeenCalled();
+    onEnter.mock.calls[0][0].openBest();
+    expect(onActivate).toHaveBeenCalledTimes(1);
+    rerender({ query: "/api", results, onEnter: () => false });
+    press(input, "Enter");
+    expect(onActivate).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows a typed path above the matches, and alone when there are none", () => {
+    const { rerender } = render({ query: "/api", results, pathRow: <p>the path</p> });
+    expect(container.textContent).toContain("the path");
+    expect(container.textContent).toContain("a.ts");
+    rerender({ query: "/api", results: [], pathRow: <p>the path</p>, noMatches: <p>no matches</p> });
+    expect(container.textContent).toContain("the path");
+    expect(container.textContent).not.toContain("no matches");
+    rerender({ query: "", results: null, pathRow: <p>the path</p> });
+    expect(container.textContent).not.toContain("the path");
+  });
+});
+
+describe("FilesTree on a folder outside the project", () => {
+  const results = [indexEntry("src/a.ts", false)];
+  const outside = (path: string, names: string[]) => ({
+    path,
+    rows: names.map((n) => ({ ...row(`${path}/${n}`, n.endsWith("/") || n === "..", 1), name: n, expanded: false })),
+    note: null,
+    onOpen: vi.fn(),
+    onUp: vi.fn(),
+  });
+
+  it("lists it in place of the matches, and opens its rows itself", () => {
+    const folder = outside("/var/log", ["..", "api/", "syslog"]);
+    const { list, input, onActivate, rerender } = render({ query: "/var/log/", results, folder });
+    expect(container.textContent).toContain("syslog");
+    expect(container.textContent).not.toContain("a.ts");
+    press(input, "ArrowDown");
+    expect(document.activeElement).toBe(list);
+    press(list, "ArrowRight");
+    expect(folder.onOpen).toHaveBeenLastCalledWith(folder.rows[1]);
+    press(list, "ArrowDown");
+    press(list, "Enter");
+    expect(folder.onOpen).toHaveBeenLastCalledWith(folder.rows[2]);
+    press(list, "ArrowLeft");
+    expect(folder.onUp).toHaveBeenCalledTimes(1);
+    expect(onActivate).not.toHaveBeenCalled();
+    rerender({ query: "", results: null, folder });
+    expect(container.textContent).not.toContain("syslog");
+  });
+
+  it("moves the keyboard to the next folder's first entry, and back to the one it left", () => {
+    const { list, input, onCursorChange, rerender } = render({
+      query: "/var/log/",
+      results,
+      folder: outside("/var/log", ["..", "api"]),
+    });
+    press(input, "ArrowDown");
+    rerender({ query: "/var/log/api/", results, folder: { ...outside("/var/log/api", []), note: { text: "Loading…" } } });
+    expect(container.textContent).toContain("Loading…");
+    rerender({ query: "/var/log/api/", results, folder: outside("/var/log/api", ["..", "error.log"]) });
+    expect(onCursorChange).toHaveBeenLastCalledWith(expect.objectContaining({ path: "/var/log/api/error.log" }));
+    press(list, "ArrowLeft");
+    rerender({ query: "/var/log/", results, folder: outside("/var/log", ["..", "a", "api"]) });
+    expect(onCursorChange).toHaveBeenLastCalledWith(expect.objectContaining({ path: "/var/log/api" }));
+  });
+
+  it("never trashes or offers a menu for what it lists", () => {
+    const trash = vi.fn();
+    const onRowMenu = vi.fn();
+    const edits = { edit: null, pending: [], view: null, blocked: null, trash } as unknown as TreeEdits;
+    const folder = outside("/var/log", ["syslog"]);
+    const { list, input } = render({ query: "/var/log/", results, folder, edits, onRowMenu });
+    press(input, "ArrowDown");
+    act(() => {
+      list.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Backspace", metaKey: isMac, ctrlKey: !isMac, bubbles: true }),
+      );
+      list.querySelector('[role="treeitem"]')!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
+    });
+    expect(trash).not.toHaveBeenCalled();
+    expect(onRowMenu).not.toHaveBeenCalled();
+  });
 });
 
 describe("FilesTree keyboard", () => {

@@ -109,11 +109,38 @@ pub(crate) fn read_agent(
 
 /// Why `name`, the agent, can't take the loop any further: its tab closed, or
 /// it's asking the person something.
-pub(crate) fn cant_go_on(agent: &Agent, name: &str) -> Option<String> {
+fn cant_go_on(agent: &Agent, name: &str) -> Option<String> {
     match agent {
         Agent::Gone => Some(format!("The {name} tab was closed.")),
         Agent::Waiting => Some(format!("{name} is asking you something.")),
         _ => None,
+    }
+}
+
+/// What becomes of the next failure.
+#[derive(Debug, PartialEq)]
+pub(crate) enum Handover {
+    Send,
+    Wait,
+    Stop(String),
+}
+
+/// A failure goes only to an agent still in its tab: once it quit, the tab is a
+/// shell that would run the text as commands. Its status can't show that, since a
+/// finish nobody has seen outlives the agent.
+pub(crate) fn hand_over(agent: &Agent, shell_at_prompt: Option<bool>, name: &str) -> Handover {
+    if let Some(reason) = cant_go_on(agent, name) {
+        return Handover::Stop(reason);
+    }
+    match agent {
+        Agent::Working => Handover::Wait,
+        Agent::Exited => {
+            Handover::Stop(format!("{name} quit, so the next failure can't go to it."))
+        }
+        _ if shell_at_prompt.is_none() => Handover::Stop(format!(
+            "lpm can't tell whether {name} is still in its tab, so the next failure wasn't sent."
+        )),
+        _ => Handover::Send,
     }
 }
 

@@ -9,6 +9,7 @@ import { FeedbackModal } from "./components/FeedbackModal";
 import { findParentProject, projectDisplayName } from "./components/ProjectNameDisplay";
 import { PortConflictDialog } from "./components/PortConflictDialog";
 import { ArchiveProjectDialog } from "./components/archive/ArchiveProjectDialog";
+import { CloseGuardHost } from "./components/CloseGuardHost";
 import { useProjectArchiveSync } from "./hooks/useProjectArchiveSync";
 import { FileViewerHost } from "./components/FileViewerHost";
 import { InstructionsDialogHost } from "./components/InstructionsDialogHost";
@@ -192,6 +193,7 @@ export function DetachedApp({ projectName }: DetachedAppProps) {
       <FeedbackModal />
       <PortConflictDialog />
       <ArchiveProjectDialog />
+      <CloseGuardHost />
       <FileViewerHost />
       <InstructionsDialogHost />
       <VideoSettingsModal />

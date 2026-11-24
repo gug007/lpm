@@ -18,6 +18,9 @@ enum class AgentState(val label: String) {
     /** A turn that ended, well or not: what can be marked seen and archived. */
     val isFinished: Boolean get() = this == Done || this == Error
 
+    /** Mid-task: working, or stopped on a question. */
+    val isBusy: Boolean get() = this == Working || this == NeedsYou
+
     companion object {
         /** The four status strings the Mac reports; anything else is idle. */
         fun of(value: String): AgentState = when (value) {
@@ -30,17 +33,17 @@ enum class AgentState(val label: String) {
     }
 }
 
+/** The project's agents mid-task, or those in one terminal. */
+fun Project.busyAgents(terminal: String? = null): Int = statusEntries.count {
+    (terminal == null || it.paneID == terminal) && AgentState.of(it.value).isBusy
+}
+
 /** A project where agents are mid-task, which the restart an lpm update ends in would cut off. */
 data class BusyAgentPlace(val id: String, val label: String, val count: Int)
 
 fun busyAgentPlaces(projects: List<Project>): List<BusyAgentPlace> =
     projects.mapNotNull { project ->
-        val count = project.statusEntries.count {
-            AgentState.of(it.value).let { state ->
-                state == AgentState.Working ||
-                    state == AgentState.NeedsYou
-            }
-        }
+        val count = project.busyAgents()
         if (count > 0) BusyAgentPlace(project.name, project.label, count) else null
     }
 

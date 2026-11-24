@@ -133,6 +133,7 @@ import {
 } from "./composerEditKeys";
 import { composerDragActive, useComposerDragMove } from "../hooks/useComposerDragMove";
 import { useComposerUndo, type UndoSnapshot } from "../hooks/useComposerUndo";
+import { useReportUnsentText } from "../hooks/useReportUnsentText";
 import {
   readClipboardPayload,
   writeClipboardPayload,
@@ -557,13 +558,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // Push the current tab set into the reactive mirror. Labels are computed only
   // when the strip is visible (2+ tabs); a lone tab carries an empty label so its
   // per-keystroke text changes never produce a new view and never re-render.
+  const reportUnsent = useReportUnsentText(terminalId, isRemotePeer, guest);
   const refreshTabView = useCallback(() => {
     const list = tabs.current;
+    reportUnsent(list.some((t) => t.text.trim() !== ""));
     const multi = list.length > 1;
     const next = list.map((t) => ({ id: t.id, label: multi ? previewLabel(t.text, t.imagePaths) : "" }));
     setTabView((prev) => (sameTabView(prev, next) ? prev : next));
     setActiveTabId(activeId.current);
-  }, []);
+  }, [reportUnsent]);
 
   // Swap a stored tab into the live editor + refs, making it the active one.
   const loadTab = useCallback((tab: ComposerInputTab) => {

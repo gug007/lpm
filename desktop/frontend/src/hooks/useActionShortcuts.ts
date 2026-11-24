@@ -1,9 +1,18 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import type { ActionInfo } from "../types";
 import { forEachAction } from "../actionTree";
 import { useKeyboardShortcut, type KeyboardShortcut } from "./useKeyboardShortcut";
-import { canonicalShortcut, parseShortcut } from "../shortcutParse";
+import { canonicalShortcut, parseShortcut, shortcutIdentity } from "../shortcutParse";
 import { runsOnClick } from "../popup/appTab";
+
+const bound = new Set<KeyboardShortcut[]>();
+
+// Whether an action of the project on screen runs on this chord. A chord lpm
+// takes for itself later on stays the action's where one already had it.
+export function actionTakes(shortcut: KeyboardShortcut): boolean {
+  const id = shortcutIdentity(shortcut);
+  return [...bound].some((shortcuts) => shortcuts.some((s) => shortcutIdentity(s) === id));
+}
 
 // Bind every action with a command or an app (top-level or nested child) that
 // carries a valid shortcut string to a global key combo that runs it. Pure
@@ -30,13 +39,22 @@ export function useActionShortcuts(
     return { shortcuts, byCanonical };
   }, [actions]);
 
+  const live = enabled && shortcuts.length > 0;
+  useEffect(() => {
+    if (!live) return;
+    bound.add(shortcuts);
+    return () => {
+      bound.delete(shortcuts);
+    };
+  }, [live, shortcuts]);
+
   useKeyboardShortcut(
     shortcuts,
     (_event, matched) => {
       const action = byCanonical.get(canonicalShortcut(matched));
       if (action) run(action);
     },
-    enabled && shortcuts.length > 0,
+    live,
     true,
   );
 }

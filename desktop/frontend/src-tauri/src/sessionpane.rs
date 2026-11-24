@@ -58,6 +58,7 @@ impl Job {
 
 struct Life {
     job: Job,
+    started: i64,
     shell_gone: bool,
     shell_code: Option<i32>,
 }
@@ -140,6 +141,7 @@ impl Pane {
             dir: spec.dir.clone(),
             life: Mutex::new(Life {
                 job: if spec.command.is_empty() { Job::Idle } else { Job::Starting },
+                started: 0,
                 shell_gone: false,
                 shell_code: None,
             }),
@@ -208,18 +210,17 @@ impl Pane {
         !self.life.lock().unwrap().shell_gone
     }
 
-    /// Whether the service in this pane has ended, and the status it ended
-    /// with: None for a stop, or a shell that went without one.
-    pub fn outcome(&self) -> (bool, Option<i32>) {
+    /// Whether the service in this pane has ended, the status it ended with
+    /// (None for a stop, or a shell that went without one), and when it started.
+    pub fn outcome(&self) -> (bool, Option<i32>, i64) {
         let life = self.life.lock().unwrap();
-        if life.shell_gone {
-            return (true, life.shell_code);
-        }
-        match life.job {
+        let (ended, code) = match life.job {
+            _ if life.shell_gone => (true, life.shell_code),
             Job::Exited(code) => (true, Some(code)),
             Job::Idle => (true, None),
             _ => (false, None),
-        }
+        };
+        (ended, code, life.started)
     }
 
     /// Type a line into the shell. Always literal: tmux's `send-keys` without
@@ -243,6 +244,7 @@ impl Pane {
         if life.job != Job::Starting {
             life.job = Job::Running;
         }
+        life.started = crate::status::now_millis();
         Ok(())
     }
 
@@ -368,3 +370,7 @@ fn spawn_dir(dir: &str) -> String {
         ".".to_string()
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "sessionpane_tests.rs"]
+mod tests;

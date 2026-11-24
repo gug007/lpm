@@ -25,6 +25,9 @@ export function useRemoteTerminalOps(projectName: string, terminalRef: RefObject
     else if (op === "fork") view?.remoteForkTerminal(id);
     else if (op === "forkCopy") view?.remoteForkIntoCopy(id);
     else if (op === "closeOthers") view?.remoteCloseOthers(id);
+    else if (op === "closeWhenDone") view?.remoteCloseWhenDone(id);
+    else if (op === "closeOthersWhenDone") view?.remoteCloseOthersWhenDone(id);
+    else if (op === "keepOpen") view?.remoteKeepOpen(id);
     else if (op === "copyAnswer") view?.copyLastAnswer(id);
     else if (op === "account" && account) view?.remoteSwitchClaudeAccount(id, account);
     else if (op === "move" && label) void view?.moveTerminalOut(id, label);

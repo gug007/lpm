@@ -38,6 +38,7 @@ export function useAgentRowDrag(
 
   const onPointerDownCapture = useCallback(
     (e: PointerEvent) => {
+      dragged.current = false;
       if (e.button !== 0) return;
       const line = (e.target as HTMLElement).closest<HTMLElement>("[data-agent-row]");
       const agent = line && latest.current.find((a) => a.key === line.dataset.agentRow);
@@ -46,9 +47,9 @@ export function useAgentRowDrag(
       const id = agent.terminalId;
       const startY = e.clientY;
       let moving = false;
-      let before: string | null = null;
+      // Undefined while there is no drop line.
+      let before: string | null | undefined;
       let target: HTMLElement | null = null;
-      dragged.current = false;
 
       const lines = () =>
         [...list.querySelectorAll<HTMLElement>("[data-agent-row]")]
@@ -65,7 +66,6 @@ export function useAgentRowDrag(
         if (!moving && Math.abs(ev.clientY - startY) < THRESHOLD) return;
         if (!moving) {
           moving = true;
-          dragged.current = true;
           line.style.opacity = "0.5";
           document.body.style.cursor = "grabbing";
         }
@@ -74,6 +74,7 @@ export function useAgentRowDrag(
         const inList = over ? list.contains(over) : false;
         markTarget(!inList && row && row.dataset.projectRow !== projectName ? row : null);
         if (!inList) {
+          before = undefined;
           setDropLine(null);
           return;
         }
@@ -98,11 +99,17 @@ export function useAgentRowDrag(
         markTarget(null);
         setDropLine(null);
         if (!moving || ev.type === "pointercancel") return;
+        // Not every drag ends in a click; one that does comes before the timer.
+        dragged.current = true;
+        setTimeout(() => {
+          dragged.current = false;
+        });
         if (dest) {
           const to = moveDestinations(projectName, useAppStore.getState().projects).find((d) => d.name === dest);
           if (to) moveTab(projectName, id, to);
           return;
         }
+        if (before === undefined) return;
         const order = tabOrder(projectName, latest.current);
         const next = reorderedTabs(order, id, before);
         if (next.join("\n") !== order.join("\n")) {

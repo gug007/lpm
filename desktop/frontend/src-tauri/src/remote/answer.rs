@@ -118,7 +118,7 @@ fn answer(hub: &RemoteHub, app: &AppHandle, r: &Request) -> Result<(), String> {
             ready_for_reply(&entries, &r.terminal)?;
             let session = crate::pty::session(&app.state::<crate::pty::PtyState>(), &r.terminal)
                 .ok_or_else(gone)?;
-            agent_still_there(session.shell_at_prompt(), &entries, r)?;
+            agent_still_there(session.shell_at_prompt_now(), &entries, r)?;
             type_reply(hub, app, &r.terminal, &text)?;
             remember(hub, app, r, text);
             Ok(())
@@ -172,8 +172,8 @@ fn ready_for_reply(entries: &[StatusEntry], terminal: &str) -> Result<(), String
 }
 
 /// Once the agent quits, its tab is a plain shell that would run the reply as a
-/// command. Where the shell can't be watched (Windows, an SSH tab), the finish
-/// the notification reported must still stand, as the notification itself does.
+/// command. Where the shell can't be watched (an SSH or WSL tab), the finish the
+/// notification reported must still stand, as the notification itself does.
 fn agent_still_there(
     shell_at_prompt: Option<bool>,
     entries: &[StatusEntry],

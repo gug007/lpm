@@ -67,6 +67,7 @@ import { canSplitOffTab, type PaneEdge } from "../paneMoves";
 import { TerminalComposer } from "./TerminalComposer";
 import type { DuplicatePromptSeed } from "./BulkDuplicateDialog";
 import { useScrollFade } from "../hooks/useScrollFade";
+import { useSshRoot } from "../hooks/useSshRoot";
 import { useWheelScrollX } from "../hooks/useWheelScrollX";
 import { computeScrollIntoViewLeft } from "../hooks/scrollIntoViewX";
 import { useTabScroll } from "../store/tabScroll";
@@ -76,6 +77,7 @@ import {
   isTerminalTab,
   terminalDisplayLabel,
   filesTabLabel,
+  otherClosableTabs,
   terminalOriginLabel,
   type PaneLeaf,
   type SplitDirection,
@@ -93,6 +95,7 @@ import { useBrowserUrls } from "../store/browserUrls";
 import { useFilesView } from "../store/filesView";
 import { canForkSession } from "../forkSession";
 import { actionTextColor } from "../actionColors";
+import { CloseWhenDoneMark } from "./CloseWhenDoneMark";
 import { SendLaterTabMark } from "./SendLaterTabMark";
 import { SkillsUnsavedMark } from "./commands/SkillsUnsavedMark";
 import { SharedTabMark } from "./share/SharedTabMark";
@@ -252,6 +255,7 @@ export interface PaneViewProps {
   onResumeSession?: () => void;
   onCloseTerminal: (paneId: string, tabIdx: number) => void;
   onCloseOtherTerminals: (paneId: string, tabIdx: number) => void;
+  onKeepOpen: (termId: string) => void;
   onRestartTerminal: (terminalId: string) => void;
   onForkTerminal: (paneId: string, termId: string) => void;
   // Fork the tab's agent session into a fresh duplicate of the project.
@@ -358,6 +362,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onResumeSession,
     onCloseTerminal,
     onCloseOtherTerminals,
+    onKeepOpen,
     onRestartTerminal,
     onForkTerminal,
     canForkIntoCopy,
@@ -391,6 +396,7 @@ function PaneViewImpl(props: PaneViewProps) {
     onToggleFilterMode,
     onCloseSearch,
   } = props;
+  const sshRoot = useSshRoot(projectName);
 
   const [tabMenu, setTabMenu] = useState<{
     paneId: string;
@@ -724,6 +730,7 @@ function PaneViewImpl(props: PaneViewProps) {
                         <CommandMarkIcon mark={tabCommandMark(t, tabCommands[t.id])} />
                         <SharedTabMark terminalId={t.id} />
                         <SendLaterTabMark historyKey={t.historyKey} />
+                        {t.closeWhenDone && <CloseWhenDoneMark />}
                         {t.kind === "commands" && <SkillsUnsavedMark tabId={t.id} />}
                       </>
                     }
@@ -892,6 +899,7 @@ function PaneViewImpl(props: PaneViewProps) {
                 fontSize={fontSize}
                 themeOverride={themeOverride}
                 cwd={svc.cwd}
+                sshRoot={sshRoot}
                 label={svc.name}
                 labelLead={
                   <>
@@ -1029,6 +1037,7 @@ function PaneViewImpl(props: PaneViewProps) {
                     fontSize={fontSize}
                     themeOverride={themeOverride}
                     cwd={interactiveCwd}
+                    sshRoot={sshRoot}
                     paneRef={(el) => onRegisterTerminalHandle(t.id, el)}
                   />
                   {t.historyKey && <ClaudeSwitchOverlay tabKey={t.historyKey} />}
@@ -1107,9 +1116,7 @@ function PaneViewImpl(props: PaneViewProps) {
         const targetPane = pane.id === tabMenu.paneId ? pane : null;
         const tab = targetPane?.tabs[tabMenu.tabIdx];
         if (!tab) return null;
-        const canCloseOthers = targetPane.tabs.some(
-          (t, i) => i !== tabMenu.tabIdx && t.pinned !== true,
-        );
+        const canCloseOthers = otherClosableTabs(targetPane.tabs, tab.id).length > 0;
         const forkable = isTerminalTab(tab) && canForkSession(tab.resumeCmd);
         const seenKeys = paneStatus?.seen.get(tab.id);
         return (
@@ -1204,6 +1211,7 @@ function PaneViewImpl(props: PaneViewProps) {
             onMoveToNewPane={
               splitOff ? (edge) => onMoveToNewPane(targetPane.id, tab.id, targetPane.id, edge) : undefined
             }
+            onKeepOpen={tab.closeWhenDone && (() => onKeepOpen(tab.id))}
             onCloseTab={() => onCloseTerminal(tabMenu.paneId, tabMenu.tabIdx)}
             onCloseOthers={() => onCloseOtherTerminals(tabMenu.paneId, tabMenu.tabIdx)}
             onClose={() => setTabMenu(null)}

@@ -2,9 +2,11 @@ package cx.lpm.mobile.core.data.files
 
 import cx.lpm.mobile.core.data.client.LpmClient
 import cx.lpm.mobile.core.data.client.requestListDir
+import cx.lpm.mobile.core.data.client.requestLocatePath
 import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.model.LocatedPath
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.ProjectDirContents
 import cx.lpm.mobile.core.model.ProjectFileEntry
@@ -28,8 +30,14 @@ data class ProjectFolderKey(val project: String, val dir: String)
 data class ProjectFilesState(
     val folders: Map<ProjectFolderKey, ProjectFolderListing> = emptyMap(),
     /** project → its absolute folder on the Mac, once a reply has said. */
-    val roots: Map<String, String> = emptyMap()
+    val roots: Map<String, String> = emptyMap(),
+    /** project → where the last path typed into its Go to File leads. */
+    val located: Map<String, LocatedPath> = emptyMap()
 ) {
+    /** Where [path] leads, null until the Mac has said. */
+    fun located(project: String, path: String): LocatedPath? =
+        located[project]?.takeIf { it.typed == path }
+
     fun folder(project: String, dir: String): ProjectFolderListing =
         folders[ProjectFolderKey(project, dir)] ?: ProjectFolderListing()
 }
@@ -40,15 +48,18 @@ class ProjectFilesStore(private val session: MacSession) : SessionStore {
     val state: StateFlow<ProjectFilesState> = mutable.asStateFlow()
 
     private val timeout = GenerationTimeout<ProjectFolderKey>(session.scope)
+    private val locateTimeout = GenerationTimeout<String>(session.scope)
     private val client: LpmClient? get() = session.client
 
     override fun wire(client: LpmClient) {
         client.onListDir = ::apply
+        client.onLocatePath = ::apply
     }
 
     override fun reset() {
         mutable.value = ProjectFilesState()
         timeout.cancelAll()
+        locateTimeout.cancelAll()
     }
 
     /** A folder waiting on a reply the dropped link took with it asks again. */
@@ -61,6 +72,27 @@ class ProjectFilesStore(private val session: MacSession) : SessionStore {
     /** The Mac lists project folders for Files. An SSH project's files are on the other host. */
     fun canBrowseFiles(project: Project): Boolean =
         client?.hostFeatures?.contains(LpmClient.LIST_DIR_FEATURE) == true && !project.isRemote
+
+    /** A Mac that can be asked where a typed path leads. */
+    val canLocatePaths: Boolean
+        get() = client?.hostFeatures?.contains(LpmClient.LOCATE_PATH_FEATURE) == true
+
+    /** A Mac that doesn't answer leaves the path to the file index alone. */
+    fun locate(project: String, path: String) {
+        client?.requestLocatePath(project, path)
+        locateTimeout.arm(project, LOCATE_TIMEOUT_MS) {
+            hold(LocatedPath(project, typed = path, kind = null, path = "", rel = null))
+        }
+    }
+
+    private fun apply(located: LocatedPath) {
+        locateTimeout.cancel(located.project)
+        hold(located)
+    }
+
+    private fun hold(located: LocatedPath) {
+        mutable.update { it.copy(located = it.located + (located.project to located)) }
+    }
 
     /** Ask for the folder again, keeping what's listed until the answer lands. */
     fun load(project: String, dir: String) {
@@ -99,6 +131,7 @@ class ProjectFilesStore(private val session: MacSession) : SessionStore {
 
     private companion object {
         const val TIMEOUT_MS = 20_000L
+        const val LOCATE_TIMEOUT_MS = 10_000L
         const val REFRESH_WAIT_MS = 5_000L
         const val TIMED_OUT = "The Mac didn't answer in time."
     }

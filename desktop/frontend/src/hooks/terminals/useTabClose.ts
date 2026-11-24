@@ -36,9 +36,13 @@ import {
   mapPane,
   removePane,
   isTabPinned,
-  terminalDisplayLabel,
+  otherClosableTabs,
 } from "../../paneTree";
 import { IS_MIRROR_WINDOW } from "../../mirror";
+import { busyTabs } from "../../closeGuard";
+import { withoutCloseWhenDone } from "../../closeWhenDone";
+import { paneClosedMessage } from "../../paneCloseSummary";
+import { projectStatusEntries } from "../../projectStatusEntries";
 import { nextId, appendTerminal, resolveActiveAfterClose } from "./util";
 import { onTerminalsClosed } from "../../sendLater/closeout";
 import { usePaneClose } from "./usePaneClose";
@@ -193,8 +197,10 @@ export function useTabClose({
       const tab = pane.tabs[tabIdx];
       const toastId = `close-tab-${tab.id}`;
       const unsaved = hasUnsavedFiles(tab.id);
+      // Read before the hold below takes the agent's status off.
+      const message = paneClosedMessage([tab], busyTabs([tab], projectStatusEntries(projectName)).length);
       registerPendingClose({
-        tab,
+        tab: withoutCloseWhenDone(tab),
         paneId: pane.id,
         tabIdx,
         projectName,
@@ -206,10 +212,10 @@ export function useTabClose({
       if (isTerminalTab(tab)) HoldPaneStatus(projectName, tab.id).catch(() => {});
       showUndoCloseToast({
         toastId,
-        title: unsaved
-          ? `${terminalDisplayLabel(tab)} closed with unsaved changes`
-          : `${terminalDisplayLabel(tab)} closed`,
+        title: unsaved ? `${message.title} with unsaved changes` : message.title,
+        detail: message.detail,
         durationMs: unsaved ? UNSAVED_CLOSE_DURATION_MS : UNDO_CLOSE_DURATION_MS,
+        endsHidden: !unsaved,
         onUndo: () => undoPendingClose(tab.id),
         onFinalize: () => finalizePendingClose(tab.id),
       });
@@ -294,9 +300,7 @@ export function useTabClose({
       const pane = findPane(current, paneId);
       const keptTab = pane?.tabs[tabIdx];
       if (!pane || !keptTab) return;
-      const closing = pane.tabs.filter(
-        (t, i) => i !== tabIdx && t.pinned !== true,
-      );
+      const closing = otherClosableTabs(pane.tabs, keptTab.id);
       if (closing.length === 0) return;
       disposeTabs(closing);
 

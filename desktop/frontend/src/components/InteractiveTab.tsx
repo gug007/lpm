@@ -15,6 +15,7 @@ export function InteractiveTab({
   fontSize,
   themeOverride,
   cwd,
+  sshRoot,
   paneRef,
 }: {
   terminalId: string;
@@ -22,6 +23,7 @@ export function InteractiveTab({
   fontSize: number;
   themeOverride: ITheme | null;
   cwd: string;
+  sshRoot: string;
   paneRef: (el: InteractivePaneHandle | null) => void;
 }) {
   const controlled = useIsControlled(terminalId);
@@ -42,6 +44,7 @@ export function InteractiveTab({
           fontSize={fontSize}
           themeOverride={themeOverride}
           cwd={cwd}
+          sshRoot={sshRoot}
         />
       </div>
     </>

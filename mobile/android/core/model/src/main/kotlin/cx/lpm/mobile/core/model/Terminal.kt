@@ -20,6 +20,8 @@ data class TerminalInfo(
     val canFork: Boolean = false,
     val canForkCopy: Boolean = false,
     val canTitle: Boolean = false,
+    // Waits for its agent to finish, then closes by itself.
+    val closesWhenDone: Boolean = false,
     // The tab menu's Claude Account, for a Claude tab on a Mac with "tabAccount": the
     // account the tab runs as.
     val canSwitchAccount: Boolean = false,
@@ -48,6 +50,7 @@ data class TerminalInfo(
             canFork = o.bool("canFork") ?: false,
             canForkCopy = o.bool("canForkCopy") ?: false,
             canTitle = o.bool("canTitle") ?: false,
+            closesWhenDone = o.bool("closesWhenDone") ?: false,
             canSwitchAccount = o.bool("canSwitchAccount") ?: false,
             claudeAccount = o.string("claudeAccount"),
             switchingTo = o.string("switchingTo"),

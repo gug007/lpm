@@ -131,6 +131,26 @@ mod on_a_real_shell {
     }
 
     #[test]
+    fn a_file_over_the_limit_is_refused_before_any_of_it_is_sent() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("big.png"), [7u8; 100]).unwrap();
+        let limited = |limit: &str| {
+            Command::new("sh")
+                .current_dir(dir.path())
+                .args(["-c", SEND_SCRIPT, "sh", "./big.png", limit])
+                .output()
+                .unwrap()
+        };
+        let refused = limited("99");
+        assert!(!refused.status.success());
+        assert!(refused.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&refused.stderr).contains("big.png is too large"));
+        for limit in ["100", ""] {
+            assert_eq!(stream(&limited(limit).stdout).unwrap().0.len(), 100);
+        }
+    }
+
+    #[test]
     fn awkward_names_reach_the_file() {
         let dir = tempfile::tempdir().unwrap();
         for name in ["with space.txt", "-dash.txt", "it's.txt", "квитанция.txt"] {

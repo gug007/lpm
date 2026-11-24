@@ -11,8 +11,34 @@ final class ProjectFilesStore {
     var folders: [String: ProjectFolderListing] = [:]
     /// project -> its absolute folder on the Mac, once a reply has said.
     var roots: [String: String] = [:]
+    /// Where the last path typed into Go to File leads, by project.
+    var located: [String: LocatedPath] = [:]
 
     @ObservationIgnored private let timeout = GenerationTimeout<String>()
+    @ObservationIgnored private let locateTimeout = GenerationTimeout<String>()
+
+    /// A Mac that can be asked where a typed path leads.
+    var canLocatePaths: Bool {
+        client?.hostFeatures.contains(LpmClient.locatePathFeature) == true
+    }
+
+    /// Where `path` leads, nil until the Mac has said.
+    func located(_ project: String, _ path: String) -> LocatedPath? {
+        located[project].flatMap { $0.typed == path ? $0 : nil }
+    }
+
+    /// A Mac that doesn't answer leaves the path to the file index alone.
+    func locate(_ project: String, _ path: String) {
+        client?.requestLocatePath(project: project, path: path)
+        locateTimeout.arm(project, seconds: 10) { [weak self] in
+            self?.located[project] = LocatedPath(["project": project, "path": path])
+        }
+    }
+
+    func apply(_ path: LocatedPath) {
+        locateTimeout.cancel(path.project)
+        located[path.project] = path
+    }
 
     func key(_ project: String, _ dir: String) -> String { project + "\n" + dir }
 

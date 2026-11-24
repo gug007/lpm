@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { GitShowPrefix } from "../../bridge/commands";
-import { basename, dirname, relTo } from "../path";
-import { isPeerRoot, stripMarker } from "../peer/markers";
+import { basename, folderAbove, relTo } from "../path";
+import { stripMarker } from "../peer/markers";
 import { isSourceImage, mediaKind } from "./fileMedia";
 import { useChangedFiles } from "./files/useChangedFiles";
 import { useDiffView, type HeadText } from "./files/useDiffView";
@@ -21,13 +21,13 @@ const STATUS_LABEL: Record<string, string> = {
 
 // A file under the terminal's project is read through that root, which is what
 // the watcher, git and SSH routing key on; any other file through its folder.
-// A folder that is a paired host's bare `/` or `~` keeps the separator its
-// marker needs to route there.
-export function viewerLocation(absPath: string, projectRoot: string) {
+// One on an SSH host is only reached through its project, so a file outside it
+// goes by its absolute path there.
+export function viewerLocation(absPath: string, projectRoot: string, onHost = false) {
   const rel = projectRoot ? relTo(absPath, projectRoot) : absPath;
   if (rel !== absPath) return { root: projectRoot, rel };
-  const dir = dirname(absPath);
-  return { root: isPeerRoot(`${dir}/`) && !isPeerRoot(dir) ? `${dir}/` : dir, rel: basename(absPath) };
+  if (onHost) return { root: projectRoot, rel: stripMarker(absPath) };
+  return { root: folderAbove(absPath) ?? absPath, rel: basename(absPath) };
 }
 
 // Where the root sits in its repo: git reports repo-root-relative paths.
@@ -49,18 +49,25 @@ function useRepoPrefix(root: string, active: boolean): string | null | undefined
   return prefix;
 }
 
-function readError(message: string): string {
-  if (/os error 2\b/.test(message)) return "This file doesn't exist";
-  if (/os error 13\b/.test(message)) return "No permission to read this file";
-  if (/^not a file/.test(message)) return "This is a folder, not a file";
+// This computer's own errors carry their number; an SSH host's are what its
+// `head` said.
+export function readError(message: string): string {
+  if (/os error 2\b|: No such file or directory$/.test(message)) return "This file doesn't exist";
+  if (/os error 13\b|: Permission denied$/.test(message)) return "No permission to read this file";
+  if (/^not a file|: Is a directory$/.test(message)) return "This is a folder, not a file";
+  // A connected computer's lpm from before it read past an SSH project's folder.
+  if (/^path escapes the project/.test(message)) return "Update lpm on that computer to open this file";
   return message;
 }
 
 // Everything the viewer shows about one file: its text through the Files tab's
 // buffer (binary and size verdicts, compare-and-swap saves, following the disk),
 // and its git status with the HEAD text a diff needs.
-export function useFileViewerFile(absPath: string, projectRoot: string) {
-  const { root, rel } = useMemo(() => viewerLocation(absPath, projectRoot), [absPath, projectRoot]);
+export function useFileViewerFile(absPath: string, projectRoot: string, onHost = false) {
+  const { root, rel } = useMemo(
+    () => viewerLocation(absPath, projectRoot, onHost),
+    [absPath, projectRoot, onHost],
+  );
   const kind = mediaKind(absPath);
   const readsText = kind === null || (kind === "image" && isSourceImage(absPath));
 
@@ -70,9 +77,11 @@ export function useFileViewerFile(absPath: string, projectRoot: string) {
     if (readsText) void open(rel);
   }, [open, rel, readsText]);
 
-  const prefix = useRepoPrefix(root, readsText);
-  const repoPath = typeof prefix === "string" ? prefix + rel : null;
-  const changes = useChangedFiles(root, readsText);
+  // The project's repo says nothing of a host's file outside it.
+  const tracked = readsText && !(onHost && rel.startsWith("/"));
+  const prefix = useRepoPrefix(root, tracked);
+  const repoPath = tracked && typeof prefix === "string" ? prefix + rel : null;
+  const changes = useChangedFiles(root, tracked);
   const status =
     repoPath && changes.status === "ready"
       ? changes.files.find((f) => f.path === repoPath)?.status
@@ -81,7 +90,7 @@ export function useFileViewerFile(absPath: string, projectRoot: string) {
     root,
     repoPath ?? rel,
     status && HAS_HEAD.has(status) ? status : undefined,
-    readsText,
+    tracked,
   );
   const { setWanted } = diffView;
   useEffect(() => setWanted(true), [setWanted]);
@@ -91,7 +100,8 @@ export function useFileViewerFile(absPath: string, projectRoot: string) {
   const text = !!file && !file.loading && !file.error && !file.binary && !file.tooLarge;
   const head: HeadText | null = diffView.diff?.head ?? null;
   const fileLoading = !file || file.loading;
-  const gitPending = prefix === undefined || changes.status === "loading" || head?.status === "loading";
+  const gitPending =
+    tracked && (prefix === undefined || changes.status === "loading" || head?.status === "loading");
   // Git only holds the first showing back: a file that turns modified while
   // open keeps its editor, and gains a Diff option once HEAD arrives.
   const [settled, setSettled] = useState(false);

@@ -112,7 +112,13 @@ fun LpmClient.resumeSession(project: String, session: AgentSession) =
 
 fun LpmClient.requestListDir(project: String, dir: String) = send(Wire.listDir(project, dir))
 
-fun LpmClient.closeTerminal(project: String, id: String) = send(Wire.closeTerminal(project, id))
+fun LpmClient.requestLocatePath(project: String, path: String) =
+    send(Wire.locatePath(project, path))
+
+fun LpmClient.closeTerminal(project: String, id: String, whenDone: Boolean = false) =
+    send(Wire.closeTerminal(project, id, whenDone))
+
+fun LpmClient.keepTerminal(project: String, id: String) = send(Wire.keepTerminal(project, id))
 
 fun LpmClient.renameTerminal(project: String, id: String, label: String) =
     send(Wire.renameTerminal(project, id, label))
@@ -131,8 +137,8 @@ fun LpmClient.forkTerminalCopy(project: String, id: String) =
 
 fun LpmClient.titleTerminal(project: String, id: String) = send(Wire.titleTerminal(project, id))
 
-fun LpmClient.closeOtherTerminals(project: String, id: String) =
-    send(Wire.closeOtherTerminals(project, id))
+fun LpmClient.closeOtherTerminals(project: String, id: String, whenDone: Boolean = false) =
+    send(Wire.closeOtherTerminals(project, id, whenDone))
 
 fun LpmClient.switchTerminalAccount(project: String, id: String, account: String) =
     send(Wire.switchTerminalAccount(project, id, account))

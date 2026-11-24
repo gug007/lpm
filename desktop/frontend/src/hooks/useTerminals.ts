@@ -16,7 +16,10 @@ import { usePeerTerminalSync } from "./terminals/usePeerTerminalSync";
 import { useTabCreation } from "./terminals/useTabCreation";
 import { usePaneOps } from "./terminals/usePaneOps";
 import { useTabClose } from "./terminals/useTabClose";
+import { useCloseWhenDone } from "./terminals/useCloseWhenDone";
+import { useCloseGuardedTabs } from "./terminals/useCloseGuardedTabs";
 import { useRemoteTabControls } from "./terminals/useRemoteTabControls";
+import { useTabCloseRequests } from "./terminals/useTabCloseRequests";
 import { useTabMoveOut } from "./terminals/useTabMoveOut";
 import { useMirrorOwner } from "./terminals/useMirrorOwner";
 import { useAgentSessionTitles } from "./terminals/useAgentSessionTitles";
@@ -28,7 +31,7 @@ import { useOpenAppTab } from "./terminals/useOpenAppTab";
 import { useApplyLayout } from "./terminals/useApplyLayout";
 import { useDefaultLayout } from "./terminals/useDefaultLayout";
 
-export { type TerminalStartOpts, type UseTerminalsResult } from "./terminals/types";
+export { type StartedTab, type TerminalStartOpts, type UseTerminalsResult } from "./terminals/types";
 
 export function useTerminals(
   projectName: string,
@@ -249,6 +252,35 @@ export function useTerminals(
     getPane,
   });
 
+  const {
+    closeTabWhenDone,
+    closeOthersWhenDone,
+    closeOthersEverywhereWhenDone,
+    closePaneWhenDone,
+    keepOpen,
+  } = useCloseWhenDone({
+    projectName,
+    tree,
+    treeRef,
+    applyTree,
+    forward,
+    closeTerminal,
+    closeTerminalsById,
+    closePane,
+  });
+
+  const { requestCloseTab, requestCloseOthers, requestClosePane } = useCloseGuardedTabs({
+    projectName,
+    treeRef,
+    closeTerminal,
+    closeOtherTerminals,
+    closePane,
+    closeTabWhenDone,
+    closeOthersWhenDone,
+    closePaneWhenDone,
+    keepOpen,
+  });
+
   const continueSessionOn = useSessionHandoff({
     projectName,
     treeRef,
@@ -262,6 +294,9 @@ export function useTerminals(
     remoteForkTerminal,
     remoteForkIntoCopy,
     remoteCloseOthers,
+    remoteCloseWhenDone,
+    remoteCloseOthersWhenDone,
+    remoteKeepOpen,
     removeAdoptedTerminal,
     remoteRenameTerminal,
     remoteRestoreTitle,
@@ -271,6 +306,9 @@ export function useTerminals(
     treeRef,
     restoreSettled,
     closeTerminal,
+    closeTabWhenDone,
+    closeOthersEverywhereWhenDone,
+    keepOpen,
     renameTerminal,
     restoreSessionTitle,
     toggleTabPinned,
@@ -279,6 +317,8 @@ export function useTerminals(
     forkTerminal,
     forkTerminalIntoCopy,
   });
+
+  useTabCloseRequests({ projectName, treeRef, restoreSettled, closeTerminal, closeTabWhenDone });
 
   const moveTerminalOut = useTabMoveOut({ projectName, treeRef, restoreSettled, applyTree });
 
@@ -317,6 +357,10 @@ export function useTerminals(
     applyLayout,
     captureLayout,
     closePane,
+    closeTabWhenDone,
+    closeOthersWhenDone,
+    closePaneWhenDone,
+    keepOpen,
     setRatio,
     focusPane,
     ensureRootPane,
@@ -392,8 +436,9 @@ export function useTerminals(
     openToolkitTab,
     openBrowserTab,
     openAppTab,
-    closeTerminal,
-    closeOtherTerminals,
+    closeTerminal: requestCloseTab,
+    closeOtherTerminals: requestCloseOthers,
+    keepOpen,
     restartTerminal,
     switchClaudeAccount,
     continueSessionOn,
@@ -408,6 +453,9 @@ export function useTerminals(
     remoteForkTerminal,
     remoteForkIntoCopy,
     remoteCloseOthers,
+    remoteCloseWhenDone,
+    remoteCloseOthersWhenDone,
+    remoteKeepOpen,
     removeAdoptedTerminal,
     remoteRenameTerminal,
     remoteRestoreTitle,
@@ -418,7 +466,7 @@ export function useTerminals(
     splitPane,
     applyLayout,
     captureLayout,
-    closePane,
+    closePane: requestClosePane,
     setRatio,
     focusPane,
     ensureRootPane,

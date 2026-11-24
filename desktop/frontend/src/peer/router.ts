@@ -52,6 +52,8 @@ const LOCAL_ONLY_EXACT = new Set<string>([
   "terminal_present_control",
   "terminal_unpresent_control",
   "terminal_control_owner",
+  // This window answering its own lpm.
+  "answer_tab_request",
   // "Bring changes" always runs on the Mac that RECEIVES the work, and names the
   // source Mac in its arguments. Forwarding it would make the sender bring its
   // own changes to itself; the Rust side accepts marked or bare identifiers.
@@ -298,6 +300,8 @@ export function translateResult(cmd: string, slug: string, result: unknown): unk
   if (cmd === "save_config" && typeof result === "string" && result) {
     return prefixName(slug, result);
   }
+  // A path found on the host is opened by the name that routes back there.
+  if (cmd === "locate_path") return markPath(slug, result);
   // The memory folder is the host's, and its name is the owner's name there.
   if (cmd === "read_memory_sessions" && result && typeof result === "object") {
     const r = result as { dir?: unknown };

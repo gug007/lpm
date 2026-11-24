@@ -81,3 +81,36 @@ fn a_file_on_disk_is_replaced_whole_with_its_mode_kept() {
     assert_eq!(leftovers.len(), 1, "no temp file left behind");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn copies_made_at_the_same_moment_are_all_trusted() {
+    const SOURCES: [&str; 4] = ["/work/shop", "/work/api", "/work/docs-site", "/work/ml"];
+    let dir = std::env::temp_dir().join(format!("lpm-claude-trust-race-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join(".claude.json");
+    let mut start = serde_json::json!({ "projects": {}, "history": "x".repeat(200_000) });
+    for source in SOURCES {
+        start["projects"][source] = serde_json::json!({ "lastCost": 1, TRUSTED: true });
+    }
+    for round in 0..20 {
+        std::fs::write(&file, serde_json::to_string_pretty(&start).unwrap()).unwrap();
+        let gate = std::sync::Barrier::new(SOURCES.len());
+        std::thread::scope(|s| {
+            for source in SOURCES {
+                let (file, gate) = (&file, &gate);
+                s.spawn(move || {
+                    gate.wait();
+                    let name = format!("{}-Ab12Cd", source.rsplit('/').next().unwrap());
+                    carry_in(file, &keys(source), &name).unwrap();
+                });
+            }
+        });
+        let mut expected = start.clone();
+        for source in SOURCES {
+            expected["projects"][format!("{source}-Ab12Cd")] = serde_json::json!({ TRUSTED: true });
+        }
+        let got: Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        assert!(got == expected, "round {round} lost or broke an entry");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -23,10 +23,10 @@ pub fn start(app: AppHandle) {
     });
 }
 
-fn ended_panes() -> BTreeSet<(String, Option<i32>)> {
+fn ended_panes() -> BTreeSet<(String, i64, Option<i32>)> {
     crate::sessions::all_panes()
         .into_iter()
         .filter(|pane| pane.ended)
-        .map(|pane| (pane.id, pane.code))
+        .map(|pane| (pane.id, pane.started, pane.code))
         .collect()
 }
