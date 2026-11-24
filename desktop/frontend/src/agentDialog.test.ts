@@ -7,6 +7,7 @@ import {
   CLAUDE_BASH,
   CLAUDE_WRITE,
   CODEX_COMMAND,
+  CODEX_NOTES,
 } from "./agentDialog.fixtures";
 
 const COLS = 100;
@@ -148,6 +149,27 @@ describe("parseAgentDialog", () => {
       "─".repeat(100),
     ];
     expect(parseAgentDialog(reply, COLS)).toBeNull();
+  });
+
+  it("ignores a numbered message the user just sent, above the prompt", () => {
+    const sent = [
+      "❯ 1. Fix the login test",
+      "  2. Fix the logout test",
+      "",
+      "✽ Mulling…",
+      "",
+      "─".repeat(100),
+      "❯ ",
+      "─".repeat(100),
+      "  ⏵⏵ auto mode on (shift+tab to cycle) · esc to interrupt",
+    ];
+    expect(parseAgentDialog(sent, COLS)).toBeNull();
+  });
+
+  it("reads Codex's question form with its notes open", () => {
+    const dialog = parseAgentDialog(CODEX_NOTES, COLS)!;
+    expect(dialog.question).toBe("Which color do you prefer?");
+    expect(dialog.options).toHaveLength(3);
   });
 
   it("ignores options that skip a number or sit far above the bottom", () => {

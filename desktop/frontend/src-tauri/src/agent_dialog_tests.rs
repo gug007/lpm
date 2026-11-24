@@ -197,6 +197,30 @@ fn ignores_a_numbered_list_in_the_agents_reply() {
 }
 
 #[test]
+fn ignores_a_numbered_message_the_user_just_sent() {
+    let rule = "─".repeat(100);
+    let sent = [
+        "❯ 1. Fix the login test",
+        "  2. Fix the logout test",
+        "",
+        "✽ Mulling…",
+        "",
+        rule.as_str(),
+        "❯ ",
+        rule.as_str(),
+        "  ⏵⏵ auto mode on (shift+tab to cycle) · esc to interrupt",
+    ];
+    assert_eq!(parse(&sent, COLS), None);
+}
+
+#[test]
+fn reads_codexs_question_form_with_its_notes_open() {
+    let dialog = parse(CODEX_NOTES, COLS).unwrap();
+    assert_eq!(dialog.question, "Which color do you prefer?");
+    assert_eq!(dialog.options.len(), 3);
+}
+
+#[test]
 fn ignores_options_that_skip_a_number_or_sit_far_above_the_bottom() {
     assert_eq!(parse(&["Pick one?", "❯ 1. Yes", "  3. No"], COLS), None);
     assert_eq!(

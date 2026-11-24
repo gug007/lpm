@@ -19,6 +19,7 @@ import { IS_QUICK_TERMINAL_WINDOW, MIRROR_PROJECT } from "./mirror";
 import { QuickTerminalApp } from "./components/quick-terminal/QuickTerminalApp";
 import { initMenuEditEvents } from "./menuEdit";
 import { initScrollbarFade } from "./scrollbarFade";
+import { installBackTab } from "./backTab";
 import { applyPlatformClass } from "./platform";
 import { AppRecovery } from "./components/AppRecovery";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
@@ -40,6 +41,7 @@ const surface = detachedProject ? "detached" : IS_QUICK_TERMINAL_WINDOW ? "quick
 const root = createRoot(document.getElementById("root")!);
 
 applyPlatformClass();
+installBackTab();
 initScrollbarFade();
 initMenuEditEvents();
 initializeDiagnostics(surface);

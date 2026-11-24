@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { CODEX_NOTES } from "../../agentDialog.fixtures";
 import type { DeliveryTarget } from "./deliverInput";
 
 const writes: string[] = [];
@@ -50,6 +51,16 @@ const QUESTION = [
   "Enter to select · ↑/↓ to navigate · Esc to cancel",
 ];
 
+// A numbered message just sent, above the prompt it was sent from.
+const SENT_LIST = [
+  "❯ 1. Fix the login test",
+  "  2. Fix the logout test",
+  "",
+  "✽ Mulling…",
+  "❯ ",
+  "  ⏵⏵ auto mode on (shift+tab to cycle) · esc to interrupt",
+];
+
 function target(bracketedPasteMode: boolean): DeliveryTarget {
   const term = {
     modes: { bracketedPasteMode },
@@ -83,11 +94,23 @@ describe("deliverInput", () => {
     expect(toastError).toHaveBeenCalledWith("Answer the agent first", expect.anything());
   });
 
+  it("holds it back with Codex's notes open, where Enter submits the highlighted answer too", () => {
+    expect(deliverInput(showing(CODEX_NOTES), "t1", "wait, use another color")).toBe(false);
+    expect(writes).toEqual([]);
+  });
+
   it("still sends into a question that takes a typed answer", async () => {
     const t = showing(QUESTION);
     expect(deliverInput(t, "t1", "green")).toBe(true);
     await vi.waitFor(() => expect(t.delivering).toBe(false));
     expect(writes).toEqual(["\x1b[200~green\x1b[201~", "\r"]);
+  });
+
+  it("sends again after a numbered message, which only looks like a question", async () => {
+    const t = showing(SENT_LIST);
+    expect(deliverInput(t, "t1", "and the signup test")).toBe(true);
+    await vi.waitFor(() => expect(t.delivering).toBe(false));
+    expect(writes).toEqual(["\x1b[200~and the signup test\x1b[201~", "\r"]);
   });
 
   it("refuses a send while one is still going, and once the tab has ended", () => {

@@ -41,6 +41,8 @@ import { useAIGeneration } from "../hooks/useAIGeneration";
 import { ComposerActionsModal } from "./ComposerActionsModal";
 import { ComposerVariantsModal } from "./ComposerVariantsModal";
 import { ComposerToolbar } from "./ComposerToolbar";
+import { readAgentDialog } from "../agentDialogScreen";
+import { takeAgentModeKey } from "../agentModeKey";
 import { EMPTY_PICK, switchableCLI } from "../agentModelSwitch";
 import type { AgentSessionRef } from "../agentSession";
 import { isSwitchingModel, useAgentModelSwitch } from "../hooks/useAgentModelSwitch";
@@ -221,6 +223,9 @@ interface TerminalComposerProps {
   // (text runs and image paths) to be delivered as separate pastes.
   onSubmit: (input: string | string[]) => boolean;
   onFocusTerminal: () => void;
+  // Whether the agent waits on a choice, where its terminal isn't one of this
+  // window's panes (a shared tab).
+  agentAsks?: () => boolean;
   // Hand the current prompt off to the "run in duplicates" flow. The host opens
   // the seeded Duplicate dialog for the seed's copies and, on confirm, calls
   // `runHere` to run the same prompt in this terminal as copy #1 — so the
@@ -285,7 +290,7 @@ function sameTabView(a: ComposerTabView[], b: ComposerTabView[]): boolean {
   return a.every((t, i) => t.id === b[i].id && t.label === b[i].label);
 }
 
-export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, agent, agentStarted, terminals, session, cwd, launchCmd, actionName, fontSize, canFork, onFork, canForkCopy, onForkCopy, onSubmit, onFocusTerminal, onRunInDuplicates, onOpenMemorySession, memory, onDetachMemory, guest = false }: TerminalComposerProps) {
+export function TerminalComposer({ terminalId, historyKey, projectName, shown, focused, targetLabel, agent, agentStarted, terminals, session, cwd, launchCmd, actionName, fontSize, canFork, onFork, canForkCopy, onForkCopy, onSubmit, onFocusTerminal, agentAsks = () => !!readAgentDialog(terminalId), onRunInDuplicates, onOpenMemorySession, memory, onDetachMemory, guest = false }: TerminalComposerProps) {
   // A remote (peer) terminal runs on another machine, so an attachment is
   // uploaded to the host at attach time and the chip holds the host-valid path
   // that comes back — images via UploadClipboardImageForTerminal, any other file
@@ -2170,6 +2175,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         return;
       }
     }
+    if (takeAgentModeKey(e, { terminalId, agent, guest, asks: agentAsks })) return;
     // Off macOS the field supplies its own Ctrl editing keys and undo, plus the
     // physical forms of the ⌘ chords handled below (composerKeys.ts).
     const chord = composerChord(e.nativeEvent);

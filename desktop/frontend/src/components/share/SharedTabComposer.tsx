@@ -54,6 +54,7 @@ export function SharedTabComposer({
           onForkCopy={noop}
           onSubmit={(input) => terminal.current?.submitInput(input) ?? false}
           onFocusTerminal={() => terminal.current?.focus()}
+          agentAsks={() => terminal.current?.asks() ?? false}
           onRunInDuplicates={noop}
           onOpenMemorySession={noop}
           onDetachMemory={noop}

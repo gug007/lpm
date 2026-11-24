@@ -13,12 +13,14 @@ import { getTerminalThemeColors, terminalXtermTheme } from "../../terminal-theme
 import { nextFontSize, type FitState } from "../../share/fitFont";
 import { deliverInput, type DeliveryTarget } from "../terminal/deliverInput";
 import { bufferToPlainText } from "../terminal/consoleActions";
+import { screenDialog } from "../terminal/screenDialog";
 
 export interface SharedTabTerminalHandle {
   // The composer's send: false when it can't be delivered (typing is off, the
   // tab ended, or a send is still going), so the draft is kept.
   submitInput: (input: string | string[]) => boolean;
   focus: () => void;
+  asks: () => boolean;
   // Everything the terminal holds, scrollback included, as plain text.
   text: () => string;
 }
@@ -173,6 +175,7 @@ export function SharedTabTerminal({
         return canTypeRef.current && delivery ? deliverInput(delivery, terminalId, input) : false;
       },
       focus: () => termRef.current?.focus(),
+      asks: () => !!termRef.current && !!screenDialog(termRef.current),
       text: () => (termRef.current ? bufferToPlainText(termRef.current) : ""),
     }),
     [terminalId],

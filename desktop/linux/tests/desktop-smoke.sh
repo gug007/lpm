@@ -319,6 +319,13 @@ X type --delay 20 "stty -ixon; cat -v > $PROJ/ctrlq.out"; X key Return; sleep 0.
 X key ctrl+q; sleep 0.5; X key Return; X key ctrl+d; sleep 1
 check "plain Ctrl+Q reaches the program as ^Q, no quit dialog" 'grep -q "\\^Q" "$PROJ/ctrlq.out" && L "return document.body.innerText.includes(\"again to quit\")" | grep -q false'
 
+# In the Kitty keyboard mode, which Claude Code asks for, a key goes by its name,
+# and WebKitGTK doesn't give Shift+Tab one (src/backTab.ts).
+X type --delay 20 "printf '\\033[>1u'; head -n1 | cat -v > $PROJ/backtab.out; printf '\\033[<u'"; X key Return; sleep 0.5
+X key shift+Tab; sleep 0.5; X key Return
+wait_for 10 '[ -s "$PROJ/backtab.out" ]'
+check "Shift+Tab reaches a program in the Kitty keyboard mode" 'grep -qF "^[[9;2u" "$PROJ/backtab.out"'
+
 s=$(L 'const a=document.querySelector("aside"); return a?Math.round(a.getBoundingClientRect().width):-1'); X key --clearmodifiers ctrl+shift+b; sleep 1
 s2=$(L 'const a=document.querySelector("aside"); return a?Math.round(a.getBoundingClientRect().width):-1'); X key --clearmodifiers ctrl+shift+b; sleep 1
 check "Ctrl+Shift+B toggles sidebar" '[ "$s" != "$s2" ]'

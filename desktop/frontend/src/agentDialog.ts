@@ -32,6 +32,9 @@ const GUTTER = /^\s*│ ?/;
 // A question form's tabs: "☐ Color", or "← ☐ Color  ☐ Size  ✔ Submit →".
 const FORM_TABS = /^\s*(?:←\s*)?[☐☒✔]\s/;
 const TIP = /^\s*Tip:/i;
+// The row an agent takes messages on, in the first column: the text box of a
+// dialog (Codex's notes) has the marker too, indented like the options.
+const PROMPT_ROW = /^[❯›](?:\s|$)/;
 const MAX_FOOTER_LINES = 3;
 const MAX_BODY_LINES = 24;
 const MAX_DETAILS = 3;
@@ -45,6 +48,9 @@ function lastOptionRow(lines: string[]): number {
   let footer = 0;
   for (let i = lines.length - 1; i >= 0; i--) {
     if (OPTION.test(lines[i])) return i;
+    // A numbered message the user just sent reads like options, but has the
+    // prompt below it.
+    if (PROMPT_ROW.test(lines[i])) return -1;
     if (!isBlank(lines[i]) && !ANY_RULE.test(lines[i]) && ++footer > MAX_FOOTER_LINES) return -1;
   }
   return -1;

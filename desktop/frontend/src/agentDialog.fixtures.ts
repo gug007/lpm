@@ -206,3 +206,18 @@ export const CLAUDE_ASK_PARAGRAPHS = [
   "",
   "Enter to select · ↑/↓ to navigate · Esc to cancel"
 ];
+
+// Captured from Codex 0.170.0 in a 100-column tmux pane (2026-11-25): a question
+// form after Tab, with its notes open.
+export const CODEX_NOTES = [
+  "  Question 1/1 (1 unanswered)",
+  "  Which color do you prefer?",
+  "",
+  "  › 1. Red (Recommended)  Choose red",
+  "    2. Blue               Choose blue",
+  "    3. None of the above  Optionally, add details in notes (tab)",
+  "",
+  "  › Add notes",
+  "",
+  "  tab or esc to clear notes | enter to submit answer"
+];

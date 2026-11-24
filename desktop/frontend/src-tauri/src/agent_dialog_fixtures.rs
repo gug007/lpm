@@ -200,3 +200,16 @@ pub(super) const CLAUDE_ASK_PARAGRAPHS: &[&str] = &[
     "",
     "Enter to select · ↑/↓ to navigate · Esc to cancel",
 ];
+
+pub(super) const CODEX_NOTES: &[&str] = &[
+    "  Question 1/1 (1 unanswered)",
+    "  Which color do you prefer?",
+    "",
+    "  › 1. Red (Recommended)  Choose red",
+    "    2. Blue               Choose blue",
+    "    3. None of the above  Optionally, add details in notes (tab)",
+    "",
+    "  › Add notes",
+    "",
+    "  tab or esc to clear notes | enter to submit answer",
+];

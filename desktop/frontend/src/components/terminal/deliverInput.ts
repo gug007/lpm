@@ -3,9 +3,8 @@
 // which mirrors the host's screen in an emulator of its own.
 import type { Terminal } from "@xterm/xterm";
 import { sendTerminalInput } from "../../terminal-io";
-import { parseAgentDialog } from "../../agentDialog";
 import { toast } from "../../notifications/toast";
-import { bufferLines } from "./consoleActions";
+import { screenDialog } from "./screenDialog";
 import { unquotePastedPath } from "../../composerValue";
 import {
   PASTE_QUIET_MS,
@@ -29,8 +28,7 @@ function countImageMarkers(text: string): number {
 // A permission prompt or approval with no text box takes Enter as its
 // highlighted answer, so a message sent now would approve it and be lost.
 function awaitsChoice(term: Terminal): boolean {
-  const top = term.buffer.active.baseY;
-  const dialog = parseAgentDialog(bufferLines(term, top, top + term.rows), term.cols);
+  const dialog = screenDialog(term);
   return !!dialog && !dialog.options.some((option) => option.typed);
 }
 

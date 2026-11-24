@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { interactivePaneOutputAt, interactiveSessions } from "./components/InteractivePane";
-import { parseAgentDialog, sameDialog, type AgentDialog, type AgentDialogOption } from "./agentDialog";
-import { bufferLines } from "./components/terminal/consoleActions";
+import { sameDialog, type AgentDialog, type AgentDialogOption } from "./agentDialog";
+import { screenDialog } from "./components/terminal/screenDialog";
 import { sendTerminalInput } from "./terminal-io";
 
 const POLL_MS = 400;
@@ -10,9 +10,7 @@ const POLL_MS = 400;
  *  this window holds no session for it. */
 export function readAgentDialog(terminalId: string): AgentDialog | null {
   const term = interactiveSessions.get(terminalId)?.term;
-  if (!term) return null;
-  const top = term.buffer.active.baseY;
-  return parseAgentDialog(bufferLines(term, top, top + term.rows), term.cols);
+  return term ? screenDialog(term) : null;
 }
 
 /** Picks `option` by typing its number, the way a keypress in the terminal

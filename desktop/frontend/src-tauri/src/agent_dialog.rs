@@ -47,6 +47,9 @@ static GUTTER: LazyLock<Regex> = LazyLock::new(|| re(r"^\s*│ ?"));
 // A question form's tabs: "☐ Color", or "← ☐ Color  ☐ Size  ✔ Submit →".
 static FORM_TABS: LazyLock<Regex> = LazyLock::new(|| re(r"^\s*(?:←\s*)?[☐☒✔]\s"));
 static TIP: LazyLock<Regex> = LazyLock::new(|| re(r"(?i)^\s*Tip:"));
+// The row an agent takes messages on, in the first column: the text box of a
+// dialog (Codex's notes) has the marker too, indented like the options.
+static PROMPT_ROW: LazyLock<Regex> = LazyLock::new(|| re(r"^[❯›](?:\s|$)"));
 static INDENTED: LazyLock<Regex> = LazyLock::new(|| re(r"^\s{2,}\S"));
 
 const MAX_FOOTER_LINES: usize = 3;
@@ -70,6 +73,11 @@ fn last_option_row<S: AsRef<str>>(lines: &[S]) -> Option<usize> {
         let line = line.as_ref();
         if OPTION.is_match(line) {
             return Some(i);
+        }
+        // A numbered message the user just sent reads like options, but has the
+        // prompt below it.
+        if PROMPT_ROW.is_match(line) {
+            return None;
         }
         if !is_blank(line) && !ANY_RULE.is_match(line) {
             footer += 1;

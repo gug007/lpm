@@ -79,6 +79,7 @@ export const BUILTIN_SHORTCUT_GROUPS: BuiltinShortcutGroup[] = [
       { id: "newline", label: "New line", description: "Without sending", keys: enterHint({ shift: true }) },
       { id: "send-later", label: "Send later", description: "Pick a time to send the message", keys: enterHint({ alt: true }) },
       { id: "send-when-done", label: "Send when done", description: "Sends once the agent finishes its turn", keys: enterHint({ alt: true, shift: true }) },
+      { id: "agent-mode", label: "Switch the agent's mode", description: "Plan, accept edits and the rest, as in the terminal", keys: chordLabel({ key: "Tab", shift: true }) },
       { id: "recall", label: "Recall past messages", description: "At the start of the input", keys: "↑" },
       { id: "back-to-terminal", label: "Back to the terminal", description: "The input stays open", keys: "Esc" },
     ],
