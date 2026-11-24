@@ -117,6 +117,16 @@ export const PLATFORM_AREA: FeatureArea = {
       note: "On Linux, the update notice opens the new download in your browser for you to install.",
     },
     {
+      title: "WSL projects on Windows",
+      body: "Add a folder inside a WSL distro and its services, terminals, agents and Git run there, on the Linux path, with lpm itself on Windows. Pick the distro from + → WSL folder.",
+      note: "Git for Windows is still required.",
+    },
+    {
+      title: "The shell your terminals open in",
+      body: "Choose the shell for plain terminals on this computer, such as zsh, bash, fish or nu, or PowerShell, Command Prompt, Git Bash or a WSL distro on Windows. A project can set its own with terminal: { shell }.",
+      note: "Services, actions and agents keep the login shell.",
+    },
+    {
       title: "Clean uninstall",
       body: "Remove app stops your projects and removes the CLI, skills, and agent hooks it added. On macOS it also moves lpm to the Trash; on Windows and Linux you finish in Settings → Apps or with your package manager. Your project folders are left alone.",
     },

@@ -85,7 +85,8 @@ class DemoServerTest {
         "projects", "sidebar", "status", "clearStatus", "archiveStatus", "markStatusSeen",
         "markStatusUnread", "duplicateDefaults", "start", "stop",
         "toggleService", "services", "fileChunk", "serviceLogs", "serviceLogsWatch",
-        "serviceLogsUnwatch", "renameProject", "setWorkStatus", "remove", "duplicate",
+        "serviceLogsUnwatch", "conversationWatch", "conversationUnwatch", "conversationPage",
+        "conversationDetail", "renameProject", "setWorkStatus", "remove", "duplicate",
         "createProject", "createSshProject", "cloneProject", "listDirs", "listSshHosts",
         "sidebarCreateFolder", "sidebarRenameFolder", "sidebarDeleteFolder", "sidebarMoveProject",
         "runAction", "runActionBackground", "actionBgOutput", "cancelActionBackground",
@@ -122,7 +123,11 @@ class DemoServerTest {
         "gitMergePr", "gitCommitChecks", "ciFixLoop",
         "lpmCommands", "lpmCommandSave", "lpmCommandDelete", "lpmCommandFolder", "lpmCommandExpand",
         "lpmCommandOtherFolder", "lpmCommandConvert", "agentDialog", "gitDiscardFiles",
+        "gitMergeResolve",
+        "gitMergeStop", "gitMergeAbort",
+        "gitMergeContinue", "gitConflictTake", "gitConflictResolved",
         "gitScanSecrets", "gitBranchFiles", "gitBranchDiffs", "gitPrDiscussion", "gitCheckLog",
+        "gitIssues", "gitIssue",
         "writeFile", "agentOptions", "agentSessions", "resumeSession", "listDir"
     )
 }

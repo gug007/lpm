@@ -1,7 +1,6 @@
 import { useUnsavedWork } from "../hooks/useUnsavedWork";
-import { peerRawName } from "../peer/markers";
 import { unsavedWorkPills } from "../removalGroups";
-import { worktreeBranchName } from "../unsavedWork";
+import { worktreeBranch } from "../unsavedWork";
 import type { ProjectInfo } from "../types";
 
 interface RemovalCopyRowProps {
@@ -27,7 +26,7 @@ export function RemovalCopyRow({ project, label, merged = false }: RemovalCopyRo
         </div>
         {project.worktree && (
           <div className="truncate font-mono text-[11px] text-[var(--text-muted)]">
-            and branch {worktreeBranchName(peerRawName(project.name))}
+            and branch {worktreeBranch(project)}
           </div>
         )}
       </div>

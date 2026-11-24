@@ -9,6 +9,7 @@
     <string name="addresses">Addresses</string>
     <string name="back">Back</string>
     <string name="banner_reconnecting">Reconnecting…</string>
+    <string name="banner_last_seen">Last seen %1$s</string>
     <string name="cancel">Cancel</string>
     <string name="connection_address_in_use">Address in use</string>
     <string name="connection_away_footer">A home network address not answering is normal while you\'re away.</string>

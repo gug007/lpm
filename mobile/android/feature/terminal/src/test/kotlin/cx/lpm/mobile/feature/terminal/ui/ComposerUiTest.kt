@@ -36,6 +36,7 @@ import cx.lpm.mobile.core.model.CommandScope
 import cx.lpm.mobile.core.model.MentionComputer
 import cx.lpm.mobile.core.model.MentionEntry
 import cx.lpm.mobile.core.model.MentionPlace
+import cx.lpm.mobile.core.model.RepoIssue
 import cx.lpm.mobile.core.model.ServiceInfo
 import cx.lpm.mobile.core.model.SlashCommand
 import cx.lpm.mobile.feature.terminal.composer.ComposerCallbacks
@@ -74,7 +75,15 @@ class ComposerUiTest {
         onRemoveAttachment = {},
         onCancelRewrite = { events += "cancel" },
         onPickSlash = { events += "slash:${it.name}" },
-        mentions = MentionActions({}, {}, { events += "place:${it.insert}" }, {}, {}, {})
+        mentions = MentionActions(
+            pickPath = {},
+            pickBranch = {},
+            pickPlace = { events += "place:${it.insert}" },
+            pickIssue = { events += "issue:${it.number}" },
+            previewFile = {},
+            pickTerminalOutput = {},
+            pickServiceLog = {}
+        )
     )
 
     private fun show(
@@ -172,6 +181,26 @@ class ComposerUiTest {
         compose.onNodeWithContentDescription("Preview").assertExists()
         compose.onNodeWithText("Home folder").performClick()
         assertEquals(listOf("place:Mac mini:~ (on another computer)"), events)
+    }
+
+    @Test
+    fun `open issues are a section before files, and a reply box offers them too`() {
+        show(
+            ComposerUiState(
+                composer = ComposerState(tabs = listOf(ComposerTab(text = "fix @"))),
+                terminalTools = false,
+                mentionActive = true,
+                mentions = MentionResults(
+                    issues = listOf(RepoIssue(45, "Cart badge keeps the old count", listOf("bug"))),
+                    files = listOf(MentionEntry("lib", dir = true, changed = false))
+                )
+            )
+        )
+        val top = { text: String -> compose.onNodeWithText(text).getUnclippedBoundsInRoot().top }
+        assertTrue(top("ISSUES") < top("#45 Cart badge keeps the old count"))
+        assertTrue(top("bug") < top("FILES"))
+        compose.onNodeWithText("#45 Cart badge keeps the old count").performClick()
+        assertEquals(listOf("issue:45"), events)
     }
 
     @Test

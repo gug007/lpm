@@ -5,6 +5,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import cx.lpm.mobile.core.data.di.ApplicationScope
 import cx.lpm.mobile.core.data.link.LinkState
+import cx.lpm.mobile.core.data.mac.LastAnswers
 import cx.lpm.mobile.core.data.projects.ProjectsState
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.session.MacSession
@@ -30,13 +31,14 @@ import kotlinx.coroutines.withContext
 /**
  * Keeps the Agents widget in step with the live Mac (iOS `AgentWidgetPublisher`):
  * writes its rows once they've settled for a second, so a burst of status changes
- * is one write, and drops the rows of Macs the phone no longer has. Leaving the app
+ * is one write, and drops the rows and kept answers of Macs the phone no longer has. Leaving the app
  * stamps them as seen then, the last the phone hears of the Mac until it's back.
  */
 @Singleton
 class AgentWidgetPublisher @Inject constructor(
     private val session: MacSession,
     private val store: AgentWidgetStore,
+    private val answers: LastAnswers,
     @param:ApplicationScope private val scope: CoroutineScope
 ) {
     private var live: AgentWidgetMac? = null
@@ -73,6 +75,7 @@ class AgentWidgetPublisher @Inject constructor(
                     withContext(Dispatchers.IO) {
                         val gone = store.macs.value.map { it.id }.toSet() - kept
                         if (gone.isNotEmpty()) store.remove(gone)
+                        answers.keep(kept)
                     }
                 }
         }

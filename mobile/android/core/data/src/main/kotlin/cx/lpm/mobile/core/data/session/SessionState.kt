@@ -32,6 +32,9 @@ data class SessionState(
 ) {
     val isReady: Boolean get() = connection == LpmClient.State.Ready
 
+    /** The Mac can't be reached right now, so what the phone kept is all there is. */
+    val away: Boolean get() = !demoMode && !isReady
+
     /** The saved Mac the phone is (or should be) connected to. */
     val activeRecord: MacRecord? get() = activeMacId?.let { id ->
         macs.firstOrNull {

@@ -77,6 +77,34 @@
     <string name="git_commit_footer">Only the selected files are committed.</string>
     <string name="git_commit_included">Included</string>
     <string name="git_commit_excluded">Excluded</string>
+    <string name="git_merging_into">Merging %1$s into %2$s</string>
+    <string name="git_merging">Merging %1$s</string>
+    <string name="git_merge_conflicts">Merge conflicts</string>
+    <string name="git_merge_resolve">Resolve %1$s with AI</string>
+    <string name="git_merge_resolving">Resolving…</string>
+    <string name="git_merge_starting">Starting…</string>
+    <string name="git_merge_stop">Stop</string>
+    <string name="git_merge_abort">Abort merge</string>
+    <string name="git_merge_continue">Continue merge</string>
+    <string name="git_merge_abort_title">Abort the merge?</string>
+    <string name="git_merge_abort_message">The branch goes back to how it was before the merge, and what was resolved so far is lost.</string>
+    <string name="git_merge_abort_confirm">Abort Merge</string>
+    <string name="git_conflict_actions">Actions for %1$s</string>
+    <string name="git_conflict_mark_resolved">Mark resolved</string>
+    <string name="git_conflict_use_ours">Use ours</string>
+    <string name="git_conflict_use_theirs">Use theirs</string>
+    <string name="git_conflict_resolved">resolved</string>
+    <string name="git_conflict_used">resolved · used %1$s</string>
+    <string name="git_conflict_no_markers">no markers left</string>
+    <string name="git_conflict_spoken">%1$s, %2$s</string>
+    <plurals name="git_conflict_count">
+        <item quantity="one">%d conflict</item>
+        <item quantity="other">%d conflicts</item>
+    </plurals>
+    <plurals name="git_merge_resolved">
+        <item quantity="one">%1$d of %2$d file resolved</item>
+        <item quantity="other">%1$d of %2$d files resolved</item>
+    </plurals>
     <plurals name="git_commit_conflicts">
         <item quantity="one">%1$s has merge conflicts. Resolve the conflict markers (&lt;&lt;&lt;&lt;&lt;&lt;&lt; … &gt;&gt;&gt;&gt;&gt;&gt;&gt;) before committing.</item>
         <item quantity="other">%1$s have merge conflicts. Resolve the conflict markers (&lt;&lt;&lt;&lt;&lt;&lt;&lt; … &gt;&gt;&gt;&gt;&gt;&gt;&gt;) before committing.</item>
@@ -88,6 +116,8 @@
     <string name="git_pr_create">Create</string>
     <string name="git_pr_field_title">Title</string>
     <string name="git_pr_field_description">Description</string>
+    <string name="git_pr_close_issue">Close #%1$d on merge</string>
+    <string name="git_pr_close_issue_footer">Adds “Closes #%1$d” to the description.</string>
     <string name="git_pr_generate">Generate with AI</string>
     <string name="git_pr_footer">Creating a pull request pushes your branch first, so it can take a moment.</string>
     <string name="git_pr_created">Pull request created</string>

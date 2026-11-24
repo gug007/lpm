@@ -192,7 +192,7 @@ pub(crate) fn glab_installed() -> bool {
 pub(crate) fn glab_out(cwd: &str, args: &[&str]) -> Result<String, String> {
     let local = crate::sshexec::remote_project_for_path(cwd).is_none();
     if local && !glab_installed() {
-        return Err("Install the GitLab CLI (glab) to work with merge requests".into());
+        return Err("Install the GitLab CLI (glab) to work with merge requests and issues".into());
     }
     crate::git::tool_out(
         cwd,

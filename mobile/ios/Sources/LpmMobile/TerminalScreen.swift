@@ -27,9 +27,16 @@ struct TerminalScreen: View {
     // The bar's middle, which the title keeps to whatever buttons flank it.
     @State private var barAxis: CGFloat?
     @State private var find = TerminalFind()
+    @State private var bannerHeight: CGFloat = 0
+    // Something live has been on screen, and what the phone kept for when it hasn't.
+    @State private var live = false
+    @State private var saved: SavedAgentTab?
+    @State private var savedShown = false
     // Phone-local terminal preferences (Settings → Terminal).
     @AppStorage(TerminalPrefs.fontSizeKey) private var fontSize = TerminalPrefs.defaultFontSize
     @AppStorage(TerminalPrefs.themeKey) private var themeRaw = TerminalPrefs.defaultTheme.rawValue
+    // What agent tabs show, terminal or conversation (the "…" menu's View).
+    @AppStorage(TerminalViewMode.storageKey) private var viewMode = TerminalViewMode.terminal
 
     private var theme: TerminalTheme { TerminalPrefs.theme(themeRaw) }
     private var liveProject: Project { model.projects.first(where: { $0.name == term.project }) ?? project }
@@ -55,6 +62,14 @@ struct TerminalScreen: View {
         let ended = model.endedTerminals[term.id]
         let restored = model.movedTab(for: term) ?? model.restoredTab(for: term)
         let accountMove = model.accountMove(for: term)
+        // The agent whose conversation the screen can show in place of the terminal.
+        let source = model.conversationSource(terminal: term.id, project: term.project)
+        let conversation = viewMode == .conversation ? source : nil
+        // What the phone kept of the tab, while the Mac is away and nothing live is up.
+        let kept = model.macAway && !live ? saved : nil
+        // A conversation read earlier says more than its last answer.
+        let reads = conversation != nil && !model.conversations.list(term.id).items.isEmpty
+        let keptAnswer = kept.flatMap { !reads && (viewMode == .conversation || $0.screen == nil) ? $0.answer : nil }
         // The Mac still has the tab, so it can be run again or closed from here.
         let listed = model.terminals[term.project]?.contains { $0.id == term.id } == true
         let endedHere = ended.flatMap { !$0.restarted && listed && accountMove == nil ? $0 : nil }
@@ -67,31 +82,47 @@ struct TerminalScreen: View {
                 // the Mac a PTY resize each time; it slides instead and refits once.
                 KeyboardSteadyFrame(keyboard: keyboard, extent: textExtent) { hidden in
                     WebTerminalView(term: term, onFirstContent: {
-                        withAnimation(.easeOut(duration: 0.2)) { hasContent = true }
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            hasContent = true
+                            live = true
+                        }
                     }, hiddenInsets: hidden, textExtent: textExtent, fontSize: fontSize, theme: theme, onOpenPath: { paths, line in
-                        Haptics.tap()
-                        preview = FilePreviewTarget(project: term.project, paths: paths, line: line)
+                        openPaths(paths, line: line, in: term)
                     }, find: find, onAddToPrompt: controlled && ended == nil ? { text in
                         model.composerStore(for: term.id, project: term.project, label: term.label).appendQuoted(text)
                         Haptics.tap()
-                    } : nil)
+                    } : nil, savedScreen: model.macAway ? saved?.screen?.text : nil, onSavedShown: { savedShown = true })
                         .environment(model)
                         .id(term.id)
                 }
-                if controlled && !hasContent && ended == nil {
+                // Covered, the terminal stays mounted and live: the composer sends
+                // through it.
+                .allowsHitTesting(conversation == nil && keptAnswer == nil)
+                .accessibilityHidden(conversation != nil || keptAnswer != nil)
+                if controlled && !hasContent && ended == nil && !(kept != nil && savedShown) && keptAnswer == nil {
                     TerminalLoadingView(background: theme.backgroundColor)
                 }
-                if !controlled && ended == nil {
+                if !controlled && ended == nil && kept == nil {
                     ControlHandoffView(ownerLabel: model.controlOwnerLabel(term.id),
                                        background: theme.backgroundColor) {
                         model.claimControl(term.id)
                     }
                 }
+                if let conversation {
+                    AgentConversationView(source: conversation, background: theme.backgroundColor,
+                                          onOpenPath: { openPaths([$0], in: term) },
+                                          onShowTerminal: { viewMode = .terminal })
+                        .id(term.id)
+                }
+                if let keptAnswer {
+                    SavedAnswerView(answer: keptAnswer, background: theme.backgroundColor, topInset: bannerHeight + 8)
+                }
                 // Without this the terminal just freezes silently while the link
                 // is down — keystrokes and scroll are live traffic, dropped by
                 // design, so the user needs to see WHY nothing responds.
                 if model.connection != .ready {
-                    TerminalConnectionBanner()
+                    TerminalConnectionBanner(lastSeen: kept?.lastSeen)
+                    .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { bannerHeight = $0 }
                     .frame(maxHeight: .infinity, alignment: .top)
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -132,6 +163,11 @@ struct TerminalScreen: View {
                                  fullHeight: composerRoom)
                     .environment(model)
                     .id(term.id)
+            } else if conversation != nil, ended == nil, kept == nil {
+                ControlHandoffBar(ownerLabel: model.controlOwnerLabel(term.id),
+                                  background: theme.backgroundColor) {
+                    model.claimControl(term.id)
+                }
             } else if let endedHere {
                 TerminalEndedBar(label: term.label, ending: endedHere, background: theme.backgroundColor,
                                  onRestart: model.canRestartTerminals ? { model.restartTerminal(term) } : nil,
@@ -154,7 +190,8 @@ struct TerminalScreen: View {
             }
             .followsGitChanges(term.project)
             .projectMenuToolbar(project: liveProject, terminal: term,
-                                onFind: controlled && ended == nil ? { find.open() } : nil,
+                                onFind: controlled && ended == nil && conversation == nil ? { find.open() } : nil,
+                                viewMode: source != nil || (kept?.screen != nil && kept?.answer != nil) ? $viewMode : nil,
                                 onSpawnedTerminal: { t in
                 // The new terminal is owned by the desktop that opened it; claim it
                 // for this phone before pushing so the pushed screen renders live
@@ -174,6 +211,10 @@ struct TerminalScreen: View {
             .background(WindowTouchObserver {
                 if onScreen { model.markTerminalSeen(project: term.project, paneId: term.id) }
             })
+            .task(id: "\(term.id)|\(model.macAway)") {
+                let kept = model.macAway ? await model.savedAgentTab(term.id) : nil
+                if !Task.isCancelled { saved = kept }
+            }
             .onAppear {
                 onScreen = true
                 model.markTerminalSeen(project: term.project, paneId: term.id)
@@ -214,6 +255,11 @@ struct TerminalScreen: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
     }
 
+    private func openPaths(_ paths: [String], line: Int = 0, in term: TerminalInfo) {
+        Haptics.tap()
+        preview = FilePreviewTarget(project: term.project, paths: paths, line: line)
+    }
+
     /// Carry on with the tab lpm reopened: what was typed here goes with it, and
     /// so does control if this phone had it. A restart asked for here needs no
     /// word that it happened.
@@ -225,6 +271,8 @@ struct TerminalScreen: View {
         if model.isControlled(old.id) { model.claimControl(next.id) }
         model.carryComposerDraft(from: old.id, to: next)
         hasContent = false
+        live = false
+        savedShown = false
         successor = next
         reopened = !replacedHere
     }

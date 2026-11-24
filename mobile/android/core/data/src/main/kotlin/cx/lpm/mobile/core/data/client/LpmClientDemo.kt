@@ -32,6 +32,7 @@ internal fun LpmClient.connectDemo() {
             putJsonArray("features") {
                 add(LpmClient.FILE_UPLOAD_FEATURE)
                 add(LpmClient.SERVICE_LOGS_WATCH_FEATURE)
+                add(LpmClient.AGENT_CONVERSATION_FEATURE)
                 add(LpmClient.RESTART_TERMINAL_FEATURE)
                 add(LpmClient.AGENT_LAUNCH_FEATURE)
                 add(LpmClient.AGENT_SESSIONS_FEATURE)
@@ -58,11 +59,13 @@ internal fun LpmClient.connectDemo() {
                 add(LpmClient.CI_FIX_LOOP_FEATURE)
                 add(LpmClient.AGENT_DIALOG_FEATURE)
                 add(LpmClient.GIT_DISCARD_FILES_FEATURE)
+                add(LpmClient.GIT_CONFLICTS_FEATURE)
                 add(LpmClient.ACTION_POPUP_FEATURE)
                 add(LpmClient.ACTION_APP_FEATURE)
                 add(LpmClient.GIT_SCAN_SECRETS_FEATURE)
                 add(LpmClient.GIT_BRANCH_DIFF_FEATURE)
                 add(LpmClient.GIT_PR_DISCUSSION_FEATURE)
+                add(LpmClient.GIT_ISSUES_FEATURE)
                 add(LpmClient.GIT_CHECK_LOG_FEATURE)
                 add(LpmClient.WRITE_FILE_FEATURE)
             }

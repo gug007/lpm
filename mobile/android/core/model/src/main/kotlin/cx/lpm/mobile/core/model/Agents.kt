@@ -248,6 +248,10 @@ fun agentRowsByTerminal(rows: List<ProjectAgentRow>): Map<String, ProjectAgentRo
     return byTerminal
 }
 
+/** The agent one terminal reads as. */
+fun agentRow(project: Project, terminal: String, now: Long): ProjectAgentRow? =
+    agentRowsByTerminal(projectAgentRows(project, now, tabTitles = emptyMap()))[terminal]
+
 /**
  * "45s", "4m", "2h 5m": a reading rather than a stopwatch. Takes millis and rounds
  * down like a stopwatch: it says what has elapsed, never more.

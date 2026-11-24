@@ -4,6 +4,7 @@ import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.snapshots.Snapshot
 import cx.lpm.mobile.core.data.commands.LpmCommandsStore
 import cx.lpm.mobile.core.data.dictation.DictationStore
+import cx.lpm.mobile.core.data.git.GitExtrasStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.services.ServiceLogsStore
 import cx.lpm.mobile.core.data.session.SessionStore
@@ -61,6 +62,7 @@ class ComposerVideoTest {
                 SessionStore.Factory(::HistoryStore),
                 SessionStore.Factory(::ServiceLogsStore),
                 SessionStore.Factory(::GitStore),
+                SessionStore.Factory(::GitExtrasStore),
                 SessionStore.Factory(::LpmCommandsStore)
             )
         )

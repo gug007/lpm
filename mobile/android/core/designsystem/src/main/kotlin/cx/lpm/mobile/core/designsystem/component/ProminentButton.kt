@@ -6,6 +6,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -25,13 +26,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 
+enum class ProminentButtonSize(
+    internal val minHeight: Dp,
+    internal val padding: PaddingValues,
+    internal val maxLines: Int
+) {
+    Regular(40.dp, PaddingValues(horizontal = 12.dp, vertical = 8.dp), maxLines = 1),
+    Large(50.dp, PaddingValues(horizontal = 20.dp, vertical = 14.dp), maxLines = Int.MAX_VALUE)
+}
+
 /**
- * iOS's large `.borderedProminent` button across the width: a capsule in
- * [containerColor] with [icon] before its label. While [busy] a spinner takes the
- * icon's place, or the label's when there's no icon.
+ * iOS's `.borderedProminent` button across the width, large unless [size] says
+ * otherwise: a capsule in [containerColor] with [icon] before its label. While [busy] a
+ * spinner takes the icon's place, or the label's when there's no icon.
  */
 @Composable
 fun ProminentButton(
@@ -41,17 +52,22 @@ fun ProminentButton(
     icon: Painter? = null,
     busy: Boolean = false,
     enabled: Boolean = true,
-    containerColor: Color = LpmTheme.colors.tint
+    containerColor: Color = LpmTheme.colors.tint,
+    contentColor: Color = Color.White,
+    size: ProminentButtonSize = ProminentButtonSize.Large
 ) {
     val colors = LpmTheme.colors
+    val large = size == ProminentButtonSize.Large
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val content = if (enabled) Color.White else colors.tertiaryLabel
+    val content = if (enabled) contentColor else colors.tertiaryLabel
+    val spinner = if (large) Color.White else colors.gray
+    val style = if (large) LpmTheme.typography.body else LpmTheme.typography.subheadline
     val spinnerOverLabel = busy && icon == null
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 50.dp)
+            .heightIn(min = size.minHeight)
             .alpha(if (pressed) 0.75f else 1f)
             .clip(CircleShape)
             .background(if (enabled) containerColor else colors.tertiarySystemFill)
@@ -62,13 +78,13 @@ fun ProminentButton(
                 role = Role.Button,
                 onClick = onClick
             )
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+            .padding(size.padding),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (icon != null) {
             if (busy) {
-                ActivityIndicator(size = ActivityIndicatorSize.Small, color = Color.White)
+                ActivityIndicator(size = ActivityIndicatorSize.Small, color = spinner)
             } else {
                 Icon(
                     painter = icon,
@@ -81,12 +97,13 @@ fun ProminentButton(
         Box(contentAlignment = Alignment.Center) {
             Text(
                 text = text,
-                style = LpmTheme.typography.body.copy(fontWeight = FontWeight.SemiBold),
+                style = style.copy(fontWeight = FontWeight.SemiBold),
                 color = content,
-                modifier = Modifier.alpha(if (spinnerOverLabel) 0f else 1f)
+                modifier = Modifier.alpha(if (spinnerOverLabel) 0f else 1f),
+                maxLines = size.maxLines
             )
             if (spinnerOverLabel) {
-                ActivityIndicator(size = ActivityIndicatorSize.Small, color = Color.White)
+                ActivityIndicator(size = ActivityIndicatorSize.Small, color = spinner)
             }
         }
     }

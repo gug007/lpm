@@ -7,11 +7,16 @@ struct AnswerSource: Equatable {
 }
 
 extension AppModel {
-    /// Only Claude Code and Codex transcripts are read, and only on a Mac that
-    /// serves them: an SSH project's transcripts live on the server.
+    /// The terminal whose answers the copy key offers, on a Mac that serves them.
     func answerSource(terminal id: String, project name: String) -> AnswerSource? {
-        guard client?.hostFeatures.contains(LpmClient.agentAnswersFeature) == true,
-              let term = terminals[name]?.first(where: { $0.id == id }),
+        guard client?.hostFeatures.contains(LpmClient.agentAnswersFeature) == true else { return nil }
+        return transcriptSource(terminal: id, project: name)
+    }
+
+    /// Only Claude Code and Codex transcripts are read: an SSH project's live on the
+    /// server, and another computer's tab keeps its own.
+    func transcriptSource(terminal id: String, project name: String) -> AnswerSource? {
+        guard let term = terminals[name]?.first(where: { $0.id == id }),
               ["claude", "codex"].contains(term.cli), !term.remote,
               !(projects.first { $0.name == name }?.isRemote ?? false)
         else { return nil }
@@ -21,9 +26,7 @@ extension AppModel {
     /// While the agent is producing the next answer, the last one isn't worth
     /// copying, the same rule the desktop's copy pill follows.
     func isAgentWorking(_ source: AnswerSource) -> Bool {
-        guard let project = projects.first(where: { $0.name == source.project }) else { return false }
-        let rows = projectAgentRows(project, now: Int(Date().timeIntervalSince1970 * 1000), tabTitles: [:])
-        return agentRowsByTerminal(rows)[source.terminal]?.state == .working
+        agentRow(terminal: source.terminal, project: source.project)?.state == .working
     }
 
     /// The terminal agent's latest answers, newest first.

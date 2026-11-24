@@ -80,7 +80,7 @@ const RELATED: RelatedLink[] = [
     href: AUTOMATIONS_PATH,
     title: "Scheduled automations",
     description:
-      "Run an agent or a command on a schedule — the jobs you may see in a config file.",
+      "Run an agent or a command on a schedule, or when something happens: the jobs you may see in a config file.",
   },
   {
     href: CLAUDE_ACCOUNTS_PATH,

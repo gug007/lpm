@@ -1,13 +1,19 @@
 package cx.lpm.mobile.core.data.client
 
 import cx.lpm.mobile.core.model.GitDiffResult
+import cx.lpm.mobile.core.protocol.AnswersReply
 import cx.lpm.mobile.core.protocol.BranchDiffsReply
 import cx.lpm.mobile.core.protocol.BranchFilesReply
 import cx.lpm.mobile.core.protocol.CheckLogReply
+import cx.lpm.mobile.core.protocol.ConversationDetailReply
+import cx.lpm.mobile.core.protocol.ConversationPageReply
+import cx.lpm.mobile.core.protocol.ConversationPush
 import cx.lpm.mobile.core.protocol.FileWriteReply
 import cx.lpm.mobile.core.protocol.Inbound
 import cx.lpm.mobile.core.protocol.LpmCommandsInbound
 import cx.lpm.mobile.core.protocol.PrDiscussionReply
+import cx.lpm.mobile.core.protocol.RepoIssueReply
+import cx.lpm.mobile.core.protocol.RepoIssuesReply
 import cx.lpm.mobile.core.protocol.SecretScanReply
 
 /**
@@ -213,6 +219,12 @@ private fun LpmClientCallbacks.routeGitAndMore(frame: Inbound) {
 
         is Inbound.GitDiscardFiles ->
             onGitDiscardFiles?.invoke(frame.project, frame.paths, frame.undo, frame.error)
+
+        is AnswersReply -> onAnswers?.invoke(frame)
+
+        is Inbound.GitConflict -> onGitConflict?.invoke(frame.project, frame.verb, frame.error)
+
+        is Inbound.GitMergeStep -> onGitMergeRun?.invoke(frame.run)
 
         is Inbound.GitChanged -> onGitChanged?.invoke(frame.project)
 
@@ -429,7 +441,14 @@ private fun LpmClientCallbacks.routeConfigAndNotes(frame: Inbound) {
             onNotesAttachment?.invoke(frame.project, frame.hash, frame.data, frame.error)
 
         is SecretScanReply, is BranchFilesReply, is BranchDiffsReply, is PrDiscussionReply,
-        is CheckLogReply, is FileWriteReply -> onGitExtras?.invoke(frame)
+        is RepoIssuesReply, is RepoIssueReply, is CheckLogReply, is FileWriteReply ->
+            onGitExtras?.invoke(frame)
+
+        is ConversationPush -> onConversation?.invoke(frame.update)
+
+        is ConversationPageReply -> onConversationPage?.invoke(frame)
+
+        is ConversationDetailReply -> onConversationDetail?.invoke(frame)
 
         // The connection frames, which LpmClient handled before routing.
         else -> Unit

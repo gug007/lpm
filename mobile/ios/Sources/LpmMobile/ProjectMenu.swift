@@ -30,6 +30,8 @@ struct ProjectRunControl: View {
     let onChecks: () -> Void
     /// Find in the terminal this menu sits over; nil leaves the row out.
     let onFind: (() -> Void)?
+    /// What an agent tab's screen shows; nil when there's only its terminal.
+    let viewMode: Binding<TerminalViewMode>?
     // On a terminal's screen Rename names that tab, not the project.
     let renamesTab: Bool
     let onRename: () -> Void
@@ -56,6 +58,10 @@ struct ProjectRunControl: View {
 
     var body: some View {
         Menu {
+            if let viewMode {
+                TerminalViewMenu(mode: viewMode)
+                Divider()
+            }
             if let onFind {
                 Button(action: onFind) { Label("Find in Terminal", systemImage: "magnifyingglass") }
                 Divider()

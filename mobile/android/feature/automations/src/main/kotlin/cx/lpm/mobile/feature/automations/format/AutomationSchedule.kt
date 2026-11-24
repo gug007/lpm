@@ -59,7 +59,8 @@ private fun ordinalText(n: Int): String {
 
 /**
  * "When CI fails on main", "When api crashes", "When an agent finishes in docs-site,
- * once a day": what starts an event's job, worded as the desktop words it.
+ * once a day", "When a PR into main gets a review": what starts an event's job, worded
+ * as the desktop words it.
  */
 private fun eventText(job: AutomationJob): String {
     val text = when (job.eventOn) {
@@ -75,6 +76,10 @@ private fun eventText(job: AutomationJob): String {
             "When ${orWords(job.eventServices)} crashes"
         }
 
+        "prReviewed" -> "When ${pullRequestWords(job)} gets a review"
+
+        "prOpened" -> "When ${pullRequestWords(job)} is opened"
+
         else -> if (job.eventFrom.isEmpty()) {
             "When an agent finishes"
         } else {
@@ -83,6 +88,10 @@ private fun eventText(job: AutomationJob): String {
     }
     return if (job.eventAtMost == "day") "$text, once a day" else text
 }
+
+/** "a PR", or "a PR into main or release": the branches name what it merges into. */
+private fun pullRequestWords(job: AutomationJob): String =
+    if (job.eventBranches.isEmpty()) "a PR" else "a PR into ${orWords(job.eventBranches)}"
 
 /** "a, b or c". */
 private fun orWords(words: List<String>): String {

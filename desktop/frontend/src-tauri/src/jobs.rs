@@ -45,6 +45,8 @@ const PENDING_WINDOW: &str = "pending-window";
 const SKIPPED_CAPACITY: &str = "skipped-capacity";
 // A job CI failures on one branch kept starting waits for that branch to pass.
 const SKIPPED_CI_ROUNDS: &str = "skipped-ci-rounds";
+// One that bots reviewing the same pull request kept starting waits for a person.
+const SKIPPED_REVIEW_ROUNDS: &str = "skipped-review-rounds";
 // Event-only status emitted when a run starts, never written to history.
 const RUNNING: &str = "running";
 // Event-only status for a quiet job's run that found nothing: it leaves no
@@ -61,6 +63,8 @@ const ASK_INSTRUCTION: &str = "If you can't go on without a decision or informat
 
 pub(crate) mod ask;
 pub(crate) mod askform;
+mod event_happening;
+pub(crate) mod event_pulls;
 pub(crate) mod event_rounds;
 pub(crate) mod event_runs;
 pub(crate) mod events;
@@ -1197,6 +1201,17 @@ impl JobState {
         self.enabled_override.unwrap_or(configured)
     }
 
+    /// Whether one of its runs was going at `at`, give or take a forge's clock.
+    fn ran_at(&self, at: u64) -> bool {
+        const SLACK: u64 = 60;
+        self.history.iter().any(|run| {
+            run.duration_secs.is_some_and(|secs| {
+                let start = run.at.saturating_sub(secs);
+                (start.saturating_sub(SLACK)..=run.at + SLACK).contains(&at)
+            })
+        })
+    }
+
     /// A job that names its Macs is one job across all of them, so its switch
     /// lives in the config they share — though one paused here before it named
     /// them stays paused.
@@ -1220,6 +1235,9 @@ struct HistoryEntry {
     count: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     copy: Option<String>,
+    /// The project it ran in, when that's neither the job's own nor a copy it made.
+    #[serde(default, rename = "ranIn", skip_serializing_if = "Option::is_none")]
+    ran_in: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     output: Option<String>,
     /// Spawn-to-exit length of a captured run.
@@ -1279,6 +1297,11 @@ struct HistoryEntry {
 }
 
 impl HistoryEntry {
+    /// The project whose folder it ran in, other than the job's own.
+    fn elsewhere(&self) -> Option<&str> {
+        self.copy.as_deref().or(self.ran_in.as_deref())
+    }
+
     /// The job's `onAnswer` command, run for the keyed question it carries: no
     /// run ever holds a keyed question itself.
     fn on_answer(&self) -> bool {
@@ -1317,6 +1340,8 @@ struct ActiveRun {
     agent: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     copy: Option<String>,
+    #[serde(default, rename = "ranIn", skip_serializing_if = "Option::is_none")]
+    ran_in: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     question: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -2410,6 +2435,7 @@ struct CaptureSpec {
     /// decides how the log is read back into a clean message.
     agent: Option<String>,
     copy: Option<String>,
+    ran_in: Option<String>,
     question: Option<String>,
     resumed: Option<String>,
     follows: Option<u64>,
@@ -2438,6 +2464,7 @@ impl CaptureSpec {
             cmdline,
             agent,
             copy,
+            ran_in: None,
             question: None,
             resumed: None,
             follows: None,
@@ -2451,6 +2478,11 @@ impl CaptureSpec {
             account: None,
             terminal_flags: String::new(),
         }
+    }
+
+    fn with_ran_in(mut self, project: Option<String>) -> Self {
+        self.ran_in = project;
+        self
     }
 
     fn with_terminal_flags(mut self, flags: String) -> Self {
@@ -2581,6 +2613,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
         cmdline,
         agent,
         copy,
+        ran_in,
         question,
         resumed,
         follows,
@@ -2600,7 +2633,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
     // The job's own Claude account, else the project's fixed one, as a
     // scheduled terminal gets; a resumed session goes back to the account
     // holding its transcript.
-    let target = copy.as_deref().unwrap_or(split_key(key).0);
+    let target = copy.as_deref().or(ran_in.as_deref()).unwrap_or(split_key(key).0);
     let crate::claude_pool::Spawn {
         env: claude,
         account,
@@ -2627,6 +2660,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                     log_path: log_path.to_string_lossy().into_owned(),
                     agent: agent.clone(),
                     copy: copy.clone(),
+                    ran_in: ran_in.clone(),
                     question: question.clone(),
                     resumed: resumed.clone(),
                     follows,
@@ -2719,6 +2753,7 @@ fn spawn_captured(app: &AppHandle, key: &str, root: &str, spec: CaptureSpec) -> 
                     at,
                     result: result.to_string(),
                     copy,
+                    ran_in,
                     output,
                     session,
                     question,
@@ -2758,12 +2793,14 @@ fn dispatch_run(
     app: &AppHandle,
     key: &str,
     target: &str,
+    // The copy made for this run, which its history keeps.
+    copy: Option<String>,
     job: &JobResolved,
     env: Vec<(String, String)>,
     trigger: Trigger,
 ) -> Dispatch {
     let project = key.split_once('/').map(|(p, _)| p).unwrap_or(key);
-    let copy = (target != project).then(|| target.to_string());
+    let ran_in = (copy.is_none() && target != project).then(|| target.to_string());
     match &job.run {
         RunTarget::Cmd(cmd) => {
             let root = match dispatch_root(target) {
@@ -2775,6 +2812,7 @@ fn dispatch_run(
                 key,
                 &root,
                 CaptureSpec::run(cmd.clone(), None, copy)
+                    .with_ran_in(ran_in)
                     .with_verify(&job.verify)
                     .with_env(env),
             )
@@ -2787,7 +2825,7 @@ fn dispatch_run(
                 // A scheduled run stays on the project's fixed account.
                 let mut task = json!({ "kind": "action", "actionName": id, "fixedAccount": true });
                 if !prompt.is_empty() {
-                    task["prompt"] = json!(event_runs::with_note(prompt, &env));
+                    task["prompt"] = json!(event_happening::with_note(prompt, &env));
                 }
                 emit_or_park(app, key, target, task)
             } else {
@@ -2826,7 +2864,7 @@ fn dispatch_run(
             } else {
                 agent.clone()
             };
-            let prompt = event_runs::with_note(prompt, &env);
+            let prompt = event_happening::with_note(prompt, &env);
             let mut env = env;
             let memory = memory.then(|| crate::jobmemory::dir(project)).flatten();
             let memory_note = memory.as_ref().map(|dir| {
@@ -2852,6 +2890,7 @@ fn dispatch_run(
                     Some(agent),
                     copy,
                 )
+                .with_ran_in(ran_in)
                 .with_verify(&job.verify)
                 .with_env(env)
                 .with_quiet(*quiet, trigger)
@@ -2921,7 +2960,12 @@ fn pipeline_body(
             st.last_run_at,
             copy,
         );
-        env.extend(event.as_ref().map(event_runs::env).unwrap_or_default());
+        env.extend(
+            event
+                .as_ref()
+                .map(|e| event_happening::env(e, copy.unwrap_or(project)))
+                .unwrap_or_default(),
+        );
         env
     };
 
@@ -2963,6 +3007,7 @@ fn pipeline_body(
                 None,
                 dup.reinstall_deps,
                 None,
+                None,
             )
         } else {
             crate::projects_crud::duplicate_project(
@@ -2980,7 +3025,12 @@ fn pipeline_body(
             Err(e) => return err_outcome(format!("Couldn't duplicate the project: {e}")),
         }
     } else {
-        (project.to_string(), None)
+        // Work on a pull request goes where its branch is already checked out.
+        let checkout = event
+            .as_ref()
+            .and_then(|e| e.checkout())
+            .filter(|name| config::project_exists(name));
+        (checkout.unwrap_or(project).to_string(), None)
     };
 
     // A Stop that lands during the check or the duplicate step must not still
@@ -2996,8 +3046,11 @@ fn pipeline_body(
     }
 
     let run_root = dispatch_root(&target).unwrap_or_else(|| root.clone());
-    let dispatch_env = context(&run_root, copy.as_deref());
-    dispatch_outcome(dispatch_run(app, key, &target, job, dispatch_env, trigger), copy)
+    let dispatch_env = context(&run_root, (target != project).then_some(target.as_str()));
+    dispatch_outcome(
+        dispatch_run(app, key, &target, copy.clone(), job, dispatch_env, trigger),
+        copy,
+    )
 }
 
 fn dispatch_outcome(dispatch: Dispatch, copy: Option<String>) -> Outcome {
@@ -3478,6 +3531,8 @@ fn spawn_pipeline(app: &AppHandle, project: &str, job: JobResolved, trigger: Tri
     let project2 = project.to_string();
     std::thread::spawn(move || {
         run_pipeline(&app2, &project2, &job, trigger);
+        // An event the run never read (it was skipped) is done with.
+        event_runs::take(&key);
         clear_inflight(&key);
     });
 }
@@ -3583,6 +3638,7 @@ fn orphan_entry(
         verify_output: None,
         result: result.to_string(),
         copy: run.copy.clone(),
+        ran_in: run.ran_in.clone(),
         output,
         session,
         question: run.question.clone(),
@@ -3807,9 +3863,9 @@ fn tick(app: &AppHandle) {
     let now = now_secs();
     let mut due: Vec<(String, JobResolved, u64)> = Vec::new();
     let mut shared: Vec<(String, machines::Machines)> = Vec::new();
-    let mut listened: HashSet<events::EventKind> = HashSet::new();
+    let mut listened = event_runs::Wanted::default();
     let mut consider = |project: &str, id: &str, job: JobResolved| {
-        listened.extend(events::kind_of(&job.schedule));
+        listened.add(project, &job);
         if let Some(m) = &job.machines {
             shared.push((state_key(project, id), m.clone()));
         }
@@ -4438,8 +4494,8 @@ fn start_followup(
 
     // Agent sessions live with the folder they ran in, so a reply must run in
     // the same place.
-    let target = tail.copy.clone().unwrap_or_else(|| project.to_string());
-    if tail.copy.is_some() && !config::project_exists(&target) {
+    let target = tail.elsewhere().unwrap_or(project).to_string();
+    if tail.elsewhere().is_some() && !config::project_exists(&target) {
         return Err("The copy that run worked in is gone — run the job again.".into());
     }
     let root = dispatch_root(&target)
@@ -4461,7 +4517,7 @@ fn start_followup(
         Trigger::Reply,
         None,
         None,
-        tail.copy.as_deref(),
+        tail.elsewhere(),
     );
     let browser = browser_tools(full_access);
     let terminal_flags = claude_terminal_flags(&model, &effort, full_access);
@@ -4471,6 +4527,7 @@ fn start_followup(
             cmdline: claude_cmdline(Some(&sid), &model, &effort, full_access, browser, &message),
             agent: Some(agent),
             copy: tail.copy.clone(),
+            ran_in: tail.ran_in.clone(),
             question: Some(message),
             resumed: Some(sid),
             follows: Some(tail.at),
@@ -4495,6 +4552,7 @@ fn start_followup(
             cmdline: agent_prompt_cmdline(&agent, &model, &effort, full_access, browser, &condensed),
             agent: Some(agent),
             copy: tail.copy.clone(),
+            ran_in: tail.ran_in.clone(),
             question: Some(message),
             resumed: None,
             follows: Some(tail.at),
@@ -6170,6 +6228,32 @@ mod tests {
     }
 
     #[test]
+    fn a_job_knows_what_happened_while_one_of_its_runs_was_going() {
+        let mut st = JobState::default();
+        st.history.push(HistoryEntry {
+            at: 10_000,
+            duration_secs: Some(600),
+            ..HistoryEntry::default()
+        });
+        assert!(st.ran_at(9_400) && st.ran_at(10_000) && st.ran_at(10_050));
+        assert!(!st.ran_at(9_000) && !st.ran_at(10_100));
+        st.history[0].duration_secs = None;
+        assert!(!st.ran_at(10_000));
+    }
+
+    #[test]
+    fn a_reply_goes_on_where_the_run_was() {
+        let at = |copy: Option<&str>, ran_in: Option<&str>| HistoryEntry {
+            copy: copy.map(str::to_string),
+            ran_in: ran_in.map(str::to_string),
+            ..HistoryEntry::default()
+        };
+        assert_eq!(at(None, None).elsewhere(), None);
+        assert_eq!(at(None, Some("web-a1")).elsewhere(), Some("web-a1"));
+        assert_eq!(at(Some("web-b2"), None).elsewhere(), Some("web-b2"));
+    }
+
+    #[test]
     fn orphan_runs_salvage_results_from_the_log() {
         let run = ActiveRun {
             pid: 0,
@@ -6177,6 +6261,7 @@ mod tests {
             log_path: String::new(),
             agent: None,
             copy: Some("proj-abc".into()),
+            ran_in: None,
             question: None,
             resumed: None,
             follows: None,
@@ -6623,6 +6708,7 @@ mod tests {
             log_path: String::new(),
             agent: None,
             copy: None,
+            ran_in: None,
             question: None,
             resumed: None,
             follows: None,

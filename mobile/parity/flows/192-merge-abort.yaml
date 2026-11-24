@@ -1,0 +1,36 @@
+# The AI at a merge's conflicts is stopped, keeping what it resolved, and the merge is
+# aborted behind its confirmation.
+appId: cx.lpm.mobile
+name: 192-merge-abort
+tags: [demo, git]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "mobile-app"
+- extendedWaitUntil:
+    visible: "Tap a service for its logs."
+    timeout: 5000
+- tapOn: "More"
+- extendedWaitUntil:
+    visible: "Review Changes.*"
+    timeout: 5000
+- tapOn: "Review Changes.*"
+- extendedWaitUntil:
+    visible: "Resolve 3 with AI"
+    timeout: 8000
+- tapOn: "Resolve 3 with AI"
+- extendedWaitUntil:
+    visible: "Stop"
+    timeout: 8000
+- tapOn: "Stop"
+- extendedWaitUntil:
+    visible: "Resolve . with AI"
+    timeout: 8000
+- tapOn: "Abort merge"
+- extendedWaitUntil:
+    visible: "Abort the merge?"
+    timeout: 5000
+- takeScreenshot: 1-confirm
+- tapOn: "Abort Merge"
+- extendedWaitUntil:
+    visible: "No changes"
+    timeout: 8000

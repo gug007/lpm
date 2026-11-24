@@ -46,6 +46,7 @@ final class LinkStore {
     @ObservationIgnored weak var model: AppModel?
     let network = NetworkWatcher()
     @ObservationIgnored let snapshots = ProjectSnapshots()
+    @ObservationIgnored let agentTabs = AgentTabSnapshots()
 
     /// The address the live connection (or the current attempt) dials.
     var host: String?

@@ -29,6 +29,7 @@ pub fn run(
     run_action: Option<&str>,
     run_command: Option<&str>,
     prompt: Option<&str>,
+    issue: Option<u64>,
     exclude_uncommitted: Option<bool>,
     reinstall_deps: bool,
     no_pull: bool,
@@ -94,6 +95,9 @@ pub fn run(
     if let Some(p) = prompt {
         line.push_str(&text_opt("prompt", p));
     }
+    if let Some(number) = issue {
+        line.push_str(&format!(" --issue={number}"));
+    }
 
     let final_line = statussock::request_lines(&ctx.socket_path(), &line, |payload| {
         if as_json {
@@ -157,6 +161,7 @@ pub fn run(
                 .collect::<Vec<_>>(),
             "group": group,
             "mode": if worktree { "worktree" } else { "copy" },
+            "issue": issue,
             "task": task_echo(resolved_action.as_deref(), run_command, prompt),
             "warning": warning,
         }));

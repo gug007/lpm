@@ -59,6 +59,7 @@ class RecapPushTest {
             t.credentials,
             t.session,
             AgentWidgetStore(app) {},
+            t.env.agentTabs.answers,
             LiveNotifier(app, t.prefs, t.macStore),
             t.prefs
         )

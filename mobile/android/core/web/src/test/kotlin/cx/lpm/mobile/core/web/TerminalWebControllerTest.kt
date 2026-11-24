@@ -69,6 +69,53 @@ class TerminalWebControllerTest {
     }
 
     @Test
+    fun aKeptScreenShowsOnceAndOnlyUntilSomethingLiveDoes() {
+        controller.showSaved("kept")
+        assertTrue(surface.scripts.isEmpty())
+        send("ready", "{}")
+        val shown = surface.scripts.filter { it.startsWith("window.lpmShowSaved") }
+        assertEquals(listOf("kept"), shown.map(::decoded))
+        // It's no content of the terminal's: a queued prompt isn't sent into it.
+        assertTrue(events.isEmpty())
+
+        surface.scripts.clear()
+        controller.showSaved("kept")
+        controller.seed("live", reset = true, ptyCols = 0, ptyRows = 0)
+        controller.showSaved("another")
+        assertEquals(listOf("live"), surface.scripts.map(::decoded))
+        assertEquals(listOf("firstContent"), events)
+    }
+
+    @Test
+    fun aLostPageShowsTheKeptScreenAgain() {
+        send("ready", "{}")
+        controller.seed("live", reset = true, ptyCols = 0, ptyRows = 0)
+        controller.showSaved("kept")
+        controller.pageLost()
+        controller.attach(surface)
+        surface.scripts.clear()
+        send("ready", "{}")
+        assertEquals("kept", decoded(surface.scripts.last()))
+    }
+
+    @Test
+    fun onlyALiveScreenIsKeptAndOnlyOnce() {
+        controller.callbacks = TerminalCallbacks(onScreen = { _, _ -> })
+        send("ready", "{}")
+        controller.showSaved("kept")
+        surface.scripts.clear()
+        controller.keepScreen()
+        assertTrue(surface.scripts.isEmpty())
+        controller.seed("live", reset = true, ptyCols = 0, ptyRows = 0)
+        assertEquals(1, controller.liveTick)
+        controller.keepScreen()
+        assertEquals("window.lpmSnapshot()", surface.scripts.last())
+        surface.scripts.clear()
+        controller.keepScreen()
+        assertTrue(surface.scripts.isEmpty())
+    }
+
+    @Test
     fun readyAppliesInsetsFontAndThemeBeforeThePendingSeed() {
         controller.applyHiddenInsets(0, 120)
         controller.applyFontSize(14)

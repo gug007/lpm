@@ -475,8 +475,10 @@ enum Wire {
         json(["t": "gitGenMessage", "project": project, "files": files])
     }
     static func gitGenPr(project: String) -> String { json(["t": "gitGenPr", "project": project]) }
-    static func gitCreatePr(project: String, title: String, body: String) -> String {
-        json(["t": "gitCreatePr", "project": project, "title": title, "body": body])
+    static func gitCreatePr(project: String, title: String, body: String, closeIssue: Bool?) -> String {
+        var o: [String: Any] = ["t": "gitCreatePr", "project": project, "title": title, "body": body]
+        if let closeIssue { o["closeIssue"] = closeIssue }
+        return json(o)
     }
     static func gitPull(project: String) -> String { json(["t": "gitPull", "project": project]) }
     static func gitFetch(project: String) -> String { json(["t": "gitFetch", "project": project]) }
@@ -520,6 +522,17 @@ enum Wire {
     /// Discard the changes to `paths` only. Only for a Mac whose `features` has "gitDiscardFiles".
     static func gitDiscardFiles(project: String, paths: [String]) -> String {
         json(["t": "gitDiscardFiles", "project": project, "paths": paths])
+    }
+    /// Only for a Mac whose `features` has "gitConflicts", as the five below.
+    static func gitMergeResolve(project: String) -> String { json(["t": "gitMergeResolve", "project": project]) }
+    static func gitMergeStop(project: String) -> String { json(["t": "gitMergeStop", "project": project]) }
+    static func gitMergeAbort(project: String) -> String { json(["t": "gitMergeAbort", "project": project]) }
+    static func gitMergeContinue(project: String) -> String { json(["t": "gitMergeContinue", "project": project]) }
+    static func gitConflictTake(project: String, path: String, side: String) -> String {
+        json(["t": "gitConflictTake", "project": project, "path": path, "side": side])
+    }
+    static func gitConflictResolved(project: String, path: String) -> String {
+        json(["t": "gitConflictResolved", "project": project, "path": path])
     }
     static func gitRestoreDiscarded(project: String, id: String) -> String {
         json(["t": "gitRestoreDiscarded", "project": project, "id": id])
@@ -782,6 +795,9 @@ enum Wire {
         case slash(id: String, [SlashCommand])
         /// A terminal agent's recent answers, newest first; nil `answers` on failure.
         case answers(id: String, reqId: String, answers: [RecentAnswer]?, error: String?)
+        case conversation(ConversationUpdate)
+        case conversationPage(reqId: String, ConversationPage?, error: String?)
+        case conversationDetail(reqId: String, parts: [ConversationPart]?, error: String?)
         case mentions(project: String, [MentionEntry], computers: [MentionComputer])
         case history(project: String, [HistoryRow])
         case upload(id: String, reqId: String, path: String)
@@ -871,12 +887,17 @@ enum Wire {
         case gitDiscardAll(project: String, undo: String?, error: String?)
         case gitRestoreDiscarded(project: String, error: String?)
         case gitDiscardFiles(project: String, paths: [String], undo: String?, error: String?)
+        // A merge-conflicts action's reply, whichever of them it was.
+        case gitConflict(project: String, verb: String, error: String?)
+        case gitMergeRun(GitMergeRun)
         case agentDialog(AgentDialogRead)
         case actionPopup(ActionPopupReply)
         case gitScanSecrets(SecretScanReply)
         case gitBranchFiles(BranchFilesReply)
         case gitBranchDiffs(project: String, entries: [GitDiffEntry], error: String?)
         case gitPrDiscussion(PrDiscussionReply)
+        case gitIssues(RepoIssuesReply)
+        case gitIssue(RepoIssueReply)
         case gitCheckLog(CheckLogReply)
         case writeFile(FileWriteReply)
         // Server push: watched files changed for this project (already debounced).
@@ -1101,6 +1122,17 @@ enum Wire {
                                 reqId: Wire.reqIdString(obj["reqId"]),
                                 answers: ok ? (obj["answers"] as? [[String: Any]] ?? []).map(RecentAnswer.init) : nil,
                                 error: ok ? nil : (obj["error"] as? String ?? "Couldn't read the agent's answers."))
+            case "conversation":
+                return .conversation(ConversationUpdate(obj))
+            case "conversationPage":
+                let ok = obj["ok"] as? Bool ?? false
+                return .conversationPage(reqId: Wire.reqIdString(obj["reqId"]), ok ? ConversationPage(obj) : nil,
+                                         error: ok ? nil : (obj["error"] as? String ?? "Couldn't read the conversation."))
+            case "conversationDetail":
+                let ok = obj["ok"] as? Bool ?? false
+                return .conversationDetail(reqId: Wire.reqIdString(obj["reqId"]),
+                                           parts: ok ? (obj["parts"] as? [[String: Any]] ?? []).map(ConversationPart.init) : nil,
+                                           error: ok ? nil : (obj["error"] as? String ?? "Couldn't read this step."))
             case "mentions":
                 return .mentions(project: obj["project"] as? String ?? "",
                                  (obj["entries"] as? [[String: Any]] ?? []).map(MentionEntry.init),
@@ -1329,6 +1361,13 @@ enum Wire {
                                         paths: obj["paths"] as? [String] ?? [],
                                         undo: (obj["undo"] as? String).flatMap { $0.isEmpty ? nil : $0 },
                                         error: ok ? nil : (obj["error"] as? String ?? "Couldn't discard the changes."))
+            case "gitMergeResolve", "gitMergeStop", "gitMergeAbort", "gitMergeContinue", "gitConflictTake",
+                 "gitConflictResolved":
+                let ok = obj["ok"] as? Bool ?? false
+                return .gitConflict(project: obj["project"] as? String ?? "",
+                                    verb: obj["t"] as? String ?? "",
+                                    error: ok ? nil : (obj["error"] as? String ?? "The Mac couldn't do it."))
+            case "gitMergeRun": return .gitMergeRun(GitMergeRun(obj))
             case "agentDialog": return .agentDialog(AgentDialogRead(obj))
             case "actionPopup", "actionApp": return .actionPopup(ActionPopupReply(obj))
             case "gitScanSecrets": return .gitScanSecrets(SecretScanReply(obj))
@@ -1339,6 +1378,8 @@ enum Wire {
                                        entries: (obj["files"] as? [[String: Any]] ?? []).map(GitDiffEntry.init),
                                        error: ok ? nil : (obj["error"] as? String ?? "Couldn't load the diffs."))
             case "gitPrDiscussion": return .gitPrDiscussion(PrDiscussionReply(obj))
+            case "gitIssues": return .gitIssues(RepoIssuesReply(obj))
+            case "gitIssue": return .gitIssue(RepoIssueReply(obj))
             case "gitCheckLog": return .gitCheckLog(CheckLogReply(obj))
             case "writeFile": return .writeFile(FileWriteReply(obj))
             case "gitRestoreDiscarded":
@@ -1705,8 +1746,8 @@ struct AutomationJob: Identifiable {
     let onDates: [String]
     let fromMinutes: Int?
     /// An event's schedule: what starts the job ("ciFailed", "serviceCrashed",
-    /// "agentFinished"), the names it listens to, and "commit" or "day". Older
-    /// Macs never send one.
+    /// "agentFinished", "prReviewed", "prOpened"), the names it listens to, and
+    /// "commit" or "day". Older Macs never send one.
     let eventOn: String
     let eventBranches: [String]
     let eventServices: [String]
@@ -1947,6 +1988,8 @@ struct Project: Identifiable {
     let parentName: String
     // A duplicate made as a linked git worktree rather than a folder copy.
     let worktree: Bool
+    // The branch lpm made for a worktree started from an issue; nil for any other.
+    let worktreeBranch: String?
     // The status a person set on this project, distinct from statusEntries
     // (what the agent is doing). Absent when none is set.
     let workStatus: WorkStatus?
@@ -1986,6 +2029,7 @@ struct Project: Identifiable {
         isRemote = o["isRemote"] as? Bool ?? false
         parentName = o["parentName"] as? String ?? ""
         worktree = o["worktree"] as? Bool ?? false
+        worktreeBranch = o["worktreeBranch"] as? String
         workStatus = (o["workStatus"] as? [String: Any]).flatMap(WorkStatus.init)
         autoPull = o["autoPull"] as? Bool
         claude = ClaudeOwnChoice(o)
@@ -2002,12 +2046,13 @@ struct Project: Identifiable {
     }
 
     private init(name: String, label: String, running: Bool, isRemote: Bool, parentName: String,
-                 worktree: Bool, workStatus: WorkStatus?, autoPull: Bool?, claude: ClaudeOwnChoice,
-                 statusEntries: [StatusEntry], seenEntries: [StatusEntry], services: [Service],
+                 worktree: Bool, worktreeBranch: String?, workStatus: WorkStatus?, autoPull: Bool?,
+                 claude: ClaudeOwnChoice, statusEntries: [StatusEntry], seenEntries: [StatusEntry], services: [Service],
                  allServices: [Service], profiles: [Profile], activeProfile: String, actions: [Action],
                  actionErrors: [String], zones: [Zone], configError: String?) {
         self.name = name; self.label = label; self.running = running; self.isRemote = isRemote
-        self.parentName = parentName; self.worktree = worktree; self.workStatus = workStatus
+        self.parentName = parentName; self.worktree = worktree; self.worktreeBranch = worktreeBranch
+        self.workStatus = workStatus
         self.autoPull = autoPull; self.claude = claude
         self.statusEntries = statusEntries; self.seenEntries = seenEntries
         self.services = services; self.allServices = allServices
@@ -2020,7 +2065,7 @@ struct Project: Identifiable {
     /// erase the project's services/actions (a partial dict rebuild would).
     func withStatus(_ entries: [StatusEntry], seen: [StatusEntry]) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
-                worktree: worktree, workStatus: workStatus, autoPull: autoPull, claude: claude,
+                worktree: worktree, worktreeBranch: worktreeBranch, workStatus: workStatus, autoPull: autoPull, claude: claude,
                 statusEntries: entries, seenEntries: seen, services: services, allServices: allServices,
                 profiles: profiles, activeProfile: activeProfile, actions: actions, actionErrors: actionErrors, zones: zones,
                 configError: configError)
@@ -2031,7 +2076,7 @@ struct Project: Identifiable {
     /// round trip. The projects push replaces it with what was written.
     func withWorkStatus(_ status: WorkStatus?) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
-                worktree: worktree, workStatus: status, autoPull: autoPull, claude: claude,
+                worktree: worktree, worktreeBranch: worktreeBranch, workStatus: status, autoPull: autoPull, claude: claude,
                 statusEntries: statusEntries, seenEntries: seenEntries, services: services,
                 allServices: allServices, profiles: profiles,
                 activeProfile: activeProfile, actions: actions, actionErrors: actionErrors, zones: zones,
@@ -2042,7 +2087,7 @@ struct Project: Identifiable {
     /// projects push brings back what the Mac wrote.
     func withAutoPull(_ value: Bool?) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
-                worktree: worktree, workStatus: workStatus, autoPull: value, claude: claude,
+                worktree: worktree, worktreeBranch: worktreeBranch, workStatus: workStatus, autoPull: value, claude: claude,
                 statusEntries: statusEntries, seenEntries: seenEntries, services: services,
                 allServices: allServices, profiles: profiles, activeProfile: activeProfile, actions: actions, actionErrors: actionErrors, zones: zones,
                 configError: configError)
@@ -2052,7 +2097,7 @@ struct Project: Identifiable {
     /// projects push brings back what the Mac wrote.
     func withClaude(_ own: ClaudeOwnChoice) -> Project {
         Project(name: name, label: label, running: running, isRemote: isRemote, parentName: parentName,
-                worktree: worktree, workStatus: workStatus, autoPull: autoPull, claude: own,
+                worktree: worktree, worktreeBranch: worktreeBranch, workStatus: workStatus, autoPull: autoPull, claude: own,
                 statusEntries: statusEntries, seenEntries: seenEntries, services: services,
                 allServices: allServices, profiles: profiles, activeProfile: activeProfile, actions: actions, actionErrors: actionErrors, zones: zones,
                 configError: configError)
@@ -2502,6 +2547,10 @@ struct GitSnapshot {
     let linesAdded: Int?
     let linesRemoved: Int?
     let autoPulled: AutoPulled?
+    // The issue the branch was started from, which its pull request closes.
+    let issue: Int?
+    // Conflicts a merge, a pull or a rebase left; nil when there are none.
+    let merge: GitMergeState?
 
     init(_ o: [String: Any]) {
         isRepo = o["isRepo"] as? Bool ?? false
@@ -2517,6 +2566,8 @@ struct GitSnapshot {
         linesAdded = o["linesAdded"] as? Int
         linesRemoved = o["linesRemoved"] as? Int
         autoPulled = AutoPulled(o["autoPulled"])
+        issue = o["issue"] as? Int
+        merge = GitMergeState(o["merge"])
     }
 }
 

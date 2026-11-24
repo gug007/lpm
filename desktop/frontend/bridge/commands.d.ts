@@ -93,6 +93,9 @@ export function BranchCommitChecks(cwd: string): Promise<import("../src/types").
 export function RecentCommitChecks(cwd: string): Promise<import("../src/types").CommitCi[]>;
 export function RerunFailedChecks(cwd: string, runIds: string[]): Promise<void>;
 export function PullRequestDiscussion(cwd: string): Promise<{ number: number; title: string; url: string; body: string; notes: { kind: "review" | "line" | "comment"; author: string; body: string; state: string; path: string; line: number | null; createdAt: string }[] } | null>;
+export function OpenIssues(cwd: string, fresh?: boolean): Promise<import("../src/issues").OpenIssue[]>;
+export function ReadIssue(cwd: string, number: number): Promise<import("../src/issues").IssueText>;
+export function BranchIssue(cwd: string): Promise<number | null>;
 export function PullRequestMergeOffer(cwd: string): Promise<import("../src/types").PullRequestMergeInfo | null>;
 export function MergePullRequest(cwd: string, number: number, method: import("../src/types").PrMergeMethod, head: string, deleteBranch: boolean, bypass: boolean): Promise<boolean>;
 export function MergePullRequestWhenReady(cwd: string, number: number, title: string, method: import("../src/types").PrMergeMethod, deleteBranch: boolean, bypass: boolean): Promise<void>;
@@ -187,6 +190,7 @@ export function GitMergeState(...args: any[]): Promise<any>;
 export function GitTakeConflictSide(...args: any[]): Promise<any>;
 export function GitMarkConflictResolved(...args: any[]): Promise<any>;
 export function GitContinueMerge(...args: any[]): Promise<any>;
+export function GitStopConflictAI(cwd: string): Promise<void>;
 export function GitAutoPull(...args: any[]): Promise<any>;
 export function GitAutoPullLast(...args: any[]): Promise<any>;
 export function GitAutoPullUndo(...args: any[]): Promise<any>;

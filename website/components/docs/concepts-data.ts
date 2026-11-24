@@ -62,7 +62,7 @@ export const CONCEPTS: Concept[] = [
   {
     id: "automation",
     term: "Automation",
-    body: "A prompt, command or action that runs on a schedule. Automations live under More.",
+    body: "A prompt, command or action that runs on a schedule, or when something happens. Automations live under More.",
     href: docsPath("automations"),
     pin: { x: 11.8, y: 94.4 },
   },

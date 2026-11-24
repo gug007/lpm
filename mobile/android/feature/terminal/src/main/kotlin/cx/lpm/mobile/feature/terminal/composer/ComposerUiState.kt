@@ -41,6 +41,8 @@ data class ComposerUiState(
      */
     val lpmCommands: Boolean = false,
     val commandNotice: CommandNotice? = null,
+    /** Why a picked issue couldn't go in the prompt. */
+    val issueError: String? = null,
     /** An "@fragment" is being typed, so the mention menu shows (its Context rows at least). */
     val mentionActive: Boolean = false,
     val mentions: MentionResults = MentionResults(),

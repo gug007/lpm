@@ -25,6 +25,7 @@ tags: [demo, git]
     visible: "Generate with AI"
     timeout: 5000
 - assertVisible: "Pull Request"
+- assertVisible: "Close #38 on merge"
 - takeScreenshot: 1-pull-request
 - tapOn: "Generate with AI"
 - extendedWaitUntil:

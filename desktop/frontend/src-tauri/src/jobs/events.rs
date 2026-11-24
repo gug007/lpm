@@ -11,12 +11,16 @@ pub(crate) enum EventKind {
     CiFailed,
     ServiceCrashed,
     AgentFinished,
+    PrReviewed,
+    PrOpened,
 }
 
-const KINDS: [(EventKind, &str); 3] = [
+const KINDS: [(EventKind, &str); 5] = [
     (EventKind::CiFailed, "ciFailed"),
     (EventKind::ServiceCrashed, "serviceCrashed"),
     (EventKind::AgentFinished, "agentFinished"),
+    (EventKind::PrReviewed, "prReviewed"),
+    (EventKind::PrOpened, "prOpened"),
 ];
 
 impl EventKind {
@@ -24,13 +28,17 @@ impl EventKind {
         KINDS.iter().find(|(k, _)| *k == self).map(|(_, n)| *n).unwrap_or("")
     }
 
+    pub(super) fn is_pull_request(self) -> bool {
+        matches!(self, Self::PrReviewed | Self::PrOpened)
+    }
+
     fn parse(name: &str) -> Option<Self> {
         KINDS.iter().find(|(_, n)| *n == name).map(|(k, _)| *k)
     }
 }
 
-/// How often one job reacts: once for each commit the events are about, or
-/// once a day whatever they are about.
+/// How often one job reacts: once for each commit the events are about (each
+/// review or pull request, for those), or once a day whatever they are about.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum AtMost {
     Commit,
@@ -40,6 +48,7 @@ pub(super) enum AtMost {
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct EventSpec {
     pub(super) kind: EventKind,
+    /// The branches CI fails on, or the ones a pull request goes into.
     pub(super) branches: Vec<String>,
     pub(super) services: Vec<String>,
     /// The projects whose agents count; empty is the job's own project.
@@ -73,7 +82,7 @@ fn names(value: Option<&NameList>) -> Vec<String> {
 pub(super) fn resolve(sched: &ScheduleDef) -> Result<EventSpec, String> {
     let on = sched.on.trim();
     let kind = EventKind::parse(on).ok_or_else(|| {
-        format!("{on:?} isn't an event lpm knows: use ciFailed, serviceCrashed or agentFinished.")
+        format!("{on:?} isn't an event lpm knows: use ciFailed, serviceCrashed, agentFinished, prReviewed or prOpened.")
     })?;
     let no_days = matches!(&sched.days, DaysValue::List(v) if v.is_empty());
     let timed = sched.manual
@@ -98,8 +107,8 @@ pub(super) fn resolve(sched: &ScheduleDef) -> Result<EventSpec, String> {
             other => return Err(format!("atMost is commit or day, not {other:?}.")),
         },
     };
-    if !spec.branches.is_empty() && kind != EventKind::CiFailed {
-        return Err("Branches go with ciFailed.".into());
+    if !spec.branches.is_empty() && kind != EventKind::CiFailed && !kind.is_pull_request() {
+        return Err("Branches go with ciFailed, prReviewed and prOpened.".into());
     }
     if !spec.services.is_empty() && kind != EventKind::ServiceCrashed {
         return Err("Services go with serviceCrashed.".into());

@@ -64,7 +64,8 @@ pub(crate) fn take_over(project: &str, job_id: &str) -> Result<Value, String> {
     if !can_take_over(project, &run) {
         return Err("Only a Claude run in a project can carry on in a terminal.".into());
     }
-    let target = run.copy.clone().unwrap_or_else(|| project.to_string());
+    let place = run.copy.as_ref().or(run.ran_in.as_ref());
+    let target = place.cloned().unwrap_or_else(|| project.to_string());
     let root = config::spawn_info(&target)?.root;
     let session = session_in_log(&read_log_head(&run.log_path))
         .filter(|id| crate::claude_dirs::find_transcript(&root, id).is_some())

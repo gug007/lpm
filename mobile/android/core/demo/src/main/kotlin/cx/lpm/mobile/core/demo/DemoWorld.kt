@@ -208,10 +208,28 @@ internal class DemoWorld(val clock: Clock) {
         var watched: Boolean = false,
         // Per-branch ahead counts so a checkout restores the branch it left.
         var aheadByBranch: Map<String, Int> = emptyMap(),
+        // The issue each branch was started from.
+        val issueByBranch: Map<String, Int> = emptyMap(),
         // The last auto pull, as the raw wire dict, while it can be undone.
         var autoPulled: Dict? = null,
         // The copies Discard all kept, by the id its reply named for Undo.
-        var discarded: Map<String, List<GitFile>> = emptyMap()
+        var discarded: Map<String, List<GitFile>> = emptyMap(),
+        // A merge that stopped on conflicts.
+        var merge: GitMerge? = null
+    )
+
+    data class GitConflict(
+        val path: String,
+        val conflicts: Int,
+        val firstLine: Int,
+        val resolved: Boolean = false
+    )
+
+    class GitMerge(
+        val source: String,
+        var files: List<GitConflict>,
+        // What the AI at it is doing; null when none is.
+        var run: String? = null
     )
 
     val git = mutableMapOf<String, GitRepo>() // project -> repo
@@ -229,6 +247,11 @@ internal class DemoWorld(val clock: Clock) {
 
     // Terminals whose sample question was answered: they wait on no dialog since.
     var answeredDialogs: Set<String> = emptySet()
+
+    // Terminal id -> its conversation's entries, oldest first, and the terminals the
+    // phone watches.
+    val conversations = mutableMapOf<String, MutableList<Dict>>()
+    val conversationWatches = mutableSetOf<String>()
 
     // Jobs (automations)
 

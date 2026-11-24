@@ -46,13 +46,6 @@ struct TerminalEndedBar: View {
             .font(.subheadline)
             .tint(.white)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(background)
-        .overlay(alignment: .top) {
-            Rectangle().fill(.white.opacity(0.12)).frame(height: 0.5)
-        }
-        .environment(\.colorScheme, .dark)
+        .terminalBottomBar(background)
     }
 }

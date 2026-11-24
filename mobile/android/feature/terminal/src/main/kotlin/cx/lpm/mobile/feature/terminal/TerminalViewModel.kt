@@ -2,6 +2,8 @@ package cx.lpm.mobile.feature.terminal
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cx.lpm.mobile.core.data.conversation.ConversationStore
+import cx.lpm.mobile.core.data.conversation.offersConversation
 import cx.lpm.mobile.core.data.git.GitState
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.link.LinkView
@@ -12,6 +14,8 @@ import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.session.SessionState
+import cx.lpm.mobile.core.data.terminals.AgentTabsStore
+import cx.lpm.mobile.core.data.terminals.SavedAgentTab
 import cx.lpm.mobile.core.data.terminals.TerminalHooks
 import cx.lpm.mobile.core.data.terminals.TerminalsState
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
@@ -27,13 +31,16 @@ import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.model.LimitStop
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.TerminalInfo
-import cx.lpm.mobile.core.model.agentRowsByTerminal
-import cx.lpm.mobile.core.model.projectAgentRows
+import cx.lpm.mobile.core.model.TerminalViewMode
+import cx.lpm.mobile.core.model.agentRow
 import cx.lpm.mobile.core.navigation.TerminalKey
 import cx.lpm.mobile.feature.terminal.composer.ComposerSessions
 import cx.lpm.mobile.feature.terminal.settings.TerminalLook
+import cx.lpm.mobile.feature.terminal.settings.setTerminalViewMode
 import cx.lpm.mobile.feature.terminal.settings.terminalLook
 import cx.lpm.mobile.feature.terminal.settings.terminalLooks
+import cx.lpm.mobile.feature.terminal.settings.terminalViewMode
+import cx.lpm.mobile.feature.terminal.settings.terminalViewModes
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -41,12 +48,14 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -61,7 +70,7 @@ import kotlinx.coroutines.launch
 class TerminalViewModel @AssistedInject constructor(
     @Assisted private val key: TerminalKey,
     sessions: MacSessions,
-    prefs: AppPreferences,
+    private val prefs: AppPreferences,
     private val clock: Clock
 ) : ViewModel() {
     @AssistedFactory
@@ -73,6 +82,7 @@ class TerminalViewModel @AssistedInject constructor(
     private val terminals = session?.store<TerminalsStore>()
     private val projects = session?.store<ProjectsStore>()
     private val git = session?.store<GitStore>()
+    private val agentTabs = session?.store<AgentTabsStore>()
 
     // The screen is showing, so its title follows the project's changes.
     private var following = false
@@ -83,6 +93,11 @@ class TerminalViewModel @AssistedInject constructor(
     private val successor = MutableStateFlow<TerminalInfo?>(null)
     private val lastSeen = MutableStateFlow<TerminalInfo?>(null)
     private val reopened = MutableStateFlow(false)
+    private val saved = MutableStateFlow<SavedAgentTab?>(null)
+    private val live = MutableStateFlow(false)
+
+    // The Mac whose screen is streaming, which a screen kept later still belongs to.
+    private var streamingFrom: String? = null
     private var reopenedTimer: Job? = null
     private var reopenPoll: Job? = null
     private val screenIds = mutableMapOf<Any, String>()
@@ -100,10 +115,12 @@ class TerminalViewModel @AssistedInject constructor(
             combine(session.state, session.link.views, git.state, ::Triple),
             terminals.state,
             projects.state,
-            prefs.terminalLooks(),
-            combine(lastSeen, reopened, successor) { seen, reopen, _ -> seen to reopen }
-        ) { (s, link, g), t, p, look, (seen, reopen) ->
-            build(s, t, p, link, g, look, seen, reopen)
+            combine(prefs.terminalLooks(), prefs.terminalViewModes(), conversationRead(), ::Triple),
+            combine(lastSeen, reopened, successor, saved, live) { seen, reopen, _, kept, shown ->
+                Own(seen, reopen, kept, shown)
+            }
+        ) { (s, link, g), t, p, (look, view, read), own ->
+            build(s, t, p, link, g, look, own).copy(viewMode = view, conversationRead = read)
         }
             .stateIn(
                 viewModelScope,
@@ -115,9 +132,8 @@ class TerminalViewModel @AssistedInject constructor(
                     session.link.view(),
                     git.state.value,
                     prefs.terminalLook,
-                    lastSeen.value,
-                    reopened.value
-                )
+                    Own(lastSeen.value, reopened.value, saved.value, live.value)
+                ).copy(viewMode = prefs.terminalViewMode)
             )
     }
 
@@ -133,6 +149,19 @@ class TerminalViewModel @AssistedInject constructor(
             }
                 .distinctUntilChanged()
                 .onEach { awaiting -> if (awaiting) pollForReopen() else reopenPoll?.cancel() }
+                .launchIn(viewModelScope)
+            combine(session.state, successor) { s, next ->
+                (next?.id ?: key.terminalId).takeIf { s.away }
+            }
+                .distinctUntilChanged()
+                .onEach { away ->
+                    saved.value = away?.let { agentTabs?.saved(it) }
+                    // The tab as its list last had it, while the Mac can't list it.
+                    if (away != null && lastSeen.value == null) {
+                        lastSeen.value =
+                            agentTabs?.savedTabs(key.project)?.firstOrNull { it.id == away }
+                    }
+                }
                 .launchIn(viewModelScope)
             // The Mac's watch reports changes from when it starts, so whatever changed
             // while the link was down is fetched once it's back.
@@ -199,6 +228,7 @@ class TerminalViewModel @AssistedInject constructor(
             store.state.value.endedTerminals[old]?.restarting == true || next.switchedFrom == old
         if (store.isControlled(old)) store.claimControl(next.id)
         session?.store<ComposerSessions>()?.carryDraft(from = old, to = next)
+        live.value = false
         successor.value = next
         if (replacedHere) return
         reopened.value = true
@@ -209,6 +239,12 @@ class TerminalViewModel @AssistedInject constructor(
         }
     }
 
+    private fun conversationRead(): Flow<Boolean> {
+        val store = session?.store<ConversationStore>() ?: return flowOf(false)
+        return store.state.map { it.lists[currentId]?.items.orEmpty().isNotEmpty() }
+            .distinctUntilChanged()
+    }
+
     private fun build(
         s: SessionState,
         t: TerminalsState,
@@ -216,12 +252,11 @@ class TerminalViewModel @AssistedInject constructor(
         link: LinkView,
         g: GitState,
         look: TerminalLook,
-        seen: TerminalInfo?,
-        reopen: Boolean
+        own: Own
     ): TerminalUiState {
         val id = currentId
         val list = t.terminals[key.project]
-        val terminal = list?.firstOrNull { it.id == id } ?: seen?.takeIf { it.id == id }
+        val terminal = list?.firstOrNull { it.id == id } ?: own.seen?.takeIf { it.id == id }
         val project = p.project(key.project)
         return TerminalUiState(
             terminal = terminal,
@@ -232,12 +267,18 @@ class TerminalViewModel @AssistedInject constructor(
             ended = t.endedTerminals[id],
             listed = list?.any { it.id == id } == true,
             canRestart = terminals?.canRestartTerminals == true,
-            reopened = reopen,
+            reopened = own.reopened,
             accountMove = terminal?.let(t::accountMove),
             limitStop = terminal?.let(t::limitStop),
             canSwitchAccount =
                 terminals?.canSwitchTabAccounts == true && terminal?.canSwitchAccount == true,
+            offersConversation = session?.offersConversation(t, project, id) == true,
             connectionReady = s.isReady,
+            saved = own.saved?.takeIf { s.away },
+            live = own.live,
+            // Drawn for another screen's width, it isn't worth keeping.
+            keepsScreen = terminals?.isControlled(id) == true &&
+                terminal?.let { agentTabs?.keepsScreen(it) } == true,
             statusLine = link.statusLine.takeUnless { s.demoMode || s.isReady },
             look = look,
             agent = agentTiming(project, id),
@@ -250,8 +291,8 @@ class TerminalViewModel @AssistedInject constructor(
     /** The tab's agent, as the desktop's sidebar reads it; a plain shell or an idle one has none. */
     private fun agentTiming(project: Project?, terminalId: String): AgentTiming? {
         project ?: return null
-        val rows = projectAgentRows(project, clock.millis(), tabTitles = emptyMap())
-        val agent = agentRowsByTerminal(rows)[terminalId]?.takeIf { it.state != AgentState.Idle }
+        val agent = agentRow(project, terminalId, clock.millis())
+            ?.takeIf { it.state != AgentState.Idle }
         return agent?.since?.let { AgentTiming(agent.state, it, agent.until, agent.pause) }
     }
 
@@ -260,6 +301,7 @@ class TerminalViewModel @AssistedInject constructor(
         // Each screen closes the terminal it opened, even once a reopened tab took over.
         val id = currentId
         screenIds[screen] = id
+        streamingFrom = session?.state?.value?.activeMacId
         terminals?.openTerminalScreen(id, screen, hooks)
     }
 
@@ -282,12 +324,23 @@ class TerminalViewModel @AssistedInject constructor(
 
     /** The terminal's first content is on screen: a prompt "Ask agent…" queued goes in. */
     fun contentShown() {
+        live.value = true
         terminals?.contentShown(currentId)
+    }
+
+    /** The live screen, for reading once the Mac is away. */
+    fun keepScreen(text: String, at: Long) {
+        val mac = streamingFrom ?: return
+        agentTabs?.keepScreen(currentId, text, at, mac)
     }
 
     /** The page restarted empty: ask for a full snapshot. */
     fun reseed() {
         terminals?.reseed(currentId)
+    }
+
+    fun setViewMode(mode: TerminalViewMode) {
+        prefs.setTerminalViewMode(mode)
     }
 
     fun claimControl() {
@@ -340,4 +393,12 @@ class TerminalViewModel @AssistedInject constructor(
         const val REOPEN_POLL_MS = 4_000L
         const val REOPENED_BANNER_MS = 4_000L
     }
+
+    /** What the screen holds itself, beside the session's stores. */
+    private data class Own(
+        val seen: TerminalInfo?,
+        val reopened: Boolean,
+        val saved: SavedAgentTab?,
+        val live: Boolean
+    )
 }

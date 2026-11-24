@@ -134,6 +134,15 @@ export interface SeedChange {
   modified: string;
 }
 
+export interface SeedIssue {
+  number: number;
+  title: string;
+  author: string;
+  labels: string[];
+  body: string;
+  comments: { author: string; body: string }[];
+}
+
 export interface SeedGit {
   branch: string;
   upstream: boolean;
@@ -142,6 +151,9 @@ export interface SeedGit {
   branches: SeedBranch[];
   changes: SeedChange[];
   pr?: SeedPullRequest;
+  // The repository's open issues, and the one this branch was started from.
+  issues?: SeedIssue[];
+  issue?: number;
 }
 
 // An agent tab already open when the project is first shown.

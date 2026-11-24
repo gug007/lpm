@@ -204,8 +204,8 @@ private func automationDateRulePhrase(_ job: AutomationJob) -> String? {
 }
 
 /// "When CI fails on main", "When api crashes", "When an agent finishes in
-/// docs-site, once a day": what starts an event's job, worded as the desktop
-/// words it (jobsEvents.ts).
+/// docs-site, once a day", "When a PR into main gets a review": what starts an
+/// event's job, worded as the desktop words it (jobsEvents.ts).
 private func automationEventText(_ job: AutomationJob) -> String {
     let text: String
     switch job.eventOn {
@@ -213,10 +213,19 @@ private func automationEventText(_ job: AutomationJob) -> String {
         text = job.eventBranches.isEmpty ? "When CI fails" : "When CI fails on \(orWords(job.eventBranches))"
     case "serviceCrashed":
         text = job.eventServices.isEmpty ? "When a service crashes" : "When \(orWords(job.eventServices)) crashes"
+    case "prReviewed":
+        text = "When \(pullRequestWords(job)) gets a review"
+    case "prOpened":
+        text = "When \(pullRequestWords(job)) is opened"
     default:
         text = job.eventFrom.isEmpty ? "When an agent finishes" : "When an agent finishes in \(orWords(job.eventFrom))"
     }
     return job.eventAtMost == "day" ? "\(text), once a day" : text
+}
+
+/// "a PR", or "a PR into main or release": the branches name what it merges into.
+private func pullRequestWords(_ job: AutomationJob) -> String {
+    job.eventBranches.isEmpty ? "a PR" : "a PR into \(orWords(job.eventBranches))"
 }
 
 /// "a, b or c".
@@ -312,7 +321,9 @@ func automationResultColor(_ result: String) -> Color {
     if automationFailedResults.contains(result) { return .red }
     switch result {
     case "completed", "found-work": return .green
-    case "skipped-overlap", "skipped-pending-copy", "skipped-capacity", "skipped-ci-rounds", "pending-window": return .orange
+    case "skipped-overlap", "skipped-pending-copy", "skipped-capacity", "skipped-ci-rounds", "skipped-review-rounds",
+         "pending-window":
+        return .orange
     default: return .secondary
     }
 }
@@ -330,6 +341,7 @@ func automationResultLabel(_ result: String) -> String {
     case "skipped-pending-copy": return "Waiting for the previous copy"
     case "skipped-capacity": return "Waiting — other automations were running"
     case "skipped-ci-rounds": return "Skipped — CI still fails"
+    case "skipped-review-rounds": return "Skipped — only bots reviewed"
     case "pending-window": return "Waiting for the app window"
     default: return result.isEmpty ? "No runs yet" : result
     }

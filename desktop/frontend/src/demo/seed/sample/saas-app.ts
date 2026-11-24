@@ -4,6 +4,7 @@ import type { ChangeSpec } from "./changes";
 import { CALVER, DAY, HOUR, MINUTE, YMD } from "./clock";
 import { defineProject } from "./define";
 import { SAAS_APP_FILES } from "./saas-app-files";
+import { SAAS_APP_ISSUES } from "./saas-app-issues";
 import { DEPLOYS_PAGE, REVENUE_PAGE } from "./saas-pages";
 
 // Mirrors the seeded working-tree diff, so the Review tab shows exactly the
@@ -271,6 +272,7 @@ export const SAAS_APP: SeedProject = defineProject({
       ],
       passAfterMs: 45_000,
     },
+    issues: SAAS_APP_ISSUES,
   },
   changes: CHANGES,
   tree: SAAS_APP_FILES,

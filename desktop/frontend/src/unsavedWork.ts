@@ -5,6 +5,8 @@ import {
   GitStatus,
 } from "../bridge/commands";
 import { count } from "./count";
+import { peerRawName } from "./peer/markers";
+import type { ProjectInfo } from "./types";
 
 // Work in a copy that exists nowhere else, so deleting the copy loses it.
 export interface UnsavedWork {
@@ -54,8 +56,13 @@ export function unsavedWorkLines(work: UnsavedWork): string[] {
   return lines;
 }
 
-// Mirrors projects_crud.rs worktree_branch_name: the branch lpm made for a
-// worktree, deleted along with it.
+// The branch lpm made for a worktree, deleted along with it.
+export function worktreeBranch(project: Pick<ProjectInfo, "name" | "worktreeBranch">): string {
+  return project.worktreeBranch ?? worktreeBranchName(peerRawName(project.name));
+}
+
+// Mirrors projects_crud.rs worktree_branch_name: the branch of a worktree whose
+// project doesn't name one.
 export function worktreeBranchName(name: string): string {
   let component = "";
   for (const ch of name) {

@@ -1,0 +1,26 @@
+# The repository's open issues in the composer's @ menu, found by number or title;
+# picking one puts it and its comments in the message.
+appId: cx.lpm.mobile
+name: 190-issue-mention
+tags: [demo, terminal, composer]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Terminal 1"
+    timeout: 5000
+- tapOn: "Terminal 1"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 10000
+- tapOn: "Message"
+- inputText: "Fix @45"
+- extendedWaitUntil:
+    visible: "#45 Cart badge keeps the old count after checkout"
+    timeout: 5000
+- takeScreenshot: 1-issue
+- tapOn: "#45 Cart badge keeps the old count after checkout"
+- extendedWaitUntil:
+    visible: ".*samlee: The badge reads the cart once.*"
+    timeout: 5000
+- takeScreenshot: 2-picked

@@ -43,6 +43,7 @@ import cx.lpm.mobile.core.designsystem.component.ListRow
 import cx.lpm.mobile.core.designsystem.component.ListSection
 import cx.lpm.mobile.core.designsystem.component.LpmAlert
 import cx.lpm.mobile.core.designsystem.component.TextFieldRow
+import cx.lpm.mobile.core.designsystem.component.ToggleRow
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.navigation.GitPullRequestKey
 import cx.lpm.mobile.feature.git.R
@@ -70,6 +71,7 @@ fun GitPrRoute(
         onDismiss = onDismiss,
         onTitle = viewModel::setTitle,
         onBody = viewModel::setBody,
+        onCloseIssue = viewModel::setCloseIssue,
         onGenerate = viewModel::generate,
         onCreate = viewModel::create
     )
@@ -93,6 +95,7 @@ fun GitPrSheet(
     onDismiss: () -> Unit,
     onTitle: (String) -> Unit,
     onBody: (String) -> Unit,
+    onCloseIssue: (Boolean) -> Unit,
     onGenerate: () -> Unit,
     onCreate: () -> Unit,
     modifier: Modifier = Modifier
@@ -136,7 +139,11 @@ fun GitPrSheet(
             }
         )
         val url = state.createdUrl
-        if (url != null) Created(url) else PrForm(state, onTitle, onBody, onGenerate)
+        if (url != null) {
+            Created(url)
+        } else {
+            PrForm(state, onTitle, onBody, onCloseIssue, onGenerate)
+        }
     }
 }
 
@@ -145,6 +152,7 @@ private fun PrForm(
     state: GitPrUiState,
     onTitle: (String) -> Unit,
     onBody: (String) -> Unit,
+    onCloseIssue: (Boolean) -> Unit,
     onGenerate: () -> Unit
 ) {
     Column(
@@ -176,6 +184,15 @@ private fun PrForm(
                 minLines = 4,
                 maxLines = 16
             )
+        }
+        state.issue?.let { issue ->
+            ListSection(footer = stringResource(R.string.git_pr_close_issue_footer, issue)) {
+                ToggleRow(
+                    title = stringResource(R.string.git_pr_close_issue, issue),
+                    checked = state.closeIssue,
+                    onCheckedChange = onCloseIssue
+                )
+            }
         }
         ListSection(footer = stringResource(R.string.git_pr_footer)) {
             GenerateRow(state.generating, onGenerate)

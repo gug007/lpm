@@ -585,6 +585,7 @@ fn run_pr(t: &Tracker, cwd: &str) -> Result<(), String> {
             body.trim().to_string(),
             base.clone(),
             None,
+            None,
         )?;
         Ok((title, url.trim().to_string()))
     })?;

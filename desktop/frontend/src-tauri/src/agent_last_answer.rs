@@ -3,7 +3,7 @@
 //! formatting. Both providers append to their transcripts forever and reach
 //! tens of megabytes, so answers are gathered from a tail window that widens
 //! only while it holds fewer than were asked for.
-use crate::agent_last_answer_codex::codex_answers;
+use crate::agent_last_answer_codex::{codex_answers, codex_rollout_path};
 use crate::agent_session_titles::{
     codex_home, parse_provider, validate_project_name, AgentProvider,
 };
@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 const INITIAL_TAIL_BYTES: u64 = 4 << 20;
 const TAIL_GROWTH: u64 = 4;
 const MAX_RECENT_ANSWERS: usize = 50;
-const SYNTHETIC_MODEL: &str = "<synthetic>";
+pub(crate) const SYNTHETIC_MODEL: &str = "<synthetic>";
 
 /// Where one session's answers are recorded, once the project and provider have
 /// been checked.
@@ -62,6 +62,19 @@ pub fn agent_recent_answers(
     limit: usize,
 ) -> Result<Vec<RecentAnswer>, String> {
     locate(&project_name, &provider, &session_id)?.newest(limit.clamp(1, MAX_RECENT_ANSWERS))
+}
+
+/// Where a session's transcript is, or will be; `None` while no Codex rollout
+/// for it exists.
+pub(crate) fn transcript_path(
+    project_name: &str,
+    provider: &str,
+    session_id: &str,
+) -> Result<Option<PathBuf>, String> {
+    Ok(match locate(project_name, provider, session_id)? {
+        Answers::Claude(transcript) => Some(transcript),
+        Answers::Codex { home, session_id } => codex_rollout_path(&home, &session_id),
+    })
 }
 
 fn locate(project_name: &str, provider: &str, session_id: &str) -> Result<Answers, String> {

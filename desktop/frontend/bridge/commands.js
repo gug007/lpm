@@ -274,8 +274,8 @@ export function CancelClone(id) {
 export function StartDuplicateProject(name, label, excludeUncommitted, reinstallDeps, pullLatest, folderId) {
   return invoke("start_duplicate_project", { name, label, excludeUncommitted, reinstallDeps, pullLatest, folderId });
 }
-export function StartDuplicateWorktreeProject(name, label, reinstallDeps, folderId) {
-  return invoke("start_duplicate_worktree_project", { name, label, reinstallDeps, folderId });
+export function StartDuplicateWorktreeProject(name, label, reinstallDeps, folderId, issue) {
+  return invoke("start_duplicate_worktree_project", { name, label, reinstallDeps, folderId, issue });
 }
 export function DuplicateStatus(name) {
   return invoke("duplicate_status", { name });
@@ -298,6 +298,15 @@ export function RerunFailedChecks(cwd, runIds) {
 }
 export function PullRequestDiscussion(cwd) {
   return invoke("pull_request_discussion", { cwd });
+}
+export function OpenIssues(cwd, fresh) {
+  return invoke("open_issues", { cwd, fresh });
+}
+export function ReadIssue(cwd, number) {
+  return invoke("read_issue", { cwd, number });
+}
+export function BranchIssue(cwd) {
+  return invoke("branch_issue", { cwd });
 }
 export function PullRequestMergeOffer(cwd) {
   return invoke("pull_request_merge_offer", { cwd });
@@ -323,8 +332,8 @@ export function CancelCiFixLoop(projectName) {
 export function CiFixLoopState(projectName) {
   return invoke("ci_fix_loop_state", { projectName });
 }
-export function CreatePullRequest(cwd, title, body, base, draft) {
-  return invoke("create_pull_request", { cwd, title, body, base, draft });
+export function CreatePullRequest(cwd, title, body, base, draft, closeIssue) {
+  return invoke("create_pull_request", { cwd, title, body, base, draft, closeIssue });
 }
 export function CreateSSHProject(name, ssh) {
   return invoke("create_ssh_project", { name, ssh });
@@ -362,8 +371,8 @@ export function DismissPortSuggestion(project, port) {
 export function DuplicateProject(name, label, excludeUncommitted, reinstallDeps, pullLatest, folderId) {
   return invoke("duplicate_project", { name, label, excludeUncommitted, reinstallDeps, pullLatest, folderId });
 }
-export function DuplicateWorktreeProject(name, label, reinstallDeps, folderId) {
-  return invoke("duplicate_worktree_project", { name, label, reinstallDeps, folderId });
+export function DuplicateWorktreeProject(name, label, reinstallDeps, folderId, issue) {
+  return invoke("duplicate_worktree_project", { name, label, reinstallDeps, folderId, issue });
 }
 export function DuplicateProjects(name, count, excludeUncommitted, reinstallDeps, pullLatest) {
   return invoke("duplicate_projects", { name, count, excludeUncommitted, reinstallDeps, pullLatest });
@@ -580,6 +589,9 @@ export function GitMarkConflictResolved(cwd, path) {
 }
 export function GitContinueMerge(cwd) {
   return invoke("git_continue_merge", { cwd });
+}
+export function GitStopConflictAI(cwd) {
+  return invoke("git_stop_conflict_ai", { cwd });
 }
 export function GitAutoPull(cwd) {
   return invoke("git_auto_pull", { cwd });

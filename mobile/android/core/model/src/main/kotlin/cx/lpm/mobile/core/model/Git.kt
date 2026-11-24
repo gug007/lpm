@@ -47,7 +47,11 @@ data class GitSnapshot(
     val autoPulled: AutoPulled?,
     // Lines the changed files add and remove; null from a Mac that doesn't count them.
     val linesAdded: Int? = null,
-    val linesRemoved: Int? = null
+    val linesRemoved: Int? = null,
+    // The issue the branch was started from, which its pull request closes.
+    val issue: Int? = null,
+    // Conflicts a merge, a pull or a rebase left; null when there are none.
+    val merge: GitMergeState? = null
 ) {
     companion object {
         fun parse(o: JsonObject): GitSnapshot = GitSnapshot(
@@ -63,7 +67,9 @@ data class GitSnapshot(
             files = o.list("files", GitFile::parse),
             autoPulled = AutoPulled.parse(o["autoPulled"]),
             linesAdded = o.int("linesAdded"),
-            linesRemoved = o.int("linesRemoved")
+            linesRemoved = o.int("linesRemoved"),
+            issue = o.int("issue"),
+            merge = GitMergeState.parse(o.obj("merge"))
         )
     }
 }

@@ -30,6 +30,7 @@ final class NotificationService: UNNotificationServiceExtension {
         }
         guard let project = payload["project"] as? String, !project.isEmpty else { return nil }
         AgentWidgetStore.apply(push: payload)
+        AgentAnswerStore.apply(push: payload)
 
         let terminal = payload["terminal"] as? String ?? ""
         let status = payload["status"] as? String ?? ""

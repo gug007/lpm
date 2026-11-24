@@ -6,6 +6,8 @@ import androidx.compose.runtime.Composable
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.TerminalInfo
+import cx.lpm.mobile.core.model.TerminalViewChoice
+import java.time.Instant
 
 /**
  * What other features draw on the terminal screen, wired by the app (features
@@ -14,16 +16,18 @@ import cx.lpm.mobile.core.model.TerminalInfo
 class TerminalSlots(
     /**
      * The project's ⚡ actions and "…" menu at the bar's trailing edge, its Rename naming
-     * `terminal`. `onFind` finds in the terminal, null while it isn't live here.
+     * `terminal`. `view` is what an agent tab shows, null when there's only its
+     * terminal. `onFind` finds in the terminal, null while it isn't live here.
      * `onSpawnedTerminal` opens a terminal an action started, claimed for this phone.
      */
     val projectMenu: @Composable RowScope.(
         project: Project,
         terminal: TerminalInfo,
         session: SessionKey,
+        view: TerminalViewChoice?,
         onFind: (() -> Unit)?,
         onSpawnedTerminal: (TerminalInfo) -> Unit
-    ) -> Unit = { _, _, _, _, _ -> },
+    ) -> Unit = { _, _, _, _, _, _ -> },
     /**
      * The Mac's Claude accounts a tab can continue its conversation on, for the limit
      * bar's Other account menu; picking one moves the tab.
@@ -32,7 +36,8 @@ class TerminalSlots(
         @Composable ColumnScope.(session: SessionKey, term: TerminalInfo) -> Unit
     )? = null,
     /** The connection banner over the terminal while the session's link isn't ready. */
-    val connectionBanner: @Composable (session: SessionKey) -> Unit = {},
+    val connectionBanner: @Composable (session: SessionKey, lastSeen: Instant?) -> Unit =
+        { _, _ -> },
     /** The composer's session-memory picker; `onInvocation` parks its pick in the field. */
     val memorySheet: (
         @Composable (

@@ -47,6 +47,15 @@ class ProjectDetailScreenTest {
         )
     )
 
+    @Test
+    fun theMacsTabsKeptFromBeforeOpenWhileItsAway() {
+        show(state.copy(tabs = null, saved = SavedTabs(listOf(terminal), null, "Studio Mac")))
+        compose.onNodeWithText("Tabs open read-only until Studio Mac is back.").assertExists()
+        compose.onNodeWithText("New tab").assertDoesNotExist()
+        compose.onNodeWithText("Terminal 1").performClick()
+        assertEquals(listOf("open Terminal 1"), events)
+    }
+
     private fun show(state: ProjectDetailUiState = this.state) = compose.setContent {
         LpmTheme {
             ProjectDetailScreen(

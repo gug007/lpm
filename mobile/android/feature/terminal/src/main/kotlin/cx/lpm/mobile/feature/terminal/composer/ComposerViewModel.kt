@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cx.lpm.mobile.core.data.commands.LpmCommandsStore
 import cx.lpm.mobile.core.data.dictation.DictationStore
+import cx.lpm.mobile.core.data.git.GitExtrasStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.services.ServiceLogsState
@@ -15,6 +16,7 @@ import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.model.MentionPlace
+import cx.lpm.mobile.core.model.RepoIssue
 import cx.lpm.mobile.core.model.ServiceInfo
 import cx.lpm.mobile.core.model.SlashCommand
 import cx.lpm.mobile.core.model.parseCommandRun
@@ -102,12 +104,22 @@ class ComposerViewModel @AssistedInject constructor(
 
     private val answers = ComposerAnswers(target, session, store)
 
-    // The terminals and the project's git branches, the @-mention menu's sources.
+    private val issues = ComposerIssues(
+        session?.store<GitExtrasStore>(),
+        target.project,
+        viewModelScope,
+        insert = { store?.appendText(it) }
+    )
+
+    // The terminals, and the project's git branches and open issues: the @-mention
+    // menu's sources.
     private val mentionSources = combine(
         terminals?.state ?: flowOf(null),
         git?.state?.map { it.branches[target.project].orEmpty() }?.distinctUntilChanged()
-            ?: flowOf(emptyList())
-    ) { terms, branches -> terms to branches }
+            ?: flowOf(emptyList()),
+        issues.open,
+        ::Triple
+    )
 
     val uiState: StateFlow<ComposerUiState> = combine(
         store?.state ?: flowOf(ComposerState()),
@@ -115,7 +127,7 @@ class ComposerViewModel @AssistedInject constructor(
         projects?.state ?: flowOf(null),
         composers?.composerActions ?: flowOf(emptyList()),
         composers?.variantCounts ?: flowOf(emptyMap())
-    ) { composer, (terms, branches), projectsState, actions, counts ->
+    ) { composer, (terms, branches, openIssues), projectsState, actions, counts ->
         val tools = target.terminalTools
         val commands = if (tools) terms.slashRows(target) else emptyList()
         val mention = mentionQuery(composer.text)
@@ -133,7 +145,8 @@ class ComposerViewModel @AssistedInject constructor(
                     terms?.mentions?.get(target.project).orEmpty(),
                     branches = branches,
                     services = projectsState?.services?.get(target.project).orEmpty(),
-                    computers = terms?.mentionComputers?.get(target.project).orEmpty()
+                    computers = terms?.mentionComputers?.get(target.project).orEmpty(),
+                    issues = openIssues
                 )
             } ?: MentionResults(),
             memoryAvailable = tools && projectsState?.project(target.project)?.isRemote != true,
@@ -145,6 +158,7 @@ class ComposerViewModel @AssistedInject constructor(
     }.combine(warning) { state, sendWarning -> state.copy(sendWarning = sendWarning) }
         .combine(historyPicks.restore) { state, restore -> state.copy(restore = restore) }
         .combine(lpmCommands.notice) { state, notice -> state.copy(commandNotice = notice) }
+        .combine(issues.error) { state, error -> state.copy(issueError = error) }
         .combine(dictation.state) { state, take ->
             state.copy(dictation = take, dictationOwner = dictationOwner)
         }
@@ -203,6 +217,7 @@ class ComposerViewModel @AssistedInject constructor(
         composers?.loadComposerActions()
         projects?.loadServices(target.project)
         git?.loadBranches(target.project)
+        issues.load()
     }
 
     fun setFocused(focused: Boolean) {
@@ -351,6 +366,13 @@ class ComposerViewModel @AssistedInject constructor(
 
     /** A place on another computer goes in as the Mac wrote it, without an "@". */
     fun pickPlace(place: MentionPlace) = replaceMention("${place.insert} ")
+
+    fun pickIssue(issue: RepoIssue) {
+        stripMentionFragment()
+        issues.pick(issue)
+    }
+
+    fun dismissIssueError() = issues.dismissError()
 
     private fun replaceMention(replacement: String) {
         val text = currentText

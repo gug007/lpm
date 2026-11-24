@@ -266,6 +266,7 @@ export type JobResult =
   | "skipped-pending-copy"
   | "skipped-capacity"
   | "skipped-ci-rounds"
+  | "skipped-review-rounds"
   | "pending-window";
 
 export type JobResultTone = "neutral" | "success" | "error" | "warning";
@@ -297,6 +298,7 @@ const RESULT_META: Record<string, ResultMeta> = {
     tone: "warning",
   },
   "skipped-ci-rounds": { label: () => "Skipped — CI still fails", tone: "warning" },
+  "skipped-review-rounds": { label: () => "Skipped — only bots reviewed", tone: "warning" },
   "pending-window": { label: () => "Waiting for the app window", tone: "warning" },
 };
 

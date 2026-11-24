@@ -238,5 +238,9 @@ fn an_event_replaces_the_clock_and_keeps_only_its_filters() {
     );
     assert!(Cli::try_parse_from(["t", "--on", "ciFailed", "--every", "6h"]).is_err());
     assert!(Cli::try_parse_from(["t", "--branches", "main"]).is_err());
-    assert!(Cli::try_parse_from(["t", "--on", "prOpened"]).is_err());
+    assert_eq!(
+        applied("{}", &["--on", "prReviewed", "--branches", "main"]).unwrap(),
+        "schedule:\n  on: prReviewed\n  branches:\n  - main\n"
+    );
+    assert!(Cli::try_parse_from(["t", "--on", "prMerged"]).is_err());
 }

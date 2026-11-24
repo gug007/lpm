@@ -54,6 +54,9 @@ final class LpmClient: NSObject {
     var onTerminals: ((_ project: String, _ terminals: [TerminalInfo]) -> Void)?
     var onSlash: ((_ id: String, _ commands: [SlashCommand]) -> Void)?
     var onAnswers: ((_ reqId: String, _ answers: [RecentAnswer]?, _ error: String?) -> Void)?
+    var onConversation: ((_ update: ConversationUpdate) -> Void)?
+    var onConversationPage: ((_ reqId: String, _ page: ConversationPage?, _ error: String?) -> Void)?
+    var onConversationDetail: ((_ reqId: String, _ parts: [ConversationPart]?, _ error: String?) -> Void)?
     var onUpload: ((_ id: String, _ reqId: String, _ path: String) -> Void)?
     var onUploadStep: ((UploadStep) -> Void)?
     var onDictation: ((DictationEvent) -> Void)?
@@ -105,6 +108,8 @@ final class LpmClient: NSObject {
     var onGitDiscardAll: ((_ project: String, _ undo: String?, _ error: String?) -> Void)?
     var onGitRestoreDiscarded: ((_ project: String, _ error: String?) -> Void)?
     var onGitDiscardFiles: ((_ project: String, _ paths: [String], _ undo: String?, _ error: String?) -> Void)?
+    var onGitConflict: ((_ project: String, _ verb: String, _ error: String?) -> Void)?
+    var onGitMergeRun: ((GitMergeRun) -> Void)?
     var onAgentDialog: ((_ read: AgentDialogRead) -> Void)?
     var onActionPopup: ((_ reply: ActionPopupReply) -> Void)?
     var onGitChanged: ((_ project: String) -> Void)?
@@ -116,6 +121,8 @@ final class LpmClient: NSObject {
     var onGitScanSecrets: ((SecretScanReply) -> Void)?
     var onGitBranchFiles: ((BranchFilesReply) -> Void)?
     var onGitPrDiscussion: ((PrDiscussionReply) -> Void)?
+    var onGitIssues: ((RepoIssuesReply) -> Void)?
+    var onGitIssue: ((RepoIssueReply) -> Void)?
     var onGitCheckLog: ((CheckLogReply) -> Void)?
     var onWriteFile: ((FileWriteReply) -> Void)?
     var onGitMergePr: ((_ project: String, _ number: Int, _ deletedBranch: Bool, _ error: String?) -> Void)?
@@ -139,6 +146,7 @@ final class LpmClient: NSObject {
     // The raw text of every `projects` and `sidebar` frame, so the model can save
     // the last list per Mac and show it before the next connection lands.
     var onListFrame: ((_ text: String) -> Void)?
+    var onTerminalsFrame: ((_ project: String, _ tabs: [TerminalInfo], _ text: String) -> Void)?
     // A reconnect reached `ready` carrying the Mac's identity, so the active
     // record can learn/refresh its serverId and name. Absent on older Macs.
     var onIdentity: ((_ serverId: String?, _ serverName: String?, _ platform: String?) -> Void)?
@@ -286,6 +294,7 @@ final class LpmClient: NSObject {
     static let serviceLogsWatchFeature = "serviceLogsWatch"
     static let serviceRestartFeature = "serviceRestart"
     static let agentAnswersFeature = "agentAnswers"
+    static let agentConversationFeature = "agentConversation"
     static let restartTerminalFeature = "restartTerminal"
     static let agentLaunchFeature = "agentLaunch"
     static let agentSessionsFeature = "agentSessions"
@@ -320,11 +329,14 @@ final class LpmClient: NSObject {
     static let dictationFeature = "dictation"
     static let agentDialogFeature = "agentDialog"
     static let gitDiscardFilesFeature = "gitDiscardFiles"
+    /// The Mac lists a stopped merge's conflicts and works through them.
+    static let gitConflictsFeature = "gitConflicts"
     static let actionPopupFeature = "actionPopup"
     static let actionAppFeature = "actionApp"
     static let gitScanSecretsFeature = "gitScanSecrets"
     static let gitBranchDiffFeature = "gitBranchDiff"
     static let gitPrDiscussionFeature = "gitPrDiscussion"
+    static let gitIssuesFeature = "gitIssues"
     static let gitCheckLogFeature = "gitCheckLog"
     static let writeFileFeature = "writeFile"
 
@@ -562,6 +574,7 @@ final class LpmClient: NSObject {
             self.injectInbound(Wire.json([
                 "t": "ready", "serverId": DemoServer.serverId, "serverName": DemoServer.serverName,
                 "features": [ChunkedUpload.feature, Self.serviceLogsWatchFeature, Self.agentAnswersFeature,
+                             Self.agentConversationFeature,
                              Self.restartTerminalFeature, Self.agentLaunchFeature, Self.agentSessionsFeature,
                              Self.actionPromptFeature, Self.listDirFeature, Self.tabMenuFeature,
                              Self.moveTabFeature,
@@ -571,9 +584,11 @@ final class LpmClient: NSObject {
                              Self.keepAwakeFeature, Self.powerFeature, Self.lpmCommandsFeature, Self.lpmOtherSkillsFeature, Self.lpmNestedFoldersFeature,
                              Self.gitChecksFeature, Self.gitCommitChecksFeature, Self.gitMergeFeature,
                              Self.ciFixLoopFeature,
-                             Self.agentDialogFeature, Self.gitDiscardFilesFeature, Self.actionPopupFeature,
+                             Self.agentDialogFeature, Self.gitDiscardFilesFeature, Self.gitConflictsFeature,
+                             Self.actionPopupFeature,
                              Self.actionAppFeature,
                              Self.gitScanSecretsFeature, Self.gitBranchDiffFeature, Self.gitPrDiscussionFeature,
+                             Self.gitIssuesFeature,
                              Self.gitCheckLogFeature, Self.writeFileFeature],
             ]))
         }
@@ -964,6 +979,17 @@ final class LpmClient: NSObject {
     func requestAnswers(id: String, project: String, limit: Int, reqId: String) {
         send(Wire.answers(id: id, project: project, limit: limit, reqId: reqId))
     }
+    /// Live like a subscription: worth nothing on a later link, which asks again.
+    func watchConversation(id: String, project: String) {
+        sendLive(Wire.conversationWatch(id: id, project: project))
+    }
+    func unwatchConversation(id: String) { sendLive(Wire.conversationUnwatch(id: id)) }
+    func requestConversationPage(id: String, project: String, before: String, reqId: String) {
+        sendLive(Wire.conversationPage(id: id, project: project, before: before, reqId: reqId))
+    }
+    func requestConversationDetail(id: String, project: String, item: String, reqId: String) {
+        sendLive(Wire.conversationDetail(id: id, project: project, item: item, reqId: reqId))
+    }
     func uploadBlob(_ id: String, _ b64: String, mime: String, name: String?, reqId: String) {
         send(Wire.upload(id: id, data: b64, mime: mime, name: name, reqId: reqId))
     }
@@ -1245,8 +1271,8 @@ final class LpmClient: NSObject {
     func gitPush(project: String) { send(Wire.gitPush(project: project)) }
     func gitGenMessage(project: String, files: [String]) { send(Wire.gitGenMessage(project: project, files: files)) }
     func gitGenPr(project: String) { send(Wire.gitGenPr(project: project)) }
-    func gitCreatePr(project: String, title: String, body: String) {
-        send(Wire.gitCreatePr(project: project, title: title, body: body))
+    func gitCreatePr(project: String, title: String, body: String, closeIssue: Bool?) {
+        send(Wire.gitCreatePr(project: project, title: title, body: body, closeIssue: closeIssue))
     }
     func gitPull(project: String) { send(Wire.gitPull(project: project)) }
     func gitFetch(project: String) { send(Wire.gitFetch(project: project)) }
@@ -1267,6 +1293,10 @@ final class LpmClient: NSObject {
     func requestBranchFiles(project: String) { send(Wire.gitBranchFiles(project: project)) }
     func requestBranchDiffs(project: String, paths: [String]) { send(Wire.gitBranchDiffs(project: project, paths: paths)) }
     func requestPrDiscussion(project: String) { send(Wire.gitPrDiscussion(project: project)) }
+    func requestIssues(project: String) { send(Wire.gitIssues(project: project)) }
+    func requestIssue(project: String, number: Int, reqId: String) {
+        send(Wire.gitIssue(project: project, number: number, reqId: reqId))
+    }
     func requestCheckLog(project: String, url: String) { send(Wire.gitCheckLog(project: project, url: url)) }
     func writeFile(project: String, path: String, content: String, base: String, reqId: String) {
         send(Wire.writeFile(project: project, path: path, content: content, base: base, reqId: reqId))
@@ -1289,6 +1319,18 @@ final class LpmClient: NSObject {
     func gitDiscardAll(project: String) { send(Wire.gitDiscardAll(project: project)) }
     func gitDiscardFiles(project: String, paths: [String]) {
         send(Wire.gitDiscardFiles(project: project, paths: paths))
+    }
+    /// Never queued: one that arrives late would undo what was resolved meanwhile.
+    func gitConflict(project: String, _ op: GitConflictOp) {
+        switch op {
+        case .resolve: sendLive(Wire.gitMergeResolve(project: project))
+        case .stop: sendLive(Wire.gitMergeStop(project: project))
+        case .abort: sendLive(Wire.gitMergeAbort(project: project))
+        case .commit: sendLive(Wire.gitMergeContinue(project: project))
+        case .take(let path, let side):
+            sendLive(Wire.gitConflictTake(project: project, path: path, side: side.rawValue))
+        case .markResolved(let path): sendLive(Wire.gitConflictResolved(project: project, path: path))
+        }
     }
     func requestAgentDialog(project: String, terminalId: String) {
         send(Wire.agentDialog(project: project, terminalId: terminalId))
@@ -1499,6 +1541,7 @@ final class LpmClient: NSObject {
                     if let frame {
                         switch frame {
                         case .projects, .sidebar: if let text { self.onListFrame?(text) }
+                        case .terminals(let project, let tabs): if let text { self.onTerminalsFrame?(project, tabs, text) }
                         default: break
                         }
                         if case .bye = frame {} else { self.noteStillThere() }
@@ -1589,6 +1632,9 @@ final class LpmClient: NSObject {
             case .terminals(let proj, let t): self.onTerminals?(proj, t)
             case .slash(let id, let cmds): self.onSlash?(id, cmds)
             case .answers(_, let reqId, let answers, let error): self.onAnswers?(reqId, answers, error)
+            case .conversation(let update): self.onConversation?(update)
+            case .conversationPage(let reqId, let page, let error): self.onConversationPage?(reqId, page, error)
+            case .conversationDetail(let reqId, let parts, let error): self.onConversationDetail?(reqId, parts, error)
             case .upload(let id, let reqId, let path): self.onUpload?(id, reqId, path)
             case .uploadStep(let step): self.onUploadStep?(step)
             case .dictation(let event): self.onDictation?(event)
@@ -1675,6 +1721,8 @@ final class LpmClient: NSObject {
             case .gitCreateBranch(let proj, let error): self.onGitCreateBranch?(proj, error)
             case .gitDiscardAll(let proj, let undo, let error): self.onGitDiscardAll?(proj, undo, error)
             case .gitRestoreDiscarded(let proj, let error): self.onGitRestoreDiscarded?(proj, error)
+            case .gitConflict(let proj, let verb, let error): self.onGitConflict?(proj, verb, error)
+            case .gitMergeRun(let run): self.onGitMergeRun?(run)
             case .gitDiscardFiles(let proj, let paths, let undo, let error):
                 self.onGitDiscardFiles?(proj, paths, undo, error)
             case .agentDialog(let read): self.onAgentDialog?(read)
@@ -1684,6 +1732,8 @@ final class LpmClient: NSObject {
             case .gitBranchDiffs(let proj, let entries, let error):
                 self.onGitDiffs?(GitExtrasStore.branchKey(proj), entries, error)
             case .gitPrDiscussion(let reply): self.onGitPrDiscussion?(reply)
+            case .gitIssues(let reply): self.onGitIssues?(reply)
+            case .gitIssue(let reply): self.onGitIssue?(reply)
             case .gitCheckLog(let reply): self.onGitCheckLog?(reply)
             case .writeFile(let reply): self.onWriteFile?(reply)
             case .gitChanged(let proj): self.onGitChanged?(proj)

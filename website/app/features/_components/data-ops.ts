@@ -4,9 +4,9 @@ import type { FeatureArea } from "./feature-types";
 
 export const AUTOMATIONS_AREA: FeatureArea = {
   id: "automations",
-  title: "Schedule agents and see what they use",
+  title: "Automate agents and see what they use",
   description:
-    "Run agent prompts, commands, and actions on a schedule, and keep an eye on the tokens and plan limits your Claude Code and Codex sessions spend.",
+    "Run agent prompts, commands, and actions on a schedule, or when CI fails, a service crashes or an agent finishes, and keep an eye on the tokens and plan limits your Claude Code and Codex sessions spend.",
   highlights: [
     {
       icon: CalendarClock,
@@ -33,6 +33,11 @@ export const AUTOMATIONS_AREA: FeatureArea = {
     },
   ],
   features: [
+    {
+      title: "Started by an event",
+      body: "A job can start when CI fails on a commit you pushed, when a service crashes, or when an agent finishes its turn. Narrow it to branches, services or projects, and react once per commit or once a day.",
+      note: "CI events need the GitHub CLI signed in. A CI job stops after three runs in a row on a branch until CI passes there.",
+    },
     {
       title: "Work in a fresh copy",
       body: "Let a job run on a fresh copy or a new Git worktree so your folder stays untouched. Each run's copy opens like any other project.",

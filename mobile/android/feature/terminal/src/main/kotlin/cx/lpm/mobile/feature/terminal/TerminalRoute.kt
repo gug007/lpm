@@ -21,6 +21,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cx.lpm.mobile.core.data.terminals.TerminalHooks
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.TerminalViewChoice
+import cx.lpm.mobile.core.model.TerminalViewMode
 import cx.lpm.mobile.core.navigation.CommandEditorKey
 import cx.lpm.mobile.core.navigation.FilePreviewKey
 import cx.lpm.mobile.core.navigation.ManageCommandsKey
@@ -31,6 +33,8 @@ import cx.lpm.mobile.core.web.TerminalWebController
 import cx.lpm.mobile.core.web.rememberTerminalWebController
 import cx.lpm.mobile.feature.terminal.composer.ComposerRoute
 import cx.lpm.mobile.feature.terminal.composer.ComposerTarget
+import cx.lpm.mobile.feature.terminal.conversation.ConversationRoute
+import cx.lpm.mobile.feature.terminal.conversation.ConversationTarget
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -55,8 +59,9 @@ internal fun TerminalRoute(
     val terminal = state.terminal
     val project = state.project
     // Asked again after a Mac switch or a reconnect, which clear the list this waits on.
-    LaunchedEffect(state.activeMacId, state.connectionReady, terminal == null) {
-        if (terminal == null) viewModel.loadTerminals()
+    val listed = terminal != null && state.listLoaded
+    LaunchedEffect(state.activeMacId, state.connectionReady, listed) {
+        if (!listed) viewModel.loadTerminals()
     }
     if (terminal == null || project == null) {
         TerminalPlaceholder(
@@ -97,6 +102,18 @@ internal fun TerminalRoute(
                 if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) viewModel.markSeen()
             }
         }
+        val openPaths = { paths: List<String>, line: Int ->
+            haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+            navigator.navigate(
+                FilePreviewKey(
+                    key.project,
+                    paths,
+                    line,
+                    key.session,
+                    promptTerminal = terminal.id.takeIf { state.showsComposer }
+                )
+            )
+        }
         LpmTheme(darkTheme = true) {
             LightSystemBarIcons()
             TerminalScreen(
@@ -109,18 +126,8 @@ internal fun TerminalRoute(
                     onRevive = viewModel::resync,
                     onPageRestart = viewModel::reseed,
                     onFirstContent = viewModel::contentShown,
-                    onOpenPath = { paths, line ->
-                        haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
-                        navigator.navigate(
-                            FilePreviewKey(
-                                key.project,
-                                paths,
-                                line,
-                                key.session,
-                                promptTerminal = terminal.id.takeIf { state.showsComposer }
-                            )
-                        )
-                    },
+                    onScreen = viewModel::keepScreen.takeIf { state.keepsScreen },
+                    onOpenPath = openPaths,
                     onAddToPrompt = if (state.showsComposer) {
                         { text ->
                             viewModel.addToPrompt(text)
@@ -150,13 +157,15 @@ internal fun TerminalRoute(
                         project,
                         terminal,
                         key.session,
-                        onFind.takeIf { state.showsComposer }
+                        TerminalViewChoice(state.viewMode, viewModel::setViewMode)
+                            .takeIf { state.offersView },
+                        onFind.takeIf { state.showsComposer && !state.showsConversation }
                     ) { spawned ->
                         viewModel.claimSpawned(spawned)
                         navigator.navigate(TerminalKey(spawned.project, spawned.id, key.session))
                     }
                 },
-                connectionBanner = { slots.connectionBanner(key.session) },
+                connectionBanner = { slots.connectionBanner(key.session, state.kept?.lastSeen) },
                 findBar = {
                     if (findOpen) {
                         TerminalFindBar(
@@ -190,6 +199,14 @@ internal fun TerminalRoute(
                             }
                         )
                     }
+                },
+                conversation = {
+                    ConversationRoute(
+                        target = ConversationTarget(terminal.id, terminal.project, key.session),
+                        background = state.look.theme.backgroundColor,
+                        onOpenPath = { path -> openPaths(listOf(path), 0) },
+                        onShowTerminal = { viewModel.setViewMode(TerminalViewMode.Terminal) }
+                    )
                 },
                 composer = {
                     ComposerRoute(

@@ -19,6 +19,7 @@ fn run_with(asks: Vec<Ask>) -> ActiveRun {
         log_path: String::new(),
         agent: None,
         copy: None,
+        ran_in: None,
         question: None,
         resumed: None,
         follows: None,

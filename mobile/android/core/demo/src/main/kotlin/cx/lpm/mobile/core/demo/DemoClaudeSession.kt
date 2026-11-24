@@ -41,7 +41,7 @@ internal fun DemoServer.handleClaudeInput(id: String, d: String) {
                     echo = ""
                 }
                 if (submitted.isNotEmpty()) {
-                    claudeRespond(id)
+                    claudeRespond(id, prompt = submitted)
                     return
                 }
             }
@@ -101,24 +101,30 @@ private fun DemoServer.flushQueuedClaude(id: String) {
     if (queued.isEmpty()) return
     emit(id, queued)
     if (submit) {
-        claudeRespond(id)
+        claudeRespond(id, prompt = queued)
     } else {
         updateTerminal(id) { it.pendingInput = queued }
     }
 }
 
 private val claudeAcks = listOf(
-    "$TEXT_DOT Noted — I'll fold that into the checkout work. The payment logic stays in " +
-        "${BOLD}lib/payments.ts$RESET, so it's a small, contained change.",
-    "$TEXT_DOT Good call. I'll adjust the checkout steps to cover that and re-run the tests " +
+    "Noted — I'll fold that into the checkout work. The payment logic stays in " +
+        "**lib/payments.ts**, so it's a small, contained change.",
+    "Good call. I'll adjust the checkout steps to cover that and re-run the tests " +
         "to make sure nothing regresses.",
-    "$TEXT_DOT Got it — I'll take a look and keep the changes scoped to the checkout flow."
+    "Got it — I'll take a look and keep the changes scoped to the checkout flow."
 )
 
-internal fun DemoServer.claudeRespond(id: String) {
+/** An ack as the terminal draws it. */
+private fun drawnAck(ack: String): String =
+    "$TEXT_DOT " + ack.replace(Regex("""\*\*(.+?)\*\*"""), "$BOLD$1$RESET")
+
+/** Answer what was typed, or `prompt`-less what was picked from a question. */
+internal fun DemoServer.claudeRespond(id: String, prompt: String = "") {
     val term = demoTerminal(id) ?: return
     val project = term.project
     val ack = claudeAcks[term.ackCount % claudeAcks.size]
+    demoConversationPrompt(id, prompt)
     updateTerminal(id) {
         it.responding = true
         it.ackCount += 1
@@ -127,8 +133,9 @@ internal fun DemoServer.claudeRespond(id: String) {
     emit(id, "\r\n")
     pushAfter(1.1) {
         if (demoTerminal(id) == null) return@pushAfter null
-        val text = ack + "\r\n\r\n$BOLD>$RESET "
+        val text = drawnAck(ack) + "\r\n\r\n$BOLD>$RESET "
         appendBuffer(id, text)
+        demoConversationText(id, ack)
         updateTerminal(id) { it.responding = false }
         demoSetAgentStatus(project = project, entries = listOf(statusEntry(id, "Waiting", 30)))
         push(mapOf("t" to "o", "id" to id, "d" to text))
@@ -149,6 +156,7 @@ internal fun DemoServer.startClaudeScript(id: String) {
         pushAfter(at) {
             if (demoTerminal(id) == null) return@pushAfter null
             appendBuffer(id, text)
+            demoConversationStep(id, i)
             if (!last) return@pushAfter mapOf("t" to "o", "id" to id, "d" to text)
             updateTerminal(id) { it.scriptFinished = true }
             demoSetAgentStatus(project = project, entries = listOf(statusEntry(id, "Waiting", 30)))

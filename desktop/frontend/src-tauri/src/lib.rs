@@ -5,6 +5,11 @@ mod command_run;
 mod adopt;
 mod attention_badge;
 mod agent_dialog;
+mod agent_conversation;
+mod agent_conversation_claude;
+mod agent_conversation_codex;
+mod agent_conversation_detail;
+mod agent_conversation_tools;
 mod agent_last_answer;
 mod agent_last_answer_codex;
 mod agent_limits;
@@ -162,6 +167,7 @@ mod ignoredwrite;
 mod installchoices;
 mod gitpush;
 mod gitresolve;
+mod gitresolve_run;
 mod gitsync;
 mod gitwatch;
 mod htmlproto;
@@ -180,6 +186,9 @@ mod hostfolders;
 mod hostjobs;
 mod image_share;
 mod ipc;
+mod issue_branch;
+mod issues;
+mod untrusted;
 mod jobcal;
 mod jobcron;
 mod jobmemory;
@@ -303,12 +312,18 @@ mod diskusage;
 mod duplicate_space;
 mod projects_crud;
 mod pty;
+mod pr_watch;
+mod pr_watch_github;
+mod pr_watch_gitlab;
+mod pr_watch_state;
+mod pr_watch_text;
 mod pull_request;
 mod pull_request_merge;
 mod pr_merge_watch;
 mod pull_request_review;
 mod githost;
 mod gitlab_ci;
+mod gitlab_issues;
 mod gitlab_merge;
 mod gitlab_mr;
 mod gitlab_review;
@@ -529,6 +544,8 @@ use popup_view::{
 };
 use pull_request::*;
 use pull_request_review::pull_request_discussion;
+use issues::{open_issues, read_issue};
+use issue_branch::branch_issue;
 use githost::git_host_info;
 use pull_request_merge::{merge_pull_request, pull_request_merge_offer};
 use pr_merge_watch::{
@@ -554,6 +571,7 @@ use gitpush::git_push_rebasing;
 use gitresolve::{
     git_continue_merge, git_mark_conflict_resolved, git_merge_state, git_take_conflict_side,
 };
+use gitresolve_run::git_stop_conflict_ai;
 use gitsync::{sync_project_cancel, sync_project_start};
 use handoff::{handoff_send, handoff_take};
 use ignoredset::ignored_sync_set;
@@ -902,6 +920,8 @@ pub fn run() {
             keepawake_session::start(&handle);
             // Following each push from this computer until its CI finishes.
             ci_watch::start(handle.clone());
+            // Pull requests being opened or reviewed, for the automations that react.
+            pr_watch::start(handle.clone());
 
             // Peer host + client servers (Mac-to-Mac control). Load the shared
             // ~/.lpm/peer.json once into the lock both roles hold, then start the

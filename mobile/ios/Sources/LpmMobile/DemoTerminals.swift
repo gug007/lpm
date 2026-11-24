@@ -618,7 +618,7 @@ extension DemoServer {
                 updateTerminal(id) { $0.pendingInput = "" }
                 if !echo.isEmpty { emit(id, echo); echo = "" }
                 if submitted.isEmpty { break }
-                claudeRespond(id)
+                claudeRespond(id, prompt: submitted)
                 return
             case "\u{7F}", "\u{08}":
                 if !pending.isEmpty { pending.removeLast(); echo += "\u{08} \u{08}" }
@@ -666,22 +666,31 @@ extension DemoServer {
         updateTerminal(id) { $0.queuedInput = ""; $0.queuedSubmit = false }
         guard !queued.isEmpty else { return }
         emit(id, queued)
-        if submit { claudeRespond(id) }
+        if submit { claudeRespond(id, prompt: queued) }
         else { updateTerminal(id) { $0.pendingInput = queued } }
     }
 
     private var claudeAcks: [String] {
         [
-            "\(textDot) Noted — I'll fold that into the checkout work. The payment logic stays in \(bold)lib/payments.ts\(reset), so it's a small, contained change.",
-            "\(textDot) Good call. I'll adjust the checkout steps to cover that and re-run the tests to make sure nothing regresses.",
-            "\(textDot) Got it — I'll take a look and keep the changes scoped to the checkout flow.",
+            "Noted — I'll fold that into the checkout work. The payment logic stays in **lib/payments.ts**, so it's a small, contained change.",
+            "Good call. I'll adjust the checkout steps to cover that and re-run the tests to make sure nothing regresses.",
+            "Got it — I'll take a look and keep the changes scoped to the checkout flow.",
         ]
     }
 
-    func claudeRespond(_ id: String) {
+    /// An ack as the terminal draws it.
+    private func drawnAck(_ ack: String) -> String {
+        "\(textDot) " + ack.replacingOccurrences(of: #"\*\*(.+?)\*\*"#, with: "\(bold)$1\(reset)",
+                                               options: .regularExpression)
+    }
+
+    /// Answer what was typed, or `prompt`-less what was picked from a question.
+    func claudeRespond(_ id: String, prompt: String = "") {
         guard let term = demoTerminal(id) else { return }
         let project = term.project
-        let ack = claudeAcks[term.ackCount % claudeAcks.count]
+        let said = claudeAcks[term.ackCount % claudeAcks.count]
+        let ack = drawnAck(said)
+        demoConversationPrompt(id, prompt)
         updateTerminal(id) { $0.responding = true; $0.ackCount += 1 }
         demoSetAgentStatus(project: project, entries: [statusEntry(id, "Running", 10)])
         emit(id, "\r\n")
@@ -690,6 +699,7 @@ extension DemoServer {
             let text = ack + "\r\n\r\n\(bold)>\(reset) "
             self.appendBuffer(id, text)
             self.demoRecordAnswer(id, ansi: ack)
+            self.demoConversationText(id, said)
             self.updateTerminal(id) { $0.responding = false }
             self.demoSetAgentStatus(project: project, entries: [self.statusEntry(id, "Waiting", 30)])
             self.push(["t": "o", "id": id, "d": text])
@@ -710,6 +720,7 @@ extension DemoServer {
                 guard let self, self.demoTerminal(id) != nil else { return nil }
                 self.appendBuffer(id, step.1)
                 if step.1.hasPrefix(textDot) { self.demoRecordAnswer(id, ansi: step.1) }
+                self.demoConversationStep(id, i)
                 guard last else { return ["t": "o", "id": id, "d": step.1] }
                 self.updateTerminal(id) { $0.scriptFinished = true }
                 self.demoSetAgentStatus(project: project,
@@ -890,7 +901,7 @@ extension DemoServer {
         updateTerminal(id) { $0.buffer = text }
     }
 
-    private func demoTerminal(_ id: String) -> DemoWorld.Terminal? {
+    func demoTerminal(_ id: String) -> DemoWorld.Terminal? {
         world.terminals.values.flatMap { $0 }.first { $0.id == id }
     }
 

@@ -3,6 +3,7 @@ package cx.lpm.mobile.feature.connection
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,12 +24,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cx.lpm.mobile.core.data.link.ConnectionIssue
 import cx.lpm.mobile.core.data.link.IssueAction
+import cx.lpm.mobile.core.data.link.clockStamp
 import cx.lpm.mobile.core.data.link.issueCopy
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicatorSize
 import cx.lpm.mobile.core.designsystem.component.LinkButton
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.SessionKey
+import java.time.Instant
 
 /**
  * Floating capsule over a terminal while the link is down: keystrokes and scroll
@@ -42,7 +45,8 @@ fun TerminalConnectionBanner(
     device: String,
     onAction: (IssueAction) -> Unit,
     modifier: Modifier = Modifier,
-    canOpenLpm: Boolean = false
+    canOpenLpm: Boolean = false,
+    lastSeen: Instant? = null
 ) {
     val copy = issue.issueCopy(macLabel, device, canOpenLpm = canOpenLpm)
     val action = copy.actions.firstOrNull { it != IssueAction.Details }
@@ -58,7 +62,7 @@ fun TerminalConnectionBanner(
     ) {
         if (issue.isConnecting) {
             ActivityIndicator(size = ActivityIndicatorSize.Small, color = Color.White)
-            Text(stringResource(R.string.banner_reconnecting), style = style, color = Color.White)
+            Words(stringResource(R.string.banner_reconnecting), lastSeen)
         } else {
             Icon(
                 painter = painterResource(issueIcon(copy.icon)),
@@ -66,14 +70,7 @@ fun TerminalConnectionBanner(
                 tint = Color.White,
                 modifier = Modifier.size(16.dp)
             )
-            Text(
-                text = copy.title,
-                style = style,
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false)
-            )
+            Words(copy.title, lastSeen, Modifier.weight(1f, fill = false))
             if (action != null) {
                 LinkButton(
                     text = action.label(issue),
@@ -86,11 +83,37 @@ fun TerminalConnectionBanner(
     }
 }
 
+/** What's wrong, and when what's on screen was kept, while it isn't live. */
+@Composable
+private fun Words(title: String, lastSeen: Instant?, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        Text(
+            text = title,
+            style = LpmTheme.typography.footnote,
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (lastSeen != null) {
+            Text(
+                text = stringResource(
+                    R.string.banner_last_seen,
+                    lastSeen.clockStamp(Instant.now())
+                ),
+                style = LpmTheme.typography.caption1,
+                color = Color.White.copy(alpha = 0.75f),
+                maxLines = 1
+            )
+        }
+    }
+}
+
 /** [TerminalConnectionBanner] for `session`'s link, shown while it isn't ready. */
 @Composable
 fun TerminalConnectionBannerRoute(
     modifier: Modifier = Modifier,
-    session: SessionKey = SessionKey.Live
+    session: SessionKey = SessionKey.Live,
+    lastSeen: Instant? = null
 ) {
     val viewModel = linkViewModel(session)
     val ui by viewModel.uiState.collectAsStateWithLifecycle()
@@ -102,6 +125,7 @@ fun TerminalConnectionBannerRoute(
         macLabel = state.view.macLabel,
         device = state.device,
         canOpenLpm = state.canOpenLpm,
+        lastSeen = lastSeen,
         modifier = modifier,
         onAction = { context.performIssueAction(it, issue, viewModel::perform) }
     )

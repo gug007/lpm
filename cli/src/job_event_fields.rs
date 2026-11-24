@@ -11,10 +11,10 @@ pub struct JobEventFields {
     #[arg(
         long,
         value_name = "EVENT",
-        value_parser = ["ciFailed", "serviceCrashed", "agentFinished"],
+        value_parser = ["ciFailed", "serviceCrashed", "agentFinished", "prReviewed", "prOpened"],
         help_heading = SCHEDULE,
         conflicts_with_all = ["manual", "every", "at", "until", "times", "days", "pick_days", "short_months", "cron"],
-        help = "Run when this happens instead of on a clock: CI fails on a push from this computer, a service exits with an error, or an agent finishes its turn"
+        help = "Run when this happens instead of on a clock: CI fails on a push from this computer, a service exits with an error, an agent finishes its turn, a pull request you opened gets a review, or a pull request is opened"
     )]
     pub on: Option<String>,
     #[arg(
@@ -23,7 +23,7 @@ pub struct JobEventFields {
         value_delimiter = ',',
         requires = "on",
         help_heading = SCHEDULE,
-        help = "With --on ciFailed: only failures on these branches"
+        help = "With --on ciFailed: only failures on these branches; with --on prReviewed or prOpened: only pull requests into them"
     )]
     pub branches: Vec<String>,
     #[arg(
@@ -50,7 +50,7 @@ pub struct JobEventFields {
         value_parser = ["commit", "day"],
         requires = "on",
         help_heading = SCHEDULE,
-        help = "With --on: run once for each commit the event is about (default) or once a day"
+        help = "With --on: run once for each commit, review or pull request the event is about (default) or once a day"
     )]
     pub at_most: Option<String>,
 }

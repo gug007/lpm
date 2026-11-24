@@ -21,6 +21,8 @@ import cx.lpm.mobile.core.designsystem.component.AlertButton
 import cx.lpm.mobile.core.designsystem.component.AlertRole
 import cx.lpm.mobile.core.designsystem.component.LocalConfirmRisky
 import cx.lpm.mobile.core.designsystem.component.LpmAlert
+import cx.lpm.mobile.core.model.GitConflictOp
+import cx.lpm.mobile.core.navigation.FilePreviewKey
 import cx.lpm.mobile.core.navigation.GitPullRequestKey
 import cx.lpm.mobile.core.navigation.GitReviewKey
 import cx.lpm.mobile.core.navigation.TerminalKey
@@ -107,7 +109,18 @@ fun GitReviewRoute(
             clearDraft = viewModel::clearDraft,
             focusShown = viewModel::focusShown,
             setScope = viewModel::setScope,
-            openPullRequest = { uriHandler.openUri(it) }
+            openPullRequest = { uriHandler.openUri(it) },
+            runConflictOp = viewModel::runConflictOp,
+            abortMerge = {
+                confirmRisky.confirm("Abort the merge in ${key.project}") {
+                    viewModel.runConflictOp(GitConflictOp.Abort)
+                }
+            },
+            openConflict = {
+                onNavigate(
+                    FilePreviewKey(key.project, listOf(it.path), it.firstLine, key.session)
+                )
+            }
         )
     )
 

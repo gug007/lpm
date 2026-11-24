@@ -23,7 +23,7 @@ const SCREENS: { src: string; title: string; body: string; alt: string }[] = [
   {
     src: "/lpm-link/automation.jpg",
     title: "Automations",
-    body: "Run, pause or edit scheduled tasks and read every run.",
+    body: "Run, pause or edit automations and read every run.",
     alt: "An automation in lpm Link with its schedule and run history",
   },
   {

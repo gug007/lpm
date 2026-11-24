@@ -1811,7 +1811,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       injectLog(editor, item.label, "terminal output", body);
       return;
     }
-    if (item.kind === "diff" || item.kind === "commit" || item.kind === "pr") {
+    if (item.kind === "diff" || item.kind === "commit" || item.kind === "pr" || item.kind === "issue") {
       void insertGitMention(editor, item);
       return;
     }
@@ -1889,7 +1889,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     injectLog(editor, item.label, `${item.label} service logs`, body);
   };
 
-  // Read the diff, commit or review thread from the checkout and drop it where
+  // Read the diff, commit, review thread or issue and drop it where
   // the "@<frag>" was; on failure the fragment goes and a toast says why.
   const insertGitMention = async (editor: HTMLDivElement, item: MentionItem) => {
     let text = "";

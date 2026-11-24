@@ -1,13 +1,8 @@
 package cx.lpm.mobile.feature.terminal
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -42,12 +37,8 @@ internal fun TerminalEndedBar(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier.fillMaxWidth().background(background)) {
-        Box(Modifier.fillMaxWidth().height(0.5.dp).background(Color.White.copy(alpha = 0.12f)))
-        Column(
-            Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+    TerminalBottomBar(background, modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
                 text = if (ending.gone) {
                     stringResource(R.string.terminal_has_ended, label)

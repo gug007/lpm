@@ -1,19 +1,21 @@
 import SwiftUI
 
 /// Grouped @-mention autocomplete, ordered like the desktop: working-tree changes,
-/// then other computers' places, files/dirs, git branches (once a fragment is
-/// typed), then context sources — this terminal's output and per-service logs,
-/// which inject inline.
+/// then other computers' places, the repository's open issues, files/dirs, git
+/// branches (once a fragment is typed), then context sources — this terminal's
+/// output and per-service logs. Issues and context inject inline.
 struct ComposerMentionMenu: View {
     @Environment(AppModel.self) private var model
     let project: String
     let changed: [MentionEntry]
     let computers: [MentionComputer]
+    let issues: [RepoIssue]
     let files: [MentionEntry]
     let branches: [GitBranch]
     let services: [ServiceInfo]
     let pickPath: (String) -> Void
     let pickPlace: (MentionPlace) -> Void
+    let pickIssue: (RepoIssue) -> Void
     let pickBranch: (String) -> Void
     let includeTerminalOutput: Bool
     let pickTerminalOutput: () -> Void
@@ -36,6 +38,13 @@ struct ComposerMentionMenu: View {
                     ForEach(c.places) { p in
                         contextRow(icon: "desktopcomputer", title: p.label,
                                    subtitle: p.path, action: { pickPlace(p) })
+                    }
+                }
+                if !issues.isEmpty {
+                    MenuSectionHeading("Issues")
+                    ForEach(issues) { i in
+                        contextRow(icon: "smallcircle.filled.circle", title: "#\(String(i.number)) \(i.title)",
+                                   subtitle: i.labels.joined(separator: ", "), action: { pickIssue(i) })
                     }
                 }
                 if !files.isEmpty {
@@ -126,8 +135,10 @@ struct ComposerMentionMenu: View {
                     .font(.system(size: 13)).foregroundStyle(SwiftUI.Color.accentColor).frame(width: 18)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.system(size: 14)).foregroundStyle(.primary).lineLimit(1)
-                    Text(subtitle).font(.system(size: 11)).foregroundStyle(.secondary)
-                        .lineLimit(1).truncationMode(.middle)
+                    if !subtitle.isEmpty {
+                        Text(subtitle).font(.system(size: 11)).foregroundStyle(.secondary)
+                            .lineLimit(1).truncationMode(.middle)
+                    }
                 }
                 Spacer(minLength: 8)
             }

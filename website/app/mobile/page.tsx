@@ -144,7 +144,7 @@ export default function MobilePage() {
             href: AUTOMATIONS_PATH,
             title: "Schedule Claude Code tasks",
             description:
-              "Set up prompts that run on a schedule, then read and reply to each run from your phone.",
+              "Set up prompts that run on a schedule or an event, then read and reply to each run from your phone.",
           },
           {
             href: PARALLEL_PATH,

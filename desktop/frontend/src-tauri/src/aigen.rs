@@ -5,6 +5,7 @@
 // `gen_id` so `cancel_ai_generate` can reap it. DEFERRED: SSH port/dir in the
 // action-yaml context (config.rs lacks them yet).
 use crate::config;
+use crate::gitresolve_run::Run;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read, Write};
@@ -776,9 +777,7 @@ fn start_cli(
     })
 }
 
-/// Spawn the CLI, stream stdout line-by-line emitting `event` progress chunks,
-/// and return the trimmed final text. claude parses stream-json events; the
-/// others accumulate raw stdout.
+/// `run_ai_with`, emitting its progress as `event`.
 pub(crate) fn run_ai(
     app: &AppHandle,
     cli: &str,
@@ -787,6 +786,22 @@ pub(crate) fn run_ai(
     opts: RunOptions,
     event: &str,
     gen_id: &str,
+) -> Result<String, String> {
+    run_ai_with(cli, cwd, prompt, opts, gen_id, &|line| {
+        let _ = app.emit(event, line);
+    })
+}
+
+/// Spawn the CLI, stream stdout line-by-line handing progress to `on_progress`,
+/// and return the trimmed final text. claude parses stream-json events; the
+/// others accumulate raw stdout.
+fn run_ai_with(
+    cli: &str,
+    cwd: &str,
+    prompt: &str,
+    opts: RunOptions,
+    gen_id: &str,
+    on_progress: &dyn Fn(&str),
 ) -> Result<String, String> {
     detect(cli)?;
     let args = build_args(cli, (!PROMPT_ON_STDIN).then_some(prompt), &opts);
@@ -828,7 +843,7 @@ pub(crate) fn run_ai(
         })
     });
 
-    let _ = app.emit(event, format!("Starting {cli}…"));
+    on_progress(&format!("Starting {cli}…"));
 
     let is_claude = cli == "claude";
     let is_codex = cli == "codex";
@@ -843,7 +858,7 @@ pub(crate) fn run_ai(
                 continue;
             }
             if let Ok(ev) = serde_json::from_str::<serde_json::Value>(t) {
-                handle_claude_event(&ev, app, event, &mut result);
+                handle_claude_event(&ev, on_progress, &mut result);
             }
         } else {
             if full.len() < MAX_OUTPUT {
@@ -861,7 +876,7 @@ pub(crate) fn run_ai(
                 }
             };
             if !msg.is_empty() {
-                let _ = app.emit(event, msg);
+                on_progress(&msg);
             }
         }
     }
@@ -884,7 +899,7 @@ pub(crate) fn run_ai(
         return Err(format!("{cli} failed:\n{}", str_tail(se, 1024)));
     }
     if !is_claude {
-        let _ = app.emit(event, "Done.");
+        on_progress("Done.");
     }
     Ok(if is_claude {
         result.trim().to_string()
@@ -893,7 +908,11 @@ pub(crate) fn run_ai(
     })
 }
 
-fn handle_claude_event(ev: &serde_json::Value, app: &AppHandle, event: &str, result: &mut String) {
+fn handle_claude_event(
+    ev: &serde_json::Value,
+    on_progress: &dyn Fn(&str),
+    result: &mut String,
+) {
     match ev.get("type").and_then(|v| v.as_str()) {
         Some("assistant") => {
             if let Some(content) = ev
@@ -905,7 +924,7 @@ fn handle_claude_event(ev: &serde_json::Value, app: &AppHandle, event: &str, res
                     if c.get("type").and_then(|v| v.as_str()) == Some("tool_use") {
                         let msg = format_tool_use(c);
                         if !msg.is_empty() {
-                            let _ = app.emit(event, msg);
+                            on_progress(&msg);
                         }
                     }
                 }
@@ -915,7 +934,7 @@ fn handle_claude_event(ev: &serde_json::Value, app: &AppHandle, event: &str, res
             if let Some(r) = ev.get("result").and_then(|v| v.as_str()) {
                 *result = r.to_string();
             }
-            let _ = app.emit(event, "Done.");
+            on_progress("Done.");
         }
         _ => {}
     }
@@ -1352,15 +1371,28 @@ pub fn resolve_merge_conflicts_with_ai(
     if crate::git::git_merge_conflicts(cwd.clone()).is_empty() {
         return Err("no merge conflicts to resolve".into());
     }
-    run_ai(
-        &app,
-        &cli,
-        &cwd,
-        MERGE_CONFLICT_PROMPT,
-        ropts(project_name.as_deref(), model, effort, fast, true),
-        "merge-conflict-progress",
-        &gen_id,
-    )
+    let run = Run::begin(&app, project_name.as_deref(), &cwd, &gen_id)?;
+    resolve_conflicts(run, &cli, model, effort, fast, |line| {
+        let _ = app.emit("merge-conflict-progress", line);
+    })
+}
+
+/// Sets the AI on the conflicts `run` holds, and tells everyone how it went.
+pub(crate) fn resolve_conflicts(
+    run: Run,
+    cli: &str,
+    model: String,
+    effort: String,
+    fast: bool,
+    on_progress: impl Fn(&str),
+) -> Result<String, String> {
+    let opts = ropts(run.project.as_deref(), model, effort, fast, true);
+    let outcome = run_ai_with(cli, &run.cwd, MERGE_CONFLICT_PROMPT, opts, &run.gen_id, &|line| {
+        run.say(line);
+        on_progress(line);
+    });
+    run.finish(&outcome);
+    outcome
 }
 
 #[tauri::command(async)]

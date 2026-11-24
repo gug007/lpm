@@ -15,6 +15,7 @@ import { CopyMacSelect, type CopyTargetOption } from "./CopyMacSelect";
 import { ShellCommandInput } from "./ShellCommandInput";
 import { SwitchRow } from "./SwitchRow";
 import { WorktreeFilesRow } from "./WorktreeFilesRow";
+import { WorktreeIssueRow } from "./WorktreeIssueRow";
 import { DuplicateSpaceLine } from "./DuplicateSpaceLine";
 import { SideBySideOption } from "./SideBySideOption";
 import { CollapsibleSection } from "./CollapsibleSection";
@@ -35,6 +36,8 @@ import { findActionByPath, flattenRunnableActions } from "../actionTree";
 import { findParentProject, projectDisplayName } from "./ProjectNameDisplay";
 import { RunModelSelect } from "./RunModelSelect";
 import { useIsGitRepo } from "./useIsGitRepo";
+import { useWorktreeIssue } from "../hooks/useWorktreeIssue";
+import type { IssueStart, OpenIssue } from "../issues";
 import { EMPTY_PICK, pickSummary, switchableCLI, type ModelPick } from "../agentModelSwitch";
 import type { SideBySideLayout } from "../sideBySide";
 import type {
@@ -98,6 +101,8 @@ export interface BulkDuplicateOptions {
   // Mac already has the project. No files ever move between machines.
   targetsPerCopy: string[];
   groupName: string;
+  // The issue new worktrees start from.
+  issue?: IssueStart;
   // Show run #1 and the copies next to each other as the copies land.
   sideBySide: boolean;
   sideBySideLayout: SideBySideLayout;
@@ -176,6 +181,19 @@ export function BulkDuplicateDialog({
   // would keep seeding from the previous session's retained draft.
   const [openSession, setOpenSession] = useState(0);
   const contentRef = useRef<HTMLDivElement>(null);
+  const { issue, reading: readingIssue, pick: pickWorktreeIssue, clear: clearWorktreeIssue } = useWorktreeIssue(
+    project?.root ?? "",
+    (text) => replaceIssuePrompt(text),
+  );
+  // The picked issue's text leads the prompt; what the user typed stays below it.
+  const issuePrompt = useRef("");
+  const replaceIssuePrompt = (text: string) => {
+    const before = issuePrompt.current;
+    const own = before && composer.text.startsWith(before) ? composer.text.slice(before.length) : composer.text;
+    issuePrompt.current = text;
+    setComposer({ ...composer, text: [text, own.trim()].filter(Boolean).join("\n\n") });
+    setOpenSession((n) => n + 1);
+  };
 
   // Every place this project already exists — here and on connected Macs with a
   // same-named project. A copy targeted at another Mac is created THERE by
@@ -292,6 +310,8 @@ export function BulkDuplicateDialog({
     setActionName(seed?.actionName ?? savedAction);
     setCommand(seed?.command ?? s.duplicateCommand ?? "");
     setComposer(seed?.prompt ?? EMPTY_COMPOSER);
+    clearWorktreeIssue();
+    issuePrompt.current = "";
     setEditing(null);
     setExcludeUncommitted(s.duplicateExcludeUncommitted ?? false);
     setReinstallDeps(s.duplicateReinstallDeps ?? false);
@@ -428,7 +448,9 @@ export function BulkDuplicateDialog({
     (mode === "command" && command.trim().length > 0);
   const confirmLabel = imagesPending
     ? "Attaching images…"
-    : seeded
+    : readingIssue
+      ? "Reading the issue…"
+      : seeded
       ? `Run ${count + 1} in parallel`
       : defaultRuns
         ? single
@@ -488,6 +510,22 @@ export function BulkDuplicateDialog({
     ]
       .filter(Boolean)
       .join(" · ") || "None";
+
+  // Starting from an issue is starting an agent on it, so a run that starts none
+  // moves to the first action that does.
+  const pickIssue = (next: OpenIssue) => {
+    const agent = showPrompt ? undefined : runnableActions.find((a) => detectAICLI(a.cmd));
+    if (agent) {
+      setMode("action");
+      setActionName(agent.name);
+    }
+    setRunOpen(true);
+    pickWorktreeIssue(next);
+  };
+  const clearIssue = () => {
+    clearWorktreeIssue();
+    if (issuePrompt.current) replaceIssuePrompt("");
+  };
 
   const pickMode = (next: RunMode) => {
     setMode(next);
@@ -567,7 +605,7 @@ export function BulkDuplicateDialog({
   };
 
   const handleConfirm = () => {
-    if (!project || notGitRepo) return;
+    if (!project || notGitRepo || readingIssue) return;
     // A seeded (composer-triggered) run points at that terminal's agent command
     // for this one duplication — don't let it overwrite the user's remembered
     // "run on each copy" defaults for the normal Duplicate flow.
@@ -576,9 +614,12 @@ export function BulkDuplicateDialog({
         duplicateExcludeUncommitted: excludeUncommitted,
         duplicateReinstallDeps: reinstallDeps,
         duplicatePullLatest: pullLatest,
-        duplicateRunMode: mode,
-        duplicateActionName: actionName || undefined,
-        duplicateCommand: command || undefined,
+        // An issue's run is for that issue, not the user's usual one.
+        ...(!issue && {
+          duplicateRunMode: mode,
+          duplicateActionName: actionName || undefined,
+          duplicateCommand: command || undefined,
+        }),
       });
     } else {
       saveSettings({ runInDuplicatesSideBySide: sideBySide, runInDuplicatesLayout: sideBySideLayout });
@@ -603,6 +644,7 @@ export function BulkDuplicateDialog({
         return valid.size === 0 || valid.has(t) ? t : fallback;
       }),
       groupName: single || !anyGroupableCopy ? "" : trimmedGroup,
+      issue: issue ? { number: issue.number, title: issue.title } : undefined,
       sideBySide: seeded && sideBySide,
       sideBySideLayout,
     });
@@ -929,6 +971,17 @@ export function BulkDuplicateDialog({
           </div>
         </div>
 
+        {isWorktree && !seeded && !notGitRepo && project?.root && (
+          <WorktreeIssueRow
+            key={openSession}
+            root={project.root}
+            issue={issue}
+            reading={readingIssue}
+            onPick={pickIssue}
+            onClear={clearIssue}
+          />
+        )}
+
         <CollapsibleSection
           title={single ? `Run on the ${item}` : `Run on each ${item}`}
           open={runOpen}
@@ -1053,7 +1106,7 @@ export function BulkDuplicateDialog({
         <button
           type="button"
           onClick={handleConfirm}
-          disabled={!project || imagesPending || notGitRepo}
+          disabled={!project || imagesPending || notGitRepo || readingIssue}
           className="rounded-lg bg-[var(--text-primary)] px-4 py-2 text-[13px] font-medium text-[var(--bg-primary)] shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           {confirmLabel}

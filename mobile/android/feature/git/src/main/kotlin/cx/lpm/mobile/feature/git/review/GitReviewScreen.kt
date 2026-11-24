@@ -35,6 +35,8 @@ import cx.lpm.mobile.core.designsystem.component.ProminentButton
 import cx.lpm.mobile.core.designsystem.component.SegmentedControl
 import cx.lpm.mobile.core.designsystem.component.TopBarTitle
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.GitConflictFile
+import cx.lpm.mobile.core.model.GitConflictOp
 import cx.lpm.mobile.feature.git.R
 import cx.lpm.mobile.feature.git.diff.DiffBlockKind
 import cx.lpm.mobile.feature.git.diff.DiffCodeBlock
@@ -72,7 +74,13 @@ class ReviewActions(
     /** The switch at the top: the uncommitted work or the branch's own changes. */
     val setScope: (ReviewScope) -> Unit = {},
     /** The Branch scope's open pull request, on GitHub. */
-    val openPullRequest: (String) -> Unit = {}
+    val openPullRequest: (String) -> Unit = {},
+    /** The merge-conflicts panel's buttons, and a file's in its "…". */
+    val runConflictOp: (GitConflictOp) -> Unit = {},
+    /** "Abort merge", confirmed. */
+    val abortMerge: () -> Unit = {},
+    /** A conflicted file, opened at its first conflict. */
+    val openConflict: (GitConflictFile) -> Unit = {}
 )
 
 /**
@@ -254,6 +262,8 @@ private fun ReviewList(
 @Composable
 private fun ReviewItem(row: ReviewRow, wrap: Boolean, actions: ReviewActions, colors: DiffColors) {
     when (row) {
+        is ReviewRow.MergeConflicts -> MergeConflictsCard(row, actions)
+
         is ReviewRow.Summary -> ReviewSummary(row)
 
         is ReviewRow.FileHeader -> Unit

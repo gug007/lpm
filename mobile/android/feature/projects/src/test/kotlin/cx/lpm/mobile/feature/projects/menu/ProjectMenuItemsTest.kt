@@ -15,6 +15,8 @@ import cx.lpm.mobile.core.designsystem.component.ContextMenu
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.AutoPullMode
 import cx.lpm.mobile.core.model.GitAutoKind
+import cx.lpm.mobile.core.model.TerminalViewChoice
+import cx.lpm.mobile.core.model.TerminalViewMode
 import cx.lpm.mobile.core.model.WorkState
 import cx.lpm.mobile.core.model.WorkStatusInput
 import cx.lpm.mobile.core.model.builtInWorkStatuses
@@ -65,6 +67,38 @@ class ProjectMenuItemsTest {
             .forEach { compose.onNodeWithText(it).assertExists() }
         compose.onNodeWithText("Review Changes").performClick()
         assertEquals(listOf("review"), events)
+    }
+
+    @Test
+    fun anAgentsTabLeadsWithItsView() {
+        compose.setContent {
+            LpmTheme {
+                Box {
+                    ContextMenu(expanded = true, onDismissRequest = {}) {
+                        ProjectMenuItems(
+                            state = ProjectMenuUiState(),
+                            project = storefront,
+                            actions = ProjectMenuActions(
+                                view = TerminalViewChoice(TerminalViewMode.Terminal) {
+                                    events += it.id
+                                }
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        compose.onNodeWithText("View").assertExists()
+        compose.onNodeWithText("Terminal").assertExists()
+        compose.onNodeWithText("Conversation").performClick()
+        assertEquals(listOf("conversation"), events)
+    }
+
+    @Test
+    fun aTabWithoutAConversationHasNoView() {
+        show(ProjectMenuUiState())
+        compose.onNodeWithText("View").assertDoesNotExist()
+        compose.onNodeWithText("Conversation").assertDoesNotExist()
     }
 
     @Test

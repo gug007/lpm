@@ -22,7 +22,7 @@ import { WINDOWS_DEMO } from "./_components/demo-tour";
 
 const TITLE = "Terminal for Windows Developers Running Full Stacks";
 const DESCRIPTION =
-  "A Windows 11 terminal workspace for developers: dev servers found in your repo, a log tab for each, and Claude Code and Codex beside them, all in Git Bash.";
+  "A Windows 11 terminal workspace for developers: dev servers found in your repo, a log tab for each, and Claude Code and Codex beside them, in Git Bash or WSL.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -35,6 +35,7 @@ export const metadata: Metadata = {
     "run multiple dev servers windows",
     "claude code windows terminal",
     "git bash terminal app",
+    "wsl terminal for developers",
   ],
   alternates: {
     canonical: WINDOWS_TERMINAL_DEVELOPERS_PATH,
@@ -62,6 +63,7 @@ const structuredData = [
       "terminal for Windows developers",
       "run multiple dev services on Windows",
       "Git Bash",
+      "WSL",
       "Claude Code on Windows",
     ],
   }),
@@ -85,7 +87,7 @@ export default function TerminalForWindowsDevelopersPage() {
         os="windows"
         eyebrow="Windows 11 · beta"
         title="A terminal for Windows developers who run whole stacks."
-        lede="lpm puts every service, log and AI agent of a project in one window: it finds your dev servers, gives each a tab of its own, and keeps them running while you switch repos. Commands run in Git Bash, and there's no Electron."
+        lede="lpm puts every service, log and AI agent of a project in one window: it finds your dev servers, gives each a tab of its own, and keeps them running while you switch repos. Commands run in Git Bash or inside your WSL distro, and there's no Electron."
         source="windows-devs-hero"
       />
       <DemoSection {...WINDOWS_DEMO} />

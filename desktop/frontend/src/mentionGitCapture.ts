@@ -1,4 +1,4 @@
-import { GitChangedFiles, GitDiff, GitShowCommit, PullRequestDiscussion } from "../bridge/commands";
+import { GitChangedFiles, GitDiff, GitShowCommit, PullRequestDiscussion, ReadIssue } from "../bridge/commands";
 import type { MentionItem } from "./mentions";
 
 // How much of a diff, commit or review thread goes into one prompt.
@@ -48,8 +48,8 @@ export function formatPullRequestThread(pr: PullRequestThread): string {
   return out.join("\n");
 }
 
-// The block a "diff", "commit" or "pr" mention expands to, read fresh from the
-// terminal's checkout at pick time. Rejects with a message to show the user.
+// The block a "diff", "commit", "pr" or "issue" mention expands to, read fresh
+// from the terminal's checkout at pick time. Rejects with a message to show the user.
 export async function captureGitMention(item: MentionItem, cwd: string): Promise<string> {
   if (item.kind === "diff") {
     const files = ((await GitChangedFiles(cwd)) as { path: string }[] | null) ?? [];
@@ -67,5 +67,6 @@ export async function captureGitMention(item: MentionItem, cwd: string): Promise
     if (!pr) throw new Error("This branch has no pull request");
     return fencedBlock(`Pull request #${pr.number}`, capLines(formatPullRequestThread(pr)));
   }
+  if (item.kind === "issue") return (await ReadIssue(cwd, Number(item.insert))).mention;
   throw new Error(`${item.label} can't be attached`);
 }

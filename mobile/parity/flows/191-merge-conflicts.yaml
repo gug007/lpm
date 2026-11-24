@@ -1,0 +1,52 @@
+# A merge that stopped on conflicts: Review Changes lists the files above the changes,
+# one is resolved with a side, AI works through the rest, and the merge is committed.
+appId: cx.lpm.mobile
+name: 191-merge-conflicts
+tags: [demo, git]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "mobile-app"
+- extendedWaitUntil:
+    visible: "Tap a service for its logs."
+    timeout: 5000
+- tapOn: "More"
+- extendedWaitUntil:
+    visible: "Review Changes.*"
+    timeout: 5000
+- tapOn: "Review Changes.*"
+- extendedWaitUntil:
+    visible: "Merging feat/dark-mode into main"
+    timeout: 8000
+- assertVisible: "0 of 3 files resolved"
+- assertVisible: "src/theme/colors.ts, 2 conflicts"
+- assertVisible: "package.json, 1 conflict"
+- assertVisible: "Resolve 3 with AI"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-conflicts
+- tapOn: "Actions for package.json"
+- extendedWaitUntil:
+    visible: "Use theirs"
+    timeout: 5000
+- tapOn: "Use theirs"
+- extendedWaitUntil:
+    visible: "package.json, resolved · used theirs"
+    timeout: 5000
+- assertVisible: "1 of 3 files resolved"
+- tapOn: "Resolve 2 with AI"
+- extendedWaitUntil:
+    visible: "Reading .*"
+    timeout: 5000
+- takeScreenshot: 2-resolving
+- extendedWaitUntil:
+    visible: "3 of 3 files resolved"
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible: "Stop"
+    timeout: 8000
+- assertNotVisible: "Resolve.*with AI"
+- takeScreenshot: 3-resolved
+- tapOn: "Continue merge"
+- extendedWaitUntil:
+    visible: "No changes"
+    timeout: 8000

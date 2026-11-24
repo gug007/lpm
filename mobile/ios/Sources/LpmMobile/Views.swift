@@ -650,13 +650,18 @@ struct NotificationTerminalDestination: View {
     @Environment(AppModel.self) private var model
     let projectName: String
     let terminalId: String
+    /// The tab as its list last had it, while the Mac can't list it.
+    @State private var kept: (mac: UUID?, terminal: TerminalInfo)?
 
     private var project: Project? {
         model.projects.first { $0.name == projectName }
     }
 
     private var terminal: TerminalInfo? {
-        model.terminals[projectName]?.first { $0.id == terminalId }
+        guard let listed = model.terminals[projectName] else {
+            return kept?.mac == model.activeMacId ? kept?.terminal : nil
+        }
+        return listed.first { $0.id == terminalId }
     }
 
     var body: some View {
@@ -677,6 +682,10 @@ struct NotificationTerminalDestination: View {
         // waits on, and a bare `.task` would never ask for it again.
         .task(id: "\(model.activeMacId?.uuidString ?? "")-\(model.connection == .ready)") {
             model.loadTerminals(projectName)
+            let mac = model.activeMacId
+            guard model.macAway, kept?.mac != mac else { return }
+            let tab = await model.savedAgentTabs(projectName).first { $0.id == terminalId }
+            if let tab { kept = (mac, tab) }
         }
     }
 }

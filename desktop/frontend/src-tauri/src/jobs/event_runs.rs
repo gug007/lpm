@@ -1,9 +1,12 @@
 // Automations started by something lpm sees happen instead of by the clock: CI
 // failing on a push from this computer (ci_watch.rs), a service's command
-// ending in failure (read from the session daemon on the scheduler's tick), and
-// an agent finishing its turn (socketsrv.rs). A run is told what happened in
-// its environment and, when it hands an agent a prompt, at the top of it.
-use super::events::{AtMost, EventKind, EventSpec};
+// ending in failure (read from the session daemon on the scheduler's tick), an
+// agent finishing its turn (socketsrv.rs), and a pull request being opened or
+// reviewed (pr_watch.rs). A run is told what happened in its environment and,
+// when it hands an agent a prompt, at the top of it.
+use super::event_happening::{mark, matches, Happening};
+use super::event_pulls::{self, PullRequestsWanted};
+use super::events::EventKind;
 use super::{
     active_runs, config, inflight, load_job_state, machines, max_concurrent,
     record_capacity_skip, resolve_jobs, resolve_standalone_jobs, spawn_pipeline, state_key,
@@ -15,166 +18,58 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, OnceLock};
 use tauri::AppHandle;
 
-// ---- what happened ----------------------------------------------------------
-
-#[derive(Clone, Debug)]
-pub(super) struct Happening {
-    kind: EventKind,
-    project: String,
-    branch: String,
-    commit: String,
-    service: String,
-    exit_code: Option<i32>,
-    agent: String,
-    summary: String,
-    detail: String,
-    url: String,
-}
-
-impl Happening {
-    fn new(kind: EventKind, project: &str) -> Self {
-        Happening {
-            kind,
-            project: project.to_string(),
-            branch: String::new(),
-            commit: String::new(),
-            service: String::new(),
-            exit_code: None,
-            agent: String::new(),
-            summary: String::new(),
-            detail: String::new(),
-            url: String::new(),
-        }
-    }
-
-    /// The branch and commit a project's checkout is on now, for events that
-    /// don't carry their own.
-    fn at_checkout(mut self) -> Self {
-        if let Ok((root, false)) = config::project_root(&self.project) {
-            if !root.is_empty() {
-                self.branch = crate::label_git::read_branch(&root).unwrap_or_default();
-                self.commit = crate::gitworkstate::head_sha(&root).unwrap_or_default();
-            }
-        }
-        self
-    }
-}
-
-fn matches(spec: &EventSpec, job_project: &str, h: &Happening) -> bool {
-    if spec.kind != h.kind {
-        return false;
-    }
-    let place = if !spec.from.is_empty() {
-        spec.from.contains(&h.project)
-    } else {
-        job_project.is_empty() || job_project == h.project
-    };
-    place
-        && (spec.branches.is_empty() || spec.branches.contains(&h.branch))
-        && (spec.services.is_empty() || spec.services.contains(&h.service))
-}
-
-/// What a job last reacted to, so the same commit (or day) starts it once. A
-/// folder without Git has no commit to go by, so each day counts as one.
-fn mark(at_most: AtMost, h: &Happening, today: &str) -> String {
-    match at_most {
-        AtMost::Commit if !h.commit.is_empty() => format!("commit:{}", h.commit),
-        _ => format!("day:{today}"),
-    }
-}
-
-fn today() -> String {
+pub(super) fn today() -> String {
     chrono::Local::now().date_naive().to_string()
-}
-
-pub(super) fn env(h: &Happening) -> Vec<(String, String)> {
-    let mut env = vec![
-        ("LPM_EVENT".to_string(), h.kind.name().to_string()),
-        ("LPM_EVENT_PROJECT".to_string(), h.project.clone()),
-        ("LPM_EVENT_SUMMARY".to_string(), h.summary.clone()),
-    ];
-    let code = h.exit_code.map(|c| c.to_string()).unwrap_or_default();
-    for (key, value) in [
-        ("LPM_EVENT_BRANCH", &h.branch),
-        ("LPM_EVENT_COMMIT", &h.commit),
-        ("LPM_EVENT_SERVICE", &h.service),
-        ("LPM_EVENT_EXIT_CODE", &code),
-        ("LPM_EVENT_AGENT", &h.agent),
-        ("LPM_EVENT_URL", &h.url),
-        ("LPM_EVENT_DETAIL", &h.detail),
-    ] {
-        if !value.is_empty() {
-            env.push((key.to_string(), value.clone()));
-        }
-    }
-    env
-}
-
-/// What an agent is told first about why it was started, read back from the
-/// run's environment.
-fn prompt_note(env: &[(String, String)]) -> Option<String> {
-    let get = |key: &str| {
-        env.iter()
-            .find(|(k, _)| k == key)
-            .map(|(_, v)| v.as_str())
-            .unwrap_or("")
-    };
-    let summary = get("LPM_EVENT_SUMMARY");
-    if summary.is_empty() {
-        return None;
-    }
-    let mut lines = vec![format!("This run started because {summary}.")];
-    let commit = get("LPM_EVENT_COMMIT");
-    if !commit.is_empty() {
-        let short: String = commit.chars().take(7).collect();
-        let branch = get("LPM_EVENT_BRANCH");
-        lines.push(if branch.is_empty() {
-            format!("Commit {short}.")
-        } else {
-            format!("Branch {branch}, commit {short}.")
-        });
-    }
-    let url = get("LPM_EVENT_URL");
-    if !url.is_empty() {
-        lines.push(url.to_string());
-    }
-    let service = get("LPM_EVENT_SERVICE");
-    if !service.is_empty() {
-        lines.push(format!(
-            "Its recent output: lpm logs {service} -p {}",
-            get("LPM_EVENT_PROJECT")
-        ));
-    }
-    let detail = get("LPM_EVENT_DETAIL");
-    if !detail.is_empty() {
-        lines.push(String::new());
-        lines.push(detail.to_string());
-    }
-    Some(lines.join("\n"))
-}
-
-pub(super) fn with_note(prompt: &str, env: &[(String, String)]) -> String {
-    match prompt_note(env) {
-        Some(note) => format!("{note}\n\n{prompt}"),
-        None => prompt.to_string(),
-    }
 }
 
 // ---- which events anything listens for ---------------------------------------
 
 /// The events some job reacts to, as of the scheduler's last tick. Nothing is
 /// read or resolved for an event no job wants.
-fn wanted() -> &'static Mutex<HashSet<EventKind>> {
-    static WANTED: OnceLock<Mutex<HashSet<EventKind>>> = OnceLock::new();
+#[derive(Default)]
+pub(super) struct Wanted {
+    kinds: HashSet<EventKind>,
+    pulls: PullRequestsWanted,
+}
+
+impl Wanted {
+    pub(super) fn add(&mut self, project: &str, job: &JobResolved) {
+        let Some(kind) = super::events::kind_of(&job.schedule) else {
+            return;
+        };
+        self.kinds.insert(kind);
+        if !kind.is_pull_request()
+            || !load_job_state(&state_key(project, &job.id)).job_on(job)
+            || !runs_here(job)
+        {
+            return;
+        }
+        self.pulls.reviews |= kind == EventKind::PrReviewed;
+        self.pulls.opened |= kind == EventKind::PrOpened;
+        if project.is_empty() {
+            self.pulls.anywhere = true;
+        } else {
+            self.pulls.projects.insert(project.to_string());
+        }
+    }
+}
+
+fn wanted() -> &'static Mutex<Wanted> {
+    static WANTED: OnceLock<Mutex<Wanted>> = OnceLock::new();
     WANTED.get_or_init(Default::default)
 }
 
-fn is_wanted(kind: EventKind) -> bool {
-    wanted().lock().unwrap().contains(&kind)
+pub(super) fn is_wanted(kind: EventKind) -> bool {
+    wanted().lock().unwrap().kinds.contains(&kind)
 }
 
-pub(super) fn set_wanted(kinds: HashSet<EventKind>) {
-    *wanted().lock().unwrap() = kinds;
+pub(super) fn set_wanted(new: Wanted) {
+    *wanted().lock().unwrap() = new;
+}
+
+pub(crate) fn pull_requests_wanted() -> Option<PullRequestsWanted> {
+    let pulls = wanted().lock().unwrap().pulls.clone();
+    (pulls.reviews || pulls.opened).then_some(pulls)
 }
 
 // ---- the sources --------------------------------------------------------------
@@ -273,7 +168,7 @@ pub(super) fn scan_services(app: &AppHandle) {
     }
 }
 
-fn deliver(app: &AppHandle, h: Happening) {
+pub(super) fn deliver(app: &AppHandle, h: Happening) {
     let app = app.clone();
     std::thread::spawn(move || offer_all(&app, &h));
 }
@@ -290,6 +185,12 @@ fn pending() -> &'static Mutex<HashMap<String, Happening>> {
 fn queued() -> &'static Mutex<Vec<(String, String)>> {
     static QUEUED: OnceLock<Mutex<Vec<(String, String)>>> = OnceLock::new();
     QUEUED.get_or_init(Default::default)
+}
+
+pub(super) fn busy(key: &str) -> bool {
+    inflight().lock().unwrap().contains_key(key)
+        || active_runs().lock().unwrap().contains_key(key)
+        || pending().lock().unwrap().contains_key(key)
 }
 
 pub(super) fn take(key: &str) -> Option<Happening> {
@@ -337,12 +238,25 @@ fn offer_all(app: &AppHandle, h: &Happening) {
     }
 }
 
-fn offer(app: &AppHandle, project: &str, job: JobResolved, h: &Happening, today: &str) {
+pub(super) fn offer(app: &AppHandle, project: &str, job: JobResolved, h: &Happening, today: &str) {
     let Schedule::Event(spec) = &job.schedule else {
         return;
     };
     let key = state_key(project, &job.id);
     if !load_job_state(&key).job_on(&job) || !runs_here(&job) {
+        return;
+    }
+    if h.kind.is_pull_request() && !machines::first_on(app, &key, &job) {
+        return;
+    }
+    // One at a time: two pull requests of the same look would each find the job free.
+    static OFFERING: Mutex<()> = Mutex::new(());
+    let _offering = OFFERING.lock().unwrap_or_else(|broken| broken.into_inner());
+    if h.kind.is_pull_request() && busy(&key) {
+        event_pulls::wait(project, &job.id, h);
+        return;
+    }
+    if h.by_me_at.is_some_and(|at| load_job_state(&key).ran_at(at)) {
         return;
     }
     if inflight().lock().unwrap().contains_key(&key) || active_runs().lock().unwrap().contains_key(&key) {
@@ -358,7 +272,15 @@ fn offer(app: &AppHandle, project: &str, job: JobResolved, h: &Happening, today:
         true
     })
     .unwrap_or(false);
-    if !fresh || !super::event_rounds::allows(app, project, &job, spec, &h.project, &h.branch) {
+    let subject = match h.pull {
+        Some(number) => super::event_rounds::Subject::Pull {
+            number,
+            url: &h.url,
+            bots_only: h.bots_only,
+        },
+        None => super::event_rounds::Subject::Branch(&h.branch),
+    };
+    if !fresh || !super::event_rounds::allows(app, project, &job, spec, &h.project, subject) {
         return;
     }
     pending().lock().unwrap().insert(key.clone(), h.clone());
@@ -375,6 +297,7 @@ fn offer(app: &AppHandle, project: &str, job: JobResolved, h: &Happening, today:
 
 /// Starts the queued jobs there is room for now, oldest first.
 pub(super) fn drain(app: &AppHandle) {
+    event_pulls::offer_held(app);
     let waiting: Vec<(String, String)> = queued().lock().unwrap().drain(..).collect();
     let mut still = Vec::new();
     for (project, id) in waiting {

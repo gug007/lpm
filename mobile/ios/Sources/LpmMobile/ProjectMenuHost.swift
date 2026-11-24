@@ -12,6 +12,8 @@ struct ProjectMenuHost: ViewModifier {
     let sharedGit: ProjectGitScreens?
     // Find in that terminal, while it's live here.
     let onFind: (() -> Void)?
+    // What an agent tab's screen shows; nil when there's only its terminal.
+    let viewMode: Binding<TerminalViewMode>?
     // Run a terminal action and switch to the terminal it spawns.
     let onSpawnedTerminal: ((TerminalInfo) -> Void)?
 
@@ -162,6 +164,7 @@ struct ProjectMenuHost: ViewModifier {
                                       onDiscard: { confirmingDiscard = true },
                                       onChecks: { git.checks = true },
                                       onFind: onFind,
+                                      viewMode: viewMode,
                                       renamesTab: terminal != nil,
                                       onRename: rename,
                                       onTerminalSettings: { showTerminalSettings = true },
@@ -218,10 +221,10 @@ struct ProjectMenuHost: ViewModifier {
 
 extension View {
     func projectMenuToolbar(project: Project, terminal: TerminalInfo? = nil, git: ProjectGitScreens? = nil,
-                            onFind: (() -> Void)? = nil,
+                            onFind: (() -> Void)? = nil, viewMode: Binding<TerminalViewMode>? = nil,
                             onSpawnedTerminal: ((TerminalInfo) -> Void)? = nil) -> some View {
         modifier(ProjectMenuHost(project: project, terminal: terminal, sharedGit: git, onFind: onFind,
-                                 onSpawnedTerminal: onSpawnedTerminal))
+                                 viewMode: viewMode, onSpawnedTerminal: onSpawnedTerminal))
     }
 }
 

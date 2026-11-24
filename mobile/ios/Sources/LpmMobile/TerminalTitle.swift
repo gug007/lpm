@@ -12,10 +12,7 @@ struct TerminalTitle: View {
     private var offline: Bool { !model.demoMode && !model.link.isReady }
 
     private var agent: ProjectAgentRow? {
-        guard let project = model.projects.first(where: { $0.name == term.project }) else { return nil }
-        let rows = projectAgentRows(project, now: Int(Date().timeIntervalSince1970 * 1000), tabTitles: [:])
-        guard let agent = agentRowsByTerminal(rows)[term.id], agent.state != .idle else { return nil }
-        return agent
+        model.agentRow(terminal: term.id, project: term.project).flatMap { $0.state == .idle ? nil : $0 }
     }
 
     var body: some View {

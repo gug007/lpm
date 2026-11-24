@@ -13,6 +13,7 @@ internal object TerminalScripts {
         listOf("input", "resize", "ready", "openPath", "openURL", "extent", "find", "selection")
 
     const val REVIVE = "window.lpmRevive()"
+    const val SNAPSHOT = "window.lpmSnapshot()"
     const val FOCUS = "document.querySelector('textarea')?.focus()"
     const val BLUR = "document.activeElement?.blur()"
 
@@ -20,6 +21,8 @@ internal object TerminalScripts {
 
     /** `cols` is the PTY's width, which the replay was drawn at. */
     fun seed(data: String, cols: Int) = "window.lpmSeed('${JsLiteral.base64(data)}', $cols)"
+
+    fun showSaved(text: String) = "window.lpmShowSaved('${JsLiteral.base64(text)}')"
 
     fun submit(text: String) = "window.lpmSubmit('${JsLiteral.base64(text)}')"
 

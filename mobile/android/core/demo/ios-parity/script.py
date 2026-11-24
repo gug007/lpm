@@ -139,6 +139,7 @@ at(3700, 'unsub', id='demo-storefront-1')
 at(3800, 'claim', id='demo-storefront-1')
 
 # claude
+at(3900, 'conversationWatch', id='demo-storefront-claude', project='storefront')
 at(4000, 'sub', id='demo-storefront-claude')
 at(4500, 'in', id='demo-storefront-claude', d='hi there\x7f\x7f\x7fe\r')
 at(42000, 'in', id='demo-storefront-claude', d='\x1b[200~Add tests\rand docs\x1b[201~')
@@ -163,6 +164,14 @@ at(47000, 'clearStatus', project='storefront', paneId='demo-storefront-claude', 
 at(47000, 'clearStatus', project='storefront', paneId='demo-storefront-claude', value='Waiting')
 at(47100, 'sub', id='demo-storefront-claude')
 at(47200, 'unsub', id='demo-storefront-claude')
+at(47200, 'conversationUnwatch', id='demo-storefront-claude')
+# its conversation, followed until then and read back: a step's detail, one long gone
+at(47300, 'conversationWatch', id='demo-storefront-claude', project='storefront')
+at(47300, 'conversationUnwatch', id='demo-storefront-claude'); at(47300, 'conversationWatch')
+for item in ['payments', 'test', 'done', 'nope']:
+    at(47400, 'conversationDetail', id='demo-storefront-claude', project='storefront',
+       item='demo-storefront-claude/' + item, reqId='c-' + item)
+at(47400, 'conversationPage', id='demo-storefront-claude', project='storefront', before='demo-storefront-claude/ask', reqId='c-p')
 
 # lifecycle
 at(5000, 'start', name='api-gateway', profile='')
@@ -657,11 +666,16 @@ at(76800, 'slash', id='demo-storefront-claude', project='storefront')
 at(76800, 'slash', id='demo-storefront-1', project='storefront')
 at(76800, 'terminals', project='mobile-app')
 at(76900, 'slash', id='demo-mobile-app-codex', project='mobile-app')
-# the review's extras: secrets, the branch's own changes, the pull request's review, a check's log
+# the review's extras: secrets, the branch's own changes, the pull request's review, issues, a check's log
 for p in ['storefront', 'api-gateway', 'blog', 'nope']:
     at(600, 'gitScanSecrets', project=p, files=['lib/payments.ts'])
     at(600, 'gitBranchFiles', project=p)
     at(600, 'gitPrDiscussion', project=p)
+for p in ['storefront', 'blog']:
+    at(600, 'gitIssues', project=p)
+for n in [45, 38, 9]:
+    at(600, 'gitIssue', project='storefront', number=n, reqId='issue-%d' % n)
+at(600, 'gitIssue', project='blog', number=45, reqId='issue-blog')
 at(600, 'gitBranchDiffs', project='storefront', paths=['components/CheckoutForm.tsx', 'nope.ts'])
 at(600, 'gitBranchDiffs', project='blog', paths=['README.md'])
 at(600, 'gitCheckLog', project='storefront', url='https://github.com/example/storefront/actions/runs/7001/job/1')
@@ -697,7 +711,21 @@ base = hashlib.sha256(notes.encode()).hexdigest()
 at(77400, 'writeFile', project='blog', path='docs/notes.md', content='# Notes\n', base=base, reqId='w1')
 at(77500, 'writeFile', project='blog', path='docs/notes.md', content='# Again\n', base=base, reqId='w2')
 at(77600, 'fileChunk', project='blog', path='docs/notes.md')
-steps.append({'at': 80000})
+# a merge that stopped on conflicts: a side taken, AI stopped and set on the rest, committed
+at(81000, 'git', project='mobile-app'); at(81000, 'gitMergeAbort', project='blog')
+at(81100, 'gitConflictTake', project='mobile-app', path='package.json', side='theirs')
+at(81500, 'gitConflictTake', project='mobile-app', path='package.json', side='ours')
+at(81500, 'gitConflictResolved', project='mobile-app', path='src/theme/colors.ts')
+at(81500, 'gitMergeContinue', project='mobile-app'); at(81500, 'gitMergeStop', project='mobile-app')
+at(81500, 'gitCommit', project='mobile-app', message='x', files=['src/theme/colors.ts'])
+at(82500, 'gitMergeResolve', project='mobile-app')
+at(83000, 'gitMergeResolve', project='mobile-app'); at(83000, 'gitMergeAbort', project='mobile-app')
+at(83500, 'git', project='mobile-app')
+at(86500, 'gitMergeStop', project='mobile-app'); at(91000, 'git', project='mobile-app')
+at(91500, 'gitMergeResolve', project='mobile-app'); at(97000, 'git', project='mobile-app')
+at(97500, 'gitMergeContinue', project='mobile-app'); at(98500, 'git', project='mobile-app')
+at(98500, 'gitMergeAbort', project='mobile-app')
+steps.append({'at': 100000})
 steps.sort(key=lambda s: s['at'])
 for s in steps:
     print(json.dumps(s))

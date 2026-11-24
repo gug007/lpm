@@ -14,6 +14,7 @@ import {
   type SpawnTask,
 } from "../types";
 import { nextWorkStatus, type WorkStatusInput } from "../workStatus";
+import type { IssueStart } from "../issues";
 import {
   AttachProject,
   BrowseFolder,
@@ -433,6 +434,8 @@ interface AppState {
       // fall back to `name`. Never copies files between machines.
       targetsPerCopy?: string[];
       groupName?: string;
+      // The issue new worktrees start from.
+      issue?: IssueStart;
       // Called with each copy once it's in the list.
       onCreated?: (name: string) => void;
       // Stay on the current project instead of switching to the first copy.
@@ -1611,7 +1614,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         folderIdAt(i),
       ] as const;
     const worktreeArgs = (i: number) =>
-      [(opts.labels?.[i] ?? "").trim(), opts.reinstallDeps ?? false, folderIdAt(i)] as const;
+      [(opts.labels?.[i] ?? "").trim(), opts.reinstallDeps ?? false, folderIdAt(i), opts.issue] as const;
     const pending: PendingDuplicate[] = Array.from({ length: count }, (_, i) => ({
       id: ++pendingDuplicateNonce,
       parent: sourceAt(i),

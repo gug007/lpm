@@ -26,11 +26,16 @@ final class GitExtrasStore {
     var discussions: [String: PrDiscussion] = [:]
     @ObservationIgnored var discussionAsked: [String: Date] = [:]
 
+    // The repository's open issues, for the composer's @ menu.
+    var issues: [String: [RepoIssue]] = [:]
+    @ObservationIgnored var issuesAsked: [String: Date] = [:]
+
     // Failed checks' logs, by `logKey`.
     var checkLogs: [String: CheckLog] = [:]
     var checkLogLoading: Set<String> = []
     var checkLogErrors: [String: String] = [:]
 
+    @ObservationIgnored let issueReads = MacRequests<String>(timeout: .seconds(45))
     @ObservationIgnored let saves = MacRequests<FileWriteReply>(timeout: .seconds(30))
     @ObservationIgnored let timeout = GenerationTimeout<String>()
 
@@ -42,6 +47,7 @@ final class GitExtrasStore {
         pendingCommits = [:]
         branchLoading = []
         checkLogLoading = []
+        issueReads.failAll()
         saves.failAll()
     }
 }
@@ -51,6 +57,8 @@ extension AppModel {
         c.onGitScanSecrets = { [weak self] in self?.gitExtras.applyScan($0) }
         c.onGitBranchFiles = { [weak self] in self?.gitExtras.applyBranchFiles($0) }
         c.onGitPrDiscussion = { [weak self] in self?.gitExtras.applyDiscussion($0) }
+        c.onGitIssues = { [weak self] in self?.gitExtras.applyIssues($0) }
+        c.onGitIssue = { [weak self] in self?.gitExtras.applyIssue($0) }
         c.onGitCheckLog = { [weak self] in self?.gitExtras.applyCheckLog($0) }
         c.onWriteFile = { [weak self] in self?.gitExtras.saves.deliver(reqId: $0.reqId, $0, error: nil) }
     }

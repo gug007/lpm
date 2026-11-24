@@ -3,10 +3,12 @@ package cx.lpm.mobile.core.web
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -15,6 +17,14 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.sample
+import kotlinx.coroutines.flow.take
 
 /** A controller that lives as long as the screen showing the terminal. */
 @Composable
@@ -42,6 +52,10 @@ fun rememberTerminalWebController(): TerminalWebController = remember { Terminal
  * @param onAddToPrompt text a hold selected, for the composer; null where there's no
  *   composer to add it to. Copy is handled here.
  * @param onFind text a hold selected, to find in the terminal.
+ * @param savedScreen the screen kept from before, while the Mac is away: shown until a
+ *   live one is, and [onSavedScreenShow] fired once it's up.
+ * @param onScreen the live screen to keep, once its output goes quiet, and when it was
+ *   live in millis; null for a terminal whose screen isn't kept.
  */
 @Composable
 fun TerminalWebView(
@@ -60,7 +74,10 @@ fun TerminalWebView(
     onRevive: () -> Unit = {},
     onPageRestart: () -> Unit = {},
     onAddToPrompt: ((String) -> Unit)? = null,
-    onFind: (String) -> Unit = {}
+    onFind: (String) -> Unit = {},
+    savedScreen: String? = null,
+    onSavedScreenShow: () -> Unit = {},
+    onScreen: ((text: String, at: Long) -> Unit)? = null
 ) {
     val uriHandler = LocalUriHandler.current
     val haptics = LocalHapticFeedback.current
@@ -73,6 +90,8 @@ fun TerminalWebView(
             onInput = onInput,
             onResize = onResize,
             onFirstContent = onFirstContent,
+            onSavedScreenShow = onSavedScreenShow,
+            onScreen = onScreen,
             onOpenPath = onOpenPath,
             onOpenUrl = onOpenUrl ?: uriHandler::openInBrowser,
             onRevive = onRevive,
@@ -103,15 +122,22 @@ fun TerminalWebView(
                 controller.applyTheme(theme)
                 controller.applyHiddenInsets(top, bottom)
                 controller.controlChanged(controlled)
+                controller.showSaved(savedScreen)
             }
         )
     }
+    if (onScreen != null) KeepScreen(controller)
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, controller) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> controller.foreground()
-                Lifecycle.Event.ON_STOP -> controller.background()
+
+                Lifecycle.Event.ON_STOP -> {
+                    controller.keepScreen()
+                    controller.background()
+                }
+
                 else -> Unit
             }
         }
@@ -119,3 +145,23 @@ fun TerminalWebView(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 }
+
+/** Hands over the live screen once its output goes quiet, or now and then while it doesn't. */
+@OptIn(FlowPreview::class)
+@Composable
+private fun KeepScreen(controller: TerminalWebController) {
+    LaunchedEffect(controller) {
+        val ticks = snapshotFlow { controller.liveTick }.filter { it > 0 }
+        merge(
+            // The first one soon, however busy it is, for a tab that's only glanced at.
+            ticks.take(1).onEach { delay(FIRST_MS) },
+            ticks.debounce(QUIET_MS),
+            ticks.sample(CEILING_MS)
+        )
+            .collect { controller.keepScreen() }
+    }
+}
+
+private const val FIRST_MS = 500L
+private const val QUIET_MS = 2_000L
+private const val CEILING_MS = 15_000L

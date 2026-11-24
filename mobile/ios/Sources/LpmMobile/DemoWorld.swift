@@ -174,6 +174,11 @@ struct DemoWorld {
     // the markdown a real transcript would hold.
     var agentAnswers: [String: [AgentAnswer]] = [:]
 
+    // Terminal id -> its conversation's entries, oldest first, and the terminals the
+    // phone watches.
+    var conversations: [String: [[String: Any]]] = [:]
+    var conversationWatches: Set<String> = []
+
     struct ComposerDraft {
         var text: String
         var rev: Int
@@ -215,10 +220,14 @@ struct DemoWorld {
         var watched: Bool = false
         // Per-branch ahead counts so a checkout restores the branch it left.
         var aheadByBranch: [String: Int] = [:]
+        // The issue each branch was started from.
+        var issueByBranch: [String: Int] = [:]
         // The last auto pull, as the raw wire dict, while it can be undone.
         var autoPulled: [String: Any]? = nil
         // The copies Discard all kept, by the id its reply named for Undo.
         var discarded: [String: [GitFile]] = [:]
+        // A merge that stopped on conflicts.
+        var merge: GitMerge? = nil
     }
 
     var git: [String: GitRepo] = [:] // project -> repo
@@ -499,7 +508,8 @@ struct DemoWorld {
                 GitBranch(name: "main", committerDate: date(3)),
                 GitBranch(name: "fix/cart-badge", committerDate: date(5)),
                 GitBranch(name: "main", committerDate: date(3), remote: "origin"),
-            ]
+            ],
+            issueByBranch: ["feat/checkout-redesign": 38]
         )
         for name in ["api-gateway", "mobile-app", "blog", "design-system"] {
             git[name] = GitRepo(branch: "main",
@@ -508,6 +518,7 @@ struct DemoWorld {
         }
         git["api-gateway"]?.autoPulled = ["count": 3, "branch": "main", "from": "4f1c2ab", "to": "9e7d031",
                                           "at": (nowS - 25 * 60) * 1000]
+        seedMergeConflicts()
     }
 
     private mutating func seedJobs(nowS: Int) {
@@ -811,6 +822,8 @@ extension DemoWorld {
             "files": r.files.map(gitFileDict),
         ]
         if let autoPulled = r.autoPulled { d["autoPulled"] = autoPulled }
+        if let issue = r.issueByBranch[r.branch] { d["issue"] = issue }
+        if let merge = r.merge { d["merge"] = gitMergeDict(merge) }
         return d
     }
 

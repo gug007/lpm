@@ -23,6 +23,7 @@
 <script src="xterm/addon-search.js"></script>
 <script src="pathtap.js"></script>
 <script src="select.js"></script>
+<script src="snapshot.js"></script>
 <script>
   const post = (name, body) => window.webkit?.messageHandlers?.[name]?.postMessage(body);
 
@@ -405,6 +406,17 @@
     }
     while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
     return lines.join('\n');
+  };
+
+  // The screen to keep for when the Mac is away, and one kept earlier, shown until
+  // the Mac sends the live one: its seed starts over, so nothing of this stays. The
+  // first lines stay clear of the banner over the top that says when it's from.
+  window.lpmSnapshot = () => {
+    try { return LpmSnapshot.take(term, 400, 200000); } catch (e) { return ''; }
+  };
+  window.lpmShowSaved = b64 => {
+    term.write('\x1bc' + '\r\n'.repeat(4));
+    term.write(b64ToBytes(b64), () => term.scrollToBottom());
   };
 
   // Submit a composed message the way the desktop composer does (InteractivePane

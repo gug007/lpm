@@ -31,7 +31,7 @@ const MAX_TAIL: u64 = 4 << 20;
 /// A stop key older than any turn the sweep still extends says nothing.
 const STOP_KEY_KEPT_MS: i64 = 15 * 60_000;
 
-const INTERRUPTED: &str = "[Request interrupted by user";
+pub(crate) const INTERRUPTED: &str = "[Request interrupted by user";
 
 /// Whether the quiet turn of the Claude session reporting under `key` from
 /// `pane`, whose shell runs on Claude `account`, is still going, given that it

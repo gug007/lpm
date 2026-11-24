@@ -251,7 +251,8 @@ internal fun DemoWorld.seedGit(nowS: Long) {
             GitBranch(name = "main", committerDate = date(3)),
             GitBranch(name = "fix/cart-badge", committerDate = date(5)),
             GitBranch(name = "main", committerDate = date(3), remote = "origin")
-        )
+        ),
+        issueByBranch = mapOf("feat/checkout-redesign" to 38)
     )
     for (name in listOf("api-gateway", "mobile-app", "blog", "design-system")) {
         git[name] = GitRepo(
@@ -269,4 +270,5 @@ internal fun DemoWorld.seedGit(nowS: Long) {
         "to" to "9e7d031",
         "at" to (nowS - 25 * 60) * 1000
     )
+    seedMergeConflicts()
 }

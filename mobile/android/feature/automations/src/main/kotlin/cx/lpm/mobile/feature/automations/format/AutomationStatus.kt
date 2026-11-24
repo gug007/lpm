@@ -42,7 +42,7 @@ fun automationResultTone(result: String): AutomationTone = when (result) {
     in automationFailedResults -> AutomationTone.Red
 
     "skipped-overlap", "skipped-pending-copy", "skipped-capacity", "skipped-ci-rounds",
-    "pending-window"
+    "skipped-review-rounds", "pending-window"
     ->
         AutomationTone.Orange
 
@@ -61,6 +61,7 @@ fun automationResultLabel(result: String): String = when (result) {
     "skipped-pending-copy" -> "Waiting for the previous copy"
     "skipped-capacity" -> "Waiting — other automations were running"
     "skipped-ci-rounds" -> "Skipped — CI still fails"
+    "skipped-review-rounds" -> "Skipped — only bots reviewed"
     "pending-window" -> "Waiting for the app window"
     else -> result.ifEmpty { "No runs yet" }
 }

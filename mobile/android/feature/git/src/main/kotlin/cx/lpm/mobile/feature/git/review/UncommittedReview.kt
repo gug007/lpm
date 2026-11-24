@@ -23,7 +23,9 @@ internal fun uncommittedReviewState(
     focus: String?,
     parsed: Map<String, ParsedDiff>,
     wrap: Boolean,
-    canDiscardFiles: Boolean
+    canDiscardFiles: Boolean,
+    canResolveConflicts: Boolean,
+    away: Boolean
 ): GitReviewUiState {
     val snapshot = g.snapshots[project]
     val files = snapshot?.files.orEmpty()
@@ -35,10 +37,20 @@ internal fun uncommittedReviewState(
     val pushes = project in g.commitPushing
     val loading = project in g.loading
     val repo = snapshot?.isRepo == true
+    val merge = snapshot?.merge?.takeIf { canResolveConflicts }?.let {
+        ReviewRow.MergeConflicts(
+            merge = it,
+            branch = snapshot.branch,
+            op = g.conflictOps[project],
+            resolving = g.resolvingConflicts[project],
+            sides = g.conflictSides[project].orEmpty(),
+            away = away
+        )
+    }
     val overlay = when {
         snapshot != null -> when {
             !snapshot.isRepo -> ReviewOverlay.NotRepo
-            files.isEmpty() -> ReviewOverlay.NoChanges
+            files.isEmpty() && merge == null -> ReviewOverlay.NoChanges
             else -> null
         }
 
@@ -51,7 +63,7 @@ internal fun uncommittedReviewState(
         overlay = overlay,
         loadError = g.loadError[project],
         ghCli = snapshot?.ghCli == true,
-        rows = if (repo && listed) reviewRows(review, snapshot.ghCli) else emptyList(),
+        rows = if (repo && listed) reviewRows(review, snapshot.ghCli, merge) else emptyList(),
         wrap = wrap,
         commitFiles = if (repo) {
             review.map {

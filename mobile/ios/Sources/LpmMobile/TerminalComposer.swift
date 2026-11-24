@@ -64,6 +64,7 @@ struct TerminalComposer: View {
     @State private var cachedBranches: [GitBranch] = []
     @State private var cachedServices: [ServiceInfo] = []
     @State private var cachedComputers: [MentionComputer] = []
+    @State private var cachedIssues: [RepoIssue] = []
     // Pill wrap-detection and field sizing: measured pill width plus the probe's
     // text heights at both layout widths and the single-line reference.
     @State private var containerWidth: CGFloat = 0
@@ -185,7 +186,8 @@ struct TerminalComposer: View {
     private var changedMentions: [MentionEntry] { cachedMentionFiles.filter { $0.changed } }
     private var fileMentions: [MentionEntry] { cachedMentionFiles.filter { !$0.changed } }
     private var hasMentionContent: Bool {
-        !cachedMentionFiles.isEmpty || !cachedComputers.isEmpty || !cachedBranches.isEmpty || !cachedServices.isEmpty
+        !cachedMentionFiles.isEmpty || !cachedComputers.isEmpty || !cachedIssues.isEmpty || !cachedBranches.isEmpty
+            || !cachedServices.isEmpty
             || (terminalTools && mentionActive)
     }
 
@@ -193,13 +195,14 @@ struct TerminalComposer: View {
     /// Runs on fragment change and when a source array loads — not per keystroke.
     private func recomputeMentions() {
         guard let q = mentionQuery else {
-            cachedMentionFiles = []; cachedComputers = []; cachedBranches = []; cachedServices = []
+            cachedMentionFiles = []; cachedComputers = []; cachedIssues = []; cachedBranches = []; cachedServices = []
             return
         }
         let all = model.mentions[project] ?? []
         let hits = q.isEmpty ? all : all.filter { $0.path.localizedCaseInsensitiveContains(q) }
         cachedMentionFiles = Array(hits.prefix(50))
         cachedComputers = mentionComputers.matching(q)
+        cachedIssues = repoIssues.matching(q)
         // Branches only surface once a fragment is typed (desktop behavior).
         if q.isEmpty {
             cachedBranches = []
@@ -297,6 +300,7 @@ struct TerminalComposer: View {
                 model.loadComposerActions()
                 model.loadServices(project)
                 model.git.loadBranches(project)
+                model.gitExtras.loadIssues(project)
             }
             .onDisappear { dictation.leave(dictationOwner) }
             .onChange(of: photoItems) { _, items in if !items.isEmpty { loadPhotos(items) } }
@@ -305,6 +309,7 @@ struct TerminalComposer: View {
             .onChange(of: mentionQuery) { _, _ in recomputeMentions() }
             .onChange(of: mentionsCount) { _, _ in if mentionActive { recomputeMentions() } }
             .onChange(of: mentionComputers) { _, _ in if mentionActive { recomputeMentions() } }
+            .onChange(of: repoIssues) { _, _ in if mentionActive { recomputeMentions() } }
             .onChange(of: branchesCount) { _, _ in if mentionActive { recomputeMentions() } }
             .onChange(of: servicesCount) { _, _ in if mentionActive { recomputeMentions() } }
             .photosPicker(isPresented: $showPhotoPicker, selection: $photoItems,
@@ -368,9 +373,9 @@ struct TerminalComposer: View {
             } else if mentionActive && hasMentionContent {
                 ComposerMentionMenu(
                     project: project,
-                    changed: changedMentions, computers: cachedComputers, files: fileMentions,
-                    branches: cachedBranches, services: cachedServices,
-                    pickPath: pickPath, pickPlace: pickPlace, pickBranch: pickBranch,
+                    changed: changedMentions, computers: cachedComputers, issues: cachedIssues,
+                    files: fileMentions, branches: cachedBranches, services: cachedServices,
+                    pickPath: pickPath, pickPlace: pickPlace, pickIssue: pickIssue, pickBranch: pickBranch,
                     includeTerminalOutput: terminalTools,
                     pickTerminalOutput: pickTerminalOutput, pickServiceLog: pickServiceLog,
                     previewColorScheme: systemColorScheme)
@@ -420,6 +425,7 @@ struct TerminalComposer: View {
     // recompute hooks key off a simple property (not a subscript+coalesce expr).
     private var mentionsCount: Int { model.mentions[project]?.count ?? 0 }
     private var mentionComputers: [MentionComputer] { model.mentionComputers[project] ?? [] }
+    private var repoIssues: [RepoIssue] { model.gitExtras.issues[project] ?? [] }
     private var branchesCount: Int { model.git.branches[project]?.count ?? 0 }
     private var servicesCount: Int { model.services[project]?.count ?? 0 }
 
@@ -997,6 +1003,17 @@ struct TerminalComposer: View {
     private func stripMentionFragment() {
         guard let at = store.text.lastIndex(of: "@") else { return }
         store.text = String(store.text[..<at])
+    }
+    private func pickIssue(_ issue: RepoIssue) {
+        stripMentionFragment()
+        focused = true
+        Task {
+            do {
+                store.appendText(try await model.gitExtras.readIssue(project, number: issue.number))
+            } catch {
+                toast = ComposerToast(text: error.localizedDescription)
+            }
+        }
     }
     private func pickTerminalOutput() {
         stripMentionFragment()

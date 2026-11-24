@@ -1,5 +1,6 @@
 package cx.lpm.mobile.core.data.client
 
+import cx.lpm.mobile.core.model.GitConflictOp
 import cx.lpm.mobile.core.protocol.Wire
 import kotlinx.serialization.json.JsonObject
 
@@ -172,8 +173,8 @@ fun LpmClient.gitGenMessage(project: String, files: List<String>) =
 
 fun LpmClient.gitGenPr(project: String) = send(Wire.gitGenPr(project))
 
-fun LpmClient.gitCreatePr(project: String, title: String, body: String) =
-    send(Wire.gitCreatePr(project, title, body))
+fun LpmClient.gitCreatePr(project: String, title: String, body: String, closeIssue: Boolean?) =
+    send(Wire.gitCreatePr(project, title, body, closeIssue))
 
 fun LpmClient.gitPull(project: String) = send(Wire.gitPull(project))
 
@@ -220,6 +221,18 @@ fun LpmClient.gitDiscardAll(project: String) = send(Wire.gitDiscardAll(project))
 
 fun LpmClient.gitDiscardFiles(project: String, paths: List<String>) =
     send(Wire.gitDiscardFiles(project, paths))
+
+/** Never queued: one that arrives late would undo what was resolved meanwhile. */
+fun LpmClient.gitConflict(project: String, op: GitConflictOp) = sendLive(
+    when (op) {
+        GitConflictOp.Resolve -> Wire.gitMergeResolve(project)
+        GitConflictOp.Stop -> Wire.gitMergeStop(project)
+        GitConflictOp.Abort -> Wire.gitMergeAbort(project)
+        is GitConflictOp.Commit -> Wire.gitMergeContinue(project)
+        is GitConflictOp.Take -> Wire.gitConflictTake(project, op.path, op.side.id)
+        is GitConflictOp.MarkResolved -> Wire.gitConflictResolved(project, op.path)
+    }
+)
 
 fun LpmClient.gitRestoreDiscarded(project: String, id: String) =
     send(Wire.gitRestoreDiscarded(project, id))

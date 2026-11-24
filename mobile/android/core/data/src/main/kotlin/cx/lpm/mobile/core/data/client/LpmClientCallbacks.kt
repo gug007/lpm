@@ -18,6 +18,7 @@ import cx.lpm.mobile.core.model.ClaudeAccounts
 import cx.lpm.mobile.core.model.CommitFile
 import cx.lpm.mobile.core.model.ComposerAction
 import cx.lpm.mobile.core.model.ControlOwner
+import cx.lpm.mobile.core.model.ConversationUpdate
 import cx.lpm.mobile.core.model.CustomWorkStatus
 import cx.lpm.mobile.core.model.DictationEvent
 import cx.lpm.mobile.core.model.DirListing
@@ -28,6 +29,7 @@ import cx.lpm.mobile.core.model.GitBranch
 import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.GitDiffEntry
 import cx.lpm.mobile.core.model.GitDiffResult
+import cx.lpm.mobile.core.model.GitMergeRun
 import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.HistoryFolder
 import cx.lpm.mobile.core.model.HistoryItem
@@ -60,6 +62,10 @@ import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.model.UploadStep
 import cx.lpm.mobile.core.model.WakeTarget
 import cx.lpm.mobile.core.model.WeeklyRecap
+import cx.lpm.mobile.core.protocol.AnswersReply
+import cx.lpm.mobile.core.protocol.ConversationDetailReply
+import cx.lpm.mobile.core.protocol.ConversationPageReply
+import cx.lpm.mobile.core.protocol.Inbound
 import cx.lpm.mobile.core.protocol.LpmCommandsInbound
 import java.time.Instant
 import kotlinx.serialization.json.JsonObject
@@ -204,6 +210,8 @@ abstract class LpmClientCallbacks {
     var onGitDiscardFiles: (
         (project: String, paths: List<String>, undo: String?, error: String?) -> Unit
     )? = null
+    var onGitConflict: ((project: String, verb: String, error: String?) -> Unit)? = null
+    var onGitMergeRun: ((GitMergeRun) -> Unit)? = null
     var onGitChanged: ((project: String) -> Unit)? = null
 
     // Commit history: a page of commits, one commit's files, one file's patch in it.
@@ -221,6 +229,11 @@ abstract class LpmClientCallbacks {
 
     // The review's extras: secrets, branch scope, the PR review, check logs, saves.
     var onGitExtras: ((frame: cx.lpm.mobile.core.protocol.Inbound) -> Unit)? = null
+
+    // An agent tab's conversation, its earlier entries, and what one tool call held.
+    var onConversation: ((update: ConversationUpdate) -> Unit)? = null
+    var onConversationPage: ((reply: ConversationPageReply) -> Unit)? = null
+    var onConversationDetail: ((reply: ConversationDetailReply) -> Unit)? = null
 
     // The open pull request merged, and whether its branch went with it.
     var onGitMergePr: (
@@ -263,6 +276,9 @@ abstract class LpmClientCallbacks {
 
     // The raw text of every `projects` and `sidebar` frame, for the saved list.
     var onListFrame: ((text: String) -> Unit)? = null
+    var onTerminalsFrame: ((frame: Inbound.Terminals, text: String) -> Unit)? = null
+
+    var onAnswers: ((reply: AnswersReply) -> Unit)? = null
 
     // The raw text of every frame, for a short link that reads its replies itself (a share).
     var onFrameText: ((text: String) -> Unit)? = null

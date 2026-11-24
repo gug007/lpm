@@ -1,6 +1,8 @@
 package cx.lpm.mobile.core.data.git
 
 import cx.lpm.mobile.core.model.GitBranch
+import cx.lpm.mobile.core.model.GitConflictOp
+import cx.lpm.mobile.core.model.GitConflictSide
 import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitSnapshot
 import java.util.UUID
@@ -42,6 +44,12 @@ data class GitState(
     val fetching: Set<String> = emptySet(),
     val discarding: Set<String> = emptySet(),
     val restoringDiscard: Set<String> = emptySet(),
+    /** The merge-conflicts panel: what was asked of the Mac. */
+    val conflictOps: Map<String, GitConflictOp> = emptyMap(),
+    /** What the AI working through a project's conflicts is doing. */
+    val resolvingConflicts: Map<String, String> = emptyMap(),
+    /** The side each conflicted file was resolved with from here. */
+    val conflictSides: Map<String, Map<String, GitConflictSide>> = emptyMap(),
     val undoingAutoPull: Set<String> = emptySet(),
     val committing: Set<String> = emptySet(),
     /**

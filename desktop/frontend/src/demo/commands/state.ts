@@ -29,6 +29,7 @@ export interface Project {
   sshHost?: string;
   parentName?: string;
   worktree: boolean;
+  worktreeBranch?: string;
   services: SeedService[];
   actions: SeedAction[];
   profiles: SeedProfile[];

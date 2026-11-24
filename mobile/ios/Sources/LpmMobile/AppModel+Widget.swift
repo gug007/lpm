@@ -24,8 +24,8 @@ extension AppModel {
         record.serverId ?? record.localId.uuidString
     }
 
-    /// Drop the widgets' rows for Macs the phone no longer has: a removed Mac, or
-    /// the demo once it's left.
+    /// Drop the widgets' rows and the kept answers of Macs the phone no longer has: a
+    /// removed Mac, or the demo once it's left.
     func pruneWidgets() {
         guard !demoMode else { return }
         let kept = Set(macs.map(agentWidgetId))
@@ -33,6 +33,7 @@ extension AppModel {
             let gone = Set(AgentWidgetStore.load().map(\.id)).subtracting(kept)
             if !gone.isEmpty { AgentWidgetStore.remove(gone) }
             UsageWidgetStore.keep(kept)
+            AgentAnswerStore.keep(kept)
         }
     }
 

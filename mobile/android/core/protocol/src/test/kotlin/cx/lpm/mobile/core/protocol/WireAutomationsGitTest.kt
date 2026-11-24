@@ -89,7 +89,16 @@ class WireAutomationsGitTest {
         assertFrame("""{ "t": "gitGenPr", "project": "a" }""", Wire.gitGenPr("a"))
         assertFrame(
             """{ "t": "gitCreatePr", "project": "a", "title": "Fix", "body": "Body" }""",
-            Wire.gitCreatePr("a", "Fix", "Body")
+            Wire.gitCreatePr("a", "Fix", "Body", closeIssue = null)
+        )
+        assertFrame(
+            """{ "t": "gitCreatePr", "project": "a", "title": "Fix", "body": "", "closeIssue": false }""",
+            Wire.gitCreatePr("a", "Fix", "", closeIssue = false)
+        )
+        assertFrame("""{ "t": "gitIssues", "project": "a" }""", Wire.gitIssues("a"))
+        assertFrame(
+            """{ "t": "gitIssue", "project": "a", "number": 45, "reqId": "r1" }""",
+            Wire.gitIssue("a", 45, "r1")
         )
         assertFrame("""{ "t": "gitPull", "project": "a" }""", Wire.gitPull("a"))
         assertFrame("""{ "t": "gitFetch", "project": "a" }""", Wire.gitFetch("a"))

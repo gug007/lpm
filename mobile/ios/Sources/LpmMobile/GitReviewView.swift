@@ -174,6 +174,13 @@ struct GitReviewView: View {
     private var uncommittedList: some View {
         ScrollViewReader { proxy in
             List {
+                if let merge = snapshot?.merge, model.git.canResolveConflicts {
+                    Section {
+                        MergeConflictsSection(project: name, merge: merge, branch: snapshot?.branch ?? "")
+                            .listRowInsets(EdgeInsets())
+                            .listRowSeparator(.hidden)
+                    }
+                }
                 if let files = changedFiles {
                     Section {
                         ReviewSummary(total: files.count, viewed: viewedCount(files))
@@ -276,7 +283,7 @@ struct GitReviewView: View {
             } description: {
                 Text("This project isn't tracked by git, so there's nothing to review.")
             }
-        } else if let s = snapshot, s.files.isEmpty {
+        } else if let s = snapshot, s.files.isEmpty, s.merge == nil {
             ContentUnavailableView {
                 Label("No changes", systemImage: "checkmark.circle")
             } description: {

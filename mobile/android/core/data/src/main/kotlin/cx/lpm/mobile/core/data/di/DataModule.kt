@@ -35,6 +35,7 @@ import cx.lpm.mobile.core.data.link.MacBrowser
 import cx.lpm.mobile.core.data.link.NetworkMonitor
 import cx.lpm.mobile.core.data.link.NsdMacBrowser
 import cx.lpm.mobile.core.data.link.OkHttpHostProber
+import cx.lpm.mobile.core.data.mac.AgentTabSnapshots
 import cx.lpm.mobile.core.data.mac.CredentialStore
 import cx.lpm.mobile.core.data.mac.KeystoreCipher
 import cx.lpm.mobile.core.data.mac.MacStore
@@ -232,6 +233,7 @@ object DataModule {
         macStore: MacStore,
         credentials: CredentialStore,
         snapshots: ProjectSnapshots,
+        agentTabs: AgentTabSnapshots,
         network: NetworkMonitor,
         browsers: Provider<MacBrowser>,
         prober: HostProber,
@@ -247,6 +249,7 @@ object DataModule {
         macStore = macStore,
         credentials = credentials,
         snapshots = snapshots,
+        agentTabs = agentTabs,
         network = network,
         newBrowser = browsers::get,
         prober = prober,

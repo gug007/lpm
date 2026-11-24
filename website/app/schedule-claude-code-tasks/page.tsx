@@ -18,6 +18,7 @@ import {
 import AskLesson from "./_components/ask-lesson";
 import AutomationsPreview from "./_components/automations-preview";
 import Cta from "./_components/cta";
+import Events from "./_components/events";
 import Examples from "./_components/examples";
 import Faq from "./_components/faq";
 import Guardrails from "./_components/guardrails";
@@ -100,6 +101,7 @@ export default function ScheduleClaudeCodeTasksPage() {
       <Lesson />
       <JobKinds />
       <Schedules />
+      <Events />
       <Examples />
       <Guardrails />
       <RunHistory />

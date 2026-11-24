@@ -16,7 +16,7 @@
 //   duplicate_project|duplicate_worktree <project> [--count=N] [--group=NAME]
 //                     [--exclude-uncommitted=BOOL] [--reinstall-deps=BOOL]
 //                     [--pull-latest=BOOL] [--run-action=X | --run-command=X]
-//                     [--prompt=TEXT]
+//                     [--prompt=TEXT] [--issue=N]   (--issue: worktrees only)
 //   remove_project <project>
 //   run_task <project> [--action=X | --command=X] [--prompt=TEXT]
 //   refresh_label <project> [action]
@@ -556,10 +556,23 @@ fn cmd_duplicate_project(
         .get("run-command")
         .cloned()
         .filter(|s| !s.is_empty());
-    let prompt = options
+    let asked = options
         .get("prompt")
         .cloned()
         .filter(|p| !p.trim().is_empty());
+
+    let issue = match issue_option(&name, options.get("issue"), worktree) {
+        Ok(issue) => issue,
+        Err(error) => {
+            return writeln!(w, "{}", serde_json::json!({ "ok": false, "error": error }))
+        }
+    };
+    // The issue's own text is for an agent alone (src/spawnPrompt.ts).
+    let agent_only = asked.is_none();
+    let prompt = asked.or_else(|| {
+        let text = issue.as_ref()?;
+        Some(crate::untrusted::one_line(&text.prompt))
+    });
 
     let mut created: Vec<String> = Vec::new();
     let mut err: Option<String> = None;
@@ -575,6 +588,10 @@ fn cmd_duplicate_project(
                 label,
                 reinstall_deps,
                 None,
+                issue.as_ref().map(|i| crate::issue_branch::IssueStart {
+                    number: i.number,
+                    title: i.title.clone(),
+                }),
             )
         } else {
             crate::projects_crud::duplicate_project(
@@ -613,9 +630,13 @@ fn cmd_duplicate_project(
 
     let mut warning: Option<String> = None;
     let run_task = if run_action.is_some() {
-        Some(serde_json::json!({ "kind": "action", "actionName": run_action, "prompt": prompt }))
+        Some(serde_json::json!({
+            "kind": "action", "actionName": run_action, "prompt": prompt, "agentOnly": agent_only,
+        }))
     } else if run_command.is_some() {
-        Some(serde_json::json!({ "kind": "command", "command": run_command, "prompt": prompt }))
+        Some(serde_json::json!({
+            "kind": "command", "command": run_command, "prompt": prompt, "agentOnly": agent_only,
+        }))
     } else {
         None
     };
@@ -645,6 +666,26 @@ fn cmd_duplicate_project(
         reply["warning"] = serde_json::json!(wn);
     }
     writeln!(w, "{reply}")
+}
+
+/// The issue `--issue=N` starts the worktrees from, read before any is made.
+fn issue_option(
+    project: &str,
+    number: Option<&String>,
+    worktree: bool,
+) -> Result<Option<crate::issues::IssueText>, String> {
+    let Some(number) = number else {
+        return Ok(None);
+    };
+    if !worktree {
+        return Err("--issue starts worktrees, not copies".into());
+    }
+    let number = number
+        .trim_start_matches('#')
+        .parse()
+        .map_err(|_| format!("{number:?} isn't an issue number"))?;
+    let (root, _) = crate::config::project_root(project)?;
+    crate::issues::read_issue(root, number).map(Some)
 }
 
 fn cmd_remove_project(args: &[String], app: &AppHandle) -> String {

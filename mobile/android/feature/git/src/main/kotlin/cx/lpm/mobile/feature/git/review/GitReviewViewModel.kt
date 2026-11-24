@@ -13,6 +13,7 @@ import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.terminals.TerminalsState
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
+import cx.lpm.mobile.core.model.GitConflictOp
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.navigation.GitReviewKey
 import cx.lpm.mobile.feature.git.data.CommitDraft
@@ -104,6 +105,8 @@ class GitReviewViewModel @AssistedInject constructor(
     private val wraps: Boolean get() = prefs.bool(PreferenceKeys.GIT_REVIEW_WRAP) ?: true
     private val wrap = prefs.data.map { wraps }.distinctUntilChanged()
 
+    private val away = session?.state?.map { it.away }?.distinctUntilChanged() ?: flowOf(false)
+
     private val draft: CommitDraft get() = drafts?.state?.value?.draft(project) ?: CommitDraft()
 
     val uiState: StateFlow<GitReviewUiState> = combine(
@@ -121,8 +124,8 @@ class GitReviewViewModel @AssistedInject constructor(
         ) { t, pr -> t to pr },
         local,
         combine(parses.parsed, branchParses.parsed) { p, bp -> p to bp },
-        wrap
-    ) { (g, d, e), (t, pr), l, (p, bp), w -> build(g, d, e, t, pr, l, p, bp, w) }
+        combine(wrap, away, ::Pair)
+    ) { (g, d, e), (t, pr), l, (p, bp), (w, away) -> build(g, d, e, t, pr, l, p, bp, w, away) }
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
@@ -205,7 +208,8 @@ class GitReviewViewModel @AssistedInject constructor(
         l: ReviewLocal,
         parsed: Map<String, ParsedDiff>,
         branchParsed: Map<String, ParsedDiff>,
-        wrap: Boolean
+        wrap: Boolean,
+        away: Boolean
     ): GitReviewUiState {
         val base = uncommittedReviewState(
             project = project,
@@ -218,7 +222,9 @@ class GitReviewViewModel @AssistedInject constructor(
             focus = l.focus,
             parsed = parsed,
             wrap = wrap,
-            canDiscardFiles = git?.canDiscardFiles == true
+            canDiscardFiles = git?.canDiscardFiles == true,
+            canResolveConflicts = git?.canResolveConflicts == true,
+            away = away
         )
         val branch = e.branchScopes[project]
         val ready = base.copy(
@@ -390,6 +396,11 @@ class GitReviewViewModel @AssistedInject constructor(
     /** "Discard Changes…" on one file, once confirmed: Undo follows on the notice. */
     fun discardFile(path: String) {
         git?.discardFile(project, path)
+    }
+
+    /** Act on the merge, pull or rebase that stopped on conflicts. */
+    fun runConflictOp(op: GitConflictOp) {
+        git?.runConflictOp(project, op)
     }
 
     /** Undo on a discard's notice: [id] names the copy the Mac kept. */

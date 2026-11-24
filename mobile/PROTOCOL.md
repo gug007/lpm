@@ -141,10 +141,13 @@ ignores, so the phone sends them only where they will get a reply. Today:
 [Requests](#requests-phone--desktop-and-their-replies)); `"serviceLogsWatch"` — live service logs
 (`serviceLogsWatch` / `serviceLogsUnwatch`); `"serviceRestart"` — `restartService` /
 `stopService`, and an ended service reported as `exited`; `"agentAnswers"` — a terminal
-agent's answers for the copy key (`answers`); `"restartTerminal"` — running an ended
+agent's answers for the copy key (`answers`); `"agentConversation"` — an agent tab's
+conversation as a list (`conversationWatch`, `conversationUnwatch`, `conversationPage`,
+`conversationDetail`); `"restartTerminal"` — running an ended
 terminal again in its tab (`restartTerminal`); `"agentLaunch"` — `agentOptions`, and
 `newTerminal` starting an agent; `"agentSessions"` — `agentSessions` and `resumeSession`;
-`"actionPrompt"` — `runAction` with a `prompt`; `"gitChecks"` — a branch's CI
+`"actionPrompt"` — `runAction` with a `prompt`; `"gitConflicts"` — `git`'s `merge` and the
+requests that work through it (**Merge conflicts**); `"gitChecks"` — a branch's CI
 (`gitChecks`, `gitChecksRerun`) and the `ci` notify switch;
 `"gitCommitChecks"` — `gitCommitChecks`, how each recent commit did on CI;
 `"gitMerge"` — `gitMergePr`, merging the open pull request, and `merge` on
@@ -152,7 +155,8 @@ terminal again in its tab (`restartTerminal`); `"agentLaunch"` — `agentOptions
 `fixLoop` / `fixLoopPrompt` on `gitChecks`; `"gitScanSecrets"` — `gitScanSecrets`, the commit sheet's look
 for secrets; `"gitBranchDiff"` — `gitBranchFiles` and `gitBranchDiffs`, the
 branch's changes since it left its base; `"gitPrDiscussion"` — `gitPrDiscussion`,
-the review on the open pull request; `"gitCheckLog"` — `gitCheckLog`, the end of a
+the review on the open pull request; `"gitIssues"` — `gitIssues` and `gitIssue`,
+the repository's open issues; `"gitCheckLog"` — `gitCheckLog`, the end of a
 failed check's log; `"writeFile"` — `writeFile`, saving an edit to a project file;
 `"generateApproval"` — `generateRequests` and `answerGenerate`, and the
 `generateRequests` push (see [Images and speech](#images-and-speech));
@@ -476,7 +480,7 @@ identical to the desktop submenu, so behavior stays consistent across surfaces.
 
 | Request | Reply |
 |---|---|
-| `{ "t": "git", "project": "<name>" }` | `{ "t": "git", "project": "<name>", "ok": true, "isRepo": bool, "branch": "…", "detached": bool, "hasUpstream": bool, "ahead": N, "behind": N, "defaultBranch": "…", "ghCli": bool, "files": [{ path, status, staged, stamp }…], "linesAdded": N, "linesRemoved": N, "autoPulled"?: { "count": N, "branch": "…", "from": "<sha>", "to": "<sha>", "at": unix MILLIS }, "aheadOfDefault"?: N }` — the project's git status + changed files in one shot. `aheadOfDefault` is present only for a branch with no upstream that isn't the default branch (a fresh worktree's): its commits not on `defaultBranch`, the work that exists only there. `status` ∈ `added`\|`deleted`\|`renamed`\|`modified`\|`untracked`\|`conflicted` (an unmerged path, left by a merge, rebase or pull with conflicts). `stamp` is an **opaque change token** for the file's working-tree content: if a file's `stamp` is unchanged between two snapshots, its diff is unchanged and needn't be refetched (skip the `gitDiff` round-trip); treat an unknown or absent `stamp` as changed (older servers omit it, so always refetch then). `ghCli` reports whether the `gh` CLI is available (gates the "Open PR" affordance). `linesAdded`/`linesRemoved` total the lines the changed files add and remove, counted as the review screen diffs them (a tracked file against HEAD, an untracked file as wholly added, a binary file as nothing); the terminal header shows them beside the file count. Older Macs omit them, and the phone then shows the file count alone. `autoPulled` describes the last time lpm fast-forwarded the project by itself (`count` commits onto `branch`, HEAD moving from `from` to `to`, both 7-character short SHAs) and is present only while that auto pull can still be undone with `gitAutoPullUndo`. When the project isn't a git repo: `ok:true, isRepo:false` with empty/zero fields. On a bad project: `{ "ok": false, "error": "…" }`. Async (worker) |
+| `{ "t": "git", "project": "<name>" }` | `{ "t": "git", "project": "<name>", "ok": true, "isRepo": bool, "branch": "…", "detached": bool, "hasUpstream": bool, "ahead": N, "behind": N, "defaultBranch": "…", "ghCli": bool, "files": [{ path, status, staged, stamp }…], "linesAdded": N, "linesRemoved": N, "autoPulled"?: { "count": N, "branch": "…", "from": "<sha>", "to": "<sha>", "at": unix MILLIS }, "aheadOfDefault"?: N, "merge"?: MergeState, "issue"?: N }` — the project's git status + changed files in one shot. `aheadOfDefault` is present only for a branch with no upstream that isn't the default branch (a fresh worktree's): its commits not on `defaultBranch`, the work that exists only there. `status` ∈ `added`\|`deleted`\|`renamed`\|`modified`\|`untracked`\|`conflicted` (an unmerged path, left by a merge, rebase or pull with conflicts). `stamp` is an **opaque change token** for the file's working-tree content: if a file's `stamp` is unchanged between two snapshots, its diff is unchanged and needn't be refetched (skip the `gitDiff` round-trip); treat an unknown or absent `stamp` as changed (older servers omit it, so always refetch then). `ghCli` reports whether the `gh` CLI is available (gates the "Open PR" affordance). `linesAdded`/`linesRemoved` total the lines the changed files add and remove, counted as the review screen diffs them (a tracked file against HEAD, an untracked file as wholly added, a binary file as nothing); the terminal header shows them beside the file count. Older Macs omit them, and the phone then shows the file count alone. `autoPulled` describes the last time lpm fast-forwarded the project by itself (`count` commits onto `branch`, HEAD moving from `from` to `to`, both 7-character short SHAs) and is present only while that auto pull can still be undone with `gitAutoPullUndo`. `merge` is there while a merge, pull or rebase left conflicts to work through (see **Merge conflicts** below). When the project isn't a git repo: `ok:true, isRepo:false` with empty/zero fields. On a bad project: `{ "ok": false, "error": "…" }`. Async (worker) `issue` is the issue the branch was started from (a worktree's "From issue…"), which a pull request from it closes; absent when there is none and from older Macs |
 | `{ "t": "gitDiff", "project": "<name>", "path": "<file>" }` | `{ "t": "gitDiff", "project": "<name>", "path": "<file>", "ok": true, "diff": "<unified diff>", "binary": bool, "truncated": bool }` — the unified diff (HEAD vs working tree) for one file, including untracked files. A binary file returns `binary:true, diff:""`. The diff is capped at ~400 KB, truncated at a line boundary with `truncated:true` when it exceeds that. Errors → `{ "ok": false, "error": "…" }`. Inline |
 | `{ "t": "gitDiffs", "project": "<name>", "paths": ["<file>"…] }` | `{ "t": "gitDiffs", "project": "<name>", "ok": true, "files": [{ "path": "<file>", "diff": "<unified diff>", "binary": bool, "truncated": bool }…] }` — **batch** form of `gitDiff`: one `files` entry per requested path (same order), each with the same `binary`/`truncated`/~400 KB-cap semantics as `gitDiff`. Fetched from a single `git diff HEAD -- <paths>` split per file (plus a per-file diff for untracked paths), so N files cost one round trip instead of N. A path whose diff couldn't be produced degrades to an entry `{ "path": "<file>", "error": "…" }` (no `diff`) rather than sinking the batch — the phone routes such an entry through its per-file error state. On a bad project the whole reply is `{ "ok": false, "error": "…" }`. Async (worker) |
 | `{ "t": "gitCommit", "project": "<name>", "message": "…", "files": ["<path>"…] }` | `{ "t": "gitCommit", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — stages exactly the given files (resetting the index first) and commits them with `message` |
@@ -494,11 +498,13 @@ identical to the desktop submenu, so behavior stays consistent across surfaces.
 | `{ "t": "gitUnwatch", "project": "<name>" }` | `{ "t": "gitUnwatch", "project": "<name>", "ok": true }` — stops watching the project for this connection (no-op if it wasn't watched). Inline |
 | `{ "t": "gitGenMessage", "project": "<name>", "files": ["<path>"…] }` | `{ "t": "gitGenMessage", "project": "<name>", "ok": true, "message": "…" }` / `{ "ok": false, "error": "…" }` — AI-drafts a commit message from the diff of the given files. Async (AI). Uses the desktop's persisted AI settings (`aiCli` default `claude`, `aiModel`, `aiEffort`, `aiFast`) |
 | `{ "t": "gitGenPr", "project": "<name>" }` | `{ "t": "gitGenPr", "project": "<name>", "ok": true, "title": "…", "body": "…" }` / `{ "ok": false, "error": "…" }` — AI-drafts a PR title and description for the current branch vs the default branch. Async (AI); same AI settings as above |
-| `{ "t": "gitCreatePr", "project": "<name>", "title": "…", "body": "…", "draft"?: bool }` | `{ "t": "gitCreatePr", "project": "<name>", "ok": true, "url": "<pr url>" }` / `{ "ok": false, "error": "…" }` — pushes the current branch and opens a PR via the `gh` CLI against the default branch, returning its URL. Optional `draft: true` opens it as a draft (`gh pr create --draft`); omitted means ready for review, and older Macs ignore it. Async (network) |
+| `{ "t": "gitCreatePr", "project": "<name>", "title": "…", "body": "…", "draft"?: bool, "closeIssue"?: bool }` | `{ "t": "gitCreatePr", "project": "<name>", "ok": true, "url": "<pr url>" }` / `{ "ok": false, "error": "…" }` — pushes the current branch and opens a PR via the `gh` CLI against the default branch, returning its URL. Optional `draft: true` opens it as a draft (`gh pr create --draft`); omitted means ready for review, and older Macs ignore it. On a branch with an `issue` (see `git`), the body gets a line "Closes #N" unless it closes that issue already; `closeIssue: false` leaves the body as it is. Async (network) |
 | `{ "t": "gitScanSecrets", "project": "<name>", "files": ["<path>"…] }` | `{ "t": "gitScanSecrets", "project": "<name>", "ok": true, "findings": [{ "path", "line", "rule", "masked" }…] }` / `{ "ok": false, "error": "…" }` — the desktop commit dialog's look for credentials (`git_scan_secrets`): well-known key formats and `.env` files in the lines the given files add against HEAD, untracked files included. `line` is 1-based (`0` for a finding about the whole file), `rule` names what it looks like ("Stripe secret key", "Environment file"), and `masked` shows only the key's kind and last characters (`sk_live_••••Qx`) — the secret itself never leaves the Mac. The phone asks before a commit and, with findings, offers to leave those files out, ignore a line, or commit anyway; a Mac without `"gitScanSecrets"` commits as before. Async (worker) |
 | `{ "t": "gitBranchFiles", "project": "<name>" }` | `{ "t": "gitBranchFiles", "project": "<name>", "ok": true, "base": "<branch>", "range": "since"\|"unpushed", "commits": N, "files": [{ path, status, staged }…] }` / `{ "ok": false, "error": "…" }` — every file the branch's own commits changed, uncommitted work left out: against `origin/<default>` (else the local default branch) when the branch isn't the default one (`range: "since"`, `base` its name), else against the upstream it hasn't pushed to (`range: "unpushed"`, `base` like `origin/main`). `base: ""` with no `files` when there's nothing to compare with (the default branch without an upstream, a detached HEAD). `commits` counts the branch's commits in that range. Only when `features` has `"gitBranchDiff"`. Async (worker) |
 | `{ "t": "gitBranchDiffs", "project": "<name>", "paths": ["<file>"…] }` | `{ "t": "gitBranchDiffs", "project": "<name>", "ok": true, "files": [{ "path", "diff", "binary", "truncated" } \| { "path", "error" }…] }` / `{ "ok": false, "error": "…" }` — `gitDiffs` for the same range as `gitBranchFiles` (`<base>...HEAD`), with its binary detection and ~400 KB cap per file. Async (worker) |
 | `{ "t": "gitPrDiscussion", "project": "<name>" }` | `{ "t": "gitPrDiscussion", "project": "<name>", "ok": true, "discussion": PullRequestDiscussion\|null, "prompt"?: "<text>" }` / `{ "ok": false, "error": "…" }` — the review on the branch's pull request, as the desktop's "@" menu reads it (`gh pr view` and the line comments): `{ number, title, url, body, notes: [{ kind: "review"\|"line"\|"comment", author, body, state, path, line, createdAt }…] }`, notes oldest first; `state` is a review's verdict (`APPROVED`, `CHANGES_REQUESTED`, …), `path`/`line` place a line comment. `null` when the branch has no pull request. `prompt` is what an agent is told to address it, the thread written as the desktop's "@" menu writes it. Only when `features` has `"gitPrDiscussion"`. Async (worker) |
+| `{ "t": "gitIssues", "project": "<name>", "fresh"?: bool }` | `{ "t": "gitIssues", "project": "<name>", "ok": true, "issues": [{ "number": N, "title", "url", "author", "labels": ["…"], "branch" }…] }` / `{ "ok": false, "error": "…" }` — the repository's open issues, newest first (100 at most), as the desktop's "@" menu lists them: read through `gh`, or `glab` for GitLab, and kept for two minutes unless `fresh`. `branch` is what a worktree started from the issue calls its branch. An error (no remote, a CLI that isn't installed or signed in) just leaves the menu without issues. Only when `features` has `"gitIssues"`. Async (worker) |
+| `{ "t": "gitIssue", "project": "<name>", "number": N, "reqId": <any> }` | `{ "t": "gitIssue", "project": "<name>", "number": N, "reqId": <any>, "ok": true, "issue": { "number": N, "title", "url", "mention", "prompt" } }` / `{ "number": N, "reqId": <any>, "ok": false, "error": "…" }` — one issue and its comments. Picking it in the "@" menu replaces the typed "@fragment" with `mention` verbatim, the fenced block the desktop puts there; `prompt` is what an agent started on the issue is told. Only when `features` has `"gitIssues"`. Async (worker) |
 
 #### Commit history
 
@@ -528,6 +534,46 @@ true for a commit no remote branch has yet (false everywhere when there is no re
 **CommitFile** — `{ path, oldPath, status, added, removed }`: `status` is `added`,
 `modified`, `deleted` or `renamed`; `oldPath` is set for a rename; `added`/`removed`
 are line counts, both `null` for a binary file.
+
+#### Merge conflicts
+
+Only when `features` has `"gitConflicts"`. While a merge, a pull or a rebase left
+something to work through, the `git` snapshot carries `merge`, and Review Changes shows
+the desktop Merge dialog's conflicts panel above the files:
+
+**MergeState** = `{ "merging": bool, "source": "<what is being merged in>"|"", "files":
+[{ "path", "conflicts": N, "firstLine": N, "resolved": bool }…], "resolving"?: { "line":
+"<what the AI is doing>" } }`. `path` is relative to the repository, as in `files`;
+`conflicts` counts the `<<<<<<<` lines left in it and `firstLine` is the first one's
+1-based line (0 when none is left); `resolved` means staged with no markers left.
+`merging` says a merge is in progress, so it can be continued or aborted; without it the
+conflicts are a rebase's or a stash's, and only the files can be worked through. `merge`
+is absent once every file is resolved, or, while `merging`, once the merge is committed.
+The title is "Merging `source` into `branch`", "Merging `source`" with no branch, or
+"Merge conflicts" with no source; under it "1 of 3 files resolved" and a bar; each file
+ends in "2 conflicts", "no markers left", or "resolved".
+
+| Request | Reply |
+|---|---|
+| `{ "t": "gitMergeResolve", "project": "<name>" }` | `{ "t": "gitMergeResolve", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — sets AI on the conflicts ("Resolve N with AI"), headless, with the desktop's persisted AI settings: it edits the files and stages what it resolved, and never commits. `ok` means it started; the rest comes as `gitMergeRun` frames. One run per project, whoever started it (the desktop's Merge dialog counts) |
+| `{ "t": "gitMergeStop", "project": "<name>" }` | `{ "t": "gitMergeStop", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — stops that run; what it staged stays. Its last `gitMergeRun` has neither `left` nor `error` |
+| `{ "t": "gitConflictTake", "project": "<name>", "path": "<path>", "side": "ours"\|"theirs" }` | `{ "t": "gitConflictTake", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — resolves a file with this branch's version ("Use ours") or the incoming one ("Use theirs"), and stages it. Async |
+| `{ "t": "gitConflictResolved", "project": "<name>", "path": "<path>" }` | `{ "t": "gitConflictResolved", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — stages a file whose conflicts were edited away ("Mark resolved", offered at `conflicts: 0`); one with markers left is an error. Async |
+| `{ "t": "gitMergeContinue", "project": "<name>" }` | `{ "t": "gitMergeContinue", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — commits the merge with git's own message; only once every file is `resolved`. Async |
+| `{ "t": "gitMergeAbort", "project": "<name>" }` | `{ "t": "gitMergeAbort", "project": "<name>", "ok": true }` / `{ "ok": false, "error": "…" }` — `git merge --abort`: the branch and files go back to how they were. The phone asks before it. Async |
+
+All but `gitMergeResolve` and `gitMergeStop` are refused while AI is at the conflicts,
+on the Mac too, whose Merge dialog shows a run a phone started and can stop it. The
+phone asks for `git` again after each reply. It sends these only over a live link and
+never queues one: an abort that arrived late would undo what was resolved meanwhile.
+
+`gitMergeRun` frame: `{ "t": "gitMergeRun", "project": "<name>", "running": bool, "line"?:
+"…", "left"?: N, "merging": bool, "error"?: "…" }` — **broadcast** to
+every paired phone as a run starts, says what it's doing (`line`) and ends
+(`running: false`). One that ran to its end has `left`, the files that still have
+conflicts, and `merging`, whether a merge is left to commit; a stopped one has neither
+`left` nor `error`. A phone that missed frames
+reads `merge.resolving`, which is there only while a run goes on.
 
 #### Auto Commit, Auto Commit and Push, Auto Create PR
 
@@ -864,6 +910,59 @@ the title. Closed tabs with no transcript behind them aren't listed.
 | `{ "t": "listDir", "project": "<name>", "dir": "<relative dir>" }` | `{ "t": "listDir", "project": "<name>", "dir": "<dir>", "ok": true, "root": "<abs project root>", "entries": [DirEntry…] }` / `{ …, "ok": false, "error": "…" }` — one folder (`""` = the project root), as the desktop's Files tab lists it: folders first, then names in natural order regardless of case; `.git` and other VCS folders never listed. The path is confined to the project (`..` is refused). A file opens with `fileChunk` at `<dir>/<name>`; `root` joined with that is its absolute path (Copy Path). Out-queue |
 
 Go to file needs no request of its own: it filters the `mentions` index.
+
+### An agent's conversation
+
+Only when `features` has `"agentConversation"`. An agent tab's conversation as a list
+— what the person asked, what the agent said, and one line for each thing it did —
+which the phone's terminal screen shows in place of the terminal (More → View →
+Conversation). The Mac reads it from the transcript Claude Code or Codex keeps, so it
+holds the whole conversation and not what the terminal still has on screen. As with
+`answers`, the phone names the terminal and never a session, and it offers the view
+only for a local `claude` or `codex` tab; a tab whose agent hasn't started a
+conversation yet, or that the Mac knows none for, has an empty one. A forked Codex
+tab's starts at the fork: its rollout holds nothing from before it.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "conversationWatch", "id": "<termId>", "project": "<name>", "limit"?: N }` | Pushes `conversation` frames: the newest `limit` entries at once (80 when left out, clamped 1–200, fewer when they come to more than about 512 KiB; the newest always goes out), then what changes, checked every 500 ms — nothing while the conversation is quiet. Watching the same terminal again starts over with a whole list. The watch belongs to the connection: it ends on `conversationUnwatch` or when the socket closes, so the phone sends it again after a reconnect |
+| `{ "t": "conversationUnwatch", "id": "<termId>" }` | — (no reply) |
+| `{ "t": "conversationPage", "id": "<termId>", "project": "<name>", "before": "<entry id>", "limit"?: N, "reqId": <any> }` | `{ "t": "conversationPage", "id": "<termId>", "ok": true, "items": [ConversationItem…], "more": bool, "reqId": <any> }` / `{ …, "ok": false, "error": "…" }` — the entries before `before`, oldest first; `more` is whether there are still earlier ones. Refused once `before` is no longer in the conversation. Worker thread |
+| `{ "t": "conversationDetail", "id": "<termId>", "project": "<name>", "item": "<entry id>", "reqId": <any> }` | `{ "t": "conversationDetail", "id": "<termId>", "ok": true, "item": "<entry id>", "parts": [ConversationPart…], "reqId": <any> }` / `{ …, "ok": false, "error": "…" }` — what one tool call was given and what came back, read when its line is opened. `parts` is empty when the line says it all. A call still running has its input alone, so ask again once its `state` changes. Worker thread |
+
+**`conversation` frames**: `{ "t": "conversation", "id": "<termId>", "project": "<name>", "ok": true, "reset": bool, "items": [ConversationItem…], "more"?: bool }`,
+or `{ …, "ok": false, "error": "…" }` when it can't be read. With `reset: true` the
+list is the conversation's newest entries, and `more` says whether earlier ones
+exist: it comes first, and again when the list isn't the same one further on (`/clear`
+started another session, or the person went back to an earlier prompt). Entries the
+phone holds from before the first of them stay when that first one is among them,
+so a reconnect keeps what was scrolled back to. With `reset: false`, `items` are
+entries that changed or are new: replace those whose `id` the phone has, append the
+rest in order.
+
+**ConversationItem**: `{ "id": "…", "kind": … }`, oldest first,
+and one of:
+
+- `"kind": "prompt"`, `"text"`, `"images"?: N` — what the person asked, as they typed
+  it (a slash command as `/name args`); `images` counts what was pasted with it.
+- `"kind": "text"`, `"text"` — what the agent said, as markdown.
+- `"kind": "tool"`, `"what": "read"\|"search"\|"edit"\|"run"\|"other"`, `"verb"`,
+  `"subject"?`, `"code"?: true`, `"path"?`, `"added"?: N`, `"removed"?: N`, `"note"?`,
+  `"state": "running"\|"done"\|"failed"` — one thing the agent did, worded by the Mac
+  to read as a line: "Edited" "CheckoutForm.tsx" +42 −18, "Ran" "npm test" · "exit 1".
+  `verb` follows the state ("Running", then "Ran"). `code` sets `subject` in the
+  monospaced font; `path` is the file to open. A call still `running` in a
+  conversation whose agent isn't working was never finished: draw it as ended.
+- `"kind": "notice"`, `"text"` — what happened to the conversation itself
+  ("Interrupted", "Conversation compacted", an API error).
+
+A run of two or more neighbouring `"read"` and `"search"` calls folds into one line —
+"Read 3 files", "Searched twice", "Read 2 files, searched once" — that opens to the
+calls; a run still going says "Reading…" or "Searching…" through its last call.
+
+**ConversationPart**: `{ "label"?: "Command", "style": "code"\|"diff"\|"markdown", "text": "…" }`.
+Text over about 6,000 characters is cut with `…`: an output keeps its end, everything
+else its start. A `"diff"` is unified-diff lines without file headers.
 
 ### Seen and archived agents
 
@@ -1515,6 +1614,8 @@ seenEntries?: [StatusEntry] // finished agents already seen, each with `seenAt`;
 isRemote: bool
 parentName: string        // the project this is a duplicate of; empty for originals — the phone offers Remove only when set
 worktree: bool            // a duplicate made as a linked git worktree rather than a folder copy
+worktreeBranch?: string   // the branch lpm made for a worktree started from an issue, deleted with it. Absent for any
+                          // other worktree, whose branch is `lpm/<name>` (projects_crud.rs worktree_branch_name)
 autoPull?: bool           // the project's own auto pull choice; present only when its YAML sets one. Absent follows
                           // the parent (for a duplicate or worktree) or the Mac's `autoPullMode` (see `projects`)
 claudeAccount?: string    // the one Claude account new sessions always use; "" is the main login only. Present only
@@ -1642,8 +1743,8 @@ schedule: { mode: "interval", everySecs: N, everyMaxSecs?, fromMinutes?, untilMi
             monthDays?: [N], lastDay?, shortMonths?: "last", nth?: "first"…"last", nthOf?: "mon"…|"day"|"weekday",
             onDates?: ["YYYY-MM-DD"] }
         | { mode: "manual" }
-        | { mode: "event", on: "ciFailed" | "serviceCrashed" | "agentFinished", branches?: [string],
-            services?: [string], from?: [string], atMost: "commit" | "day" }
+        | { mode: "event", on: "ciFailed" | "serviceCrashed" | "agentFinished" | "prReviewed" | "prOpened",
+            branches?: [string], services?: [string], from?: [string], atMost: "commit" | "day" }
                           // started by something that happens, never by the clock:
                           // nextFireAt is null. Older Macs never send it
 lastRunAt: unix seconds | null

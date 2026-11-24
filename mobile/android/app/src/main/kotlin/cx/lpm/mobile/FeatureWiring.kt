@@ -83,19 +83,22 @@ internal fun projectsSlots(navigator: Navigator) = ProjectsSlots(
 )
 
 internal fun terminalSlots(navigator: Navigator, projects: ProjectsSlots) = TerminalSlots(
-    projectMenu = { project, terminal, session, onFind, onSpawned ->
+    projectMenu = { project, terminal, session, view, onFind, onSpawned ->
         ProjectMenuToolbar(
             project = project.name,
             session = session,
             onNavigate = navigator::navigate,
             terminal = terminal,
+            view = view,
             onFind = onFind,
             onSpawnedTerminal = onSpawned,
             slots = projects
         )
     },
     tabAccountChoices = { session, term -> TabClaudeAccountChoicesRoute(session, term) },
-    connectionBanner = { session -> TerminalConnectionBannerRoute(session = session) },
+    connectionBanner = { session, lastSeen ->
+        TerminalConnectionBannerRoute(session = session, lastSeen = lastSeen)
+    },
     memorySheet = { project, cli, onInvocation, onDismiss ->
         ComposerMemorySheet(
             project = project,

@@ -8,6 +8,7 @@ package cx.lpm.mobile.core.demo
 
 private const val TEAL = "\u001B[38;5;36m"
 private const val BLUE = "\u001B[38;5;75m"
+private const val ON_IT = "On it — I'll read the relevant files first, then make the change."
 
 internal fun DemoServer.registerAgentHandlers() {
     register("agentOptions") { push(mapOf("t" to "agentOptions", "agents" to demoAgentOptions)) }
@@ -56,6 +57,7 @@ internal fun DemoServer.registerAgentHandlers() {
         world.terminals.getOrPut(project) {
             mutableListOf()
         }.add(agentTab(id, title, project, provider, buffer))
+        demoConversationText(id, "Picking up where we left off on **$title**. What's next?")
         world.sessionTabs["$provider:$sessionId"] = id
         push(mapOf("t" to "resumeSession", "ok" to true))
     }
@@ -108,7 +110,7 @@ private fun agentCommand(cmd: String, agents: List<String>): String? = COMMAND_W
     }
     .firstOrNull { it in agents }
 
-private fun demoAgentTab(
+private fun DemoServer.demoAgentTab(
     agent: String,
     label: String,
     id: String,
@@ -121,7 +123,9 @@ private fun demoAgentTab(
     var buffer = agentBanner(agent, project, model, effort)
     if (task.isNotEmpty()) {
         buffer += "$BOLD>$RESET ${task.replace("\n", "\r\n  ")}\r\n\r\n" +
-            "$TEXT_DOT On it — I'll read the relevant files first, then make the change.\r\n\r\n"
+            "$TEXT_DOT $ON_IT\r\n\r\n"
+        demoConversationPrompt(id, task)
+        demoConversationText(id, ON_IT)
     }
     buffer += "$BOLD>$RESET "
     return agentTab(id, label, project, agent, buffer)

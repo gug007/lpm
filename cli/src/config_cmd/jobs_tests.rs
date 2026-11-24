@@ -125,8 +125,11 @@ fn memory_on_a_read_only_run_is_flagged_but_allowed() {
 fn an_event_schedule_is_checked_on_its_own_terms() {
     let ok = "root: /tmp\njobs:\n  a: { schedule: { on: ciFailed, branches: [main], atMost: day }, run: { prompt: x } }\n";
     assert_eq!(errors(ConfigKind::Project, ok), Vec::<String>::new());
+    let pulls = "root: /tmp\njobs:\n  a: { schedule: { on: prReviewed, branches: main }, run: { prompt: x } }\n";
+    assert_eq!(errors(ConfigKind::Project, pulls), Vec::<String>::new());
     let cases = [
-        ("{ on: prOpened }", "config.jobs.a.schedule.on: expected one of: ciFailed, serviceCrashed, agentFinished"),
+        ("{ on: prMerged }", "config.jobs.a.schedule.on: expected one of: ciFailed, serviceCrashed, agentFinished, prReviewed, prOpened"),
+        ("{ on: agentFinished, branches: [main] }", "config.jobs.a.schedule.branches: goes with on: ciFailed, prReviewed, prOpened"),
         ("{ on: ciFailed, every: 6h }", "config.jobs.a.schedule: an event replaces at, every, days, cron and manual; drop them"),
         ("{ on: ciFailed, services: [api] }", "config.jobs.a.schedule.services: goes with on: serviceCrashed"),
         ("{ on: ciFailed, atMost: hour }", "config.jobs.a.schedule.atMost: expected one of: commit, day"),

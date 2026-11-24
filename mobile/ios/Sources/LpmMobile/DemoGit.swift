@@ -37,8 +37,13 @@ extension DemoServer {
                     return ["t": "gitCommit", "project": project, "ok": false,
                             "error": "Not a git repository."]
                 }
+                if let file = repo.files.first(where: { $0.status == "conflicted" && files.contains($0.path) }) {
+                    return ["t": "gitCommit", "project": project, "ok": false,
+                            "error": "\(file.path) still has merge conflict markers (<<<<<<< … >>>>>>>). Resolve it and commit again."]
+                }
                 repo.files.removeAll { files.contains($0.path) }
                 repo.ahead += 1
+                repo.merge = nil
                 self.world.git[project] = repo
                 self.pushGitChanged(project)
                 return ["t": "gitCommit", "project": project, "ok": true]
@@ -206,6 +211,10 @@ extension DemoServer {
         repo.watched = false
         repo.autoPulled = nil
         repo.discarded = [:]
+        if repo.merge != nil {
+            repo.merge = nil
+            repo.files = []
+        }
         world.git[to] = repo
     }
 

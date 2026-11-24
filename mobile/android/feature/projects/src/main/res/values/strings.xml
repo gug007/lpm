@@ -84,10 +84,6 @@
         <item quantity="other">Archived %1$d agents</item>
     </plurals>
 
-    <!-- A waiting agent's question, answered from its row -->
-    <string name="agent_ask_option">Option %1$s: %2$s</string>
-    <string name="agent_ask_sent">Sent</string>
-
     <!-- Row actions -->
     <string name="row_start_with_profile">Start with profile</string>
     <string name="row_move_to_folder">Move to folder</string>
@@ -207,6 +203,9 @@
 
     <!-- Project menu -->
     <string name="menu_actions">Actions</string>
+    <string name="menu_view">View</string>
+    <string name="menu_view_terminal">Terminal</string>
+    <string name="menu_view_conversation">Conversation</string>
     <string name="menu_find_in_terminal">Find in Terminal</string>
     <string name="menu_stop">Stop</string>
     <string name="menu_start">Start</string>
@@ -260,6 +259,8 @@
     <string name="detail_stopped">Stopped</string>
     <string name="detail_invalid_config">Invalid configuration</string>
     <string name="detail_tabs">Tabs</string>
+    <string name="detail_saved_tabs">Tabs open read-only until %1$s is back.</string>
+    <string name="detail_saved_tabs_seen">Last seen %1$s. Tabs open read-only until %2$s is back.</string>
     <string name="detail_new_tab">New tab</string>
     <plurals name="detail_services">
         <item quantity="one">Services · %1$d of %2$d running</item>

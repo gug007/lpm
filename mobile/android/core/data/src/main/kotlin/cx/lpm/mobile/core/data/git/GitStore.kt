@@ -14,6 +14,7 @@ import cx.lpm.mobile.core.data.review.noteWin
 import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.model.GitConflictOp
 import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitSnapshot
 import kotlinx.coroutines.Job
@@ -38,6 +39,14 @@ class GitStore(private val session: MacSession) : SessionStore {
     private val branches = GitBranches(session, mutable, timeout) { load(it) }
     private val notices = GitNotices(session.scope, mutable)
     private val discards = GitDiscards(session, mutable, timeout, notices) { load(it) }
+    private val conflicts = GitConflicts(
+        session,
+        mutable,
+        timeout,
+        notices,
+        watched = { it in watching },
+        refresh = ::refreshWatched
+    )
     private val changedWork = mutableMapOf<String, Job>()
 
     // Review screens open: only they prefetch every file's diff with the snapshot.
@@ -74,7 +83,10 @@ class GitStore(private val session: MacSession) : SessionStore {
         c.onGitChanged = ::changed
         branches.wire(c)
         discards.wire(c)
+        conflicts.wire(c)
     }
+
+    override fun onConnectionReset() = conflicts.onConnectionReset()
 
     override fun reset() {
         timeout.cancelAll()
@@ -204,6 +216,12 @@ class GitStore(private val session: MacSession) : SessionStore {
     /** Discard one file's changes; the notice offers Undo as for [discardAll]. */
     fun discardFile(project: String, path: String) = discards.discardFile(project, path)
 
+    /** Whether the Mac lists a stopped merge's conflicts and works through them. */
+    val canResolveConflicts: Boolean get() = conflicts.available
+
+    /** Act on a project's merge, pull or rebase that stopped on conflicts. */
+    fun runConflictOp(project: String, op: GitConflictOp) = conflicts.run(project, op)
+
     /** Undo for a discard: put back the copy the Mac kept ([GitNotice.undo]). */
     fun restoreDiscarded(project: String, id: String) = discards.restore(project, id)
 
@@ -212,11 +230,11 @@ class GitStore(private val session: MacSession) : SessionStore {
             it.gitGenPr(project)
         }
 
-    fun createPr(project: String, title: String, body: String) = startPr(
+    fun createPr(project: String, title: String, body: String, closeIssue: Boolean?) = startPr(
         GitOp.CreatePr,
         project,
         "Pull request creation timed out. Try again."
-    ) { it.gitCreatePr(project, title, body) }
+    ) { it.gitCreatePr(project, title, body, closeIssue) }
 
     fun loadBranches(project: String) = branches.load(project)
 
@@ -270,6 +288,7 @@ class GitStore(private val session: MacSession) : SessionStore {
                 loadError = it.loadError - project
             )
         }
+        conflicts.applySnapshot(project, snapshot.merge)
         if (pendingWatchRefresh.remove(project)) diffs.reconcile(project)
         if (project in watching) diffs.prefetch(project)
     }
@@ -303,6 +322,8 @@ class GitStore(private val session: MacSession) : SessionStore {
         }
         if (error != null) {
             showOpError(project, GitOpError(copy.failed, error))
+            // One that stopped on conflicts left them to work through.
+            if (copy == GitOpCopy.Pull) load(project)
             return
         }
         copy.done?.let { announce(project, it) }

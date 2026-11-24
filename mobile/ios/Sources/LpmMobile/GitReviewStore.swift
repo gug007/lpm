@@ -71,6 +71,11 @@ final class GitReviewStore {
     var fetching: Set<String> = []
     var discarding: Set<String> = []
     var restoringDiscard: Set<String> = []
+    // The merge-conflicts panel: what was asked of the Mac, what the AI working
+    // through a project's conflicts is doing, and the sides picked from here.
+    var conflictOps: [String: GitConflictOp] = [:]
+    var resolvingConflicts: [String: String] = [:]
+    var conflictSides: [String: [String: GitConflictSide]] = [:]
     var undoingAutoPull: Set<String> = []
     // Switch-branch sheet state: the loaded branch list + current branch, load/
     // checkout errors (kept separate so they show inside the sheet), the branch
@@ -91,7 +96,7 @@ final class GitReviewStore {
     @ObservationIgnored private var parsedEntries: [String: ParsedEntry] = [:]
     // Projects whose review screen is open (watching), so a snapshot only triggers a
     // prefetch of every file's diff while the review screen is actually showing.
-    @ObservationIgnored private var watching: Set<String> = []
+    @ObservationIgnored private(set) var watching: Set<String> = []
     // Terminal headers open per project, each following its snapshot (see follow).
     @ObservationIgnored private var followers: [String: Int] = [:]
     // Debounce per project for the git-changed push, so a burst of file writes
@@ -285,11 +290,11 @@ final class GitReviewStore {
         }
     }
 
-    func createPr(_ project: String, title: String, body: String) {
+    func createPr(_ project: String, title: String, body: String, closeIssue: Bool?) {
         guard !creatingPr.contains(project) else { return }
         creatingPr.insert(project)
         prError[project] = nil
-        client?.gitCreatePr(project: project, title: title, body: body)
+        client?.gitCreatePr(project: project, title: title, body: body, closeIssue: closeIssue)
         armTimeout("createPr", project, seconds: 120) { [weak self] in
             guard let self, self.creatingPr.remove(project) != nil else { return }
             self.prError[project] = "Pull request creation timed out. Try again."
@@ -483,6 +488,7 @@ final class GitReviewStore {
         if let snapshot {
             snapshots[project] = snapshot
             loadError[project] = nil
+            applyMerge(project, snapshot.merge)
             if pendingWatchRefresh.remove(project) != nil {
                 reconcileWatchedDiffs(project)
             }
@@ -568,13 +574,13 @@ final class GitReviewStore {
         // but…"), so it isn't called a failure and the new state is fetched.
         if let error, error.hasPrefix("Pulled") {
             opError[project] = GitOpError(title: "Pulled with conflicts", message: error)
-            load(project)
         } else if let error {
             opError[project] = GitOpError(title: "Pull failed", message: error)
         } else {
             announce(project, "Pulled")
-            load(project)
         }
+        // A failed one too: one that stopped on conflicts left them to work through.
+        load(project)
     }
 
     func finishFetch(_ project: String, error: String?) {

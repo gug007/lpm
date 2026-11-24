@@ -57,16 +57,16 @@
             "cron": { "type": "string", "description": "A five-field cron line, in place of every other timing key." },
             "on": {
               "type": "string",
-              "enum": ["ciFailed", "serviceCrashed", "agentFinished"],
-              "description": "Run when this happens instead of on a clock: CI fails on a push from this computer, one of the project's services exits with an error, or an agent finishes its turn. Replaces every other timing key."
+              "enum": ["ciFailed", "serviceCrashed", "agentFinished", "prReviewed", "prOpened"],
+              "description": "Run when this happens instead of on a clock: CI fails on a push from this computer, one of the project's services exits with an error, an agent finishes its turn, a pull request you opened gets a review, or a pull request is opened. Replaces every other timing key."
             },
-            "branches": { "type": ["string", "array"], "items": { "type": "string" }, "description": "With on: ciFailed, only failures on these branches. Left out, any branch." },
+            "branches": { "type": ["string", "array"], "items": { "type": "string" }, "description": "With on: ciFailed, only failures on these branches; with on: prReviewed or prOpened, only pull requests into them. Left out, any branch." },
             "services": { "type": ["string", "array"], "items": { "type": "string" }, "description": "With on: serviceCrashed, only these services. Left out, any of the project's services." },
             "from": { "type": ["string", "array"], "items": { "type": "string" }, "description": "With on: agentFinished, the projects whose agents count. Left out, this project's own." },
             "atMost": {
               "type": "string",
               "enum": ["commit", "day"],
-              "description": "With on: how often it may run. commit (the default) runs once for each commit the event is about; day runs once a day."
+              "description": "With on: how often it may run. commit (the default) runs once for each commit the event is about (each review or pull request, for those); day runs once a day."
             }
           }
         },

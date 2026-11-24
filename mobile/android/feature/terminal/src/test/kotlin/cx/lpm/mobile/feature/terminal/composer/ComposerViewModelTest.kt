@@ -5,6 +5,7 @@ import androidx.compose.runtime.snapshots.Snapshot
 import cx.lpm.mobile.core.data.commands.LpmCommandsStore
 import cx.lpm.mobile.core.data.dictation.DictationResult
 import cx.lpm.mobile.core.data.dictation.DictationStore
+import cx.lpm.mobile.core.data.git.GitExtrasStore
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.services.ServiceLogsStore
 import cx.lpm.mobile.core.data.session.SessionStore
@@ -45,7 +46,8 @@ class ComposerViewModelTest {
 
     private fun TestScope.setup(
         screenOpen: Boolean = true,
-        target: ComposerTarget = this@ComposerViewModelTest.target
+        target: ComposerTarget = this@ComposerViewModelTest.target,
+        features: List<String> = emptyList()
     ): Setup {
         val media = FakeMedia(Files.createTempDirectory("composer").toFile())
         val io = StandardTestDispatcher(testScheduler)
@@ -58,10 +60,11 @@ class ComposerViewModelTest {
                 SessionStore.Factory(::HistoryStore),
                 SessionStore.Factory(::ServiceLogsStore),
                 SessionStore.Factory(::GitStore),
+                SessionStore.Factory(::GitExtrasStore),
                 SessionStore.Factory(::LpmCommandsStore)
             )
         )
-        val socket = t.connectReady()
+        val socket = t.connectReady(features = features)
         if (screenOpen) {
             t.store<TerminalsStore>().openTerminalScreen(
                 "t1",
@@ -173,6 +176,67 @@ class ComposerViewModelTest {
         s.vm.pickPlace(place)
         testScheduler.runCurrent()
         assertEquals("copy it to Mac mini:~ (on another computer) ", s.vm.input.text.toString())
+    }
+
+    private fun TestScope.setupWithIssues(): Setup {
+        val s = setup(features = listOf("gitIssues"))
+        s.vm.onAppear()
+        testScheduler.runCurrent()
+        s.socket.receive(
+            """{"t":"gitIssues","project":"storefront","ok":true,"issues":[""" +
+                """{"number":45,"title":"Cart badge keeps the old count","labels":["bug"]},""" +
+                """{"number":38,"title":"Split checkout into two steps"}]}"""
+        )
+        return s
+    }
+
+    @Test
+    fun `a picked issue is read and goes in where the fragment was`() = runTest {
+        val s = setupWithIssues()
+        type(s.vm, "look at @check")
+        val issue = s.vm.uiState.value.mentions.issues.single()
+        assertEquals(38, issue.number)
+        s.vm.pickIssue(issue)
+        testScheduler.runCurrent()
+        assertEquals("look at ", s.vm.input.text.toString())
+        val asked = s.socket.sentOf("gitIssue").single()
+        s.socket.receive(
+            """{"t":"gitIssue","project":"storefront","number":38,"ok":true,""" +
+                """"reqId":"${asked.string("reqId")}",""" +
+                """"issue":{"number":38,"mention":"Issue #38:\n```\n#38 Split checkout\n```\n"}}"""
+        )
+        testScheduler.runCurrent()
+        assertEquals(
+            "look at Issue #38:\n```\n#38 Split checkout\n```\n",
+            s.vm.input.text.toString()
+        )
+    }
+
+    @Test
+    fun `an issue that can't be read says why and leaves the prompt alone`() = runTest {
+        val s = setupWithIssues()
+        type(s.vm, "look at @check")
+        s.vm.pickIssue(s.vm.uiState.value.mentions.issues.single())
+        testScheduler.runCurrent()
+        val asked = s.socket.sentOf("gitIssue").single()
+        s.socket.receive(
+            """{"t":"gitIssue","project":"storefront","number":38,"ok":false,""" +
+                """"reqId":"${asked.string("reqId")}","error":"gh isn't signed in."}"""
+        )
+        testScheduler.runCurrent()
+        assertEquals("gh isn't signed in.", s.vm.uiState.value.issueError)
+        assertEquals("look at ", s.vm.input.text.toString())
+        s.vm.dismissIssueError()
+        testScheduler.runCurrent()
+        assertNull(s.vm.uiState.value.issueError)
+    }
+
+    @Test
+    fun `a Mac that doesn't read issues is never asked for them`() = runTest {
+        val s = setup()
+        s.vm.onAppear()
+        testScheduler.runCurrent()
+        assertEquals(0, s.socket.sentOf("gitIssues").size)
     }
 
     @Test

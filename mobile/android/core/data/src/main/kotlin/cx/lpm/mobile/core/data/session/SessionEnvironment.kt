@@ -5,6 +5,7 @@ import cx.lpm.mobile.core.data.client.TailnetRouter
 import cx.lpm.mobile.core.data.link.HostProber
 import cx.lpm.mobile.core.data.link.MacBrowser
 import cx.lpm.mobile.core.data.link.NetworkMonitor
+import cx.lpm.mobile.core.data.mac.AgentTabSnapshots
 import cx.lpm.mobile.core.data.mac.CredentialStore
 import cx.lpm.mobile.core.data.mac.MacStore
 import cx.lpm.mobile.core.data.mac.MacUnpair
@@ -25,6 +26,7 @@ class SessionEnvironment(
     val macStore: MacStore,
     val credentials: CredentialStore,
     val snapshots: ProjectSnapshots,
+    val agentTabs: AgentTabSnapshots,
     val network: NetworkMonitor,
     /** A fresh browse for each owner (recovery, the pairing screen, the endpoint editor). */
     val newBrowser: () -> MacBrowser,

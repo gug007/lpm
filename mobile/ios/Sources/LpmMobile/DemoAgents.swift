@@ -45,6 +45,7 @@ extension DemoServer {
                 + "\(bold)>\(reset) "
             self.world.terminals[project, default: []].append(self.agentTab(id: id, label: title, project: project,
                                                                             cli: provider, buffer: buffer))
+            self.demoConversationText(id, "Picking up where we left off on **\(title)**. What's next?")
             self.world.sessionTabs["\(provider):\(sessionId)"] = id
             self.push(["t": "resumeSession", "ok": true])
         }
@@ -76,6 +77,8 @@ extension DemoServer {
         if !prompt.isEmpty {
             buffer += "\(bold)>\(reset) \(prompt.replacingOccurrences(of: "\n", with: "\r\n  "))\r\n\r\n"
                 + "\(textDot) On it — I'll read the relevant files first, then make the change.\r\n\r\n"
+            demoConversationPrompt(id, prompt)
+            demoConversationText(id, "On it — I'll read the relevant files first, then make the change.")
         }
         buffer += "\(bold)>\(reset) "
         return agentTab(id: id, label: label, project: project, cli: agent, buffer: buffer)

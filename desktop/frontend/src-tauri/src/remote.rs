@@ -57,6 +57,8 @@ use tungstenite::{accept, Error as WsError, Message, WebSocket};
 pub(crate) mod answer;
 pub(crate) mod check_log;
 mod ci_push;
+mod conflicts;
+mod conversation;
 mod dialog;
 mod dictation;
 mod file_write;
@@ -71,6 +73,7 @@ mod recap_push;
 mod generate;
 mod reminders;
 mod relay;
+mod issues;
 mod review;
 pub(crate) mod relayed;
 mod tab_account;
@@ -167,6 +170,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_service_logs::WATCH_FEATURE,
     SERVICE_RESTART_FEATURE,
     crate::remote_answers::FEATURE,
+    conversation::FEATURE,
     RESTART_TERMINAL_FEATURE,
     tab_menu::FEATURE,
     tab_menu::MOVE_FEATURE,
@@ -178,6 +182,7 @@ const PHONE_FEATURES: &[&str] = &[
     answer::FEATURE,
     dialog::FEATURE,
     GIT_DISCARD_FILES_FEATURE,
+    conflicts::FEATURE,
     live::FEATURE,
     crate::weekly_recap::PHONE_FEATURE,
     crate::weekly_recap::PHONE_MONTH_FEATURE,
@@ -203,6 +208,7 @@ const PHONE_FEATURES: &[&str] = &[
     review::SECRETS_FEATURE,
     review::BRANCH_FEATURE,
     review::DISCUSSION_FEATURE,
+    issues::FEATURE,
     check_log::FEATURE,
     file_write::FEATURE,
 ];
@@ -3203,6 +3209,7 @@ fn handle_msg(
                         label,
                         reinstall_deps,
                         None,
+                        None,
                     )
                 } else {
                     crate::projects_crud::duplicate_project(
@@ -3619,6 +3626,11 @@ fn handle_msg(
                             "defaultBranch": default_branch,
                             "ghCli": crate::git::check_ghcli(), "files": files,
                             "linesAdded": lines_added, "linesRemoved": lines_removed });
+                            // The issue the branch was started from, which its pull
+                            // request closes.
+                            if let Some(issue) = crate::issue_branch::of_branch(&cwd, &st.branch) {
+                                reply["issue"] = json!(issue);
+                            }
                             // A branch with nowhere to push yet (a fresh worktree's) still
                             // has work only here: its commits not on the default branch.
                             if !st.has_upstream && !default_branch.is_empty() && default_branch != st.branch {
@@ -3630,6 +3642,10 @@ fn handle_msg(
                             }
                             if let Some(pulled) = crate::gitautopull::last_auto_pull(&cwd) {
                                 reply["autoPulled"] = json!(pulled);
+                            }
+                            let conflicted = changed.iter().any(|f| f.status == "conflicted");
+                            if let Some(merge) = conflicts::merge_state(&cwd, conflicted) {
+                                reply["merge"] = merge;
                             }
                             reply
                         };
@@ -4057,13 +4073,14 @@ fn handle_msg(
             let title = str_field("title").unwrap_or_default();
             let body = str_field("body").unwrap_or_default();
             let draft = v.get("draft").and_then(Value::as_bool);
+            let close_issue = v.get("closeIssue").and_then(Value::as_bool);
             match config::project_root(&project) {
                 Ok((cwd, _)) => {
                     let out = out.clone();
                     std::thread::spawn(move || {
                         let base = crate::git::git_default_branch(cwd.clone());
                         let reply = match crate::git::create_pull_request(
-                            cwd, title, body, base, draft,
+                            cwd, title, body, base, draft, close_issue,
                         ) {
                             Ok(url) => {
                                 json!({ "t": "gitCreatePr", "project": project, "ok": true, "url": url })
@@ -4791,13 +4808,29 @@ fn handle_msg(
         "gitScanSecrets" | "gitBranchFiles" | "gitBranchDiffs" | "gitPrDiscussion" => {
             review::handle(out, t, &v)
         }
+        "gitIssues" | "gitIssue" => issues::handle(out, t, &v),
         "gitCheckLog" => check_log::handle(out, &v),
+        "gitMergeResolve" | "gitMergeStop" | "gitMergeAbort" | "gitMergeContinue"
+        | "gitConflictTake" | "gitConflictResolved" => conflicts::handle(app, out, t, &v),
         "writeFile" => file_write::handle(out, &v),
         "answers" => {
             let id = str_field("id").unwrap_or_default();
             let session = hub.inner.agent_sessions.lock().unwrap().get(&id).cloned();
             crate::remote_answers::handle(out, &v, session)
         }
+        // The conversation behind a terminal's Conversation view, kept in `watches`
+        // beside the live logs. Watching again starts over with the whole list.
+        "conversationWatch" | "conversationUnwatch" => {
+            let key = conversation::key(&str_field("id").unwrap_or_default());
+            if let Some(w) = watches.remove(&key) {
+                w.stop.store(true, Ordering::SeqCst);
+            }
+            if t == "conversationWatch" {
+                let stop = conversation::watch(hub, out.clone(), &v);
+                watches.insert(key, RemoteWatch { stop, _watcher: None, take: None });
+            }
+        }
+        "conversationPage" | "conversationDetail" => conversation::handle(hub, out, t, &v),
         "answerAgent" => answer::handle(hub, app, out, &v),
         "agentDialog" => send(ws, dialog::reply(hub, app, &v))?,
         "limitReminders" | "setLimitReminder" | "clearLimitReminder" => {
@@ -6249,6 +6282,7 @@ fn install_forwarders(hub: &RemoteHub, app: &AppHandle) {
     tabs::install(hub, app);
     reminders::install(hub, app);
     generate::install(hub, app);
+    conflicts::install(hub, app);
     let h = hub.clone();
     app.listen("projects-changed", move |_| {
         broadcast(&h, json!({ "t": "projects-changed" }));

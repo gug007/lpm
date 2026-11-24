@@ -1,7 +1,7 @@
 use super::{text_at, validate_choice, Mapping, Report, Value};
 
 pub(super) const EVENT_FIELDS: [&str; 5] = ["on", "branches", "services", "from", "atMost"];
-const EVENTS: [&str; 3] = ["ciFailed", "serviceCrashed", "agentFinished"];
+const EVENTS: [&str; 5] = ["ciFailed", "serviceCrashed", "agentFinished", "prReviewed", "prOpened"];
 const CLOCK_FIELDS: [&str; 9] = [
     "at",
     "until",
@@ -13,10 +13,10 @@ const CLOCK_FIELDS: [&str; 9] = [
     "manual",
     "cron",
 ];
-const FILTERS: [(&str, &str); 3] = [
-    ("branches", "ciFailed"),
-    ("services", "serviceCrashed"),
-    ("from", "agentFinished"),
+const FILTERS: [(&str, &[&str]); 3] = [
+    ("branches", &["ciFailed", "prReviewed", "prOpened"]),
+    ("services", &["serviceCrashed"]),
+    ("from", &["agentFinished"]),
 ];
 
 fn has(map: &Mapping, key: &str) -> bool {
@@ -44,7 +44,7 @@ pub(super) fn validate_event(map: &Mapping, path: &str, report: &mut Report) -> 
     if CLOCK_FIELDS.iter().any(|key| has(map, key)) {
         report.error(path, "an event replaces at, every, days, cron and manual; drop them");
     }
-    for (key, event) in FILTERS {
+    for (key, events) in FILTERS {
         let Some(value) = map.get(Value::String(key.into())) else {
             continue;
         };
@@ -52,8 +52,11 @@ pub(super) fn validate_event(map: &Mapping, path: &str, report: &mut Report) -> 
             Value::Sequence(list) => list.iter().all(|v| v.as_str().is_some()),
             other => other.as_str().is_some(),
         };
-        if on != event {
-            report.error(&format!("{path}.{key}"), format!("goes with on: {event}"));
+        if !events.contains(&on) {
+            report.error(
+                &format!("{path}.{key}"),
+                format!("goes with on: {}", events.join(", ")),
+            );
         } else if !names {
             report.error(&format!("{path}.{key}"), "expected a name or a list of names");
         }

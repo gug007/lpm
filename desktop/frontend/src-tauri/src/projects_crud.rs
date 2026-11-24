@@ -4,6 +4,7 @@
 // serde_norway writes configs.
 use crate::adopt::{self, AdoptedProject};
 use crate::config;
+use crate::issue_branch::{self, IssueStart};
 use crate::sys::TRASH;
 use serde::Deserialize;
 use serde_norway::{Mapping, Value as Yaml};
@@ -355,6 +356,7 @@ struct SrcInfo {
     root: String,
     parent: Option<String>,
     worktree: bool,
+    worktree_branch: Option<String>,
 }
 
 fn load_root_and_parent(name: &str) -> Result<SrcInfo, String> {
@@ -366,6 +368,7 @@ fn load_root_and_parent(name: &str) -> Result<SrcInfo, String> {
         root,
         parent: config::peek_parent(name),
         worktree: config::peek_worktree(name),
+        worktree_branch: config::peek_worktree_branch(name),
     })
 }
 
@@ -640,7 +643,7 @@ fn create_linked_worktree(
 fn remove_linked_worktree(
     repository_root: &Path,
     worktree_root: &Path,
-    branch: &str,
+    branch: Option<&str>,
 ) -> Result<(), String> {
     let common_output = crate::osproc::command("git")
         .arg("-C")
@@ -701,11 +704,13 @@ fn remove_linked_worktree(
             format!("could not remove Git worktree: {message}")
         });
     }
-    let _ = crate::osproc::command("git")
-        .arg("--git-dir")
-        .arg(common_dir)
-        .args(["branch", "-D", branch])
-        .output();
+    if let Some(branch) = branch {
+        let _ = crate::osproc::command("git")
+            .arg("--git-dir")
+            .arg(common_dir)
+            .args(["branch", "-D", branch])
+            .output();
+    }
     Ok(())
 }
 
@@ -885,10 +890,14 @@ fn run_worktree_duplicate(
     plan: &DuplicatePlan,
     label: Option<&str>,
     reinstall_deps: bool,
+    issue: Option<&IssueStart>,
 ) -> Result<(), String> {
     let label = copy_label(plan, label);
     let source_root = Path::new(&plan.src_root);
-    let branch = worktree_branch_name(&plan.new_name);
+    let branch = match issue {
+        Some(i) => issue_branch::free(source_root, &issue_branch::name_for(i.number, &i.title)),
+        None => worktree_branch_name(&plan.new_name),
+    };
     create_linked_worktree(source_root, &plan.new_root, &branch)?;
 
     let write = write_project_yaml(&plan.new_name, |m| {
@@ -900,15 +909,23 @@ fn run_worktree_duplicate(
         );
         yset(m, "parent_name", plan.original.as_str());
         yset(m, "worktree", true);
+        if issue.is_some() {
+            yset(m, "worktree_branch", branch.as_str());
+        }
         if let Some(l) = label {
             yset(m, "label", l);
         }
     });
     if let Err(error) = write {
-        if let Err(cleanup_error) = remove_linked_worktree(source_root, &plan.new_root, &branch) {
+        if let Err(cleanup_error) = remove_linked_worktree(source_root, &plan.new_root, Some(&branch)) {
             return Err(format!("{error}; cleanup failed: {cleanup_error}"));
         }
         return Err(error);
+    }
+    if let Some(i) = issue {
+        if let Err(e) = issue_branch::link(source_root, &branch, i.number) {
+            eprintln!("worktree {}: couldn't link issue #{}: {e}", plan.new_name, i.number);
+        }
     }
     for failure in crate::worktree_files::bring(&plan.original, source_root, &plan.new_root) {
         eprintln!("worktree {}: couldn't bring {failure}", plan.new_name);
@@ -952,9 +969,10 @@ fn duplicate_worktree_one(
     label: Option<&str>,
     reinstall_deps: bool,
     folder_id: Option<&str>,
+    issue: Option<&IssueStart>,
 ) -> Result<String, String> {
     let plan = prepare_worktree_duplicate(name, folder_id)?;
-    run_worktree_duplicate(app, &plan, label, reinstall_deps)?;
+    run_worktree_duplicate(app, &plan, label, reinstall_deps, issue)?;
     Ok(plan.new_name)
 }
 
@@ -986,6 +1004,7 @@ pub fn duplicate_worktree_project(
     label: Option<String>,
     reinstall_deps: bool,
     folder_id: Option<String>,
+    issue: Option<IssueStart>,
 ) -> Result<String, String> {
     duplicate_worktree_one(
         &app,
@@ -993,6 +1012,7 @@ pub fn duplicate_worktree_project(
         label.as_deref(),
         reinstall_deps,
         folder_id.as_deref(),
+        issue.as_ref(),
     )
 }
 
@@ -1108,12 +1128,14 @@ pub fn start_duplicate_worktree_project(
     label: Option<String>,
     reinstall_deps: bool,
     folder_id: Option<String>,
+    issue: Option<IssueStart>,
 ) -> Result<String, String> {
     let plan = prepare_worktree_duplicate(&name, folder_id.as_deref())?;
     let new_name = plan.new_name.clone();
     dup_status_start(&new_name);
     std::thread::spawn(move || {
-        let result = run_worktree_duplicate(&app, &plan, label.as_deref(), reinstall_deps);
+        let result =
+            run_worktree_duplicate(&app, &plan, label.as_deref(), reinstall_deps, issue.as_ref());
         let ok = result.is_ok();
         let error = result.err();
         dup_status_finish(&plan.new_name, ok, error.clone());
@@ -1381,10 +1403,16 @@ fn remove_one(app: &AppHandle, name: &str) -> Result<(), String> {
 
     if is_duplicate {
         if info.as_ref().is_some_and(|i| i.worktree) {
+            let branch = match info.as_ref().and_then(|i| i.worktree_branch.clone()) {
+                // Named like the forge names its own, so another branch may have the
+                // name now; git's link to the issue tells them apart.
+                Some(branch) => issue_branch::of_branch(&root, &branch).map(|_| branch),
+                None => Some(worktree_branch_name(name)),
+            };
             remove_linked_worktree(
                 worktree_root.as_ref().unwrap(),
                 Path::new(&root),
-                &worktree_branch_name(name),
+                branch.as_deref(),
             )?;
         } else if !root.trim().is_empty() {
             config::remove_folder(Path::new(&root))?;
@@ -1871,7 +1899,7 @@ mod tests {
             .unwrap();
         assert_eq!(String::from_utf8_lossy(&current.stdout).trim(), branch);
 
-        remove_linked_worktree(&repository, &worktree, &branch).unwrap();
+        remove_linked_worktree(&repository, &worktree, Some(&branch)).unwrap();
         assert!(!worktree.exists());
         let branch_exists = Command::new("git")
             .arg("-C")

@@ -66,14 +66,14 @@ const GROUPS = [
         slug: "review-and-git",
         title: "Review and Git",
         description:
-          "Read what an agent changed as one diff, discard what you don't want, commit with an AI-written message, and open a pull request from lpm.",
+          "Read what an agent changed as one diff, discard what you don't want, commit with an AI-written message, then open a pull request, follow its CI and merge it from lpm.",
         source: `${GUIDES}/review-guide.tsx`,
       },
       {
         slug: "automations",
         title: "Automations",
         description:
-          "Run an agent prompt, a command or an action on a schedule, read each run, reply to it, and let it ask you before it decides.",
+          "Run an agent prompt, a command or an action on a schedule or when something happens, read each run, reply to it, and let it ask you before it decides.",
         source: `${GUIDES}/automations-guide.tsx`,
       },
       {

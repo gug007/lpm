@@ -47,6 +47,22 @@ class AutomationFormatTest {
             )
         )
         assertEquals(
+            "When a PR gets a review",
+            automationScheduleText(
+                job(""""schedule":{"mode":"event","on":"prReviewed","atMost":"commit"}""")
+            )
+        )
+        assertEquals(
+            "When a PR into main or release is opened, once a day",
+            automationScheduleText(
+                job(
+                    """"schedule":{"mode":"event","on":"prOpened","branches":["main","release"],"atMost":"day"}"""
+                )
+            )
+        )
+        assertEquals("Skipped — only bots reviewed", automationResultLabel("skipped-review-rounds"))
+        assertEquals(AutomationTone.Orange, automationResultTone("skipped-review-rounds"))
+        assertEquals(
             "Cron 0 9 * * 1",
             automationScheduleText(job(""""schedule":{"mode":"cron","cron":"0 9 * * 1"}"""))
         )

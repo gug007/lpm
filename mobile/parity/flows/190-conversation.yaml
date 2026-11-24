@@ -1,0 +1,86 @@
+# An agent tab as a conversation, from the "…" menu's View: the sample run's prompt,
+# what the agent said and a line for each step. Reads fold into one line, a step
+# opens to what it was given and what came back, and the composer sends to the tab.
+appId: cx.lpm.mobile
+name: 190-conversation
+tags: [demo, terminal, conversation]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "Terminal 1"
+    timeout: 5000
+# A plain shell has no conversation to show.
+- tapOn: "Terminal 1"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 10000
+- tapOn: "More"
+- extendedWaitUntil:
+    visible: "Find in Terminal"
+    timeout: 5000
+- assertNotVisible: "Conversation"
+- tapOn:
+    point: "50%,90%"
+- runFlow: subflows/back.yaml
+- extendedWaitUntil:
+    visible: "Claude.*"
+    timeout: 5000
+- tapOn: "Claude.*"
+- extendedWaitUntil:
+    visible: "Send"
+    timeout: 10000
+- tapOn: "More"
+- extendedWaitUntil:
+    visible: "Conversation"
+    timeout: 5000
+- assertVisible: "View"
+- takeScreenshot: 1-menu
+- tapOn: "Conversation"
+- extendedWaitUntil:
+    visible: "Implement the checkout redesign.*"
+    timeout: 10000
+- extendedWaitUntil:
+    visible: "Read 2 files.*"
+    timeout: 15000
+- extendedWaitUntil:
+    visible: "Edited README.md.*"
+    timeout: 60000
+- extendedWaitUntil:
+    visible: "Update the cart badge to match.*"
+    timeout: 60000
+- takeScreenshot: 2-conversation
+- scrollUntilVisible:
+    element: "Ran npm test.*"
+    direction: UP
+    centerElement: true
+- tapOn: "Ran npm test.*"
+- extendedWaitUntil:
+    visible: "[\\s\\S]*23 passed[\\s\\S]*"
+    timeout: 5000
+- takeScreenshot: 3-step
+- tapOn: "Ran npm test.*"
+- scrollUntilVisible:
+    element: "Option 2: Not now"
+    direction: DOWN
+- tapOn: "Option 2: Not now"
+- extendedWaitUntil:
+    visible: "Noted.*"
+    timeout: 8000
+# The tab's composer holds a draft, which goes to the agent from here too.
+- tapOn: "Send"
+- extendedWaitUntil:
+    visible: "Add Apple Pay as a payment option.*"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Good call.*"
+    timeout: 8000
+- takeScreenshot: 4-sent
+- tapOn: "More"
+- extendedWaitUntil:
+    visible: "Conversation"
+    timeout: 5000
+- tapOn: "Terminal"
+- extendedWaitUntil:
+    notVisible: "Read 2 files.*"
+    timeout: 5000

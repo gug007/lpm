@@ -3,9 +3,9 @@ import { RowSelect } from "./RowSelect";
 import { Card, Row, TIME_INPUT_CLASS } from "./JobFormRows";
 import type { JobDraft } from "../../../jobsFormat";
 import {
-  EVENT_LIMIT_OPTIONS,
   EVENT_NOTES,
   EVENT_OPTIONS,
+  eventLimitOptions,
   type JobEventKind,
 } from "../../../jobsEvents";
 
@@ -15,6 +15,8 @@ const FILTERS: Record<JobEventKind, { label: string; field: NamesField; placehol
   ciFailed: { label: "Branches", field: "eventBranches", placeholder: "Any branch" },
   serviceCrashed: { label: "Services", field: "eventServices", placeholder: "Any service" },
   agentFinished: { label: "In", field: "eventFrom", placeholder: "This project" },
+  prReviewed: { label: "Into", field: "eventBranches", placeholder: "Any branch" },
+  prOpened: { label: "Into", field: "eventBranches", placeholder: "Any branch" },
 };
 
 const NAMES_CLASS = `${TIME_INPUT_CLASS} min-w-0 flex-1 placeholder:text-[var(--text-muted)]`;
@@ -60,7 +62,7 @@ export function EventScheduleRows({
             ariaLabel="At most"
             value={draft.eventAtMost}
             onChange={(eventAtMost) => patch({ eventAtMost })}
-            options={EVENT_LIMIT_OPTIONS}
+            options={eventLimitOptions(draft.eventOn)}
           />
         </Row>
       </Card>

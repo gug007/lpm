@@ -159,6 +159,8 @@ struct IssueContent: View {
 /// connection and not a hung app. Same issue as the bar, with its first fix.
 struct TerminalConnectionBanner: View {
     @Environment(AppModel.self) private var model
+    /// When what's on screen was kept, while it isn't live.
+    var lastSeen: Date? = nil
 
     var body: some View {
         let issue = model.link.issue ?? .connecting(nil)
@@ -167,10 +169,10 @@ struct TerminalConnectionBanner: View {
         HStack(spacing: 8) {
             if issue.isConnecting {
                 ProgressView().controlSize(.small).tint(.white)
-                Text("Reconnecting…")
+                words("Reconnecting…")
             } else {
                 Image(systemName: copy.icon)
-                Text(copy.title).lineLimit(1)
+                words(copy.title)
                 if let action {
                     Button(action.label(for: issue)) { model.perform(action, for: issue) }
                         .fontWeight(.semibold)
@@ -185,5 +187,16 @@ struct TerminalConnectionBanner: View {
         .overlay(Capsule().strokeBorder(.white.opacity(0.15)))
         .environment(\.colorScheme, .dark)
         .padding(.horizontal, 16)
+    }
+
+    private func words(_ title: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title).lineLimit(1)
+            if let lastSeen {
+                Text("Last seen \(lastSeen.clockStamp)")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.75))
+            }
+        }
     }
 }

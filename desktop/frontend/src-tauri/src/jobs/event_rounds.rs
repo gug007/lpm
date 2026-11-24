@@ -1,11 +1,13 @@
-// How many times in a row CI failing on one branch has started a job. A run
-// that pushes a fix CI also fails would start the next, and so on for good;
+// How many times in a row CI failing on one branch, or bots reviewing one pull
+// request, has started a job. A run that pushes a fix CI also fails would start
+// the next, and so on for good, and so would one whose push a review bot answers;
 // like Keep fixing until green, a job stops after MAX_ROUNDS until CI passes on
-// that branch again. Held in memory, so quitting lpm clears it too.
+// that branch again, or a person reviews that pull request. Held in memory, so
+// quitting lpm clears it too.
 use super::events::{AtMost, EventKind, EventSpec};
 use super::{
     emit_status, now_secs, push_entry, state_key, with_state, HistoryEntry, JobResolved,
-    SKIPPED_CI_ROUNDS,
+    SKIPPED_CI_ROUNDS, SKIPPED_REVIEW_ROUNDS,
 };
 use crate::ci_fix_loop_rules::MAX_ROUNDS;
 use std::collections::HashMap;
@@ -20,7 +22,18 @@ enum Round {
     Stopped,
 }
 
-/// Rounds started, by job key, the project CI failed in, and the branch.
+/// What keeps starting a job.
+pub(super) enum Subject<'a> {
+    Branch(&'a str),
+    Pull {
+        number: u64,
+        url: &'a str,
+        bots_only: bool,
+    },
+}
+
+/// Rounds started, by job key, the project it happened in, and the branch CI
+/// failed on or the pull request's URL.
 #[derive(Default)]
 struct Rounds(HashMap<(String, String, String), u32>);
 
@@ -41,6 +54,10 @@ impl Rounds {
         }
     }
 
+    fn forget(&mut self, key: &str, project: &str, subject: &str) {
+        self.0.remove(&(key.to_string(), project.to_string(), subject.to_string()));
+    }
+
     fn passed(&mut self, project: &str, branch: &str) {
         self.0.retain(|(_, p, b), _| p != project || b != branch);
     }
@@ -55,38 +72,58 @@ pub(crate) fn ci_passed(project: &str, branch: &str) {
     rounds().lock().unwrap().passed(project, branch);
 }
 
-/// Whether CI failing on `branch` in `ci_project` may start `job` again.
+/// Whether what happened in `in_project` may start `job` again.
 pub(super) fn allows(
     app: &AppHandle,
     project: &str,
     job: &JobResolved,
     spec: &EventSpec,
-    ci_project: &str,
-    branch: &str,
+    in_project: &str,
+    subject: Subject,
 ) -> bool {
-    if spec.kind != EventKind::CiFailed || spec.at_most != AtMost::Commit {
+    if spec.at_most != AtMost::Commit {
         return true;
     }
     let key = state_key(project, &job.id);
-    let round = rounds().lock().unwrap().take(&key, ci_project, branch);
+    let (round, result, note) = match (spec.kind, subject) {
+        (EventKind::CiFailed, Subject::Branch(branch)) => (
+            rounds().lock().unwrap().take(&key, in_project, branch),
+            SKIPPED_CI_ROUNDS,
+            format!(
+                "CI still fails on {branch} after {MAX_ROUNDS} runs of this automation in a row. It runs again once CI passes on {branch}."
+            ),
+        ),
+        (EventKind::PrReviewed, Subject::Pull { number, url, bots_only }) => {
+            let mut rounds = rounds().lock().unwrap();
+            if !bots_only {
+                rounds.forget(&key, in_project, url);
+                return true;
+            }
+            (
+                rounds.take(&key, in_project, url),
+                SKIPPED_REVIEW_ROUNDS,
+                format!(
+                    "Only bots reviewed #{number} before and after the last {MAX_ROUNDS} runs of this automation. It runs again once a person reviews #{number}."
+                ),
+            )
+        }
+        _ => return true,
+    };
     match round {
         Round::Go => true,
         Round::Stop => {
-            let note = format!(
-                "CI still fails on {branch} after {MAX_ROUNDS} runs of this automation in a row. It runs again once CI passes on {branch}."
-            );
             let _ = with_state(|f| {
                 push_entry(
                     f.jobs.entry(key.clone()).or_default(),
                     HistoryEntry {
                         at: now_secs(),
-                        result: SKIPPED_CI_ROUNDS.to_string(),
+                        result: result.to_string(),
                         output: Some(note),
                         ..HistoryEntry::default()
                     },
                 );
             });
-            emit_status(app, project, &job.id, SKIPPED_CI_ROUNDS, &None);
+            emit_status(app, project, &job.id, result, &None);
             false
         }
         Round::Stopped => false,
@@ -118,6 +155,19 @@ mod tests {
         assert_eq!(rounds.take("p/fix", "p", "main"), Round::Stopped);
         rounds.passed("p", "main");
         assert_eq!(rounds.take("p/fix", "p", "main"), Round::Go);
+    }
+
+    #[test]
+    fn a_persons_review_starts_the_count_over() {
+        let mut rounds = Rounds::default();
+        let pull = "https://github.com/o/r/pull/212";
+        for _ in 0..=MAX_ROUNDS {
+            rounds.take("p/review", "p", pull);
+        }
+        rounds.passed("p", "main");
+        assert_eq!(rounds.take("p/review", "p", pull), Round::Stopped);
+        rounds.forget("p/review", "p", pull);
+        assert_eq!(rounds.take("p/review", "p", pull), Round::Go);
     }
 
     #[test]

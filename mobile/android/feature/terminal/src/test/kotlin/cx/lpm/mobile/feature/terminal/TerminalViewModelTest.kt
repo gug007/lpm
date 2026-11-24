@@ -1,16 +1,21 @@
 package cx.lpm.mobile.feature.terminal
 
 import cx.lpm.mobile.core.data.git.GitStore
+import cx.lpm.mobile.core.data.mac.LastAnswer
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.data.terminals.SavedAgentTab
 import cx.lpm.mobile.core.data.terminals.TerminalHooks
 import cx.lpm.mobile.core.model.AgentPause
 import cx.lpm.mobile.core.model.AgentState
+import cx.lpm.mobile.core.model.TerminalViewMode
 import cx.lpm.mobile.core.navigation.TerminalKey
+import cx.lpm.mobile.core.protocol.Inbound
 import cx.lpm.mobile.core.testing.FakeSocket
 import cx.lpm.mobile.core.testing.MainDispatcherRule
 import cx.lpm.mobile.core.testing.TestSession
 import cx.lpm.mobile.core.web.TerminalTheme
+import java.time.Instant
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -59,6 +64,128 @@ class TerminalViewModelTest {
         assertTrue(state.controlled)
         assertTrue(state.showsComposer)
         assertNull(state.statusLine)
+    }
+
+    private fun TestScope.agentTab(
+        features: List<String>,
+        tab: String,
+        project: String = ""
+    ): TerminalViewModel {
+        val t = session()
+        val socket = t.connectReady(features = features)
+        socket.receive("""{"t":"projects","projects":[{"name":"storefront"$project}]}""")
+        socket.receive(
+            """{"t":"terminals","project":"storefront","terminals":[{"id":"t1","label":"A","project":"storefront"$tab}]}"""
+        )
+        testScheduler.runCurrent()
+        return viewModel(t)
+    }
+
+    @Test
+    fun `an agent's tab shows its conversation once that's picked`() = runTest {
+        val vm = agentTab(listOf(CONVERSATION), ""","cli":"claude"""")
+        assertTrue(vm.uiState.value.offersConversation)
+        assertFalse(vm.uiState.value.showsConversation)
+        vm.setViewMode(TerminalViewMode.Conversation)
+        testScheduler.runCurrent()
+        assertTrue(vm.uiState.value.showsConversation)
+        assertTrue(vm.uiState.value.showsComposer)
+        vm.setViewMode(TerminalViewMode.Terminal)
+        testScheduler.runCurrent()
+        assertFalse(vm.uiState.value.showsConversation)
+    }
+
+    @Test
+    fun `what the Mac can't read stays a terminal`() = runTest {
+        val claude = ""","cli":"claude""""
+        assertFalse(agentTab(emptyList(), claude).uiState.value.offersConversation)
+        val features = listOf(CONVERSATION)
+        assertFalse(agentTab(features, "").uiState.value.offersConversation)
+        assertFalse(agentTab(features, ""","cli":"gemini"""").uiState.value.offersConversation)
+        assertFalse(
+            agentTab(features, claude, ""","isRemote":true""").uiState.value.offersConversation
+        )
+        assertFalse(
+            agentTab(features, """$claude,"remote":true""").uiState.value.offersConversation
+        )
+    }
+
+    /** Launched again with the Mac out of reach, `t1` kept from before. */
+    private suspend fun TestScope.away(screen: String?, answer: String?): TerminalViewModel {
+        val t = session()
+        val record = t.savedMac()
+        val kept = t.env.agentTabs
+        val list = """{"t":"terminals","project":"storefront","terminals":[""" +
+            """{"id":"t1","label":"Claude","project":"storefront","cli":"claude"}]}"""
+        kept.record(Inbound.parse(list) as Inbound.Terminals, list, record.localId)
+        screen?.let { kept.saveScreen(it, 10, "t1", record.localId) }
+        answer?.let { kept.answers.record(record.widgetId, mapOf("t1" to LastAnswer(it, 20))) }
+        t.env.snapshots.record(
+            """{"t":"projects","projects":[{"name":"storefront"}]}""",
+            record.localId
+        )
+        testScheduler.advanceTimeBy(5_000)
+        t.session.bootstrap()
+        testScheduler.runCurrent()
+        return viewModel(t)
+    }
+
+    @Test
+    fun `with the mac away a tab opens on its kept screen`() = runTest {
+        val vm = away(screen = "kept", answer = "All done.")
+        val state = vm.uiState.value
+        assertEquals("Claude", state.terminal?.label)
+        assertEquals("kept", state.kept?.screen?.text)
+        assertEquals(Instant.ofEpochMilli(20), state.kept?.lastSeen)
+        assertNull(state.keptAnswer)
+        assertTrue(state.offersView)
+        vm.setViewMode(TerminalViewMode.Conversation)
+        testScheduler.runCurrent()
+        assertEquals("All done.", vm.uiState.value.keptAnswer?.text)
+        // Something live came up after all.
+        vm.contentShown()
+        testScheduler.runCurrent()
+        assertNull(vm.uiState.value.kept)
+        assertNull(vm.uiState.value.keptAnswer)
+    }
+
+    @Test
+    fun `a tab never opened here shows its last answer`() = runTest {
+        val state = away(screen = null, answer = "All done.").uiState.value
+        assertEquals("All done.", state.keptAnswer?.text)
+        assertFalse(state.offersView)
+    }
+
+    @Test
+    fun `a conversation read earlier says more than the last answer`() {
+        val kept = SavedAgentTab(screen = null, answer = LastAnswer("All done.", 5))
+        val state = TerminalUiState(
+            saved = kept,
+            offersConversation = true,
+            viewMode = TerminalViewMode.Conversation
+        )
+        assertEquals("All done.", state.keptAnswer?.text)
+        assertNull(state.copy(conversationRead = true).keptAnswer)
+        val terminal = state.copy(
+            conversationRead = true,
+            viewMode = TerminalViewMode.Terminal
+        )
+        assertEquals("All done.", terminal.keptAnswer?.text)
+    }
+
+    @Test
+    fun `a live tab has nothing kept in its place`() = runTest {
+        val (t, socket) = ready()
+        val record = t.session.state.value.activeRecord!!
+        t.env.agentTabs.answers.record(record.widgetId, mapOf("t1" to LastAnswer("Old answer.", 5)))
+        val vm = viewModel(t)
+        assertNull(vm.uiState.value.saved)
+        assertFalse(vm.uiState.value.keepsScreen)
+        socket.receive(
+            """{"t":"terminals","project":"storefront","terminals":[{"id":"t1","label":"Terminal 1","project":"storefront","cli":"claude"}]}"""
+        )
+        testScheduler.runCurrent()
+        assertTrue(vm.uiState.value.keepsScreen)
     }
 
     @Test
@@ -267,5 +394,9 @@ class TerminalViewModelTest {
         testScheduler.runCurrent()
         assertEquals("Terminal 1", vm.uiState.value.terminal?.label)
         assertNull(vm.uiState.value.statusLine)
+    }
+
+    private companion object {
+        const val CONVERSATION = "agentConversation"
     }
 }

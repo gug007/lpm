@@ -99,7 +99,7 @@ fn codex_payload<'a>(record: &'a Value, payload_type: &str) -> Option<&'a Value>
     (payload.get("type").and_then(Value::as_str) == Some(payload_type)).then_some(payload)
 }
 
-fn codex_rollout_path(home: &Path, session_id: &str) -> Option<PathBuf> {
+pub(crate) fn codex_rollout_path(home: &Path, session_id: &str) -> Option<PathBuf> {
     for database in codex_state_databases(home) {
         let Ok(Some(recorded)) = codex_rollout_from_database(home, &database, session_id) else {
             continue;

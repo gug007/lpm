@@ -64,6 +64,7 @@ function info(p: Project): ProjectInfo {
     seenEntries: seenStatusEntries(p.name),
     parentName: p.parentName,
     worktree: p.worktree,
+    worktreeBranch: p.worktreeBranch,
     isRemote: p.remote,
   };
 }

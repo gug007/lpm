@@ -90,16 +90,25 @@ The command validates the entry before saving it and exits 2 if anything is wron
 | `ciFailed` | CI fails on a commit pushed from this computer (needs `gh` signed in) | `--branches main,release` |
 | `serviceCrashed` | One of the project's services exits with an error code; noticed within a minute | `--services api,worker` |
 | `agentFinished` | An agent in a terminal finishes its turn | `--from docs-site,web` for agents in other projects; the default is the automation's own project |
+| `prReviewed` | A pull request the user opened gets a request for changes or comments on its lines (needs `gh`, or `glab` for GitLab, signed in) | `--branches main` for pull requests into those branches |
+| `prOpened` | A pull request is opened in the project's repository, or a draft becomes ready for review (same CLIs) | `--branches main` for pull requests into those branches |
 
-- `--at-most commit` (the default) runs once for each commit the event is about: the failing commit for CI, the project's current commit otherwise. `--at-most day` runs once a day. A folder without Git counts each day as one commit.
+- `--at-most commit` (the default) runs once for each commit the event is about: the failing commit for CI, each review for `prReviewed`, each pull request for `prOpened`, the project's current commit otherwise. `--at-most day` runs once a day. A folder without Git counts each day as one commit.
 - A `ciFailed` automation at `--at-most commit` stops after 3 runs in a row for failures on the same branch, so a run whose pushed fix fails CI too can't keep starting the next. Its history then shows `skipped-ci-rounds`, and it reacts again once CI passes on that branch (or lpm restarts).
+- Pull requests are checked every two minutes while an automation listens, and what came in before lpm was running starts nothing. Only people with write access to the repository and bots count, never the user's own comments (an agent replies as them), and an approval on its own asks for nothing. On a repository the user can't push to, its members' reviews of the user's pull requests count, and nothing is opened but the user's own. A pull request opened while one of the automation's own runs was going doesn't start it again. A review that arrives while the automation's last run is going waits for it to end.
+- A `prReviewed` or `prOpened` run works in the copy that already has the pull request's branch checked out, unless `--duplicate` makes it a copy of its own. With neither, it runs in the project, and the agent is told to use a Git worktree rather than switch the checkout's branch.
+- A `prReviewed` automation at `--at-most commit` stops after 3 runs in a row that only bots answered, so one a review bot replies to can't keep starting itself. Its history then shows `skipped-review-rounds`, and it reacts again once a person reviews that pull request (or lpm restarts).
+- Of the computers in `--machines`, the first one that's on reacts to a pull request.
 - An automation started by `agentFinished` runs a `--prompt` or a `--cmd`, not an `--action`: the action's agent would finish and start it again.
-- A run started by an event gets `LPM_TRIGGER=event`, `LPM_EVENT`, `LPM_EVENT_PROJECT`, `LPM_EVENT_SUMMARY`, and where they apply `LPM_EVENT_BRANCH`, `LPM_EVENT_COMMIT`, `LPM_EVENT_SERVICE`, `LPM_EVENT_EXIT_CODE`, `LPM_EVENT_AGENT`, `LPM_EVENT_URL` and `LPM_EVENT_DETAIL` (what a Fix with agent would be told about the failing checks, or the agent's answer). A `--prompt` run's agent is told the same at the top of its prompt.
+- A run started by an event gets `LPM_TRIGGER=event`, `LPM_EVENT`, `LPM_EVENT_PROJECT`, `LPM_EVENT_SUMMARY`, and where they apply `LPM_EVENT_BRANCH`, `LPM_EVENT_COMMIT`, `LPM_EVENT_SERVICE`, `LPM_EVENT_EXIT_CODE`, `LPM_EVENT_AGENT`, `LPM_EVENT_URL`, `LPM_EVENT_PR` (the pull request's number), `LPM_EVENT_ON_BRANCH` (`1` when the run is in a checkout on the pull request's branch) and `LPM_EVENT_DETAIL` (what a Fix with agent would be told about the failing checks, the agent's answer, or the reviews). A `--prompt` run's agent is told the same at the top of its prompt.
 - A global automation with no project reacts to that event in any project.
 
 ```bash
 lpm automations add fix-ci --label "Fix CI" --on ciFailed --branches main \
   --duplicate worktree --prompt "Make the failing checks pass and push the fix." --agent claude
+
+lpm automations add address-reviews --label "Address reviews" --on prReviewed \
+  --prompt "Make the changes the reviewers asked for, run the tests, then commit and push." --agent claude
 ```
 
 ## What it runs

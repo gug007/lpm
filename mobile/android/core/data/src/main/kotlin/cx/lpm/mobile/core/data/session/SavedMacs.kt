@@ -106,6 +106,7 @@ internal class SavedMacs(private val s: MacSession) {
             credentials.delete(removed)
             s.env.prefs.remove(PreferenceKeys.pushRegistered(removed))
             s.env.snapshots.remove(removed)
+            s.env.agentTabs.remove(removed)
             s.link.forgetReach(removed)
         }
         s.mutableState.update { st ->

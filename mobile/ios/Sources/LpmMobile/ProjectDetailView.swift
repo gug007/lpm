@@ -18,6 +18,8 @@ struct ProjectDetail: View {
     @State private var gitScreens = ProjectGitScreens()
     @State private var usageRest = UsageRest()
     @State private var barAxis: CGFloat?
+    // The agent tabs kept from before, while the Mac is away and its list isn't here.
+    @State private var savedTabs: [TerminalInfo] = []
 
     // Current project object (fresh status/actions) from the store; falls back to
     // the one we were pushed with.
@@ -83,7 +85,11 @@ struct ProjectDetail: View {
                 }
             }
             if !terminalsLoaded {
-                ProjectTabsLoadingSection()
+                if savedTabs.isEmpty {
+                    ProjectTabsLoadingSection()
+                } else {
+                    SavedAgentTabsSection(tabs: savedTabs, onOpen: { openTerminal = $0 })
+                }
             } else if !isEmpty {
                 ProjectTabsSection(project: project.name, terminals: terminals, agents: agentByTerminal,
                                    creating: creating, renaming: $renaming,
@@ -199,6 +205,10 @@ struct ProjectDetail: View {
             model.loadBackgroundRuns(project.name)
             model.lastOpenedProject = project.name
             openPendingNewTab()
+        }
+        .task(id: "\(model.macAway)|\(terminalsLoaded)") {
+            let kept = model.macAway && !terminalsLoaded ? await model.savedAgentTabs(project.name) : []
+            if !Task.isCancelled { savedTabs = kept }
         }
         .onChange(of: model.pendingNewTab) { _, _ in openPendingNewTab() }
         .onChange(of: model.link.isReady) { _, ready in

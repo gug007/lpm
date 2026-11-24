@@ -35,6 +35,20 @@ class TerminalWebController internal constructor(private val post: (() -> Unit) 
     private var theme = TerminalPrefs.DefaultTheme
     private var ready = false
     private var announcedContent = false
+
+    // The page shows something live rather than a screen kept from before.
+    private var drawn = false
+    private var savedScreen: String? = null
+    private var shownSaved: String? = null
+
+    /** Counts what the page was sent live, for the screen to be kept once that goes quiet. */
+    internal var liveTick by mutableIntStateOf(0)
+        private set
+    private var keptTick = 0
+
+    // When what the page shows was last live, in millis.
+    private var lastLive = 0L
+
     private val feedBuffer = ByteArrayOutputStream()
     private var flushScheduled = false
 
@@ -105,6 +119,26 @@ class TerminalWebController internal constructor(private val post: (() -> Unit) 
         post(::flush)
     }
 
+    /**
+     * Show the screen kept from before, unless something live is already up. The Mac's
+     * seed starts the page over, so nothing of it outlasts the link coming back.
+     */
+    internal fun showSaved(saved: String?) {
+        savedScreen = saved
+        if (!ready || drawn || saved == null || saved == shownSaved) return
+        shownSaved = saved
+        surface?.evaluate(TerminalScripts.showSaved(saved)) { callbacks.onSavedScreenShow() }
+    }
+
+    /** Hands over the live screen, as the escape codes that draw it again, when it's news. */
+    internal fun keepScreen() {
+        val keep = callbacks.onScreen ?: return
+        if (!ready || !drawn || liveTick == keptTick) return
+        keptTick = liveTick
+        val at = lastLive
+        surface?.evaluate(TerminalScripts.SNAPSHOT) { keep(TerminalScripts.captured(it), at) }
+    }
+
     /** Submit a composed message via the page's bracketed-paste-aware helper. */
     fun submit(text: String) {
         surface?.evaluate(TerminalScripts.submit(text))
@@ -152,6 +186,8 @@ class TerminalWebController internal constructor(private val post: (() -> Unit) 
      */
     internal fun pageLost() {
         ready = false
+        drawn = false
+        shownSaved = null
         feedBuffer.reset()
         pendingSeed = null
         lastAppliedInsets = null
@@ -263,6 +299,7 @@ class TerminalWebController internal constructor(private val post: (() -> Unit) 
             evalSeed(data, cols)
         }
         flush()
+        showSaved(savedScreen)
     }
 
     /**
@@ -282,12 +319,20 @@ class TerminalWebController internal constructor(private val post: (() -> Unit) 
         val bytes = feedBuffer.toByteArray()
         feedBuffer.reset()
         surface?.evaluate(TerminalScripts.feed(bytes))
+        noteLive()
         announceContent()
     }
 
     private fun evalSeed(data: String, cols: Int) {
         surface?.evaluate(TerminalScripts.seed(data, cols))
+        noteLive()
         announceContent()
+    }
+
+    private fun noteLive() {
+        drawn = true
+        lastLive = System.currentTimeMillis()
+        liveTick++
     }
 
     private fun announceContent() {
@@ -316,6 +361,8 @@ internal class TerminalCallbacks(
     val onInput: (String) -> Unit = {},
     val onResize: (cols: Int, rows: Int) -> Unit = { _, _ -> },
     val onFirstContent: () -> Unit = {},
+    val onSavedScreenShow: () -> Unit = {},
+    val onScreen: ((text: String, at: Long) -> Unit)? = null,
     val onOpenPath: (paths: List<String>, line: Int) -> Unit = { _, _ -> },
     val onOpenUrl: (String) -> Unit = {},
     val onRevive: () -> Unit = {},

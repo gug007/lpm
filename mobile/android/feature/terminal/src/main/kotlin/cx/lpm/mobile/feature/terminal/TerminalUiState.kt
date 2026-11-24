@@ -1,6 +1,8 @@
 package cx.lpm.mobile.feature.terminal
 
 import cx.lpm.mobile.core.data.link.LinkStatusLine
+import cx.lpm.mobile.core.data.mac.LastAnswer
+import cx.lpm.mobile.core.data.terminals.SavedAgentTab
 import cx.lpm.mobile.core.data.terminals.TerminalEnding
 import cx.lpm.mobile.core.model.AgentPause
 import cx.lpm.mobile.core.model.AgentState
@@ -8,6 +10,7 @@ import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.LimitStop
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.TerminalInfo
+import cx.lpm.mobile.core.model.TerminalViewMode
 import cx.lpm.mobile.feature.terminal.settings.TerminalLook
 
 data class TerminalUiState(
@@ -31,7 +34,18 @@ data class TerminalUiState(
     val limitStop: LimitStop? = null,
     /** The Mac can move the tab's conversation to another of its Claude accounts. */
     val canSwitchAccount: Boolean = false,
+    /** The Mac lists the tab's conversation, so the screen can show that instead. */
+    val offersConversation: Boolean = false,
+    val viewMode: TerminalViewMode = TerminalViewMode.Terminal,
     val connectionReady: Boolean = true,
+    /** What the phone kept of the tab, while the Mac is away. */
+    val saved: SavedAgentTab? = null,
+    /** Something live has been on screen. */
+    val live: Boolean = false,
+    /** The conversation was read earlier, so there's one to show. */
+    val conversationRead: Boolean = false,
+    /** The tab's screen is kept for when the Mac is away. */
+    val keepsScreen: Boolean = false,
     /** Replaces the agent's timing under the title while the Mac isn't connected. */
     val statusLine: LinkStatusLine? = null,
     val look: TerminalLook = TerminalLook(),
@@ -44,6 +58,24 @@ data class TerminalUiState(
     /** Changes on a Mac switch, when a missing terminal is asked for again. */
     val activeMacId: String? = null
 ) {
+    /** What stands in for the terminal: nothing live came up and the Mac is away. */
+    val kept: SavedAgentTab? get() = saved?.takeUnless { live }
+
+    /** The last answer covers the terminal; a conversation read earlier says more. */
+    val keptAnswer: LastAnswer?
+        get() = kept?.answer?.takeIf {
+            !(showsConversation && conversationRead) &&
+                (viewMode == TerminalViewMode.Conversation || kept?.screen == null)
+        }
+
+    /** The "…" menu offers Terminal and Conversation. */
+    val offersView: Boolean
+        get() = offersConversation || (kept?.screen != null && kept?.answer != null)
+
+    /** The conversation covers the terminal. */
+    val showsConversation: Boolean
+        get() = offersConversation && viewMode == TerminalViewMode.Conversation
+
     /** The composer shows for a terminal this phone drives and whose process lives. */
     val showsComposer: Boolean get() = controlled && ended == null
 

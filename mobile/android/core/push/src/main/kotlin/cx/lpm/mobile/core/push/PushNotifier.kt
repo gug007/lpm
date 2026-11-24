@@ -6,6 +6,7 @@ import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationChannelGroupCompat
 import androidx.core.app.NotificationManagerCompat
 import cx.lpm.mobile.core.data.mac.CredentialStore
+import cx.lpm.mobile.core.data.mac.LastAnswers
 import cx.lpm.mobile.core.data.prefs.AppPreferences
 import cx.lpm.mobile.core.data.prefs.notificationPrefs
 import cx.lpm.mobile.core.data.push.DeliveredNote
@@ -41,6 +42,7 @@ class PushNotifier @Inject constructor(
     private val credentials: CredentialStore,
     private val session: MacSession,
     private val widget: AgentWidgetStore,
+    private val answers: LastAnswers,
     private val live: LiveNotifier,
     private val prefs: AppPreferences
 ) {
@@ -120,6 +122,7 @@ class PushNotifier @Inject constructor(
             return
         }
         widget.apply(payload)
+        answers.apply(payload)
         PushRecap.parse(payload)?.let { return post(it, data[COLLAPSE_ID]) }
         PushMacNotice.parse(payload)?.let { return post(it, data[COLLAPSE_ID]) }
         val alert = PushAlert.parse(payload) ?: return

@@ -171,13 +171,14 @@ pub(crate) const PER_MACHINE_KEYS: [&str; 13] = [
 
 /// Project YAML keys stripped before the portable digest and preserved locally on
 /// apply — the machine-specific parts a synced project must not carry between Macs.
-pub(crate) const PROJECT_LOCAL_KEYS: [&str; 6] = [
+pub(crate) const PROJECT_LOCAL_KEYS: [&str; 7] = [
     "root",
     "ssh",
     "claudeAccount",
     "claudeAccounts",
     "parent_name",
     "worktree",
+    "worktree_branch",
 ];
 
 /// Whole-file global config units mirrored by peer sync (settings.json among them,
@@ -338,7 +339,8 @@ mod tests {
                 "claudeAccount",
                 "claudeAccounts",
                 "parent_name",
-                "worktree"
+                "worktree",
+                "worktree_branch"
             ]
         );
         // A person's work status travels with the project file: the point of

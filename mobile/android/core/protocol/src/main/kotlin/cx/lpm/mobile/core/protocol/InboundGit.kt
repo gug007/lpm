@@ -8,6 +8,7 @@ import cx.lpm.mobile.core.model.GitBranch
 import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.GitDiffEntry
 import cx.lpm.mobile.core.model.GitDiffResult
+import cx.lpm.mobile.core.model.GitMergeRun
 import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.HistoryPage
 import cx.lpm.mobile.core.model.bool
@@ -16,6 +17,15 @@ import cx.lpm.mobile.core.model.list
 import cx.lpm.mobile.core.model.obj
 import cx.lpm.mobile.core.model.string
 import cx.lpm.mobile.core.model.strings
+
+private val CONFLICT_VERBS = listOf(
+    "gitMergeResolve",
+    "gitMergeStop",
+    "gitMergeAbort",
+    "gitMergeContinue",
+    "gitConflictTake",
+    "gitConflictResolved"
+)
 
 internal val gitParsers = parsers {
     put("git") { o ->
@@ -103,6 +113,12 @@ internal val gitParsers = parsers {
             error = o.failure("Couldn't discard the changes.")
         )
     }
+    for (verb in CONFLICT_VERBS) {
+        put(verb) { o ->
+            Inbound.GitConflict(o.str("project"), verb, o.failure("The Mac couldn't do it."))
+        }
+    }
+    put("gitMergeRun") { o -> Inbound.GitMergeStep(GitMergeRun.parse(o)) }
     put("git-changed") { o -> Inbound.GitChanged(o.str("project")) }
     put("gitHistory") { o ->
         Inbound.GitHistory(

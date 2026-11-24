@@ -19,6 +19,7 @@ import cx.lpm.mobile.core.model.endedServices
 import cx.lpm.mobile.core.model.isUp
 import cx.lpm.mobile.core.model.liveServiceNames
 import cx.lpm.mobile.core.model.projectAgentRows
+import java.time.Instant
 
 /** One terminal tab and what the agent in it reports (null for a plain shell). */
 data class TabEntry(val terminal: TerminalInfo, val agent: ProjectAgentRow?)
@@ -49,6 +50,9 @@ sealed interface DetailSubtitle {
     data class Link(val line: LinkStatusLine) : DetailSubtitle
 }
 
+/** The agent tabs kept from before, while the Mac is away: when they were last live. */
+data class SavedTabs(val tabs: List<TerminalInfo>, val lastSeen: Instant?, val macLabel: String)
+
 data class ProjectDetailUiState(
     val project: Project? = null,
     /** The status a person set leads the name, as in the projects list. */
@@ -67,6 +71,8 @@ data class ProjectDetailUiState(
     val queued: List<QueuedAction> = emptyList(),
     /** Null until the tab list loads: a skeleton, not "No Terminals". */
     val tabs: List<TabEntry>? = null,
+    /** Stands in for [tabs] while the Mac is away and they aren't known. */
+    val saved: SavedTabs? = null,
     /** A new tab is on its way: a placeholder row, and New tab waits. */
     val creating: Boolean = false,
     val services: List<ServiceEntry> = emptyList(),
@@ -111,6 +117,7 @@ data class ProjectDetailUiState(
 /** What the project screen reads besides the projects list. */
 data class DetailInputs(
     val terminals: List<TerminalInfo>? = null,
+    val saved: SavedTabs? = null,
     val creating: Boolean = false,
     val hasBackgroundRuns: Boolean = false,
     /** The Mac answers (or it's the demo): the title shows the project's state. */
@@ -148,6 +155,7 @@ fun ProjectsState.detail(
             live = inputs.live,
             queued = inputs.queued,
             tabs = terminals?.map { TabEntry(it, null) },
+            saved = inputs.saved.takeIf { terminals == null },
             hasBackgroundRuns = inputs.hasBackgroundRuns,
             canLaunchAgents = inputs.canLaunchAgents,
             canUseTabMenu = inputs.canUseTabMenu,
@@ -179,6 +187,7 @@ fun ProjectsState.detail(
         },
         queued = inputs.queued,
         tabs = terminals?.map { TabEntry(it, agents[it.id]) },
+        saved = inputs.saved.takeIf { terminals == null },
         creating = inputs.creating,
         services = project.allServices.map {
             ServiceEntry(

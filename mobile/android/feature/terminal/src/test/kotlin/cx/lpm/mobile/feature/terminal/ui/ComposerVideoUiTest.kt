@@ -72,7 +72,7 @@ class ComposerVideoUiTest {
                     onRemoveAttachment = {},
                     onCancelRewrite = {},
                     onPickSlash = {},
-                    mentions = MentionActions({}, {}, {}, {}, {}, {}),
+                    mentions = MentionActions({}, {}, {}, {}, {}, {}, {}),
                     onAnswerOff = { events += "off" }
                 ),
                 plusMenu = {},

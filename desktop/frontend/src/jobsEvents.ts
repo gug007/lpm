@@ -4,7 +4,7 @@
 
 import type { JobDraft } from "./jobsFormat";
 
-export type JobEventKind = "ciFailed" | "serviceCrashed" | "agentFinished";
+export type JobEventKind = "ciFailed" | "serviceCrashed" | "agentFinished" | "prReviewed" | "prOpened";
 export type JobEventLimit = "commit" | "day";
 
 export interface JobEventSchedule {
@@ -20,12 +20,22 @@ export const EVENT_OPTIONS: { value: JobEventKind; label: string }[] = [
   { value: "ciFailed", label: "CI fails" },
   { value: "serviceCrashed", label: "A service crashes" },
   { value: "agentFinished", label: "An agent finishes" },
+  { value: "prReviewed", label: "A PR gets a review" },
+  { value: "prOpened", label: "A PR is opened" },
 ];
 
-export const EVENT_LIMIT_OPTIONS: { value: JobEventLimit; label: string }[] = [
-  { value: "commit", label: "Once per commit" },
-  { value: "day", label: "Once a day" },
-];
+// What an event a commit doesn't tell apart counts by instead.
+const ONCE_PER: Partial<Record<JobEventKind, string>> = {
+  prReviewed: "Once per review",
+  prOpened: "Once per PR",
+};
+
+export function eventLimitOptions(on: JobEventKind): { value: JobEventLimit; label: string }[] {
+  return [
+    { value: "commit", label: ONCE_PER[on] ?? "Once per commit" },
+    { value: "day", label: "Once a day" },
+  ];
+}
 
 // What each event needs said about it under the editor's card.
 export const EVENT_NOTES: Record<JobEventKind, string> = {
@@ -33,7 +43,13 @@ export const EVENT_NOTES: Record<JobEventKind, string> = {
     "Follows commits pushed from this computer, with the GitHub CLI signed in. Once per commit, it stops after 3 runs in a row on a branch until CI passes there.",
   serviceCrashed: "Noticed within a minute of a service exiting with an error.",
   agentFinished: "Runs a prompt or a command: an action's own agent would start it again.",
+  prReviewed:
+    "Follows the pull requests you opened, checked every 2 minutes with the GitHub or GitLab CLI signed in. A request for changes or comments on lines start it, from someone with write access or a bot, never from you. It runs in the copy that has the branch checked out, and waits while its last run is still going. It stops after 3 runs in a row that only bots answer.",
+  prOpened:
+    "Checked every 2 minutes with the GitHub or GitLab CLI signed in. A draft counts once it's ready for review. Pull requests from people without write access don't start it.",
 };
+
+const isBranchEvent = (on: JobEventKind) => on === "ciFailed" || on === "prReviewed" || on === "prOpened";
 
 function isEventKind(value: unknown): value is JobEventKind {
   return EVENT_OPTIONS.some((o) => o.value === value);
@@ -46,13 +62,17 @@ function orWords(words: string[]): string {
 }
 
 // "When CI fails on main", "When api crashes", "When an agent finishes in
-// docs-site, once a day". lpm Link's AutomationFormat words it the same way.
+// docs-site, once a day", "When a PR into main gets a review". lpm Link's
+// AutomationFormat words it the same way.
 export function formatEvent(schedule: JobEventSchedule): string {
   let text: string;
   if (schedule.on === "ciFailed") {
     text = schedule.branches?.length ? `When CI fails on ${orWords(schedule.branches)}` : "When CI fails";
   } else if (schedule.on === "serviceCrashed") {
     text = schedule.services?.length ? `When ${orWords(schedule.services)} crashes` : "When a service crashes";
+  } else if (schedule.on === "prReviewed" || schedule.on === "prOpened") {
+    const pr = schedule.branches?.length ? `a PR into ${orWords(schedule.branches)}` : "a PR";
+    text = schedule.on === "prReviewed" ? `When ${pr} gets a review` : `When ${pr} is opened`;
   } else {
     text = schedule.from?.length
       ? `When an agent finishes in ${orWords(schedule.from)}`
@@ -79,14 +99,14 @@ function readNames(value: unknown): string[] {
 // The filter the chosen event uses, and only that one.
 function eventFilters(draft: JobDraft): Pick<JobEventSchedule, "branches" | "services" | "from"> {
   const names = splitNames(
-    draft.eventOn === "ciFailed"
+    isBranchEvent(draft.eventOn)
       ? draft.eventBranches
       : draft.eventOn === "serviceCrashed"
         ? draft.eventServices
         : draft.eventFrom,
   );
   if (names.length === 0) return {};
-  if (draft.eventOn === "ciFailed") return { branches: names };
+  if (isBranchEvent(draft.eventOn)) return { branches: names };
   if (draft.eventOn === "serviceCrashed") return { services: names };
   return { from: names };
 }

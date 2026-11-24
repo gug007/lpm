@@ -1,4 +1,4 @@
-package cx.lpm.mobile.feature.projects.list
+package cx.lpm.mobile.core.ui
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
@@ -50,7 +50,6 @@ import cx.lpm.mobile.core.designsystem.component.clickableTarget
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.AgentDialogOption
 import cx.lpm.mobile.core.model.AgentDialogRead
-import cx.lpm.mobile.feature.projects.R
 
 /** A waiting agent's question as its row shows it: what the Mac read, and how a pick went. */
 @Immutable
@@ -139,7 +138,7 @@ fun AgentAskCard(
             StatusLine(error, DesignR.drawable.ic_error, colors.red)
         } else if (ask.answered) {
             StatusLine(
-                stringResource(R.string.agent_ask_sent),
+                stringResource(R.string.ui_agent_ask_sent),
                 DesignR.drawable.ic_check,
                 colors.secondaryLabel
             )
@@ -164,7 +163,7 @@ private fun OptionButton(
     val haptics = LocalHapticFeedback.current
     val target = remember { TouchTarget() }
     val interaction = remember { MutableInteractionSource() }
-    val description = stringResource(R.string.agent_ask_option, option.key, option.label)
+    val description = stringResource(R.string.ui_agent_ask_option, option.key, option.label)
     Row(
         modifier = Modifier
             .clickableTarget(

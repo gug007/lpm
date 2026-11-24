@@ -2,7 +2,7 @@ package cx.lpm.mobile.core.protocol
 
 import kotlinx.serialization.json.put
 
-/** The review's extras: secrets, branch scope, the PR review, check logs, saving a file. */
+/** The review's extras: secrets, branch scope, the PR review, issues, check logs, saving a file. */
 sealed interface WireGitExtras {
     fun gitScanSecrets(project: String, files: List<String>): String = frame("gitScanSecrets") {
         put("project", project)
@@ -20,6 +20,16 @@ sealed interface WireGitExtras {
 
     fun gitPrDiscussion(project: String): String = frame("gitPrDiscussion") {
         put("project", project)
+    }
+
+    fun gitIssues(project: String): String = frame("gitIssues") {
+        put("project", project)
+    }
+
+    fun gitIssue(project: String, number: Int, reqId: String): String = frame("gitIssue") {
+        put("project", project)
+        put("number", number)
+        put("reqId", reqId)
     }
 
     fun gitCheckLog(project: String, url: String): String = frame("gitCheckLog") {

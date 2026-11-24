@@ -5,9 +5,11 @@ import {
   FolderKanban,
   GitPullRequest,
   Globe,
+  Layers,
   LayoutGrid,
   ScanSearch,
   SquareTerminal,
+  Terminal,
 } from "lucide-react";
 import type { OsFeature } from "@/components/os-terminal/os-features";
 import type { OsNote } from "@/components/os-terminal/os-notes";
@@ -38,6 +40,16 @@ export const FEATURES: OsFeature[] = [
     icon: SquareTerminal,
     title: "Git Bash, already in the right folder",
     body: "New tabs open in the project folder with Git Bash as your login shell, so the bash commands in your README work as written, with tabs, split panes and search around them.",
+  },
+  {
+    icon: Layers,
+    title: "Projects inside WSL",
+    body: "Add a project → WSL folder, pick a distro, and the folder's services, terminals, agents and Git run inside it, on the Linux path, where its dependencies and file watching work.",
+  },
+  {
+    icon: Terminal,
+    title: "The shell you like for terminals",
+    body: "Open a plain terminal in PowerShell, Command Prompt, Git Bash or a WSL distro. Set the default under Settings → Terminal → Shell, or per project with terminal: { shell }. Services, actions and agents keep the login shell.",
   },
   {
     icon: Bot,
@@ -73,7 +85,7 @@ export const FEATURES: OsFeature[] = [
 export const NOTES: OsNote[] = [
   {
     title: "Git for Windows comes first",
-    body: "Terminals, services and agents run in its Git Bash. Install it before lpm, or commands fail to start.",
+    body: "Services, agents and Git run in its Git Bash, and so do terminals unless you pick another shell. Install it before lpm, or commands fail to start. WSL projects need it too.",
   },
   {
     title: "A beta that isn't code-signed yet",
@@ -109,7 +121,12 @@ export const FAQS: FaqItem[] = [
   {
     question: "Does lpm need WSL?",
     answer:
-      "No. lpm runs on Windows itself and sends every terminal, service and agent through Git Bash, the bash that comes with Git for Windows.",
+      "No, but it can work inside it. lpm runs on Windows itself and sends every terminal, service and agent through Git Bash, the bash that comes with Git for Windows. If your code is in a WSL distro, add it with + → WSL folder: its services, terminals, agents and Git then run in that distro, on its Linux path. Git for Windows is still required.",
+  },
+  {
+    question: "Can lpm open terminals in PowerShell or cmd?",
+    answer:
+      "Yes, for plain terminals. Pick PowerShell, Command Prompt, Git Bash or a WSL distro from the Shell menu beside Open Terminal, or set the default under Settings → Terminal → Shell. Services, actions and agents keep Git Bash, so their commands stay the same for everyone.",
   },
   {
     question: "Why does lpm need Git for Windows?",

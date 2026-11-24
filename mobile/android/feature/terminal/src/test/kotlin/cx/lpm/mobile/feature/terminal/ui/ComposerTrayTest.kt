@@ -64,6 +64,7 @@ class ComposerTrayTest {
                     actions = ComposerNoticeActions(
                         onDismissWarning = { events += "dismiss-warning" },
                         onDismissCommandNotice = { events += "dismiss-command" },
+                        onDismissIssueError = { events += "dismiss-issue" },
                         onDismissRewriteError = { events += "dismiss-rewrite" },
                         onDismissUploadError = { events += "dismiss-upload" },
                         onDismissRestore = { events += "dismiss-restore" },
@@ -122,6 +123,13 @@ class ComposerTrayTest {
         compose.onNodeWithText("Open Drafts").assertDoesNotExist()
         compose.onNodeWithText("Still uploading", substring = true).performClick()
         assertEquals(listOf("dismiss-warning"), events)
+    }
+
+    @Test
+    fun `an issue that couldn't be read says so`() {
+        notices(ComposerUiState(issueError = "There's no issue #9 in this repository."))
+        compose.onNodeWithText("There's no issue #9 in this repository.").performClick()
+        assertEquals(listOf("dismiss-issue"), events)
     }
 
     @Test

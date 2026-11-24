@@ -14,9 +14,10 @@ export default function Hero() {
           Schedule Claude Code and Codex to run on their own.
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-pretty text-base leading-relaxed text-gray-600 sm:text-[17px] dark:text-gray-400">
-          Give an agent a prompt and a schedule: every night, on weekdays, or
-          every few hours. lpm runs it in your project, a fresh copy, or a Git
-          worktree, and keeps every answer ready to read and reply to.
+          Give an agent a prompt and a schedule: every night, on weekdays,
+          every few hours, or when CI fails. lpm runs it in your project, a
+          fresh copy, or a Git worktree, and keeps every answer ready to read
+          and reply to.
         </p>
 
         <div className="mt-[clamp(1.25rem,3vh,1.75rem)] flex justify-center">

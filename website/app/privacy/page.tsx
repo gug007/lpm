@@ -33,7 +33,7 @@ export default function PrivacyPage() {
         Privacy Policy
       </h1>
       <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-        Last updated: November 20, 2026
+        Last updated: November 23, 2026
       </p>
 
       <section className="mt-10 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
@@ -186,6 +186,12 @@ export default function PrivacyPage() {
             the phone.
           </li>
           <li>
+            So you can read an agent&rsquo;s tab while your computer is asleep
+            or out of reach, the app keeps each tab&rsquo;s last screen and last
+            answer on the phone. They are left out of backups, and deleted when
+            you remove that computer from the app.
+          </li>
+          <li>
             The pairing credential is stored in the iOS Keychain on your device.
           </li>
           <li>No account is required.</li>
@@ -240,6 +246,12 @@ export default function PrivacyPage() {
             </a>
             . lpm turns off Tailscale&rsquo;s own logging, so its logs stay on
             the phone.
+          </li>
+          <li>
+            So you can read an agent&rsquo;s tab while your computer is asleep
+            or out of reach, the app keeps each tab&rsquo;s last screen and last
+            answer on the phone. They are left out of backups, and deleted when
+            you remove that computer from the app.
           </li>
           <li>
             The pairing credential is encrypted with a key in the Android

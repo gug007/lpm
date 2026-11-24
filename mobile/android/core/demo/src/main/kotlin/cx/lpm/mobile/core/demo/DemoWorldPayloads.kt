@@ -148,6 +148,8 @@ internal fun DemoWorld.gitSnapshotPayload(project: String): Dict {
         "files" to r.files.map(::gitFileDict)
     )
     r.autoPulled?.let { d["autoPulled"] = it }
+    r.issueByBranch[r.branch]?.let { d["issue"] = it }
+    r.merge?.let { d["merge"] = gitMergeDict(it) }
     return d
 }
 

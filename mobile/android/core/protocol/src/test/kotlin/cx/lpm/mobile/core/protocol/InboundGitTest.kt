@@ -7,6 +7,7 @@ import cx.lpm.mobile.core.model.GitAutoStep
 import cx.lpm.mobile.core.model.GitBranch
 import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitMergeMethod
+import cx.lpm.mobile.core.model.RepoIssue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -277,6 +278,37 @@ class InboundGitTest {
         assertEquals(
             Inbound.GitChanged("a"),
             Inbound.parse("""{ "t": "git-changed", "project": "a" }""")
+        )
+    }
+
+    @Test
+    fun gitIssues() {
+        assertEquals(
+            RepoIssuesReply("a", listOf(RepoIssue(45, "Cart badge", listOf("bug")))),
+            Inbound.parse(
+                """{ "t": "gitIssues", "project": "a", "ok": true, "issues": [
+                     { "number": 45, "title": "Cart badge", "url": "https://x/45", "author": "p",
+                       "labels": ["bug"], "branch": "45-cart-badge" }, { "title": "no number" }] }"""
+            )
+        )
+        assertEquals(
+            RepoIssuesReply("a", null),
+            Inbound.parse("""{ "t": "gitIssues", "project": "a", "ok": false, "error": "no gh" }""")
+        )
+    }
+
+    @Test
+    fun gitIssue() {
+        assertEquals(
+            RepoIssueReply("r1", "Issue #45:", null),
+            Inbound.parse(
+                """{ "t": "gitIssue", "project": "a", "number": 45, "reqId": "r1", "ok": true,
+                     "issue": { "number": 45, "mention": "Issue #45:", "prompt": "Work on it" } }"""
+            )
+        )
+        assertEquals(
+            RepoIssueReply("r2", null, "Couldn't read the issue."),
+            Inbound.parse("""{ "t": "gitIssue", "project": "a", "number": 45, "reqId": "r2" }""")
         )
     }
 

@@ -1,26 +1,18 @@
 package cx.lpm.mobile.feature.git.review
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -40,11 +32,6 @@ import cx.lpm.mobile.feature.git.R
 internal fun ReviewSummary(row: ReviewRow.Summary, modifier: Modifier = Modifier) {
     val colors = LpmTheme.colors
     val done = row.total > 0 && row.viewed == row.total
-    val progress by animateFloatAsState(
-        targetValue = row.viewed.toFloat() / row.total.coerceAtLeast(1),
-        animationSpec = tween(PROGRESS_MS),
-        label = "viewed"
-    )
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -99,22 +86,6 @@ internal fun ReviewSummary(row: ReviewRow.Summary, modifier: Modifier = Modifier
             }
         }
         Spacer(Modifier.height(10.dp))
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(4.dp)
-                .clip(CircleShape)
-                .background(colors.tertiarySystemFill)
-        ) {
-            Box(
-                Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(progress)
-                    .clip(CircleShape)
-                    .background(colors.green)
-            )
-        }
+        ReviewProgressBar(row.viewed, row.total)
     }
 }
-
-private const val PROGRESS_MS = 250

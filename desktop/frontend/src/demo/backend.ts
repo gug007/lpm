@@ -15,6 +15,7 @@ import { keepAwakeCommands } from "./commands/keepAwake";
 import { lpmCommandCommands } from "./commands/lpmCommands";
 import { notesCommands } from "./commands/notes";
 import { projectCommands } from "./commands/projects";
+import { issueCommands } from "./commands/issues";
 import { pullRequestCommands } from "./commands/pullRequest";
 import { reminderCommands } from "./commands/reminders";
 import { serviceCommands } from "./commands/services";
@@ -36,6 +37,7 @@ export const HANDLERS: CommandMap = {
   ...terminalCommands,
   ...statusCommands,
   ...gitCommands,
+  ...issueCommands,
   ...pullRequestCommands,
   ...historyCommands,
   ...portCommands,

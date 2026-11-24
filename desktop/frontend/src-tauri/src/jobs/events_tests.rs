@@ -17,7 +17,7 @@ fn an_event_resolves_with_its_filters_and_a_commit_by_default() {
 
 #[test]
 fn an_unknown_event_or_limit_is_named_back() {
-    assert!(resolve(&sched("on: prOpened")).unwrap_err().contains("\"prOpened\""));
+    assert!(resolve(&sched("on: prMerged")).unwrap_err().contains("\"prMerged\""));
     assert!(resolve(&sched("on: ciFailed\natMost: hour")).unwrap_err().contains("\"hour\""));
 }
 
@@ -33,8 +33,11 @@ fn an_event_takes_no_clock() {
 fn a_filter_belongs_to_its_own_event() {
     assert_eq!(
         resolve(&sched("on: agentFinished\nbranches: [main]")).unwrap_err(),
-        "Branches go with ciFailed."
+        "Branches go with ciFailed, prReviewed and prOpened."
     );
+    let into = resolve(&sched("on: prReviewed\nbranches: [main]")).unwrap();
+    assert_eq!((into.kind, into.branches), (EventKind::PrReviewed, vec!["main".to_string()]));
+    assert!(resolve(&sched("on: prOpened\nservices: [api]")).is_err());
     assert_eq!(
         resolve(&sched("on: ciFailed\nservices: [api]")).unwrap_err(),
         "Services go with serviceCrashed."

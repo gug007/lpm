@@ -479,6 +479,12 @@ of the tab. Exits with the command's exit code; stopping lpm exec stops the comm
         /// Prompt to send to the queued action/command.
         #[arg(long)]
         prompt: Option<String>,
+        #[arg(
+            long,
+            value_name = "NUMBER",
+            help = "Start from this open GitHub or GitLab issue: the branch is named from it, its pull request closes it, and --run or --command gets it as the prompt unless --prompt is given"
+        )]
+        issue: Option<u64>,
         /// Reinstall dependencies in each worktree.
         #[arg(long)]
         reinstall_deps: bool,
@@ -751,6 +757,7 @@ fn main() -> ExitCode {
             run.as_deref(),
             command.as_deref(),
             prompt.as_deref(),
+            None,
             exclude_uncommitted_override(exclude_uncommitted, include_uncommitted),
             reinstall_deps,
             no_pull,
@@ -764,6 +771,7 @@ fn main() -> ExitCode {
             run,
             command,
             prompt,
+            issue,
             reinstall_deps,
             json,
         } => duplicate::run(
@@ -776,6 +784,7 @@ fn main() -> ExitCode {
             run.as_deref(),
             command.as_deref(),
             prompt.as_deref(),
+            issue,
             None,
             reinstall_deps,
             false,

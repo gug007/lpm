@@ -3,6 +3,7 @@ package cx.lpm.mobile.feature.git.pr
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
@@ -26,6 +27,7 @@ class GitPrSheetTest {
                 onDismiss = { events += "dismiss" },
                 onTitle = { events += "title $it" },
                 onBody = { events += "body $it" },
+                onCloseIssue = { events += "close $it" },
                 onGenerate = { events += "generate" },
                 onCreate = { events += "create" }
             )
@@ -52,6 +54,21 @@ class GitPrSheetTest {
         compose.onNodeWithText("Redesign the checkout flow").assertExists()
         compose.onNodeWithText("Create").assertIsEnabled().performClick()
         assertEquals(listOf("create"), events)
+    }
+
+    @Test
+    fun aBranchStartedFromAnIssueOffersToCloseIt() {
+        show(GitPrUiState(title = "T", issue = 38))
+        compose.onNodeWithText("Adds “Closes #38” to the description.").assertExists()
+        compose.onNodeWithText("Close #38 on merge").assertExists()
+        compose.onNodeWithContentDescription("Close #38 on merge").performClick()
+        assertEquals(listOf("close false"), events)
+    }
+
+    @Test
+    fun anyOtherBranchHasNothingToClose() {
+        show(GitPrUiState(title = "T"))
+        compose.onNodeWithText("on merge", substring = true).assertDoesNotExist()
     }
 
     @Test

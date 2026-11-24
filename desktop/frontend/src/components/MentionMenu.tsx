@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { Brain, Copy, File, FileDiff, Folder, FolderGit2, GitBranch, GitCommitHorizontal, GitCompare, GitPullRequest, Monitor, Plus, ScrollText, SquareTerminal, type LucideIcon } from "lucide-react";
+import { Brain, CircleDot, Copy, File, FileDiff, Folder, FolderGit2, GitBranch, GitCommitHorizontal, GitCompare, GitPullRequest, Monitor, Plus, ScrollText, SquareTerminal, type LucideIcon } from "lucide-react";
 import type { MentionItem, MentionKind } from "../mentions";
 
 const GAP = 6;
@@ -23,6 +23,7 @@ const KIND_LABEL: Record<MentionKind, string> = {
   diff: "diff",
   commit: "commit",
   pr: "pull request",
+  issue: "issue",
   computer: "computer",
 };
 
@@ -40,6 +41,7 @@ const KIND_ICON: Record<MentionKind, LucideIcon> = {
   diff: GitCompare,
   commit: GitCommitHorizontal,
   pr: GitPullRequest,
+  issue: CircleDot,
   computer: Monitor,
 };
 
@@ -157,7 +159,7 @@ export function MentionMenu({
                 item.kind === "memory-save"
                   ? "min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--accent-purple)]"
                   : `truncate font-mono text-[13px] text-[var(--text-primary)] ${
-                      item.detail ? "shrink-0" : "min-w-0 flex-1"
+                      item.detail ? "min-w-0" : "min-w-0 flex-1"
                     }`
               }
             >

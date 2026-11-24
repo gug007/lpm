@@ -2,7 +2,7 @@ export const FAQS = [
   {
     question: "How do I schedule Claude Code tasks?",
     answer:
-      "Open Automations in lpm and create a job. Write the prompt, pick Claude Code and a model, and choose when it runs: every day, on certain days, on an interval, or only when you start it. Each run happens in the background with no terminal tab to keep open, and the answer lands in the job's history, ready to read and reply to. lpm is free and open source.",
+      "Open Automations in lpm and create a job. Write the prompt, pick Claude Code and a model, and choose when it runs: every day, on certain days, on an interval, when something happens, or only when you start it. Each run happens in the background with no terminal tab to keep open, and the answer lands in the job's history, ready to read and reply to. lpm is free and open source.",
   },
   {
     question: "Is this a cron job for Claude Code? Do I need crontab?",
@@ -37,6 +37,11 @@ export const FAQS = [
   {
     question: "Can a script or another agent trigger an automation?",
     answer:
-      "Yes. The lpm CLI can list automations, run or stop one, pause or resume it, print its history or live output, and reply to an AI job's conversation, with --json for output scripts can parse. The desktop app must be running, and the CLI doesn't create or edit jobs.",
+      "Yes. The lpm CLI can list, create, edit, run and stop automations, pause or resume one, print its history or live output, and reply to an AI job's conversation, with --json for output scripts can parse. The desktop app must be running.",
+  },
+  {
+    question: "Can an automation start when CI fails or a service crashes?",
+    answer:
+      "Yes. Set its When to Event and pick CI fails, A service crashes or An agent finishes. CI follows the commits you push from this computer, with the GitHub CLI signed in. A crash is noticed within a minute. When an agent finishes, the job can run a prompt or a command, not an action. Each job reacts once per commit, or once a day, and a CI job stops after three runs in a row on a branch until CI passes there. Like every automation, it runs while lpm is open and your computer is awake, on local projects.",
   },
 ];

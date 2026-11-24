@@ -53,6 +53,12 @@
 {"at": 600, "frame": {"t": "gitScanSecrets", "project": "nope", "files": ["lib/payments.ts"]}}
 {"at": 600, "frame": {"t": "gitBranchFiles", "project": "nope"}}
 {"at": 600, "frame": {"t": "gitPrDiscussion", "project": "nope"}}
+{"at": 600, "frame": {"t": "gitIssues", "project": "storefront"}}
+{"at": 600, "frame": {"t": "gitIssues", "project": "blog"}}
+{"at": 600, "frame": {"t": "gitIssue", "project": "storefront", "number": 45, "reqId": "issue-45"}}
+{"at": 600, "frame": {"t": "gitIssue", "project": "storefront", "number": 38, "reqId": "issue-38"}}
+{"at": 600, "frame": {"t": "gitIssue", "project": "storefront", "number": 9, "reqId": "issue-9"}}
+{"at": 600, "frame": {"t": "gitIssue", "project": "blog", "number": 45, "reqId": "issue-blog"}}
 {"at": 600, "frame": {"t": "gitBranchDiffs", "project": "storefront", "paths": ["components/CheckoutForm.tsx", "nope.ts"]}}
 {"at": 600, "frame": {"t": "gitBranchDiffs", "project": "blog", "paths": ["README.md"]}}
 {"at": 600, "frame": {"t": "gitCheckLog", "project": "storefront", "url": "https://github.com/example/storefront/actions/runs/7001/job/1"}}
@@ -221,6 +227,7 @@
 {"at": 3800, "frame": {"t": "claim", "id": "demo-storefront-1"}}
 {"at": 3800, "frame": {"t": "keepAwakeSet", "mode": "always"}}
 {"at": 3850, "frame": {"t": "keepAwakeSet", "mode": "extend", "minutes": 60}}
+{"at": 3900, "frame": {"t": "conversationWatch", "id": "demo-storefront-claude", "project": "storefront"}}
 {"at": 3900, "frame": {"t": "keepAwakeSet", "mode": "off"}}
 {"at": 4000, "frame": {"t": "sub", "id": "demo-storefront-claude"}}
 {"at": 4000, "frame": {"t": "keepAwakeSet", "mode": "agents"}}
@@ -369,6 +376,15 @@
 {"at": 47100, "frame": {"t": "agentDialog", "project": "storefront", "terminalId": "demo-storefront-claude"}}
 {"at": 47100, "frame": {"t": "sub", "id": "demo-storefront-claude"}}
 {"at": 47200, "frame": {"t": "unsub", "id": "demo-storefront-claude"}}
+{"at": 47200, "frame": {"t": "conversationUnwatch", "id": "demo-storefront-claude"}}
+{"at": 47300, "frame": {"t": "conversationWatch", "id": "demo-storefront-claude", "project": "storefront"}}
+{"at": 47300, "frame": {"t": "conversationUnwatch", "id": "demo-storefront-claude"}}
+{"at": 47300, "frame": {"t": "conversationWatch"}}
+{"at": 47400, "frame": {"t": "conversationDetail", "id": "demo-storefront-claude", "project": "storefront", "item": "demo-storefront-claude/payments", "reqId": "c-payments"}}
+{"at": 47400, "frame": {"t": "conversationDetail", "id": "demo-storefront-claude", "project": "storefront", "item": "demo-storefront-claude/test", "reqId": "c-test"}}
+{"at": 47400, "frame": {"t": "conversationDetail", "id": "demo-storefront-claude", "project": "storefront", "item": "demo-storefront-claude/done", "reqId": "c-done"}}
+{"at": 47400, "frame": {"t": "conversationDetail", "id": "demo-storefront-claude", "project": "storefront", "item": "demo-storefront-claude/nope", "reqId": "c-nope"}}
+{"at": 47400, "frame": {"t": "conversationPage", "id": "demo-storefront-claude", "project": "storefront", "before": "demo-storefront-claude/ask", "reqId": "c-p"}}
 {"at": 48000, "frame": {"t": "gitCheckout", "project": "storefront", "branch": "main", "remote": ""}}
 {"at": 48000, "frame": {"t": "gitCheckout", "project": "storefront", "branch": "fix/cart-badge", "remote": ""}}
 {"at": 48500, "frame": {"t": "gitCheckout", "project": "storefront", "branch": "release", "remote": "origin"}}
@@ -736,4 +752,23 @@
 {"at": 79600, "frame": {"t": "terminals", "project": "storefront"}}
 {"at": 79700, "frame": {"t": "moveTerminal", "project": "storefront", "id": "demo-storefront-1", "to": "blog"}}
 {"at": 79700, "frame": {"t": "moveTerminal", "project": "storefront", "id": "nope", "to": "blog"}}
-{"at": 80000}
+{"at": 81000, "frame": {"t": "git", "project": "mobile-app"}}
+{"at": 81000, "frame": {"t": "gitMergeAbort", "project": "blog"}}
+{"at": 81100, "frame": {"t": "gitConflictTake", "project": "mobile-app", "path": "package.json", "side": "theirs"}}
+{"at": 81500, "frame": {"t": "gitConflictTake", "project": "mobile-app", "path": "package.json", "side": "ours"}}
+{"at": 81500, "frame": {"t": "gitConflictResolved", "project": "mobile-app", "path": "src/theme/colors.ts"}}
+{"at": 81500, "frame": {"t": "gitMergeContinue", "project": "mobile-app"}}
+{"at": 81500, "frame": {"t": "gitMergeStop", "project": "mobile-app"}}
+{"at": 81500, "frame": {"t": "gitCommit", "project": "mobile-app", "message": "x", "files": ["src/theme/colors.ts"]}}
+{"at": 82500, "frame": {"t": "gitMergeResolve", "project": "mobile-app"}}
+{"at": 83000, "frame": {"t": "gitMergeResolve", "project": "mobile-app"}}
+{"at": 83000, "frame": {"t": "gitMergeAbort", "project": "mobile-app"}}
+{"at": 83500, "frame": {"t": "git", "project": "mobile-app"}}
+{"at": 86500, "frame": {"t": "gitMergeStop", "project": "mobile-app"}}
+{"at": 91000, "frame": {"t": "git", "project": "mobile-app"}}
+{"at": 91500, "frame": {"t": "gitMergeResolve", "project": "mobile-app"}}
+{"at": 97000, "frame": {"t": "git", "project": "mobile-app"}}
+{"at": 97500, "frame": {"t": "gitMergeContinue", "project": "mobile-app"}}
+{"at": 98500, "frame": {"t": "git", "project": "mobile-app"}}
+{"at": 98500, "frame": {"t": "gitMergeAbort", "project": "mobile-app"}}
+{"at": 100000}

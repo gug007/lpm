@@ -73,6 +73,8 @@ export function MergeBranchDialog({
 
   const ai = useAIPicker(open, projectName);
   const conflicts = useMergeConflicts(projectPath, open && mode === "conflicts");
+  // Set on them from a phone, or from this window before it reloaded.
+  const elsewhere = aiBusy ? undefined : conflicts.state?.resolving;
 
   const excludeCurrent = useMemo(
     () => (b: main.Branch) => b.name !== currentBranch || !!b.remote,
@@ -198,7 +200,7 @@ export function MergeBranchDialog({
   };
 
   const resolveWithAI = async () => {
-    if (aiBusy || mode !== "conflicts") return;
+    if (aiBusy || elsewhere || mode !== "conflicts") return;
     setProgressLine("");
     try {
       await gen.run((genId) =>
@@ -246,7 +248,7 @@ export function MergeBranchDialog({
   };
 
   const abort = async () => {
-    if (aiBusy) return;
+    if (aiBusy || elsewhere) return;
     try {
       await GitAbortMerge(projectPath);
       toast.success("Merge aborted");
@@ -257,7 +259,7 @@ export function MergeBranchDialog({
     }
   };
 
-  const interactive = !busy && !aiBusy;
+  const interactive = !busy && !aiBusy && !elsewhere;
   const canMerge = !!source && !busy && excludeCurrent(source);
 
   const commitCountLabel = (() => {
@@ -411,11 +413,11 @@ export function MergeBranchDialog({
           projectPath={projectPath}
           conflicts={conflicts}
           interactive={interactive}
-          aiBusy={aiBusy}
-          progressLine={progressLine}
+          aiBusy={aiBusy || !!elsewhere}
+          progressLine={elsewhere?.line ?? progressLine}
           ai={ai}
           onResolveWithAI={resolveWithAI}
-          onCancelAI={gen.cancel}
+          onCancelAI={elsewhere ? conflicts.stopAI : gen.cancel}
           onAbort={abort}
           onContinue={continueMerge}
           onDone={onClose}

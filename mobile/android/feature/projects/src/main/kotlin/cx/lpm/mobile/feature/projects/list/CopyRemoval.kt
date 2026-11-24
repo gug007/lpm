@@ -42,8 +42,8 @@ fun unsavedWork(s: GitSnapshot): List<UnsavedWork> {
 }
 
 /**
- * The branch lpm made for a worktree, deleted with it. Mirrors projects_crud.rs
- * worktree_branch_name.
+ * The branch lpm made for a worktree, deleted with it, unless the project names
+ * another. Mirrors projects_crud.rs worktree_branch_name.
  */
 fun worktreeBranchName(name: String): String {
     val component = StringBuilder()
@@ -63,7 +63,7 @@ fun copyRemovalMessage(project: Project, check: CopyRemovalCheck?): String {
         stringResource(
             R.string.project_remove_worktree_message,
             project.label,
-            worktreeBranchName(project.name)
+            project.worktreeBranch ?: worktreeBranchName(project.name)
         )
     } else {
         stringResource(R.string.project_remove_message, project.label)

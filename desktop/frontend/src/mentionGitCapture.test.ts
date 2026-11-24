@@ -4,11 +4,13 @@ const changedFiles = vi.fn();
 const gitDiff = vi.fn();
 const showCommit = vi.fn();
 const discussion = vi.fn();
+const readIssue = vi.fn();
 vi.mock("../bridge/commands", () => ({
   GitChangedFiles: (...args: unknown[]) => changedFiles(...args),
   GitDiff: (...args: unknown[]) => gitDiff(...args),
   GitShowCommit: (...args: unknown[]) => showCommit(...args),
   PullRequestDiscussion: (...args: unknown[]) => discussion(...args),
+  ReadIssue: (...args: unknown[]) => readIssue(...args),
 }));
 
 import {
@@ -23,6 +25,7 @@ import type { MentionItem } from "./mentions";
 const diffItem: MentionItem = { kind: "diff", label: "Uncommitted changes", insert: "diff" };
 const commitItem: MentionItem = { kind: "commit", label: "a1f3c9e Add CSV export", insert: "a1f3c9e" };
 const prItem: MentionItem = { kind: "pr", label: "#212 Add CSV export", insert: "pr" };
+const issueItem: MentionItem = { kind: "issue", label: "#431 Retry failed webhooks", insert: "431" };
 
 const thread: PullRequestThread = {
   number: 212,
@@ -41,6 +44,7 @@ beforeEach(() => {
   gitDiff.mockReset();
   showCommit.mockReset();
   discussion.mockReset();
+  readIssue.mockReset();
 });
 
 describe("fencedBlock", () => {
@@ -88,6 +92,12 @@ describe("formatPullRequestThread", () => {
 });
 
 describe("captureGitMention", () => {
+  it("puts an issue in as the backend words it", async () => {
+    readIssue.mockResolvedValue({ mention: "Issue #431:\n```\nbody\n```\n" });
+    expect(await captureGitMention(issueItem, "/repo")).toBe("Issue #431:\n```\nbody\n```\n");
+    expect(readIssue).toHaveBeenCalledWith("/repo", 431);
+  });
+
   it("diffs every changed file into a diff block", async () => {
     changedFiles.mockResolvedValue([{ path: "a.ts" }, { path: "b.ts" }]);
     gitDiff.mockResolvedValue("diff --git a/a.ts b/a.ts\n+x\n");

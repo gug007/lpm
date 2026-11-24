@@ -198,6 +198,12 @@ pub fn peek_worktree(name: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// The branch lpm made for a worktree, when it isn't the one its name gives it
+/// (projects_crud.rs worktree_branch_name): a worktree started from an issue.
+pub fn peek_worktree_branch(name: &str) -> Option<String> {
+    own_worktree_branch(parse_project_yaml(name).ok()?.worktree_branch.as_ref())
+}
+
 /// The name the sidebar shows for a project, mirroring `projectDisplayName` in
 /// ProjectNameDisplay.tsx: its label, else a duplicate's parent label with the
 /// copy suffix kept, else the file name. Unknown names come back as given, so a
@@ -1285,6 +1291,10 @@ struct ProjectYaml {
     parent_name: String,
     #[serde(default)]
     worktree: bool,
+    /// Untyped like `claudeAccounts`: a hand-edited value that isn't a branch
+    /// name drops only the name, never the project.
+    #[serde(default)]
+    worktree_branch: Option<serde_norway::Value>,
     ssh: Option<SshSettings>,
     #[serde(rename = "claudeAccount", default)]
     claude_account: Option<String>,
@@ -1304,6 +1314,14 @@ struct ProjectYaml {
     /// here would fail the whole parse and drop the project from the sidebar.
     #[serde(default)]
     work_status: Option<serde_norway::Value>,
+}
+
+fn own_worktree_branch(value: Option<&serde_norway::Value>) -> Option<String> {
+    value
+        .and_then(serde_norway::Value::as_str)
+        .map(str::trim)
+        .filter(|b| !b.is_empty() && !b.starts_with('-'))
+        .map(str::to_string)
 }
 
 pub const WORK_STATES: [&str; 4] = ["in_progress", "blocked", "done", "custom"];
@@ -1416,10 +1434,37 @@ pub fn resolve_cwd(root: &str, cwd: &str) -> String {
 
 // ---- SSH command building (port of internal/config/config.go) ---------------
 
-/// Single-quote wrap, escaping embedded single quotes as '\''.
+/// For bash, zsh and fish alike, as `shellQuote` in terminal-io.ts. Fish also reads
+/// `\'` and `\\` inside single quotes, so a backslash it would take goes in double
+/// quotes, which they all read the same.
 pub fn shell_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\\''"))
+    let mut out = String::from("'");
+    let mut rest = s;
+    while let Some(at) = rest.find(['\'', '\\']) {
+        out.push_str(&rest[..at]);
+        rest = &rest[at..];
+        if let Some(after) = rest.strip_prefix('\'') {
+            out.push_str("'\\''");
+            rest = after;
+            continue;
+        }
+        let after = rest.trim_start_matches('\\');
+        let run = &rest[..rest.len() - after.len()];
+        if run.len() > 1 || after.is_empty() || after.starts_with('\'') {
+            out.push_str(&format!("'\"{}\"'", run.replace('\\', "\\\\")));
+        } else {
+            out.push_str(run);
+        }
+        rest = after;
+    }
+    out.push_str(rest);
+    out.push('\'');
+    out
 }
+
+#[cfg(test)]
+#[path = "shell_quote_tests.rs"]
+mod shell_quote_tests;
 
 /// /tmp/lpm-<uid> — short path keeps the ControlPath socket under sun_path's limit.
 #[cfg(unix)]
@@ -2662,6 +2707,9 @@ fn to_project_info(
         "worktree": yaml.worktree,
         "isRemote": is_remote,
     });
+    if let Some(branch) = own_worktree_branch(yaml.worktree_branch.as_ref()) {
+        info["worktreeBranch"] = json!(branch);
+    }
     let dropped = check::project_dropped_actions(file_name, &expand_home(&yaml.root), is_remote);
     if !dropped.is_empty() {
         info["actionErrors"] = json!(dropped);

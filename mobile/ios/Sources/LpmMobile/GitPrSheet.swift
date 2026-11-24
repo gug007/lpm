@@ -12,7 +12,10 @@ struct GitPrSheet: View {
     @State private var title = ""
     @State private var body_ = ""
     @State private var createdURL: String?
+    @State private var closeIssue = true
 
+    /// The issue the branch was started from, which the pull request closes.
+    private var issue: Int? { model.git.snapshots[name]?.issue }
     private var name: String { project.name }
     private var generating: Bool { model.git.generatingPr.contains(name) }
     private var creating: Bool { model.git.creatingPr.contains(name) }
@@ -87,6 +90,13 @@ struct GitPrSheet: View {
             } header: {
                 Text("Description")
             }
+            if let issue {
+                Section {
+                    Toggle("Close #\(String(issue)) on merge", isOn: $closeIssue)
+                } footer: {
+                    Text("Adds “Closes #\(String(issue))” to the description.")
+                }
+            }
             Section {
                 Button {
                     model.git.genPr(name)
@@ -128,6 +138,7 @@ struct GitPrSheet: View {
     private func create() {
         model.git.createPr(name,
                           title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                          body: body_)
+                          body: body_,
+                          closeIssue: issue == nil ? nil : closeIssue)
     }
 }

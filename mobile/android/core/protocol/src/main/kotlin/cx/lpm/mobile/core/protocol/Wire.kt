@@ -26,7 +26,8 @@ object Wire :
     WireMemory,
     WireNotes,
     WireCommands,
-    WireGitExtras {
+    WireGitExtras,
+    WireConversation {
     fun json(obj: JsonObject): String = obj.toString()
 
     /**

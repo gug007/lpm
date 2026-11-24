@@ -1423,7 +1423,8 @@ pub fn git_merge_conflicts(cwd: String) -> Vec<String> {
 
 #[tauri::command(async)]
 pub fn git_abort_merge(cwd: String) -> Result<(), String> {
-    git_out(&cwd, &["merge", "--abort"]).map(|_| ())
+    crate::gitresolve_run::check_idle(&cwd)?;
+    git_out(&cwd, &["merge", "--abort"]).map(|_| crate::gitmoved::announce(&cwd))
 }
 
 #[tauri::command(async)]
@@ -1457,12 +1458,19 @@ pub fn create_pull_request(
     body: String,
     base: String,
     draft: Option<bool>,
+    close_issue: Option<bool>,
 ) -> Result<String, String> {
     if title.trim().is_empty() {
         return Err("title required".into());
     }
     let branch = git_out(&cwd, &["rev-parse", "--abbrev-ref", "HEAD"])
         .map_err(|e| format!("failed to get current branch: {e}"))?;
+    let body = match crate::issue_branch::of_branch(&cwd, &branch) {
+        Some(issue) if close_issue.unwrap_or(true) => {
+            crate::issue_branch::with_closing(&body, issue)
+        }
+        _ => body,
+    };
     git_out(&cwd, &["push", "-u", "origin", &branch]).map_err(|e| format!("push failed: {e}"))?;
 
     if let Some(repo) = crate::githost::gitlab(&cwd) {

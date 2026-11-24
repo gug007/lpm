@@ -114,7 +114,7 @@ class GitOpsTest {
         assertEquals(GitPrDraft("T", "B"), git.state.value.prDraft["storefront"])
         git.consumePrDraft("storefront")
 
-        git.createPr("storefront", "T", "B")
+        git.createPr("storefront", "T", "B", closeIssue = null)
         assertTrue("storefront" in git.state.value.creatingPr)
         socket.reply("gitCreatePr", """"ok":true,"url":"https://x/1"""")
         settle()
@@ -122,7 +122,7 @@ class GitOpsTest {
         assertEquals("a created pull request refreshes the snapshot", 1, socket.sentOf("git").size)
         git.consumeCreatedPrUrl("storefront")
 
-        git.createPr("storefront", "T", "B")
+        git.createPr("storefront", "T", "B", closeIssue = null)
         socket.reply("gitCreatePr", """"ok":false,"error":"gh: not logged in"""")
         settle()
         assertEquals("gh: not logged in", git.state.value.prError["storefront"])
@@ -138,7 +138,7 @@ class GitOpsTest {
             "Draft generation timed out. Try again.",
             git.state.value.prError["storefront"]
         )
-        git.createPr("storefront", "T", "B")
+        git.createPr("storefront", "T", "B", closeIssue = null)
         settleAlive(socket, 120_000)
         assertEquals(
             "Pull request creation timed out. Try again.",

@@ -27,6 +27,9 @@ import kotlinx.coroutines.launch
 data class GitPrUiState(
     val title: String = "",
     val body: String = "",
+    /** The issue the branch was started from, which the pull request closes. */
+    val issue: Int? = null,
+    val closeIssue: Boolean = true,
     val generating: Boolean = false,
     val creating: Boolean = false,
     /** Set once the pull request exists: the sheet shows it with Open. */
@@ -39,6 +42,7 @@ data class GitPrUiState(
 private data class PrDraft(
     val title: String = "",
     val body: String = "",
+    val closeIssue: Boolean = true,
     val createdUrl: String? = null
 )
 
@@ -85,6 +89,8 @@ class GitPrViewModel @AssistedInject constructor(
     private fun build(g: GitState, d: PrDraft) = GitPrUiState(
         title = d.title,
         body = d.body,
+        issue = g.snapshots[project]?.issue,
+        closeIssue = d.closeIssue,
         generating = project in g.generatingPr,
         creating = project in g.creatingPr,
         createdUrl = d.createdUrl,
@@ -95,13 +101,16 @@ class GitPrViewModel @AssistedInject constructor(
 
     fun setBody(body: String) = draft.update { it.copy(body = body) }
 
+    fun setCloseIssue(on: Boolean) = draft.update { it.copy(closeIssue = on) }
+
     fun generate() {
         git?.genPr(project)
     }
 
     fun create() {
         val d = draft.value
-        git?.createPr(project, d.title.trim(), d.body)
+        val issue = git?.state?.value?.snapshots?.get(project)?.issue
+        git?.createPr(project, d.title.trim(), d.body, d.closeIssue.takeIf { issue != null })
     }
 
     fun dismissError() {

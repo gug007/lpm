@@ -13,6 +13,8 @@ import {
   GitPullRequestArrow,
   Laptop,
   Layers,
+  ListChecks,
+  Merge,
   MessageSquareText,
   MonitorSmartphone,
   MousePointerClick,
@@ -31,6 +33,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { OTHER_STATUS_AGENT_NAMES } from "@/lib/app-facts";
+import { docsPath } from "@/lib/docs-pages";
 import {
   AI_AGENTS_PATH,
   AUTOMATIONS_PATH,
@@ -172,7 +175,7 @@ export const FEATURE_INDEX: IndexGroup[] = [
     id: "ship",
     icon: GitMerge,
     title: "Review and ship",
-    blurb: "Check the diff, commit, open a PR.",
+    blurb: "Check the diff, open a PR, merge it.",
     items: [
       {
         icon: FileDiff,
@@ -185,6 +188,18 @@ export const FEATURE_INDEX: IndexGroup[] = [
         title: "AI commits and pull requests",
         body: "Your agent writes the message; one step can branch, commit, push and open a GitHub PR.",
         href: GIT_TERMINAL_MAC_PATH,
+      },
+      {
+        icon: ListChecks,
+        title: "CI alerts and fixes",
+        body: "Hear when CI fails on a commit you pushed, then re-run it or hand it to an agent.",
+        href: `${docsPath("review-and-git")}#ci`,
+      },
+      {
+        icon: Merge,
+        title: "Merge pull requests",
+        body: "Merge from the footer now, when checks pass, or past the rules if GitHub lets you.",
+        href: `${docsPath("review-and-git")}#merge`,
       },
       {
         icon: FolderTree,
@@ -204,7 +219,7 @@ export const FEATURE_INDEX: IndexGroup[] = [
       {
         icon: CalendarClock,
         title: "Automations",
-        body: "Schedule prompts, commands and actions. They fire only with lpm open on an awake computer.",
+        body: "Run prompts, commands and actions on a schedule, or when CI fails, a service crashes or an agent finishes. lpm has to be open on an awake computer.",
         href: AUTOMATIONS_PATH,
       },
       {

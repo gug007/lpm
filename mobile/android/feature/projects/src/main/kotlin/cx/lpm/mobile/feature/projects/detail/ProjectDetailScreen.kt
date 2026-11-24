@@ -214,6 +214,11 @@ private fun TabsSection(
 ) {
     val tabs = state.tabs
     if (tabs != null && state.isEmpty) return
+    val saved = state.saved
+    if (tabs == null && saved != null) {
+        SavedTabsSection(saved, onOpen = actions.openTerminal)
+        return
+    }
     ListSection(
         header = stringResource(ProjectsR.string.detail_tabs),
         spacing = ListSectionSpacing.Compact

@@ -3,6 +3,7 @@
 //! committing the merge once nothing is left.
 use crate::git::{git_command, git_out};
 use crate::gitconflict::{name_files, unmerged_files};
+use crate::gitresolve_run::{self, Resolving};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::Path;
@@ -27,6 +28,9 @@ pub struct MergeState {
     /// What is being merged in, as git named it in MERGE_MSG.
     pub source: String,
     pub files: Vec<ConflictFile>,
+    /// The AI at work on them, whoever set it on them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) resolving: Option<Resolving>,
 }
 
 const OPEN_MARKER: &str = "^<{7}( |$)";
@@ -35,6 +39,17 @@ fn spec(path: &str) -> String {
     format!(":(top,literal){path}")
 }
 
+/// The one file an action is about; git takes an empty path for the whole repository.
+fn one_file(cwd: &str, path: &str) -> Result<String, String> {
+    if path.is_empty() {
+        return Err("No file was named.".into());
+    }
+    gitresolve_run::check_idle(cwd)?;
+    Ok(spec(path))
+}
+
+/// Asked of git, never of the files: a commit that gets this wrong loses the merged
+/// branch as a parent.
 pub(crate) fn merging(cwd: &str) -> bool {
     git_out(cwd, &["rev-parse", "-q", "--verify", "MERGE_HEAD"]).is_ok()
 }
@@ -78,6 +93,7 @@ pub fn git_merge_state(cwd: String) -> MergeState {
         merging,
         source,
         files,
+        resolving: gitresolve_run::resolving(&cwd),
     }
 }
 
@@ -90,7 +106,7 @@ pub fn git_take_conflict_side(cwd: String, path: String, side: String) -> Result
         "theirs" => ("--theirs", "3"),
         _ => return Err(format!("unknown side {side:?}")),
     };
-    let spec = spec(&path);
+    let spec = one_file(&cwd, &path)?;
     let stages = git_out(&cwd, &["ls-files", "-u", "--", &spec])?;
     if stages.is_empty() {
         return Err(format!("{path} has no conflict to resolve"));
@@ -109,17 +125,19 @@ pub fn git_take_conflict_side(cwd: String, path: String, side: String) -> Result
 /// Stage a file whose conflicts were resolved by hand.
 #[tauri::command(async)]
 pub fn git_mark_conflict_resolved(cwd: String, path: String) -> Result<(), String> {
+    let spec = one_file(&cwd, &path)?;
     if marker_lines(&cwd, std::slice::from_ref(&path)).contains_key(&path) {
         return Err(format!(
             "{path} still has conflict markers (<<<<<<< … >>>>>>>). Resolve them first."
         ));
     }
-    git_out(&cwd, &["add", "-A", "--", &spec(&path)]).map(|_| ())
+    git_out(&cwd, &["add", "-A", "--", &spec]).map(|_| ())
 }
 
 /// Commit the merge with git's own message, once every file is resolved.
 #[tauri::command(async)]
 pub fn git_continue_merge(cwd: String) -> Result<(), String> {
+    gitresolve_run::check_idle(&cwd)?;
     let state = git_merge_state(cwd.clone());
     if !state.merging {
         return Err("No merge is in progress.".into());

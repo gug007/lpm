@@ -15,6 +15,7 @@ import {
 } from "../../bridge/commands";
 import { main } from "../../bridge/models";
 import { useAIPicker } from "../hooks/useAIPicker";
+import { useBranchIssue } from "../hooks/useBranchIssue";
 import { isCanceledError, useAIGeneration } from "../hooks/useAIGeneration";
 import { aiEffectiveFast } from "../types";
 import { saveSettings, useSettingsStore } from "../store/settings";
@@ -23,6 +24,7 @@ import { prefersDraftPr, rememberDraftPr } from "../store/prDraft";
 import { Tooltip } from "./ui/Tooltip";
 import { PRCreatedView } from "./PRCreatedView";
 import { BranchPicker } from "./BranchPicker";
+import { CloseIssueToggle } from "./CloseIssueToggle";
 import { CreatePRSplitButton } from "./CreatePRSplitButton";
 import { InstructionsChip } from "./InstructionsChip";
 import { GitCliMissing } from "./GitCliMissing";
@@ -70,6 +72,8 @@ export function PRModal({
   );
   const autoGenerate = useSettingsStore((s) => s.autoGeneratePRDescription ?? false);
   const [draft, setDraft] = useState(false);
+  const issue = useBranchIssue(projectPath, currentBranch, open);
+  const [closeIssue, setCloseIssue] = useState(true);
   const [prURL, setPrURL] = useState("");
 
   const titleRef = useRef<HTMLTextAreaElement>(null);
@@ -84,6 +88,7 @@ export function PRModal({
     setCommits([]);
     setBranches([]);
     setPrURL("");
+    setCloseIssue(true);
     setDraft(prefersDraftPr(projectName));
     setLoading(true);
 
@@ -255,6 +260,7 @@ export function PRModal({
         description.trim(),
         base,
         asDraft,
+        closeIssue,
       );
       setPrURL(url);
       rememberCreatedPr(projectPath, currentBranch, url, title.trim(), asDraft);
@@ -506,6 +512,14 @@ export function PRModal({
             )}
             {!prURL && (
               <InstructionsChip projectName={projectName} target="pr" backTitle={words.sentence} />
+            )}
+            {!prURL && issue !== null && (
+              <CloseIssueToggle
+                issue={issue}
+                checked={closeIssue}
+                disabled={busy}
+                onToggle={() => setCloseIssue(!closeIssue)}
+              />
             )}
           </span>
           <div className="flex gap-2">

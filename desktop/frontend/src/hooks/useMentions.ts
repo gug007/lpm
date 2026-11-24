@@ -4,6 +4,7 @@ import { useAppStore } from "../store/app";
 import { useBranchPr } from "../store/branchPr";
 import { isDuplicate, type ProjectInfo } from "../types";
 import { mentionGroup, rankMentions, type MentionItem } from "../mentions";
+import { loadIssueMentions } from "../issues";
 import { toSlash, windowsRules } from "../path";
 import { findParentProject, projectDisplayName } from "../components/ProjectNameDisplay";
 import { isPeerRoot } from "../peer/markers";
@@ -49,7 +50,8 @@ export function projectMentionItems(projects: ProjectInfo[]): MentionItem[] {
 // read from in-memory state — the other computers an agent in a project here
 // can reach (useComputerMentions), a listing of the terminal's working dir, and, when
 // the cwd is a git repo, its working-tree changes, branches, recent commits, the
-// whole uncommitted diff, and the branch's pull request. The backend-backed
+// whole uncommitted diff, the branch's pull request, and the repository's open
+// issues (which the backend asks the forge for every two minutes at most). The backend-backed
 // sources are re-read each time the editor regains focus (via the returned
 // `refresh`), so files, branches, and working-tree changes edited outside the app
 // surface without remounting the tab; files and branches keep their previous list
@@ -83,9 +85,11 @@ export function useMentions(
   const [changed, setChanged] = useState<MentionItem[]>([]);
   const [branches, setBranches] = useState<MentionItem[]>([]);
   const [commits, setCommits] = useState<MentionItem[]>([]);
+  const [issues, setIssues] = useState<MentionItem[]>([]);
   const fileCache = useRef(new Map<string, MentionItem[]>());
   const branchCache = useRef(new Map<string, MentionItem[]>());
   const commitCache = useRef(new Map<string, MentionItem[]>());
+  const issueCache = useRef(new Map<string, MentionItem[]>());
   // Bumped on every cwd/active change; a fetch tags itself with the value live
   // when it started and drops its result once the stamp has moved on (the
   // successor to the old `cancelled` cleanup flag, but one that also invalidates
@@ -99,6 +103,7 @@ export function useMentions(
   const branchesInFlight = useRef<number | null>(null);
   const changedInFlight = useRef<number | null>(null);
   const commitsInFlight = useRef<number | null>(null);
+  const issuesInFlight = useRef<number | null>(null);
 
   const loadFiles = useCallback((dir: string, gen: number) => {
     if (filesInFlight.current === gen) return;
@@ -169,6 +174,23 @@ export function useMentions(
     })();
   }, []);
 
+  const loadIssues = useCallback((dir: string, gen: number) => {
+    if (issuesInFlight.current === gen) return;
+    issuesInFlight.current = gen;
+    void (async () => {
+      try {
+        const items = await loadIssueMentions(dir);
+        if (generation.current !== gen) return;
+        issueCache.current.set(dir, items);
+        setIssues(items);
+      } catch {
+        // Keep the previous list rather than flickering the menu to empty.
+      } finally {
+        if (issuesInFlight.current === gen) issuesInFlight.current = null;
+      }
+    })();
+  }, []);
+
   const loadChanged = useCallback((dir: string, gen: number) => {
     if (changedInFlight.current === gen) return;
     changedInFlight.current = gen;
@@ -193,6 +215,7 @@ export function useMentions(
       setChanged([]);
       setBranches([]);
       setCommits([]);
+      setIssues([]);
       return;
     }
     const cachedFiles = fileCache.current.get(cwd);
@@ -204,13 +227,17 @@ export function useMentions(
     const cachedCommits = commitCache.current.get(cwd);
     if (cachedCommits) setCommits(cachedCommits);
     else loadCommits(cwd, gen);
+    // Another checkout's numbers would read the wrong issues here.
+    const cachedIssues = issueCache.current.get(cwd);
+    setIssues(cachedIssues ?? []);
+    if (!cachedIssues) loadIssues(cwd, gen);
     loadChanged(cwd, gen);
     // Bump the stamp on unmount too, so a fetch still in flight then drops its
     // result instead of setting state on a gone component.
     return () => {
       generation.current += 1;
     };
-  }, [cwd, active, loadFiles, loadBranches, loadCommits, loadChanged]);
+  }, [cwd, active, loadFiles, loadBranches, loadCommits, loadIssues, loadChanged]);
 
   // Re-read the backend sources on demand (the editor regaining focus). Reuses
   // the current generation so a fetch already running for this cwd is not
@@ -223,7 +250,8 @@ export function useMentions(
     loadFiles(cwd, gen);
     loadBranches(cwd, gen);
     loadCommits(cwd, gen);
-  }, [active, cwd, loadChanged, loadFiles, loadBranches, loadCommits, refreshComputers]);
+    loadIssues(cwd, gen);
+  }, [active, cwd, loadChanged, loadFiles, loadBranches, loadCommits, loadIssues, refreshComputers]);
 
   const projectItems = useMemo(() => projectMentionItems(projects), [projects]);
 
@@ -306,9 +334,10 @@ export function useMentions(
         ...computers.groups,
         mentionGroup("service-log", "Services", "service", serviceItems),
         mentionGroup("terminal-log", "Terminals", "terminal", terminalItems),
+        mentionGroup("issue", "Issues", "open issue", issues),
         mentionGroup("commit", "Commits", "commit", commits),
       ].filter((g): g is MentionItem => g !== null),
-    [projectItems, computers.groups, terminalItems, serviceItems, commits],
+    [projectItems, computers.groups, terminalItems, serviceItems, issues, commits],
   );
   const barePool = useMemo(
     () => [...gitRows, ...changed, ...extraItems, ...groupRows, ...plainFiles],
@@ -324,6 +353,7 @@ export function useMentions(
       ...terminalItems,
       ...serviceItems,
       ...plainFiles,
+      ...issues,
       ...branches,
       ...commits,
     ],
@@ -336,6 +366,7 @@ export function useMentions(
       terminalItems,
       serviceItems,
       plainFiles,
+      issues,
       branches,
       commits,
     ],

@@ -79,8 +79,8 @@ export function MergeConflictsPanel({
           Abort merge
         </button>
         <div className="flex items-center gap-2">
-          {remaining > 0 &&
-            (ai.anyAvailable ? (
+          {(remaining > 0 || aiBusy) &&
+            (ai.anyAvailable || aiBusy ? (
               <AIPickerButton
                 onGenerate={onResolveWithAI}
                 onCancel={onCancelAI}

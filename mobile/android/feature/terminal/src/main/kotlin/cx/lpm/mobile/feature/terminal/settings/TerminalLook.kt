@@ -2,6 +2,7 @@ package cx.lpm.mobile.feature.terminal.settings
 
 import cx.lpm.mobile.core.data.prefs.AppPreferences
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
+import cx.lpm.mobile.core.model.TerminalViewMode
 import cx.lpm.mobile.core.web.TerminalPrefs
 import cx.lpm.mobile.core.web.TerminalTheme
 import kotlinx.coroutines.flow.Flow
@@ -23,6 +24,16 @@ internal val AppPreferences.terminalLook: TerminalLook
 
 internal fun AppPreferences.terminalLooks(): Flow<TerminalLook> =
     data.map { terminalLook }.distinctUntilChanged()
+
+/** What agent tabs show, terminal or conversation (the "…" menu's View). */
+internal val AppPreferences.terminalViewMode: TerminalViewMode
+    get() = TerminalViewMode.of(string(PreferenceKeys.TERMINAL_VIEW))
+
+internal fun AppPreferences.terminalViewModes(): Flow<TerminalViewMode> =
+    data.map { terminalViewMode }.distinctUntilChanged()
+
+internal fun AppPreferences.setTerminalViewMode(mode: TerminalViewMode) =
+    setString(PreferenceKeys.TERMINAL_VIEW, mode.id)
 
 internal fun AppPreferences.setTerminalFontSize(size: Int) = setInt(
     PreferenceKeys.TERMINAL_FONT_SIZE,

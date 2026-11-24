@@ -27,8 +27,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.GlassIconButton
@@ -50,6 +53,8 @@ internal class TerminalStreamCallbacks(
     val onPageRestart: () -> Unit,
     val onOpenPath: (paths: List<String>, line: Int) -> Unit,
     val onFirstContent: () -> Unit = {},
+    /** The live screen and when it was live, to keep; null for one that isn't kept. */
+    val onScreen: ((text: String, at: Long) -> Unit)? = null,
     /** Text a hold selected, for the composer; null while there's no composer. */
     val onAddToPrompt: ((String) -> Unit)? = null,
     /** Text a hold selected, to find in the terminal. */
@@ -81,11 +86,15 @@ internal fun TerminalScreen(
     connectionBanner: @Composable () -> Unit = {},
     findBar: @Composable () -> Unit = {},
     limitBar: @Composable () -> Unit = {},
+    conversation: @Composable () -> Unit = {},
     composer: @Composable () -> Unit = {}
 ) {
     val ground = state.look.theme.backgroundColor
     val textExtent = remember { TextExtent() }
     var hasContent by remember { mutableStateOf(false) }
+    var savedShown by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    var bannersHeight by remember { mutableStateOf(0.dp) }
     // Never leave the spinner up if no screen ever arrives (the link drops mid-open).
     LaunchedEffect(Unit) {
         delay(FIRST_CONTENT_FALLBACK_MS)
@@ -120,7 +129,15 @@ internal fun TerminalScreen(
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 KeyboardSteadyFrame(
                     extent = textExtent,
-                    modifier = Modifier.fillMaxSize()
+                    // Covered, the terminal stays mounted and live: the composer sends
+                    // through it.
+                    modifier = Modifier.fillMaxSize().then(
+                        if (state.showsConversation || state.keptAnswer != null) {
+                            Modifier.clearAndSetSemantics {}
+                        } else {
+                            Modifier
+                        }
+                    )
                 ) { hidden ->
                     TerminalWebView(
                         controller = controller,
@@ -140,24 +157,35 @@ internal fun TerminalScreen(
                         onRevive = stream.onRevive,
                         onPageRestart = stream.onPageRestart,
                         onAddToPrompt = stream.onAddToPrompt,
-                        onFind = stream.onFind
+                        onFind = stream.onFind,
+                        savedScreen = state.saved?.screen?.text,
+                        onSavedScreenShow = { savedShown = true },
+                        onScreen = stream.onScreen
                     )
                 }
                 LoadingOverlay(
-                    visible = state.controlled && !hasContent && state.ended == null,
+                    visible = state.controlled && !hasContent && state.ended == null &&
+                        !(state.kept != null && savedShown) && state.keptAnswer == null,
                     background = ground
                 )
-                if (!state.controlled && state.ended == null) {
+                if (!state.controlled && state.ended == null && state.kept == null) {
                     ControlHandoffView(
                         ownerLabel = state.ownerLabel,
                         background = ground,
                         onTakeControl = onTakeControl
                     )
                 }
+                if (state.showsConversation) conversation()
+                state.keptAnswer?.let {
+                    SavedAnswerView(answer = it, background = ground, topInset = bannersHeight)
+                }
                 TerminalBanners(
                     state = state,
                     connectionBanner = connectionBanner,
-                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .onSizeChanged { bannersHeight = with(density) { it.height.toDp() } }
+                        .padding(top = 8.dp)
                 )
                 AccountMoveOverlay(move = state.accountMove, background = ground)
                 Box(Modifier.align(Alignment.TopCenter)) { findBar() }
@@ -166,6 +194,12 @@ internal fun TerminalScreen(
             limitBar()
             if (state.showsComposer) {
                 composer()
+            } else if (state.showsConversation && state.ended == null && state.kept == null) {
+                ControlHandoffBar(
+                    ownerLabel = state.ownerLabel,
+                    background = ground,
+                    onTakeControl = onTakeControl
+                )
             } else if (endedHere != null) {
                 TerminalEndedBar(
                     label = terminal.label,

@@ -56,6 +56,10 @@ struct WebTerminalView: UIViewRepresentable {
     var find: TerminalFind? = nil
     /// Text picked with a hold, for the composer.
     var onAddToPrompt: ((String) -> Void)? = nil
+    /// The screen kept from before, while the Mac is away: shown until a live one is.
+    var savedScreen: String? = nil
+    /// The kept screen is up.
+    var onSavedShown: (() -> Void)? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(model: model, termId: term.id) }
 
@@ -107,6 +111,8 @@ struct WebTerminalView: UIViewRepresentable {
         context.coordinator.onFirstContent = onFirstContent
         context.coordinator.onOpenPath = onOpenPath
         context.coordinator.onAddToPrompt = onAddToPrompt
+        context.coordinator.keeper.web = web
+        context.coordinator.keeper.onShown = onSavedShown
         // Capture only the coordinator, not `context` — these closures outlive this
         // call (held by the model until the screen closes), and closing over the
         // context would keep the whole SwiftUI environment alive with them.
@@ -128,6 +134,9 @@ struct WebTerminalView: UIViewRepresentable {
         context.coordinator.applyFontSize(fontSize)
         context.coordinator.applyTheme(theme)
         context.coordinator.applyHiddenInsets(hiddenInsets)
+        // Drawn for another screen's width, it isn't worth keeping.
+        context.coordinator.keeper.keeps = model.isControlled(term.id) && model.keepsScreen(of: term)
+        context.coordinator.keeper.show(savedScreen)
         // Re-assert the PTY size when this phone becomes the owner: taking control
         // triggers no new xterm sizeChanged on its own, so without this the PTY
         // would stay at the previous owner's geometry.
@@ -135,6 +144,7 @@ struct WebTerminalView: UIViewRepresentable {
     }
 
     static func dismantleUIView(_ web: WKWebView, coordinator: Coordinator) {
+        coordinator.keeper.save()
         let c = web.configuration.userContentController
         ["input", "resize", "ready", "openPath", "openURL", "extent", "find", "selection"].forEach {
             c.removeScriptMessageHandler(forName: $0)
@@ -154,6 +164,7 @@ struct WebTerminalView: UIViewRepresentable {
         var onFirstContent: (() -> Void)?
         var onOpenPath: ((_ paths: [String], _ line: Int) -> Void)?
         var onAddToPrompt: ((String) -> Void)?
+        let keeper: TerminalScreenKeeper
         private var ready = false
         private var announcedContent = false
         // Live output is coalesced: instead of one evaluateJavaScript per server
@@ -185,6 +196,7 @@ struct WebTerminalView: UIViewRepresentable {
         init(model: AppModel, termId: String) {
             self.model = model
             self.termId = termId
+            keeper = TerminalScreenKeeper(model: model, terminal: termId)
             super.init()
             observeLifecycle()
         }
@@ -197,6 +209,7 @@ struct WebTerminalView: UIViewRepresentable {
                 center.addObserver(forName: UIApplication.didEnterBackgroundNotification,
                                    object: nil, queue: .main) { [weak self] _ in
                     self?.backgrounded = true
+                    MainActor.assumeIsolated { self?.keeper.save() }
                 },
                 center.addObserver(forName: UIApplication.didBecomeActiveNotification,
                                    object: nil, queue: .main) { [weak self] _ in
@@ -282,12 +295,14 @@ struct WebTerminalView: UIViewRepresentable {
             let b64 = feedBuffer.base64EncodedString()
             feedBuffer.removeAll(keepingCapacity: true)
             web?.evaluateJavaScript("window.lpmFeed('\(b64)')")
+            keeper.noteLive()
             announceContent()
         }
 
         private func evalSeed(_ data: String, cols: Int) {
             let b64 = Data(data.utf8).base64EncodedString()
             web?.evaluateJavaScript("window.lpmSeed('\(b64)', \(cols))")
+            keeper.noteLive()
             announceContent()
         }
 
@@ -316,6 +331,7 @@ struct WebTerminalView: UIViewRepresentable {
         /// Reload the page and re-drive the ready → seed flow to self-heal.
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
             ready = false
+            keeper.pageLost()
             feedBuffer.removeAll(keepingCapacity: true)
             pendingSeed = nil
             lastAppliedInsets = nil
@@ -415,6 +431,7 @@ struct WebTerminalView: UIViewRepresentable {
                 // the user taps the terminal when they want to type.
                 if let s = pendingSeed { pendingSeed = nil; evalSeed(s.data, cols: s.cols) }
                 flush()
+                keeper.pageReady()
             default:
                 break
             }

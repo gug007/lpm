@@ -44,8 +44,8 @@ data class AutomationJob(
     val onDates: List<String>,
     val fromMinutes: Int?,
     // An event's schedule: what starts the job ("ciFailed", "serviceCrashed",
-    // "agentFinished"), the names it listens to, and "commit" or "day". Older
-    // Macs never send one.
+    // "agentFinished", "prReviewed", "prOpened"), the names it listens to, and
+    // "commit" or "day". Older Macs never send one.
     val eventOn: String = "",
     val eventBranches: List<String> = emptyList(),
     val eventServices: List<String> = emptyList(),

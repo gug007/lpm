@@ -12,10 +12,14 @@ const encoder = new TextEncoder();
 const HEX_TABLE: string[] = new Array(256);
 for (let i = 0; i < 256; i++) HEX_TABLE[i] = i.toString(16).padStart(2, "0");
 
+// For bash, zsh and fish alike. Fish also reads \' and \\ inside single quotes, so
+// a backslash it would take goes in double quotes, which they all read the same.
 export function shellQuote(s: string): string {
-  return /[^a-zA-Z0-9_./:~-]/.test(s)
-    ? "'" + s.replace(/'/g, "'\\''") + "'"
-    : s;
+  if (!/[^a-zA-Z0-9_./:~-]/.test(s)) return s;
+  const quoted = s.replace(/\\{2,}|\\(?='|$)|'/g, (m) =>
+    m === "'" ? "'\\''" : `'"${m.replaceAll("\\", "\\\\")}"'`,
+  );
+  return `'${quoted}'`;
 }
 
 export function sendTerminalInput(id: string, data: string): Promise<void> {

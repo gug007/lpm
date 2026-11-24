@@ -131,7 +131,7 @@ fn view_pull_request(cwd: &str, fields: &str) -> Option<PullRequestInfo> {
 pub(crate) fn gh_out(cwd: &str, args: &[&str]) -> Result<String, String> {
     let local = crate::sshexec::remote_project_for_path(cwd).is_none();
     if local && !crate::git::check_ghcli() {
-        return Err("Install the GitHub CLI (gh) to read pull requests".into());
+        return Err("Install the GitHub CLI (gh) to read pull requests and issues".into());
     }
     crate::git::tool_out(
         cwd,

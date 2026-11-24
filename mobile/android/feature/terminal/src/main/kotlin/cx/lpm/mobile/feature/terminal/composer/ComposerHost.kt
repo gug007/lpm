@@ -175,6 +175,10 @@ internal fun ComposerHost(
                         viewModel.pickPlace(it)
                         focusField = true
                     },
+                    pickIssue = {
+                        viewModel.pickIssue(it)
+                        focusField = true
+                    },
                     previewFile = mode.onPreviewFile,
                     pickTerminalOutput = {
                         viewModel.pickTerminalOutput()
@@ -303,6 +307,7 @@ internal fun ComposerHost(
             actions = ComposerNoticeActions(
                 onDismissWarning = viewModel::dismissWarning,
                 onDismissCommandNotice = viewModel::dismissCommandNotice,
+                onDismissIssueError = viewModel::dismissIssueError,
                 onDismissRewriteError = viewModel::dismissRewriteError,
                 onDismissUploadError = viewModel::dismissUploadError,
                 onDismissRestore = viewModel::dismissRestore,

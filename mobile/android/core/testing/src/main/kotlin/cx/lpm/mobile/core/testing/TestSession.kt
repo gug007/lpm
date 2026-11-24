@@ -3,8 +3,11 @@ package cx.lpm.mobile.core.testing
 import cx.lpm.mobile.core.data.client.ClientEnvironment
 import cx.lpm.mobile.core.data.client.LpmClient
 import cx.lpm.mobile.core.data.client.LpmClientFactory
+import cx.lpm.mobile.core.data.conversation.ConversationStore
 import cx.lpm.mobile.core.data.di.DataModule
+import cx.lpm.mobile.core.data.mac.AgentTabSnapshots
 import cx.lpm.mobile.core.data.mac.CredentialStore
+import cx.lpm.mobile.core.data.mac.LastAnswers
 import cx.lpm.mobile.core.data.mac.MacRecord
 import cx.lpm.mobile.core.data.mac.MacStore
 import cx.lpm.mobile.core.data.mac.MacUnpair
@@ -18,6 +21,7 @@ import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.session.SessionEnvironment
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.data.terminals.AgentTabsStore
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.data.tips.TipsStore
 import java.io.File
@@ -59,6 +63,12 @@ class TestSession(test: TestScope, stores: Set<SessionStore.Factory> = emptySet(
         macStore = macStore,
         credentials = credentials,
         snapshots = ProjectSnapshots(snapshotDir, scope, StandardTestDispatcher(scheduler), clock),
+        agentTabs = AgentTabSnapshots(
+            File(snapshotDir, "agent-tabs"),
+            LastAnswers(File(snapshotDir, "agent-answers.json")),
+            scope,
+            StandardTestDispatcher(scheduler)
+        ),
         network = network,
         newBrowser = { browser },
         prober = prober,
@@ -68,7 +78,9 @@ class TestSession(test: TestScope, stores: Set<SessionStore.Factory> = emptySet(
         unpair = MacUnpair(scope, transport, tailscale, credentials, clock),
         storeFactories = setOf(
             SessionStore.Factory(::ProjectsStore),
-            SessionStore.Factory(::TerminalsStore)
+            SessionStore.Factory(::TerminalsStore),
+            SessionStore.Factory(::AgentTabsStore),
+            SessionStore.Factory(::ConversationStore)
         ) + stores
     )
     val session: MacSession = DataModule.macSession(env)

@@ -33,6 +33,7 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.TerminalInfo
+import cx.lpm.mobile.core.model.TerminalViewChoice
 import cx.lpm.mobile.core.navigation.AutomationsKey
 import cx.lpm.mobile.core.navigation.CommandsKey
 import cx.lpm.mobile.core.navigation.GitAutoKey
@@ -59,8 +60,8 @@ import kotlinx.coroutines.launch
  * A project's toolbar buttons on any of its screens (iOS `projectMenuToolbar`): ⚡
  * for its actions when it has some, and the "…" menu (green while it runs, a
  * spinner while a Start/Stop is out), plus everything that menu opens. On a
- * terminal's screen ([terminal]) its Rename names that tab, and [onFind] leads the
- * menu while that tab is live here. [onSpawnedTerminal] is told about a terminal an
+ * terminal's screen ([terminal]) its Rename names that tab, [view] leads the menu on
+ * an agent's, and [onFind] follows it while that tab is live here. [onSpawnedTerminal] is told about a terminal an
  * action run spawns.
  */
 @Composable
@@ -70,6 +71,7 @@ fun ProjectMenuToolbar(
     onNavigate: (NavKey) -> Unit,
     modifier: Modifier = Modifier,
     terminal: TerminalInfo? = null,
+    view: TerminalViewChoice? = null,
     onFind: (() -> Unit)? = null,
     onSpawnedTerminal: (TerminalInfo) -> Unit = {},
     slots: ProjectsSlots = ProjectsSlots(),
@@ -97,6 +99,7 @@ fun ProjectMenuToolbar(
     val scope = rememberCoroutineScope()
     val confirmRisky = LocalConfirmRisky.current
     val actions = ProjectMenuActions(
+        view = view,
         find = onFind,
         start = viewModel::start,
         stop = { confirmRisky.stopProject(project) { viewModel.stop() } },

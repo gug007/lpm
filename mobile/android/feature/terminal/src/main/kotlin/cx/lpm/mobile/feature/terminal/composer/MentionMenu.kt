@@ -34,6 +34,7 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.GitBranch
 import cx.lpm.mobile.core.model.MentionEntry
 import cx.lpm.mobile.core.model.MentionPlace
+import cx.lpm.mobile.core.model.RepoIssue
 import cx.lpm.mobile.core.model.ServiceInfo
 import cx.lpm.mobile.feature.terminal.R
 
@@ -42,6 +43,7 @@ internal class MentionActions(
     val pickPath: (String) -> Unit,
     val pickBranch: (String) -> Unit,
     val pickPlace: (MentionPlace) -> Unit,
+    val pickIssue: (RepoIssue) -> Unit,
     /** Opens a mentioned file; null leaves the preview button out. */
     val previewFile: ((String) -> Unit)?,
     val pickTerminalOutput: () -> Unit,
@@ -50,9 +52,10 @@ internal class MentionActions(
 
 /**
  * The @-mention autocomplete, grouped like the desktop's: working-tree changes,
- * places on each other computer an agent here can reach, files and folders,
- * branches (once a fragment is typed), then context sources — this terminal's
- * output and each running service's logs, which go in inline.
+ * places on each other computer an agent here can reach, the repository's open
+ * issues, files and folders, branches (once a fragment is typed), then context
+ * sources — this terminal's output and each running service's logs. Issues and
+ * context go in inline.
  */
 @Composable
 internal fun MentionMenu(
@@ -62,6 +65,7 @@ internal fun MentionMenu(
     includeTerminalOutput: Boolean = true
 ) {
     val changes = stringResource(R.string.mention_changes)
+    val issues = stringResource(R.string.mention_issues)
     val files = stringResource(R.string.mention_files)
     val branches = stringResource(R.string.mention_branches)
     val context = stringResource(R.string.mention_context)
@@ -79,6 +83,17 @@ internal fun MentionMenu(
                     title = place.label,
                     subtitle = place.path,
                     onClick = { actions.pickPlace(place) }
+                )
+            }
+        }
+        if (results.issues.isNotEmpty()) {
+            header(issues)
+            items(results.issues, key = { "i:" + it.number }) { issue ->
+                ContextRow(
+                    icon = DesignR.drawable.ic_adjust,
+                    title = "#${issue.number} ${issue.title}",
+                    subtitle = issue.labels.joinToString(", "),
+                    onClick = { actions.pickIssue(issue) }
                 )
             }
         }
@@ -236,13 +251,15 @@ private fun ContextRow(icon: Int, title: String, subtitle: String, onClick: () -
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                subtitle,
-                fontSize = 11.sp,
-                color = colors.secondaryLabel,
-                maxLines = 1,
-                overflow = TextOverflow.MiddleEllipsis
-            )
+            if (subtitle.isNotEmpty()) {
+                Text(
+                    subtitle,
+                    fontSize = 11.sp,
+                    color = colors.secondaryLabel,
+                    maxLines = 1,
+                    overflow = TextOverflow.MiddleEllipsis
+                )
+            }
         }
         Spacer(Modifier.width(8.dp))
     }

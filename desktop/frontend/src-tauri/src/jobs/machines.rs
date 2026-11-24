@@ -147,6 +147,7 @@ fn ran(result: &str) -> bool {
             | PENDING_WINDOW
             | SKIPPED_CAPACITY
             | SKIPPED_CI_ROUNDS
+            | SKIPPED_REVIEW_ROUNDS
     )
 }
 
@@ -501,6 +502,35 @@ fn asked<'a>(
         .as_ref()
 }
 
+/// Whether a computer that is on, and answered so about a job, has it run there.
+fn takes(answer: Option<&Answer>) -> bool {
+    match answer {
+        Some(a) => a.has && (a.eligible || !a.enabled),
+        // It can't be asked — an older lpm, which runs every job it has.
+        None => true,
+    }
+}
+
+/// Whether this computer reacts to something each of the job's computers hears
+/// of, such as a review: the first of them that is on does.
+pub(super) fn first_on(app: &AppHandle, key: &str, job: &JobResolved) -> bool {
+    let Some(m) = &job.machines else {
+        return true;
+    };
+    let me = crate::peer::local_host_id();
+    if me.is_empty() {
+        return true;
+    }
+    let peers = peers(app);
+    let ids: Vec<String> = peers.iter().map(|p| p.id.clone()).collect();
+    ahead_of(m, &me, &ids).is_some_and(|ahead| {
+        !peers.iter().any(|p| {
+            p.up && ahead.contains(&p.id)
+                && takes(p.slug.as_deref().and_then(|slug| ask(app, slug, key, now_secs())).as_ref())
+        })
+    })
+}
+
 /// Whether this computer runs the job's run that came due at `fire`, given the
 /// other computers it knows and a way to ask one about the job (None when it
 /// can't be asked). `seen` is when this computer first saw the run due.
@@ -527,12 +557,10 @@ pub(super) fn decide(
             // can't hold the run up.
             Ahead::Away(known.iter().find(|o| &o.id == id).map_or(u64::MAX, |o| o.away))
         } else {
-            match asked(&mut answers, &mut ask, id) {
-                Some(a) if a.has && (a.eligible || !a.enabled) => Ahead::Takes,
-                Some(_) => Ahead::Passes,
-                // On, but it can't be asked — an older lpm, which runs every
-                // job it has.
-                None => Ahead::Takes,
+            if takes(asked(&mut answers, &mut ask, id)) {
+                Ahead::Takes
+            } else {
+                Ahead::Passes
             }
         };
         states.push(state);

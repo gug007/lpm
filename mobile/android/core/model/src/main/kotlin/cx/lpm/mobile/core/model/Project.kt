@@ -12,6 +12,8 @@ data class Project(
     val parentName: String,
     // A duplicate made as a linked git worktree rather than a folder copy.
     val worktree: Boolean,
+    // The branch lpm made for a worktree started from an issue; null for any other.
+    val worktreeBranch: String? = null,
     // The status a person set on this project, distinct from statusEntries
     // (what the agent is doing). Absent when none is set.
     val workStatus: WorkStatus?,
@@ -70,6 +72,7 @@ data class Project(
             isRemote = o.bool("isRemote") ?: false,
             parentName = o.string("parentName").orEmpty(),
             worktree = o.bool("worktree") ?: false,
+            worktreeBranch = o.string("worktreeBranch"),
             workStatus = o.obj("workStatus")?.let(WorkStatus::parse),
             autoPull = o.bool("autoPull"),
             claude = ClaudeOwnChoice.parse(o),

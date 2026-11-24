@@ -12,6 +12,15 @@ import org.junit.Test
 class ProjectTest {
     private fun obj(json: String): JsonObject = Json.parseToJsonElement(json).jsonObject
 
+    @Test
+    fun `a worktree started from an issue names the branch lpm made for it`() {
+        val worktree = Project.parse(
+            obj("""{"name":"storefront-2","worktree":true,"worktreeBranch":"45-cart-badge"}""")
+        )
+        assertEquals("45-cart-badge", worktree.worktreeBranch)
+        assertNull(Project.parse(obj("""{"name":"storefront-3","worktree":true}""")).worktreeBranch)
+    }
+
     private val storefront = obj(
         """
         {

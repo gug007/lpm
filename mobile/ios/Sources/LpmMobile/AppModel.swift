@@ -381,6 +381,8 @@ final class AppModel {
     // and seeded (used by "Ask agent…", which navigates to a terminal that may not
     // be on screen yet). Flushed + cleared by WebTerminalView once ready.
     @ObservationIgnored var pendingAgentPrompt: [String: String] = [:]
+    // The finish each tab's answer was last asked for, by when it ended.
+    @ObservationIgnored var keepingAnswers: [String: Int] = [:]
 
     // MARK: git review state
 
@@ -427,6 +429,8 @@ final class AppModel {
     var gitExtras = GitExtrasStore()
     // The dialogs waiting agents show (`model.agentDialogs`), same split.
     var agentDialogs = AgentDialogStore()
+    // Agent tabs' conversations (`model.conversations`), same split.
+    var conversations = ConversationStore()
     // The action popup on screen (`model.actionPopups`), same split.
     var actionPopups = ActionPopupStore()
     // The other machines saved here, while the list shows them all.
@@ -520,6 +524,7 @@ final class AppModel {
         gitChecks.model = self
         gitExtras.model = self
         agentDialogs.model = self
+        conversations.model = self
         actionPopups.model = self
         pushRegistrar.onIdentity = { [weak self] localId, serverId, serverName, platform in
             self?.learnIdentity(of: localId, serverId: serverId, serverName: serverName,
@@ -1157,6 +1162,7 @@ final class AppModel {
             Keychain.delete(for: removed)
             PushRegistrar.forget(removed)
             link.snapshots.remove(removed)
+            link.agentTabs.remove(removed)
             link.reach[removed] = nil
         }
         macs.removeAll { gone.contains($0.localId) }
@@ -1490,11 +1496,15 @@ final class AppModel {
         gitExtras.model = self
         agentDialogs = AgentDialogStore()
         agentDialogs.model = self
+        conversations.handleConnectionReset()
+        conversations = ConversationStore()
+        conversations.model = self
         actionPopups = ActionPopupStore()
         actionPopups.model = self
         fileFetches.cancelAll()
         answerRequests.failAll()
         pendingAgentPrompt = [:]
+        keepingAnswers = [:]
     }
 
     // MARK: push notifications
@@ -1722,6 +1732,7 @@ final class AppModel {
         guard connection == .ready, client?.isVerifying != true, endedTerminals[id] == nil,
               let screen = terminalScreens.current(id) else { return false }
         screen.submit(text)
+        conversations.noteSent(id, text)
         return true
     }
 
@@ -2508,6 +2519,7 @@ final class AppModel {
         for store in composerStores.values { store.failInFlightUploads() }
         automationPending = []
         automationHistoryLoading = []
+        keepingAnswers = [:]
         // A stats scan in flight can't survive the reconnect; re-issue it if the
         // screen is still open, otherwise just drop the spinner.
         if statsActive { loadStats(days: statsDays) }
@@ -2515,6 +2527,7 @@ final class AppModel {
         weeklyRecap.handleConnectionReset()
         // Session memory and notes replay whatever screen is open (or just drop
         // their spinners); their requests queue on the client until it reconnects.
+        git.handleConnectionReset()
         gitAuto.handleConnectionReset()
         memory.handleConnectionReset()
         notes.handleConnectionReset()
@@ -2530,6 +2543,7 @@ final class AppModel {
         gitExtras.handleConnectionReset()
         fileFetches.handleConnectionReset()
         agentDialogs.handleConnectionReset()
+        conversations.handleConnectionReset()
         answerRequests.failAll()
         historyPending = []
         historyLoadingMore = false
@@ -2740,6 +2754,7 @@ final class AppModel {
         wireAgentArchive(c)
         wireClaudeAccounts(c)
         wireAnswers(c)
+        wireConversations(c)
         wireAgentLaunch(c)
         wireProjectFiles(c)
         wireGitHistory(c)
@@ -2747,6 +2762,7 @@ final class AppModel {
         wireGitExtras(c)
         wireAgentDialogs(c)
         wireGitDiscardFiles(c)
+        wireGitConflicts(c)
         wireActionPopups(c)
     }
 
@@ -2852,6 +2868,10 @@ final class AppModel {
                   !self.isVisit, let id = self.activeMacId else { return }
             self.link.snapshots.record(text, for: id)
         }
+        c.onTerminalsFrame = { [weak self, weak c] project, tabs, text in
+            guard let self, let c, c === self.client, c.deviceId != nil else { return }
+            self.recordTerminalsFrame(project, tabs, text)
+        }
         c.onAnswerAgent = { [weak self] reqId, error in
             self?.noteAnswerAgent(reqId: reqId, error: error)
         }
@@ -2891,6 +2911,7 @@ final class AppModel {
                 }
             }
             self.reconcileNotifications(p)
+            self.keepAgentTabs(of: p)
         }
         c.onSidebar = { [weak self] order, groups, pins in
             self?.sidebarOrder = order
@@ -3145,6 +3166,7 @@ final class AppModel {
                 // Copy with fresh status — preserves services/actions.
                 self.projects[idx] = self.projects[idx].withStatus(entries, seen: seen)
                 self.reconcileNotifications([self.projects[idx]])
+                self.keepFinishedAnswers([self.projects[idx]])
             }
         }
     }

@@ -40,13 +40,18 @@ class WireCoverageTest {
         "gitChecksRerun", "gitMergePr", "gitCommitChecks", "gitCommitFiles", "ciFixLoop",
         "gitCommitPatch", "lpmCommands", "lpmCommandSave", "lpmCommandDelete", "lpmCommandFolder",
         "lpmCommandExpand", "lpmCommandOtherFolder", "lpmCommandConvert", "agentDialog",
-        "pickAgentDialog", "gitDiscardFiles", "actionPopup", "actionApp", "generateRequests",
-        "answerGenerate", "power", "lockScreen", "sleepNow", "sleepWhenIdle", "launchLpm"
+        "pickAgentDialog", "gitDiscardFiles", "gitMergeResolve", "gitMergeStop",
+        "gitMergeAbort",
+        "gitMergeContinue", "gitConflictTake", "gitConflictResolved", "actionPopup",
+        "actionApp", "generateRequests",
+        "answerGenerate", "power", "lockScreen", "sleepNow", "sleepWhenIdle", "launchLpm",
+        "conversationWatch", "conversationUnwatch", "conversationPage", "conversationDetail",
+        "answers"
     )
 
     @Test
     fun everyIosBuilderHasAKotlinCounterpart() {
-        assertEquals(187, iosBuilders.toSet().size)
+        assertEquals(198, iosBuilders.toSet().size)
         val kotlin = Wire::class.java.methods.map { it.name }.toSet()
         assertEquals(emptyList<String>(), iosBuilders.filterNot { it in kotlin })
     }

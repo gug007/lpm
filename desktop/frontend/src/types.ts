@@ -185,14 +185,22 @@ export interface ActionInfo {
 // composer send.
 export type SpawnTask =
   // `fixedAccount`: a scheduled job's run, which never switches Claude accounts.
+  // `agentOnly`: the prompt holds someone else's text (see spawnPrompt).
   | {
       kind: "action";
       actionName: string;
       prompt?: string | string[];
+      agentOnly?: boolean;
       launchModel?: ModelPick;
       fixedAccount?: boolean;
     }
-  | { kind: "command"; command: string; prompt?: string | string[]; launchModel?: ModelPick }
+  | {
+      kind: "command";
+      command: string;
+      prompt?: string | string[];
+      agentOnly?: boolean;
+      launchModel?: ModelPick;
+    }
   // Continue an agent conversation in a new tab: a fork in a copy, an automation
   // run taken over, or a session handed to the same project on another
   // computer. `command` launches
@@ -287,6 +295,9 @@ export interface ProjectInfo {
   heldCommands?: string[];
   parentName?: string;
   worktree?: boolean;
+  // The branch lpm made for a worktree, when its name doesn't give it: one
+  // started from an issue.
+  worktreeBranch?: string;
   isRemote: boolean;
   // An archived project opened for now: listed by this window only, under
   // "From the Archive", and still archived everywhere else.

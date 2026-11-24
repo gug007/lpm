@@ -24,6 +24,13 @@ export function PathSection() {
           relative or absolute path there
         </Bullet>
         <Bullet>
+          On Windows, a WSL project&rsquo;s <code className={CODE}>root</code>{" "}
+          is the folder&rsquo;s Windows name, such as{" "}
+          <code className={CODE}>\\wsl.localhost\Ubuntu\home\you\app</code>.
+          Its services, terminals, agents and Git run inside that distro on the
+          Linux path, and <code className={CODE}>cwd</code>{" "}resolves there
+        </Bullet>
+        <Bullet>
           On an SSH project, a relative <code className={CODE}>cwd</code>{" "}
           resolves from <code className={CODE}>ssh.dir</code>, and{" "}
           <code className={CODE}>~</code>{" "}means your home folder on the remote

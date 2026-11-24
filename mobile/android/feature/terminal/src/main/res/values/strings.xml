@@ -20,6 +20,40 @@
     <string name="terminal_limit_other_account">Other account</string>
     <string name="terminal_limit_dismiss">Dismiss</string>
 
+    <string name="terminal_last_answer">Last answer</string>
+
+    <!-- Conversation -->
+    <string name="conversation_show_earlier">Show Earlier</string>
+    <string name="conversation_error">Couldn\'t Load the Conversation</string>
+    <string name="conversation_empty">No Conversation Yet</string>
+    <string name="conversation_empty_detail">What you ask and what the agent answers shows up here.</string>
+    <string name="conversation_show_more">Show More</string>
+    <string name="conversation_show_less">Show Less</string>
+    <string name="conversation_show_all_lines">Show All %1$s Lines</string>
+    <string name="conversation_show_terminal">Show Terminal</string>
+    <string name="conversation_queued">Queued</string>
+    <string name="conversation_sending">Sending…</string>
+    <string name="conversation_open_file">Open File</string>
+    <string name="conversation_nothing_more">Nothing more to show.</string>
+    <string name="conversation_expanded">Expanded</string>
+    <string name="conversation_collapsed">Collapsed</string>
+    <string name="conversation_changes">%1$s added, %2$s removed</string>
+    <string name="conversation_reading">Reading…</string>
+    <string name="conversation_searching">Searching…</string>
+    <string name="conversation_once">once</string>
+    <string name="conversation_twice">twice</string>
+    <string name="conversation_times">%1$s times</string>
+    <string name="conversation_searched">Searched %1$s</string>
+    <string name="conversation_read_searched">%1$s, searched %2$s</string>
+    <plurals name="conversation_read">
+        <item quantity="one">Read %d file</item>
+        <item quantity="other">Read %d files</item>
+    </plurals>
+    <plurals name="conversation_images">
+        <item quantity="one">%d image</item>
+        <item quantity="other">%d images</item>
+    </plurals>
+
     <!-- Terminal settings -->
     <string name="terminal_settings_title">Terminal</string>
     <string name="terminal_settings_done">Done</string>
@@ -94,6 +128,7 @@
 
     <!-- Autocomplete -->
     <string name="mention_changes">CHANGES</string>
+    <string name="mention_issues">ISSUES</string>
     <string name="mention_files">FILES</string>
     <string name="mention_branches">BRANCHES</string>
     <string name="mention_context">CONTEXT</string>

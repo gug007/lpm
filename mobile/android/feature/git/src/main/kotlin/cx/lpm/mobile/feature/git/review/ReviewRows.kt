@@ -1,8 +1,11 @@
 package cx.lpm.mobile.feature.git.review
 
 import androidx.compose.runtime.Immutable
+import cx.lpm.mobile.core.model.GitConflictOp
+import cx.lpm.mobile.core.model.GitConflictSide
 import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitFile
+import cx.lpm.mobile.core.model.GitMergeState
 import cx.lpm.mobile.feature.git.diff.DiffBlock
 import cx.lpm.mobile.feature.git.diff.DiffBlockKind
 import cx.lpm.mobile.feature.git.diff.ParsedDiff
@@ -15,6 +18,33 @@ internal val GitFile.isConflicted: Boolean get() = status == "conflicted"
 @Immutable
 sealed interface ReviewRow {
     val key: String
+
+    /**
+     * A merge, a pull or a rebase that stopped on conflicts, above everything else: what
+     * was asked of the Mac ([op]), what the AI at it is doing ([resolving]) and the sides
+     * picked from here.
+     */
+    data class MergeConflicts(
+        val merge: GitMergeState,
+        val branch: String = "",
+        val op: GitConflictOp? = null,
+        val resolving: String? = null,
+        val sides: Map<String, GitConflictSide> = emptyMap(),
+        /** The Mac can't be reached, so nothing here would get to it. */
+        val away: Boolean = false
+    ) : ReviewRow {
+        override val key get() = "merge"
+
+        val locked: Boolean get() = op != null || resolving != null || away
+
+        /** The file [op] is about, when it's one. */
+        val busyPath: String?
+            get() = when (op) {
+                is GitConflictOp.Take -> op.path
+                is GitConflictOp.MarkResolved -> op.path
+                else -> null
+            }
+    }
 
     /** "4 files changed" (or [title]) and "1 of 4 viewed" over the viewed progress bar. */
     data class Summary(val total: Int, val viewed: Int, val title: String? = null) : ReviewRow {
@@ -84,11 +114,16 @@ internal class ReviewFile(
 )
 
 /**
- * The review list (iOS `GitReviewView`'s `List`): the summary, each file as a header
- * bar and (unless collapsed) its diff, and "Create Pull Request" when the GitHub CLI
+ * The review list (iOS `GitReviewView`'s `List`): the conflicts of a stopped [merge],
+ * the summary, each file as a header bar and (unless collapsed) its diff, and "Create Pull Request" when the GitHub CLI
  * is there. No changes leaves it empty for the "No changes" overlay.
  */
-internal fun reviewRows(files: List<ReviewFile>, ghCli: Boolean): List<ReviewRow> = buildList {
+internal fun reviewRows(
+    files: List<ReviewFile>,
+    ghCli: Boolean,
+    merge: ReviewRow.MergeConflicts? = null
+): List<ReviewRow> = buildList {
+    merge?.let(::add)
     if (files.isEmpty()) return@buildList
     add(ReviewRow.Summary(files.size, files.count { it.viewed }))
     files.forEach { addFile(it) }

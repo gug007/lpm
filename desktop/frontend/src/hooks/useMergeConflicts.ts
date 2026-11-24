@@ -5,12 +5,15 @@ import {
   GitMarkConflictResolved,
   GitMergeConflicts,
   GitMergeState,
+  GitStopConflictAI,
   GitTakeConflictSide,
 } from "../../bridge/commands";
 import { stateFromPaths, type ConflictSide, type MergeState } from "../mergeConflicts";
 import { useFileViewerStore } from "../store/fileViewer";
 import { useEventListener } from "./useEventListener";
 import { useGitChanged } from "./useGitChanged";
+
+const RESOLVING_POLL_MS = 2000;
 
 export function loadMergeState(projectPath: string): Promise<MergeState> {
   return (GitMergeState(projectPath) as Promise<MergeState>).catch(() =>
@@ -45,6 +48,13 @@ export function useMergeConflicts(projectPath: string, watching: boolean) {
     if (!watching) setState(null);
   }, [watching, projectPath]);
 
+  const resolving = watching && !!state?.resolving;
+  useEffect(() => {
+    if (!resolving) return;
+    const timer = setInterval(recheck, RESOLVING_POLL_MS);
+    return () => clearInterval(timer);
+  }, [resolving, recheck]);
+
   useEventListener("focus", recheck);
   useGitChanged(projectPath, recheck, watching);
 
@@ -78,7 +88,9 @@ export function useMergeConflicts(projectPath: string, watching: boolean) {
 
   const continueMerge = () => run("", "Continue merge", () => GitContinueMerge(projectPath));
 
-  return { state, sides, pending, reload, takeSide, markResolved, continueMerge };
+  const stopAI = () => run("stop", "Stop", () => GitStopConflictAI(projectPath));
+
+  return { state, sides, pending, reload, takeSide, markResolved, continueMerge, stopAI };
 }
 
 export type MergeConflicts = ReturnType<typeof useMergeConflicts>;

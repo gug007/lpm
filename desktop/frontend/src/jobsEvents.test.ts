@@ -10,7 +10,7 @@ import {
 } from "./jobsFormat";
 import { describeFirstRun } from "./jobsFirstRun";
 import { draftToSchedule } from "./jobsScheduleDraft";
-import { splitNames } from "./jobsEvents";
+import { eventLimitOptions, splitNames, type JobEventKind } from "./jobsEvents";
 import { textToPrompt } from "./composerValue";
 
 function eventDraft(values: Partial<JobDraft>): JobDraft {
@@ -66,6 +66,31 @@ describe("event schedules", () => {
     );
     const schedule = draftToSchedule(eventDraft({}));
     expect(describeFirstRun(schedule)).toEqual({ first: "Runs when CI fails" });
+  });
+
+  it("take the branch a pull request goes into", () => {
+    const draft = eventDraft({ eventOn: "prReviewed", eventBranches: "main", eventServices: "api" });
+    expect(buildJobPayload(draft).schedule).toEqual({ on: "prReviewed", branches: ["main"] });
+    expect(buildJobPayload({ ...draft, eventOn: "prOpened" }).schedule).toEqual({ on: "prOpened", branches: ["main"] });
+    const read = payloadToDraft({ schedule: { on: "prOpened", branches: "main" }, run: { prompt: "Review it." } });
+    expect([read.eventOn, read.eventBranches]).toEqual(["prOpened", "main"]);
+    expect(formatSchedule({ mode: "event", on: "prReviewed", atMost: "commit" })).toBe("When a PR gets a review");
+    expect(formatSchedule({ mode: "event", on: "prReviewed", branches: ["main", "dev"], atMost: "day" })).toBe(
+      "When a PR into main or dev gets a review, once a day",
+    );
+    expect(formatSchedule({ mode: "event", on: "prOpened", branches: ["main"], atMost: "commit" })).toBe(
+      "When a PR into main is opened",
+    );
+    expect(describeFirstRun(draftToSchedule({ ...draft, eventBranches: "" }))).toEqual({
+      first: "Runs when a PR gets a review",
+    });
+  });
+
+  it("count by what the event is about", () => {
+    const first = (on: JobEventKind) => eventLimitOptions(on)[0];
+    expect(first("ciFailed")).toEqual({ value: "commit", label: "Once per commit" });
+    expect(first("prReviewed")).toEqual({ value: "commit", label: "Once per review" });
+    expect(first("prOpened")).toEqual({ value: "commit", label: "Once per PR" });
   });
 
   it("refuse an action an agent's finish would start", () => {

@@ -110,23 +110,33 @@ struct ReviewSummary: View {
                 .foregroundStyle(done ? .green : .secondary)
                 .monospacedDigit()
             }
-            GeometryReader { geo in
-                Capsule()
-                    .fill(Color(.tertiarySystemFill))
-                    .overlay(alignment: .leading) {
-                        Capsule()
-                            .fill(.green)
-                            .frame(width: geo.size.width * CGFloat(viewed) / CGFloat(max(total, 1)))
-                    }
-            }
-            .frame(height: 4)
-            .animation(.easeInOut(duration: 0.25), value: viewed)
-            .accessibilityHidden(true)
+            ReviewProgressBar(done: viewed, total: total)
         }
         .padding(.horizontal, 16)
         .padding(.top, 12)
         .padding(.bottom, 14)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// A bar that fills as `done` of `total` files are.
+struct ReviewProgressBar: View {
+    let done: Int
+    let total: Int
+
+    var body: some View {
+        GeometryReader { geo in
+            Capsule()
+                .fill(Color(.tertiarySystemFill))
+                .overlay(alignment: .leading) {
+                    Capsule()
+                        .fill(.green)
+                        .frame(width: geo.size.width * CGFloat(done) / CGFloat(max(total, 1)))
+                }
+        }
+        .frame(height: 4)
+        .animation(.easeInOut(duration: 0.25), value: done)
+        .accessibilityHidden(true)
     }
 }
 

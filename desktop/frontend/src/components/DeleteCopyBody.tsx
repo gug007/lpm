@@ -1,6 +1,5 @@
-import { unsavedWorkLines, worktreeBranchName } from "../unsavedWork";
+import { unsavedWorkLines, worktreeBranch } from "../unsavedWork";
 import { useUnsavedWork } from "../hooks/useUnsavedWork";
-import { peerRawName } from "../peer/markers";
 import type { ProjectInfo } from "../types";
 
 interface DeleteCopyBodyProps {
@@ -21,7 +20,7 @@ export function DeleteCopyBody({ project, label }: DeleteCopyBodyProps) {
         <>
           Delete {name}? Its worktree folder, everything inside it, and its branch{" "}
           <span className="font-mono text-[12px] text-[var(--text-primary)]">
-            {worktreeBranchName(peerRawName(project.name))}
+            {worktreeBranch(project)}
           </span>{" "}
           are permanently deleted. This can't be undone.
         </>

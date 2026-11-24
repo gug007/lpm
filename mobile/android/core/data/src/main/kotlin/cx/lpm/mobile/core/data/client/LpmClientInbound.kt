@@ -24,6 +24,7 @@ internal class SocketEvents(private val client: LpmClient) : SocketListener {
             ) {
                 client.onListFrame?.invoke(text)
             }
+            if (frame is Inbound.Terminals) client.onTerminalsFrame?.invoke(frame, text)
             if (frame !is Inbound.Bye) client.noteStillThere()
             if (frame is Inbound.Pong) client.heartbeat.pong(socket)
             frame?.let(client::dispatch)

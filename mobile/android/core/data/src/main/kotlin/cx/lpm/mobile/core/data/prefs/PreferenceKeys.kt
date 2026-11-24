@@ -33,6 +33,7 @@ object PreferenceKeys {
     const val APPEARANCE_MODE = "appearanceMode"
     const val TERMINAL_FONT_SIZE = "terminalFontSize"
     const val TERMINAL_THEME = "terminalTheme"
+    const val TERMINAL_VIEW = "terminal.view"
 
     const val SPEECH_ENGINE = "speech.engine"
     const val SPEECH_VOICE_ID = "speech.voiceId"

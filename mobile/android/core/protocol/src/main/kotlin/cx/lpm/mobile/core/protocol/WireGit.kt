@@ -34,11 +34,13 @@ sealed interface WireGit {
 
     fun gitGenPr(project: String): String = frame("gitGenPr") { put("project", project) }
 
-    fun gitCreatePr(project: String, title: String, body: String): String = frame("gitCreatePr") {
-        put("project", project)
-        put("title", title)
-        put("body", body)
-    }
+    fun gitCreatePr(project: String, title: String, body: String, closeIssue: Boolean?): String =
+        frame("gitCreatePr") {
+            put("project", project)
+            put("title", title)
+            put("body", body)
+            closeIssue?.let { put("closeIssue", it) }
+        }
 
     fun gitPull(project: String): String = frame("gitPull") { put("project", project) }
 
@@ -126,6 +128,29 @@ sealed interface WireGit {
     fun gitDiscardFiles(project: String, paths: List<String>): String = frame("gitDiscardFiles") {
         put("project", project)
         putStrings("paths", paths)
+    }
+
+    /** Only for a Mac whose `features` has "gitConflicts", as the five below. */
+    fun gitMergeResolve(project: String): String =
+        frame("gitMergeResolve") { put("project", project) }
+
+    fun gitMergeStop(project: String): String = frame("gitMergeStop") { put("project", project) }
+
+    fun gitMergeAbort(project: String): String = frame("gitMergeAbort") { put("project", project) }
+
+    fun gitMergeContinue(project: String): String =
+        frame("gitMergeContinue") { put("project", project) }
+
+    fun gitConflictTake(project: String, path: String, side: String): String =
+        frame("gitConflictTake") {
+            put("project", project)
+            put("path", path)
+            put("side", side)
+        }
+
+    fun gitConflictResolved(project: String, path: String): String = frame("gitConflictResolved") {
+        put("project", project)
+        put("path", path)
     }
 
     fun gitRestoreDiscarded(project: String, id: String): String = frame("gitRestoreDiscarded") {

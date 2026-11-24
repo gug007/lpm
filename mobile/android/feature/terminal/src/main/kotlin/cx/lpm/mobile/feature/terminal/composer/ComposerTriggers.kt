@@ -3,8 +3,10 @@ package cx.lpm.mobile.feature.terminal.composer
 import cx.lpm.mobile.core.model.GitBranch
 import cx.lpm.mobile.core.model.MentionComputer
 import cx.lpm.mobile.core.model.MentionEntry
+import cx.lpm.mobile.core.model.RepoIssue
 import cx.lpm.mobile.core.model.ServiceInfo
 import cx.lpm.mobile.core.model.SlashCommand
+import cx.lpm.mobile.core.model.matching
 
 // What the text at the end of the field is asking for, like the desktop's
 // SLASH_TRIGGER and MENTION_TRIGGER anchored to a caret at the end.
@@ -50,17 +52,18 @@ internal fun mentionQuery(text: String): String? {
 
 /**
  * The @-mention menu's rows for a fragment: files (changes first), places on other
- * computers, branches, running services.
+ * computers, open issues, branches, running services.
  */
 data class MentionResults(
     val changed: List<MentionEntry> = emptyList(),
     val computers: List<MentionComputer> = emptyList(),
+    val issues: List<RepoIssue> = emptyList(),
     val files: List<MentionEntry> = emptyList(),
     val branches: List<GitBranch> = emptyList(),
     val services: List<ServiceInfo> = emptyList()
 ) {
-    val isEmpty: Boolean get() = changed.isEmpty() && computers.isEmpty() && files.isEmpty() &&
-        branches.isEmpty() && services.isEmpty()
+    val isEmpty: Boolean get() = changed.isEmpty() && computers.isEmpty() && issues.isEmpty() &&
+        files.isEmpty() && branches.isEmpty() && services.isEmpty()
 }
 
 private const val MENTION_FILES = 50
@@ -71,7 +74,8 @@ internal fun mentionResults(
     entries: List<MentionEntry>,
     branches: List<GitBranch>,
     services: List<ServiceInfo>,
-    computers: List<MentionComputer> = emptyList()
+    computers: List<MentionComputer> = emptyList(),
+    issues: List<RepoIssue> = emptyList()
 ): MentionResults {
     val hits = if (query.isEmpty()) {
         entries
@@ -85,6 +89,7 @@ internal fun mentionResults(
     return MentionResults(
         changed = shown.filter { it.changed },
         computers = computers.matching(query),
+        issues = issues.matching(query),
         files = shown.filterNot { it.changed },
         // Branches only surface once a fragment is typed, as on the desktop.
         branches = if (query.isEmpty()) {

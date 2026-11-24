@@ -90,7 +90,7 @@ export const GIT_AREA: FeatureArea = {
   id: "git",
   title: "Review what the agent wrote, then ship it",
   description:
-    "See every uncommitted change as one diff, commit with an AI-written message, and open a GitHub pull request without leaving the app.",
+    "See every uncommitted change as one diff, commit with an AI-written message, then open a GitHub pull request, follow its checks and merge it without leaving the app.",
   highlights: [
     {
       icon: FileDiff,
@@ -129,8 +129,27 @@ export const GIT_AREA: FeatureArea = {
     },
     {
       title: "PR status in the footer",
-      body: "When your branch has a pull request, the footer shows PR #N colored by state. Click it to open the PR.",
+      body: "When your branch has a pull request, the footer shows PR #N colored by state. Click an open one to see its checks, review and conflicts and merge it; a merged or closed one opens on GitHub.",
       scope: "github",
+    },
+    {
+      title: "CI checks in the footer",
+      body: "See every check on the pull request, or on the last commit you pushed when there's none. When some fail, re-run the failed jobs, or pick Fix with Claude Code or another agent to open a new tab with the failing checks.",
+      scope: "github",
+      since: "0.7.51",
+    },
+    {
+      title: "CI alerts",
+      body: "lpm follows every commit you push from this computer, whatever pushed it, and tells you when CI fails on it and when that branch passes again: in the app, with a banner when you're elsewhere, and on your phone once you turn on CI results in lpm Link.",
+      scope: "github",
+      since: "0.7.51",
+    },
+    {
+      title: "Merge pull requests",
+      body: "Merge from the footer with a method the repository allows: a merge commit, squash or rebase. While checks run, lpm can merge as soon as they pass, and if GitHub lets you bypass the branch's rules, it can merge past them.",
+      note: "Waiting needs lpm open and stops if a check fails. Drafts and conflicts can't be merged. lpm Link merges one that's ready.",
+      scope: "github",
+      since: "0.7.66",
     },
     {
       title: "Branch switcher",

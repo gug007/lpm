@@ -47,6 +47,8 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.AgentDialogOption
 import cx.lpm.mobile.core.model.AgentDialogRead
 import cx.lpm.mobile.core.model.ProjectAgentRow
+import cx.lpm.mobile.core.ui.AgentAsk
+import cx.lpm.mobile.core.ui.AgentAskCard
 import cx.lpm.mobile.core.ui.AgentToneText
 import cx.lpm.mobile.feature.projects.R as ProjectsR
 import cx.lpm.mobile.feature.projects.agents.AgentStatusTrail

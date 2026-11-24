@@ -44,6 +44,14 @@ export function InstallGuide() {
         isn&rsquo;t code-signed yet.
       </p>
       <InstallStepsList steps={installSteps(DOWNLOAD_ENTRIES["windows-x64"])} />
+      <p className={`mt-4 ${P}`}>
+        If your code is in a WSL distro, click{" "}
+        <strong className="font-semibold">+</strong>, choose WSL folder and
+        pick the distro. The project&rsquo;s services, terminals, agents and
+        Git run inside it, and Git for Windows is still required. Plain
+        terminals can open in PowerShell, Command Prompt, Git Bash or a WSL
+        distro: Settings &rarr; Terminal &rarr; Shell.
+      </p>
 
       <DocsHeading id="linux">Linux</DocsHeading>
       <p className={P}>

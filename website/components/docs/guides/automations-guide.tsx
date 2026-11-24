@@ -1,3 +1,4 @@
+import { CodeBlock } from "@/components/config/code-block";
 import { DocLink } from "@/components/config/doc-link";
 import { Section } from "@/components/config/section";
 import { InstallStepsList } from "@/components/install-steps-list";
@@ -24,7 +25,7 @@ const CREATE: InstallStep[] = [
     text: "Choose Full access or Read only. Nobody is there to approve its steps, so pick Read only for a job that should only look.",
   },
   {
-    text: "Set when it runs, then click Create automation. Run now starts it straight away.",
+    text: "Set when it runs with a Simple schedule, a Cron line or an Event, then click Create automation. Run now starts it straight away.",
   },
 ];
 
@@ -32,12 +33,39 @@ export function AutomationsGuide() {
   return (
     <Section
       title="Automations"
-      description="An automation runs an agent prompt, a shell command or one of a project's actions on a schedule, and keeps every run for you to read."
+      description="An automation runs an agent prompt, a shell command or one of a project's actions on a schedule, or when something happens, and keeps every run for you to read."
     >
       <GuideLesson lesson="create-an-automation" />
 
       <DocsHeading id="create">Create one</DocsHeading>
       <InstallStepsList steps={CREATE} />
+
+      <DocsHeading id="events">When something happens</DocsHeading>
+      <p className={`mb-4 ${P}`}>
+        Set When to Event, and lpm starts the automation on what it sees
+        instead of by the clock.
+      </p>
+      <GuideList
+        items={[
+          "CI fails: a commit you pushed from this computer fails its checks. Name branches to narrow it. It needs the GitHub CLI signed in.",
+          "A service crashes: one of the project's services exits with an error code, noticed within a minute. Name services to narrow it.",
+          "An agent finishes: an agent in a terminal ends its turn, in this project or in others you name. It starts a prompt or a command, not an action, whose own agent would finish and start it again.",
+          "Each reacts once per commit, or once a day. A CI automation stops after three runs in a row for failures on the same branch, until CI passes there.",
+        ]}
+      />
+      <p className={`mt-4 ${P}`}>
+        The run is told what happened, at the top of a prompt and in the{" "}
+        <code className={CODE}>LPM_EVENT_</code>{" "}variables. For example, to
+        fix CI on main in a worktree of its own:
+      </p>
+      <div className="mt-4">
+        <CodeBlock filename="In a terminal">
+          lpm automations add fix-ci --label &quot;Fix CI&quot; \
+          {"\n  "}--on ciFailed --branches main --duplicate worktree \
+          {"\n  "}--agent claude \
+          {"\n  "}--prompt &quot;Make the failing checks pass and push the fix.&quot;
+        </CodeBlock>
+      </div>
 
       <DocsHeading id="runs">Read a run and reply</DocsHeading>
       <p className={P}>

@@ -11,6 +11,8 @@ export interface MergeState {
   merging: boolean;
   source: string;
   files: ConflictFile[];
+  // The AI at work on them, whoever set it on them: this dialog or a phone.
+  resolving?: { line: string };
   // Only the unmerged paths are known: a paired Mac on an older lpm.
   legacy?: boolean;
 }

@@ -15,7 +15,7 @@ vi.mock("../bridge/commands", () => ({
 }));
 
 import { GitCommitCount } from "../bridge/commands";
-import { loadUnsavedWork, unsavedWorkLines, worktreeBranchName } from "./unsavedWork";
+import { loadUnsavedWork, unsavedWorkLines, worktreeBranch, worktreeBranchName } from "./unsavedWork";
 
 beforeEach(() => {
   git.status = { isGitRepo: true, branch: "main", hasUpstream: true, ahead: 0 };
@@ -81,6 +81,16 @@ describe("unsavedWorkLines", () => {
     expect(unsavedWorkLines({ changed: 0, untracked: 0, unpushed: 4, base: "main" })).toEqual([
       "4 commits not on main",
     ]);
+  });
+});
+
+describe("worktreeBranch", () => {
+  it("is the one the project names, for a worktree started from an issue", () => {
+    expect(worktreeBranch({ name: "storefront-8MZUXf", worktreeBranch: "45-cart-badge" })).toBe("45-cart-badge");
+  });
+
+  it("is otherwise named after the project, without its computer", () => {
+    expect(worktreeBranch({ name: "peer-aaaaaaaa-storefront-8MZUXf" })).toBe("lpm/storefront-8MZUXf");
   });
 });
 

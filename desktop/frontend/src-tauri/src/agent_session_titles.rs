@@ -15,6 +15,7 @@ const CODEX_DB_SCAN_TTL: Duration = Duration::from_secs(60);
 const CODEX_HOME_ENV: &str = "CODEX_HOME";
 const GLOBAL_PROJECT_NAME: &str = "__global__";
 
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum AgentProvider {
     Claude,
     Codex,

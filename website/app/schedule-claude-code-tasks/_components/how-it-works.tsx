@@ -9,7 +9,7 @@ const STEPS = [
   {
     number: "02",
     title: "Pick when it runs",
-    body: "Every day, on certain days, on an interval, or only when you start it. The editor spells out the schedule in plain English as you go.",
+    body: "Every day, on certain days, on an interval, when something happens, or only when you start it. The editor spells out the schedule in plain English as you go.",
   },
   {
     number: "03",

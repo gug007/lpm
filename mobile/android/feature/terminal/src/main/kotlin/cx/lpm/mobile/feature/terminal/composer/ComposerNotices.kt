@@ -10,6 +10,7 @@ import cx.lpm.mobile.feature.terminal.R
 internal class ComposerNoticeActions(
     val onDismissWarning: () -> Unit,
     val onDismissCommandNotice: () -> Unit,
+    val onDismissIssueError: () -> Unit,
     val onDismissRewriteError: () -> Unit,
     val onDismissUploadError: () -> Unit,
     val onDismissRestore: () -> Unit,
@@ -19,7 +20,7 @@ internal class ComposerNoticeActions(
 
 /**
  * The composer's toast: a send problem, a saved draft, a History pick added after the
- * draft, a failed rewrite, an attachment that can't go.
+ * draft, an issue that couldn't be read, a failed rewrite, an attachment that can't go.
  */
 @Composable
 internal fun ComposerNotices(
@@ -41,6 +42,8 @@ internal fun ComposerNotices(
                 actions.onDismissCommandNotice
 
         notice is CommandNotice.Failed -> notice.error to actions.onDismissCommandNotice
+
+        state.issueError != null -> state.issueError to actions.onDismissIssueError
 
         state.composer.transformError != null ->
             state.composer.transformError to actions.onDismissRewriteError

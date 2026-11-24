@@ -11,12 +11,15 @@ import cx.lpm.mobile.core.data.client.LpmClient
 import cx.lpm.mobile.core.data.client.LpmClientFactory
 import cx.lpm.mobile.core.data.client.NoTailnet
 import cx.lpm.mobile.core.data.config.ProjectConfigStore
+import cx.lpm.mobile.core.data.conversation.ConversationStore
 import cx.lpm.mobile.core.data.files.ProjectFilesStore
 import cx.lpm.mobile.core.data.git.GitAutoStore
 import cx.lpm.mobile.core.data.git.GitChecksStore
 import cx.lpm.mobile.core.data.git.GitHistoryStore
 import cx.lpm.mobile.core.data.git.GitStore
+import cx.lpm.mobile.core.data.mac.AgentTabSnapshots
 import cx.lpm.mobile.core.data.mac.CredentialStore
+import cx.lpm.mobile.core.data.mac.LastAnswers
 import cx.lpm.mobile.core.data.mac.MacRecord
 import cx.lpm.mobile.core.data.mac.MacStore
 import cx.lpm.mobile.core.data.mac.MacUnpair
@@ -33,6 +36,7 @@ import cx.lpm.mobile.core.data.services.ServiceLogsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionEnvironment
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.data.terminals.AgentTabsStore
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.data.usage.StatsStore
 import cx.lpm.mobile.core.data.usage.UsageStore
@@ -84,6 +88,12 @@ class SessionHarness(test: TestScope) {
         macStore = macStore,
         credentials = credentials,
         snapshots = ProjectSnapshots(snapshotDir, scope, StandardTestDispatcher(scheduler), clock),
+        agentTabs = AgentTabSnapshots(
+            File(snapshotDir, "agent-tabs"),
+            LastAnswers(File(snapshotDir, "agent-answers.json")),
+            scope,
+            StandardTestDispatcher(scheduler)
+        ),
         network = network,
         newBrowser = { browser },
         prober = prober,
@@ -94,6 +104,7 @@ class SessionHarness(test: TestScope) {
         storeFactories = setOf(
             SessionStore.Factory(::ProjectsStore),
             SessionStore.Factory(::TerminalsStore),
+            SessionStore.Factory(::AgentTabsStore),
             SessionStore.Factory(::AutomationsStore),
             SessionStore.Factory(::GitStore),
             SessionStore.Factory(::GitChecksStore),
@@ -110,6 +121,7 @@ class SessionHarness(test: TestScope) {
             SessionStore.Factory(::MachineImporter),
             SessionStore.Factory(::AgentLaunchStore),
             SessionStore.Factory(::AgentDialogStore),
+            SessionStore.Factory(::ConversationStore),
             SessionStore.Factory(::ProjectFilesStore),
             SessionStore.Factory { PushStore(it, registrar, answers) }
         )

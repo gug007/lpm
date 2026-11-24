@@ -434,11 +434,20 @@ class LpmClient internal constructor(
         // `lpmCommandUsed`.
         const val LPM_COMMAND_USED_FEATURE = "lpmCommandUsed"
 
+        // `answers`: an agent tab's newest answers.
+        const val AGENT_ANSWERS_FEATURE = "agentAnswers"
+
+        // `conversationWatch` and its requests: an agent tab's conversation as a list.
+        const val AGENT_CONVERSATION_FEATURE = "agentConversation"
+
         // `agentDialog`, and `answerAgent` with `action: "pick"`.
         const val AGENT_DIALOG_FEATURE = "agentDialog"
 
         // `gitDiscardFiles`: Discard Changes… on one file of the review.
         const val GIT_DISCARD_FILES_FEATURE = "gitDiscardFiles"
+
+        // `git`'s `merge`: a stopped merge's conflicts, and working through them.
+        const val GIT_CONFLICTS_FEATURE = "gitConflicts"
 
         // `actionPopup`: an action's popup card, opened from a long press.
         const val ACTION_POPUP_FEATURE = "actionPopup"
@@ -454,6 +463,9 @@ class LpmClient internal constructor(
 
         // `gitPrDiscussion`: the review on the branch's pull request.
         const val GIT_PR_DISCUSSION_FEATURE = "gitPrDiscussion"
+
+        // `gitIssues` and `gitIssue`: the repository's open issues.
+        const val GIT_ISSUES_FEATURE = "gitIssues"
 
         // `gitCheckLog`: why a check failed.
         const val GIT_CHECK_LOG_FEATURE = "gitCheckLog"

@@ -60,6 +60,7 @@ import {
   type PersistedHistoryEntry,
 } from "../terminals";
 import { type SessionRow } from "../agentSessions";
+import { spawnPrompt } from "../spawnPrompt";
 import { useAppStore } from "../store/app";
 import { CopyClaudeSessionForFork } from "../../bridge/commands";
 import { loadLevelMap, levelOf as levelOfMap, type LevelMap } from "../actionLevels";
@@ -248,7 +249,7 @@ export function ProjectDetail({
         terminalRef.current?.createTerminalWithCmd(
           commandName(task.command) || "Command",
           task.command,
-          { prompt: task.prompt, launchModel: task.launchModel },
+          { prompt: spawnPrompt(task, task.command), launchModel: task.launchModel },
         );
       } else if (task.kind === "fork") {
         switchDetailView("terminal");
@@ -281,7 +282,7 @@ export function ProjectDetail({
         const action = resolveRunnableAction(actions, task.actionName);
         if (action)
           handleRunAction(action, {
-            prompt: task.prompt,
+            prompt: spawnPrompt(task, action.cmd),
             launchModel: task.launchModel,
             fixedAccount: task.fixedAccount,
           });

@@ -13,6 +13,7 @@ import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.session.SessionAlerts
+import cx.lpm.mobile.core.data.terminals.AgentTabsStore
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.data.terminals.canMoveTabs
 import cx.lpm.mobile.core.data.terminals.canUseTabMenu
@@ -36,6 +37,7 @@ import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -43,6 +45,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 
 /** A project's screen (iOS `ProjectDetail`): its tabs and services. */
@@ -87,14 +90,16 @@ class ProjectDetailViewModel @AssistedInject constructor(
             ::Triple
         ),
         s.store<ActionsStore>().state,
-        combine(sessions.listedProject(key, feeds), tips.closed, ::Pair)
-    ) { (session, view, link), p, (t, g, git), a, (listed, closedTips) ->
+        combine(sessions.listedProject(key, feeds), tips.closed, savedTabs(s), ::Triple)
+    ) { (session, view, link), p, (t, g, git), a, (listed, closedTips, saved) ->
         val (ci, discussion) = git
         val inputs = DetailInputs(
             terminals = t.terminals[key.project],
+            saved = saved.takeIf { it.isNotEmpty() }
+                ?.let { SavedTabs(it, link.listAsOf, view.macLabel) },
             creating = key.project in t.creatingTerminals,
             hasBackgroundRuns = a.runs(key.project).isNotEmpty(),
-            live = session.demoMode || session.isReady,
+            live = !session.away,
             statusLine = view.statusLine,
             git = g.snapshots[key.project],
             gitLoading = key.project in g.loading,
@@ -111,6 +116,14 @@ class ProjectDetailViewModel @AssistedInject constructor(
         )
         p.detail(key.project, inputs, listed)
     }
+
+    /** The agent tabs the phone kept, for a project whose list the Mac can't send now. */
+    private fun savedTabs(s: MacSession): Flow<List<TerminalInfo>> =
+        combine(s.state, s.store<TerminalsStore>().state) { session, t ->
+            session.activeMacId.takeIf { session.away && key.project !in t.terminals }
+        }.distinctUntilChanged().mapLatest { mac ->
+            if (mac == null) emptyList() else s.store<AgentTabsStore>().savedTabs(key.project)
+        }
 
     /** The branch has a pull request: what its reviewers wrote, at most once a minute. */
     fun loadReview() {

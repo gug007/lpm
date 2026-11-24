@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.git.pr
 
+import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.navigation.GitPullRequestKey
 import cx.lpm.mobile.core.testing.MainDispatcherRule
 import cx.lpm.mobile.core.testing.keepCollecting
@@ -41,5 +42,22 @@ class GitPrViewModelTest {
         t.settle(2_000)
         assertEquals("https://github.com/demo/storefront/pull/42", vm.uiState.value.createdUrl)
         assertNull(vm.uiState.value.error)
+    }
+
+    @Test
+    fun `a branch started from an issue closes it unless switched off`() = runTest {
+        val t = demoSession()
+        val vm = GitPrViewModel(GitPullRequestKey("storefront"), t.sessions)
+        keepCollecting(vm.uiState)
+        assertNull("not known before the snapshot", vm.uiState.value.issue)
+
+        t.session.store<GitStore>().load("storefront")
+        t.settle(1_000)
+        assertEquals(38, vm.uiState.value.issue)
+        assertTrue(vm.uiState.value.closeIssue)
+
+        vm.setCloseIssue(false)
+        t.settle(0)
+        assertFalse(vm.uiState.value.closeIssue)
     }
 }

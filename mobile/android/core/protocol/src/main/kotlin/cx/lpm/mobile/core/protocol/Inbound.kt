@@ -26,6 +26,7 @@ import cx.lpm.mobile.core.model.GitAutoRun
 import cx.lpm.mobile.core.model.GitBranch
 import cx.lpm.mobile.core.model.GitDiffEntry
 import cx.lpm.mobile.core.model.GitDiffResult
+import cx.lpm.mobile.core.model.GitMergeRun
 import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.HistoryFolder
 import cx.lpm.mobile.core.model.HistoryItem
@@ -321,6 +322,10 @@ sealed interface Inbound {
     ) : Inbound
 
     data class GitChanged(val project: String) : Inbound
+
+    /** A merge-conflicts action's reply, whichever of them it was. */
+    data class GitConflict(val project: String, val verb: String, val error: String?) : Inbound
+    data class GitMergeStep(val run: GitMergeRun) : Inbound
 
     // Commit history: a page of the branch's commits, one commit's files and one
     // file's patch in it. `error` is null on success.

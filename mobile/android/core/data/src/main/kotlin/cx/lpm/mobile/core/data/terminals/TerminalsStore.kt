@@ -217,6 +217,9 @@ class TerminalsStore(internal val session: MacSession) : SessionStore {
         client?.claim(id)
     }
 
+    /** Told of each composed message that went out. */
+    var onSubmitted: ((id: String, text: String) -> Unit)? = null
+
     /**
      * Send a composed message through the web view (which wraps it as a bracketed
      * paste when the program enabled that, then submits). False — so the composer
@@ -232,6 +235,7 @@ class TerminalsStore(internal val session: MacSession) : SessionStore {
         }
         if (id in state.value.endedTerminals) return false
         screen.submit(text)
+        onSubmitted?.invoke(id, text)
         return true
     }
 

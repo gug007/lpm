@@ -1,5 +1,7 @@
 import { dirname, joinPath } from "../../path";
+import type { IssueStart } from "../../issues";
 import type { CommandMap } from "../backend";
+import { issueBranch } from "./issues";
 import { addProject, cloneGit, freeName, project, type Project } from "./state";
 
 // The dialog's label starts as the copy's folder name, so that's what it's called.
@@ -35,15 +37,17 @@ function duplicate({ name: source, label, excludeUncommitted }: Record<string, u
 }
 
 // A Git worktree: the last commit, checked out on a branch of its own.
-function worktree({ name: source, label }: Record<string, unknown>): string {
+function worktree({ name: source, label, issue }: Record<string, unknown>): string {
   const src = project(String(source));
   if (!src) throw new Error(`project "${source}" not found`);
   const name = copyName(label, `${src.parentName ?? src.name}-wt`);
   const copy = copyOf(src, name, joinPath(dirname(src.root), `.worktrees/${name}`));
   copy.worktree = true;
   atHead(copy);
-  const branch = `lpm/${name}`;
-  copy.git = { ...copy.git, branch, upstream: false, ahead: 0, behind: 0 };
+  const from = issue as IssueStart | undefined;
+  copy.worktreeBranch = from && issueBranch(from);
+  const branch = copy.worktreeBranch ?? `lpm/${name}`;
+  copy.git = { ...copy.git, branch, upstream: false, ahead: 0, behind: 0, pr: undefined, issue: from?.number };
   copy.git.branches = [{ name: branch, ageMs: 0 }, ...copy.git.branches];
   addProject(copy);
   return name;

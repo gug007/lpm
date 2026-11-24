@@ -7,7 +7,7 @@ enum CopyRemoval {
     /// it's still being read.
     static func message(for project: Project, snapshot: GitSnapshot?, checking: Bool) -> String {
         var text = project.worktree
-            ? "This deletes “\(project.label)”: its worktree folder, everything inside it, and its branch \(worktreeBranchName(project.name)). This can't be undone."
+            ? "This deletes “\(project.label)”: its worktree folder, everything inside it, and its branch \(project.worktreeBranch ?? worktreeBranchName(project.name)). This can't be undone."
             : "This deletes “\(project.label)” and its folder from disk. This can't be undone."
         if checking {
             text += "\n\nChecking for unsaved work…"
@@ -38,8 +38,8 @@ enum CopyRemoval {
         return lines
     }
 
-    /// The branch lpm made for a worktree, deleted with it. Mirrors
-    /// projects_crud.rs worktree_branch_name.
+    /// The branch lpm made for a worktree, deleted with it, unless the project
+    /// names another. Mirrors projects_crud.rs worktree_branch_name.
     static func worktreeBranchName(_ name: String) -> String {
         var component = ""
         for ch in name {

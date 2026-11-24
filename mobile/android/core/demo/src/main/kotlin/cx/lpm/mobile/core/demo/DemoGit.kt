@@ -46,8 +46,17 @@ internal fun DemoServer.registerGitHandlers() {
         val files = o.strings("files") ?: emptyList()
         pushAfter(0.4) {
             val repo = world.git[project] ?: return@pushAfter notARepo("gitCommit", project)
+            repo.files.firstOrNull { it.status == "conflicted" && it.path in files }?.let {
+                return@pushAfter gitError(
+                    "gitCommit",
+                    project,
+                    "${it.path} still has merge conflict markers (<<<<<<< … >>>>>>>). " +
+                        "Resolve it and commit again."
+                )
+            }
             repo.files = repo.files.filter { it.path !in files }
             repo.ahead += 1
+            repo.merge = null
             pushGitChanged(project)
             mapOf("t" to "gitCommit", "project" to project, "ok" to true)
         }
@@ -214,7 +223,7 @@ private fun DemoServer.registerGitDraftHandlers() {
     }
 }
 
-private fun gitError(t: String, project: String, error: String): Dict =
+internal fun gitError(t: String, project: String, error: String): Dict =
     mapOf("t" to t, "project" to project, "ok" to false, "error" to error)
 
 private fun notARepo(t: String, project: String): Dict =
@@ -225,7 +234,13 @@ private fun notARepo(t: String, project: String): Dict =
 /** Copy a project's git state onto a duplicate. Called by demoAddProject. */
 internal fun DemoServer.demoCloneGitState(from: String, to: String) {
     val repo = world.git[from] ?: return
-    world.git[to] = repo.copy(watched = false, autoPulled = null, discarded = emptyMap())
+    world.git[to] = repo.copy(
+        watched = false,
+        autoPulled = null,
+        discarded = emptyMap(),
+        merge = null,
+        files = if (repo.merge == null) repo.files else emptyList()
+    )
 }
 
 // helpers

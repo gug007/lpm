@@ -698,6 +698,7 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
             "label",
             "parent_name",
             "worktree",
+            "worktree_branch",
             "worktreeFiles",
             "autoPull",
             "ssh",
@@ -729,6 +730,7 @@ fn validate_value(ctx: &Ctx, path: &Path, kind: ConfigKind, value: &Value) -> Re
     validate_string_field(root, "root", "config.root", &mut report);
     validate_string_field(root, "label", "config.label", &mut report);
     validate_string_field(root, "parent_name", "config.parent_name", &mut report);
+    validate_string_field(root, "worktree_branch", "config.worktree_branch", &mut report);
     if let Some(value) = root.get(Value::String("worktree".into())) {
         if value.as_bool().is_none() {
             report.error("config.worktree", "expected a boolean");

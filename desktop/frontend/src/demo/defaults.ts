@@ -18,7 +18,7 @@ const NULL: string[] = [
   "ignored_sync_save", "ignored_sync_saved", "ignored_sync_set", "follow_resume", "follow_stop", "generate_agent_skill",
   "get_claude_statusline_state", "get_codex_statusline_state", "get_msys_mounts",
   "git_abort_merge", "git_auto_pull", "git_auto_pull_last", "git_auto_pull_undo", "git_continue_merge",
-  "git_mark_conflict_resolved", "git_take_conflict_side",
+  "git_mark_conflict_resolved", "git_stop_conflict_ai", "git_take_conflict_side",
   "git_discard_all", "git_discard_files", "git_restore_discarded", "git_fetch_all",
   "git_file_diff_staged", "git_merge", "git_prune_remotes", "hide_browser", "hold_pane_status", "html_preview_root",
   "import_config", "install_kokoro", "install_update", "job_live_output",

@@ -63,6 +63,7 @@ extension DemoServer {
                 reply["undo"] = id
             }
             repo.files.removeAll(where: picked)
+            if repo.files.isEmpty { repo.merge = nil }
             self.world.git[project] = repo
             self.pushGitChanged(project)
             return reply

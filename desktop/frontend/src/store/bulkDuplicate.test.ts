@@ -139,15 +139,25 @@ describe("bulkDuplicate per-copy targets", () => {
       targetsPerCopy: ["app", peerApp],
     });
 
-    expect(h.DuplicateWorktreeProject).toHaveBeenCalledWith("app", "Local", true, "iCTt8J");
+    expect(h.DuplicateWorktreeProject).toHaveBeenCalledWith("app", "Local", true, "iCTt8J", undefined);
     expect(h.StartDuplicateWorktreeProject).toHaveBeenCalledWith(
       peerApp,
       "Remote",
       true,
       "Qx7pL2",
+      undefined,
     );
     expect(h.DuplicateProject).not.toHaveBeenCalled();
     expect(h.StartDuplicateProject).not.toHaveBeenCalled();
+  });
+
+  it("starts every worktree from the picked issue", async () => {
+    h.DuplicateWorktreeProject.mockResolvedValue("app-worktree-1");
+    const issue = { number: 431, title: "Retry failed webhooks" };
+
+    await useAppStore.getState().bulkDuplicate("app", 1, { mode: "worktree", folderIds: ["iCTt8J"], issue });
+
+    expect(h.DuplicateWorktreeProject).toHaveBeenCalledWith("app", "", false, "iCTt8J", issue);
   });
 
   it("does not fall back to a standalone copy on an older peer", async () => {

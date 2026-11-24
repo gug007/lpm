@@ -61,6 +61,7 @@ private fun DemoServer.discard(
             reply["undo"] = id
         }
         repo.files = repo.files.filterNot(picked)
+        if (repo.files.isEmpty()) repo.merge = null
         pushGitChanged(project)
         reply
     }

@@ -7,14 +7,14 @@
 // resolves itself; "service-log" and "terminal-log" are the exceptions — lpm
 // captures the live output at pick time and injects it inline, since the agent
 // can't read lpm's in-memory service pane buffer or xterm's scrollback. "diff",
-// "commit" and "pr" are injected the same way (see mentionGitCapture), so the
-// prompt carries the changes or the review discussion it is about. A
+// "commit", "pr" and "issue" are injected the same way (see mentionGitCapture), so the
+// prompt carries the changes, the review discussion or the issue it is about. A
 // "computer" place (a folder on another computer this one connects to) inserts
 // its "NAME:PATH" reference with no "@", worded so the agent reaches it with
 // `lpm exec --on` and `lpm cp` (see computerMentions.ts).
 //
 // A bare "@" folds the bulkier sources (memory sessions, projects, terminals,
-// services) behind one group row each — an item carrying `children` — that
+// services, issues) behind one group row each — an item carrying `children` — that
 // drills into its list on pick or hover; typing a fragment searches the
 // individual items directly.
 
@@ -34,6 +34,7 @@ export type MentionKind =
   | "diff"
   | "commit"
   | "pr"
+  | "issue"
   | "computer";
 
 export interface MentionItem {
@@ -107,6 +108,7 @@ const GROUP_ORDER: Record<MentionKind, number> = {
   computer: 2,
   "terminal-log": 3,
   "service-log": 4,
+  issue: 5,
   branch: 5,
   commit: 5,
   dir: 6,

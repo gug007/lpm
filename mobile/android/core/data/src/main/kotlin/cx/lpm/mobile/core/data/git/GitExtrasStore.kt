@@ -13,6 +13,7 @@ import cx.lpm.mobile.core.model.BranchScope
 import cx.lpm.mobile.core.model.CheckLog
 import cx.lpm.mobile.core.model.FileWriteResult
 import cx.lpm.mobile.core.model.PrDiscussion
+import cx.lpm.mobile.core.model.RepoIssue
 import cx.lpm.mobile.core.model.SecretFinding
 import cx.lpm.mobile.core.protocol.BranchDiffsReply
 import cx.lpm.mobile.core.protocol.BranchFilesReply
@@ -20,6 +21,8 @@ import cx.lpm.mobile.core.protocol.CheckLogReply
 import cx.lpm.mobile.core.protocol.FileWriteReply
 import cx.lpm.mobile.core.protocol.Inbound
 import cx.lpm.mobile.core.protocol.PrDiscussionReply
+import cx.lpm.mobile.core.protocol.RepoIssueReply
+import cx.lpm.mobile.core.protocol.RepoIssuesReply
 import cx.lpm.mobile.core.protocol.SecretScanReply
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,6 +43,8 @@ data class GitExtrasState(
     val branchLoading: Set<String> = emptySet(),
     val branchErrors: Map<String, String> = emptyMap(),
     val discussions: Map<String, PrDiscussion> = emptyMap(),
+    /** The repository's open issues, for the composer's @ menu. */
+    val issues: Map<String, List<RepoIssue>> = emptyMap(),
     /** Failed checks' logs and errors, by project and then by the check's URL. */
     val checkLogs: Map<String, Map<String, CheckLog>> = emptyMap(),
     val checkLogLoading: Set<String> = emptySet(),
@@ -60,9 +65,9 @@ data class GitExtrasState(
 
 /**
  * The review's extras (iOS `GitExtrasStore`): the look for secrets before a
- * commit, the branch's own changes, the review on its pull request, why a check
- * failed, and saving an edit from the file preview. Each asks the Mac only when
- * its `features` says it answers. A Mac that can't scan, or a scan that fails,
+ * commit, the branch's own changes, the review on its pull request, its issues, why
+ * a check failed, and saving an edit from the file preview. Each asks the Mac only
+ * when its `features` says it answers. A Mac that can't scan, or a scan that fails,
  * never stops a commit.
  */
 class GitExtrasStore(private val session: MacSession) : SessionStore {
@@ -73,6 +78,7 @@ class GitExtrasStore(private val session: MacSession) : SessionStore {
     private val ignored = mutableMapOf<String, MutableSet<String>>()
     private val discussionAsked = mutableMapOf<String, Long>()
     private val saves = mutableMapOf<String, (FileWriteResult) -> Unit>()
+    private val issues = GitIssues(session, mutable)
 
     private val client: LpmClient? get() = session.client
     private val git: GitStore get() = session.store()
@@ -93,12 +99,14 @@ class GitExtrasStore(private val session: MacSession) : SessionStore {
         timeout.cancelAll()
         ignored.clear()
         discussionAsked.clear()
+        issues.reset()
         failSaves()
         mutable.value = GitExtrasState()
     }
 
     override fun onConnectionReset() {
         timeout.cancelAll()
+        issues.failReads()
         failSaves()
         mutable.update {
             it.copy(
@@ -129,6 +137,10 @@ class GitExtrasStore(private val session: MacSession) : SessionStore {
                     )
                 }
             }
+
+            is RepoIssuesReply -> issues.apply(frame)
+
+            is RepoIssueReply -> issues.apply(frame)
 
             is CheckLogReply -> applyCheckLog(frame)
 
@@ -305,6 +317,11 @@ class GitExtrasStore(private val session: MacSession) : SessionStore {
         discussionAsked[project] = now
         client?.requestPrDiscussion(project)
     }
+
+    fun loadIssues(project: String) = issues.load(project)
+
+    /** The issue as it goes in the message, its comments with it. */
+    suspend fun readIssue(project: String, number: Int): IssueRead = issues.read(project, number)
 
     fun loadCheckLog(project: String, url: String) {
         val key = "$project\n$url"

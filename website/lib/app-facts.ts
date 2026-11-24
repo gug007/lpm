@@ -34,7 +34,7 @@ export const FEATURE_LIST = [
   `Live ${STATUS_AGENT_NAMES} status with sounds and system notifications`,
   "Prompt composer with @ mentions, images, and slash-command autocomplete",
   "Duplicate a project or create Git worktrees to run agents in parallel",
-  "Scheduled automations that run agent prompts, commands, or actions",
+  "Automations that run agent prompts, commands, or actions on a schedule, or when CI fails, a service crashes or an agent finishes",
   "Review changes, AI commit messages, and GitHub pull requests",
   "Files tab with an editor, Git status, and editable diffs",
   "Claude Code and Codex token stats and plan-limit meters",

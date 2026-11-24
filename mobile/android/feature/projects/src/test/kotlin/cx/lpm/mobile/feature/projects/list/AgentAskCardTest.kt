@@ -21,6 +21,8 @@ import cx.lpm.mobile.core.model.AgentDialogOption
 import cx.lpm.mobile.core.model.AgentDialogRead
 import cx.lpm.mobile.core.model.AgentState
 import cx.lpm.mobile.core.model.ProjectAgentRow
+import cx.lpm.mobile.core.ui.AgentAsk
+import cx.lpm.mobile.core.ui.AgentAskCard
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

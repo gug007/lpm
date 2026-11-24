@@ -5,6 +5,7 @@ import cx.lpm.mobile.core.model.CheckLog
 import cx.lpm.mobile.core.model.FileWriteResult
 import cx.lpm.mobile.core.model.GitDiffEntry
 import cx.lpm.mobile.core.model.PrDiscussion
+import cx.lpm.mobile.core.model.RepoIssue
 import cx.lpm.mobile.core.model.SecretFinding
 import cx.lpm.mobile.core.model.bool
 import cx.lpm.mobile.core.model.list
@@ -35,6 +36,12 @@ data class PrDiscussionReply(
     val discussion: PrDiscussion?,
     val error: String?
 ) : Inbound
+
+/** The repository's open issues; null when the Mac couldn't read them. */
+data class RepoIssuesReply(val project: String, val issues: List<RepoIssue>?) : Inbound
+
+/** One issue as the @ menu puts it in the message. */
+data class RepoIssueReply(val reqId: String, val mention: String?, val error: String?) : Inbound
 
 data class CheckLogReply(
     val project: String,
@@ -84,6 +91,23 @@ internal val gitExtrasParsers = parsers {
                 null
             },
             error = o.failure("Couldn't read the pull request.")
+        )
+    }
+    put("gitIssues") { o ->
+        RepoIssuesReply(
+            project = o.str("project"),
+            issues = if (o.ok) {
+                o.objects("issues").orEmpty().mapNotNull(RepoIssue::parse)
+            } else {
+                null
+            }
+        )
+    }
+    put("gitIssue") { o ->
+        RepoIssueReply(
+            reqId = o.str("reqId"),
+            mention = if (o.ok) o.obj("issue")?.string("mention") else null,
+            error = o.failure("Couldn't read the issue.")
         )
     }
     put("gitCheckLog") { o ->
