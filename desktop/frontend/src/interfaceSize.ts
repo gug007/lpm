@@ -38,19 +38,25 @@ export function interfaceSizeLabel(size: number): string {
 // (Windows) folds the zoom in by itself.
 let screenScale: number | null = null;
 
+// WebKit keeps devicePixelRatio on the window itself, so deleting the override
+// would leave it undefined: the window's own is put back instead.
+let reportingZoom = false;
+let ownPixelRatio: PropertyDescriptor | undefined;
+
 function matchPixelRatio(): void {
   if (isWindows) return;
-  const zoom = interfaceZoom();
-  if (zoom === 1 || screenScale === null) {
-    if (Object.prototype.hasOwnProperty.call(window, "devicePixelRatio")) {
-      delete (window as { devicePixelRatio?: number }).devicePixelRatio;
-    }
-  } else {
+  const report = interfaceZoom() !== 1 && screenScale !== null;
+  if (report && !reportingZoom) {
+    ownPixelRatio = Object.getOwnPropertyDescriptor(window, "devicePixelRatio");
     Object.defineProperty(window, "devicePixelRatio", {
       configurable: true,
       get: () => (screenScale ?? 1) * interfaceZoom(),
     });
+  } else if (!report && reportingZoom) {
+    if (ownPixelRatio) Object.defineProperty(window, "devicePixelRatio", ownPixelRatio);
+    else delete (window as { devicePixelRatio?: number }).devicePixelRatio;
   }
+  reportingZoom = report;
   window.dispatchEvent(new Event("resize"));
 }
 
