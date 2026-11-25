@@ -367,7 +367,8 @@ sleep 3
 check "stop ends the service" '! serves'
 
 shot final
-echo "RESULT pass=$pass fail=$fail"
-[ "$fail" = 0 ] && [ "$pass" = 15 ] && exit 0
+total=$(grep -c '^ *check "' "$HERE/${0##*/}")
+echo "RESULT pass=$pass fail=$fail total=$total"
+[ "$fail" = 0 ] && [ "$pass" = "$total" ] && exit 0
 print_logs
 exit 1

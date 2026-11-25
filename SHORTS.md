@@ -76,3 +76,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-pu
 - Switch Claude Code accounts without losing your chat
 - Claude can explain it in a video
 - Keep your Mac awake while Claude works
+- Claude built an app in my terminal
