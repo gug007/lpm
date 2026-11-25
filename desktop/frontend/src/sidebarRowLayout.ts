@@ -73,7 +73,7 @@ const copyLines = (lines: readonly RowLine[]): RowLine[] =>
 
 export const DEFAULT_ROW_LAYOUT: SidebarRowLayout = {
   lines: copyLines(ROW_PRESETS.today),
-  hideDefaultBranch: true,
+  hideDefaultBranch: false,
   changesSince: "commit",
   prStateWord: false,
   checksOnlyFailing: false,
@@ -106,7 +106,7 @@ export function normalizeRowLayout(raw: unknown): SidebarRowLayout {
   if (lines.length === 0) lines.push({ left: [], right: [] });
   return {
     lines,
-    hideDefaultBranch: typeof r.hideDefaultBranch === "boolean" ? r.hideDefaultBranch : DEFAULT_ROW_LAYOUT.hideDefaultBranch,
+    hideDefaultBranch: r.hideDefaultBranch === true,
     changesSince: r.changesSince === "branch" ? "branch" : "commit",
     prStateWord: r.prStateWord === true,
     checksOnlyFailing: r.checksOnlyFailing === true,

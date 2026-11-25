@@ -46,11 +46,11 @@ const none = { alert: false, status: false, origin: true };
 const layout = DEFAULT_ROW_LAYOUT;
 
 describe("detailShows", () => {
-  it("hides the default branch unless asked not to", () => {
+  it("shows the default branch unless asked to hide it", () => {
     const onMain: RowData = { stats: stats({ branch: "main" }) };
-    expect(detailShows("branch", onMain, none, layout)).toBe(false);
-    expect(detailShows("branch", onMain, none, { ...layout, hideDefaultBranch: false })).toBe(true);
-    expect(detailShows("branch", { stats: stats() }, none, layout)).toBe(true);
+    expect(detailShows("branch", onMain, none, layout)).toBe(true);
+    expect(detailShows("branch", onMain, none, { ...layout, hideDefaultBranch: true })).toBe(false);
+    expect(detailShows("branch", { stats: stats() }, none, { ...layout, hideDefaultBranch: true })).toBe(true);
   });
 
   it("shows changes and files only when there are some", () => {

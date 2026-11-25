@@ -13,6 +13,7 @@ import {
 describe("normalizeRowLayout", () => {
   it("is the classic row when nothing is saved", () => {
     expect(normalizeRowLayout(undefined)).toEqual(DEFAULT_ROW_LAYOUT);
+    expect(normalizeRowLayout({})).toEqual(DEFAULT_ROW_LAYOUT);
     expect(presetOf(normalizeRowLayout(undefined).lines)).toBe("today");
   });
 
@@ -25,6 +26,7 @@ describe("normalizeRowLayout", () => {
         { left: [], right: [] },
         { left: ["version"], right: [] },
       ],
+      hideDefaultBranch: true,
       changesSince: "branch",
       prStateWord: "yes",
     });
