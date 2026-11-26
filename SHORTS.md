@@ -77,3 +77,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-pu
 - Claude can explain it in a video
 - Keep your Mac awake while Claude works
 - Claude built an app in my terminal
+- Claude switches accounts before you hit the limit
