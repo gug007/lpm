@@ -10,6 +10,10 @@
   <a href="https://github.com/gug007/lpm/releases/latest"><img src="https://img.shields.io/github/v/release/gug007/lpm" alt="Release"></a>
 </p>
 
+<p align="center">
+  <img src="website/public/screenrecording/start-project-claude.gif" alt="Starting a project in lpm and running Claude Code next to its services" width="800">
+</p>
+
 ---
 
 <p align="center">
@@ -45,9 +49,6 @@ On your phone, get lpm Link from the [App Store](https://apps.apple.com/us/app/l
   <br><br>
   <strong>Start a project</strong> — one click, live terminal output for every service<br><br>
   <img src="website/public/screenrecording/start-project.gif" alt="Starting a project in lpm desktop app" width="700">
-  <br><br>
-  <strong>Run AI agents alongside your services</strong> — Claude Code, Codex, or any agent in the same workspace<br><br>
-  <img src="website/public/screenrecording/start-project-claude.gif" alt="Running Claude Code in lpm" width="700">
   <br><br>
   <strong>Duplicate a project</strong> — run an agent in each copy, in parallel, no conflicts<br><br>
   <img src="website/public/screenrecording/duplicate-project.gif" alt="Duplicating a project in lpm" width="700">
