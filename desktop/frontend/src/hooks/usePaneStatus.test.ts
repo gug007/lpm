@@ -89,7 +89,7 @@ describe("derivePaneStatus", () => {
     expect(s.agents.get("%1")).toEqual({
       state: "working",
       since: NOW - 300_000,
-      pause: { since: NOW - 60_000, shells: ["Run the test suite"] },
+      pause: { since: NOW - 60_000, shells: ["Run the test suite"], key: "a" },
     });
     // A paired computer's clock can run ahead of this one.
     const ahead = derivePaneStatus([{ ...paused, pausedAt: NOW + 5_000 }], NOW);

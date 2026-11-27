@@ -111,6 +111,7 @@ macro_rules! all_command_handlers {
             archive_agent_status,
             mark_agent_status_seen,
             mark_agent_status_unread,
+            finish_paused_agent,
             cli_install_status,
             install_cli,
             agent_skill_status,

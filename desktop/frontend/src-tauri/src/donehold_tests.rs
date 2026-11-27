@@ -58,14 +58,31 @@ fn a_finish_waits_for_the_background_shell_the_turn_started() {
         Verdict::Drop,
         "the wake-up turn reports the finish"
     );
-    let forgotten = Observed {
-        why: Why {
-            waits: true,
-            ..Default::default()
-        },
-        ..observed(WAIT_CAP_MS)
+}
+
+// "this is not done but this agent display done why?": a watcher the turn
+// waited on was still running 15 minutes in, and the finish went out anyway.
+// Paused stays paused for as long as the shell runs; the user is told once.
+#[test]
+fn no_clock_turns_a_pause_into_a_finish() {
+    let why = Why {
+        waits: true,
+        ..Default::default()
     };
-    assert_eq!(verdict(&forgotten), Verdict::Publish);
+    let hours_in = Observed {
+        why,
+        ..observed(5 * 60 * 60_000)
+    };
+    assert_eq!(verdict(&hours_in), Verdict::Hold);
+    assert!(hours_in.paused());
+    assert!(hours_in.notice_due());
+    assert!(!Observed { why, ..observed(NOTICE_MS - 1) }.notice_due());
+    let sub_agents = Observed {
+        children: true,
+        why,
+        ..observed(NOTICE_MS)
+    };
+    assert!(!sub_agents.notice_due(), "work going on is no pause");
 }
 
 #[test]
@@ -175,7 +192,7 @@ fn a_hold_for_a_shell_alone_is_a_pause() {
     };
     assert!(Observed { why, ..observed(60_000) }.paused());
     assert!(!Observed { why, ..observed(40) }.paused());
-    assert!(!Observed { why, ..observed(WAIT_CAP_MS) }.paused());
+    assert!(Observed { why, ..observed(NOTICE_MS * 4) }.paused());
     let sub_agents = Observed {
         children: true,
         why,
@@ -224,6 +241,15 @@ fn a_paused_turn_is_listed_with_its_shells() {
     assert_eq!(listed.value, STATUS_RUNNING);
 
     assert!(!mark_paused(&key, 8, false), "another hold's flag");
+    assert_eq!(
+        crate::bgtasks::take_unnoticed(project, agent),
+        Some(vec!["Run the test suite".to_string()])
+    );
+    assert_eq!(
+        crate::bgtasks::take_unnoticed(project, agent),
+        None,
+        "one notice per pause, and none for a later one beside the same shell"
+    );
     pending().lock().unwrap().remove(&key);
     assert_eq!(store.list(project)[0].paused_at, 0);
 }

@@ -132,6 +132,7 @@ final class NotificationService: UNNotificationServiceExtension {
         case "Waiting": phrase = "Agent is waiting for you"
         case "Done": phrase = "Agent finished"
         case "Error": phrase = "Agent hit an error"
+        case "Paused": phrase = "Agent is paused"
         default: phrase = status
         }
         return terminal.isEmpty ? phrase : "\(terminal) — \(phrase)"

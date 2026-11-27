@@ -29,6 +29,8 @@ class ProjectMenuActions(
     val view: TerminalViewChoice? = null,
     /** Find in the terminal the menu sits over; null leaves the item out. */
     val find: (() -> Unit)? = null,
+    /** Mark that terminal's paused agent finished; null leaves the item out. */
+    val finishPaused: (() -> Unit)? = null,
     val start: (profile: String) -> Unit = {},
     val stop: () -> Unit = {},
     val reviewChanges: () -> Unit = {},
@@ -50,7 +52,8 @@ class ProjectMenuActions(
 )
 
 /**
- * The project's "More" menu: View over an agent's tab, Find in Terminal, Start/Stop, Review
+ * The project's "More" menu: View over an agent's tab, Find in Terminal, Mark as finished,
+ * Start/Stop, Review
  * Changes, Files, Resume Session, Git, CI, Memory, Commands, Notes, Automations, Claude
  * Account, Status, its profiles, then Rename, Configure and Terminal Settings.
  */
@@ -63,12 +66,21 @@ fun ColumnScope.ProjectMenuItems(
 ) {
     val running = project.running
     actions.view?.let { TerminalViewItems(it) }
-    actions.find?.let {
-        ContextMenuItem(
-            title = stringResource(ProjectsR.string.menu_find_in_terminal),
-            onClick = it,
-            icon = painterResource(R.drawable.ic_search)
-        )
+    if (actions.find != null || actions.finishPaused != null) {
+        actions.find?.let {
+            ContextMenuItem(
+                title = stringResource(ProjectsR.string.menu_find_in_terminal),
+                onClick = it,
+                icon = painterResource(R.drawable.ic_search)
+            )
+        }
+        actions.finishPaused?.let {
+            ContextMenuItem(
+                title = stringResource(ProjectsR.string.agent_mark_finished),
+                onClick = it,
+                icon = painterResource(R.drawable.ic_check_circle)
+            )
+        }
         ContextMenuDivider()
     }
     // A YAML the Mac can't read has nothing to start, as on the desktop.

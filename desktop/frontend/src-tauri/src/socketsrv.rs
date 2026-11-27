@@ -1342,7 +1342,7 @@ fn cmd_set_status(args: &[String], store: &StatusStore, app: &AppHandle) -> Stri
     }
     if options.contains_key("prompt") {
         if !options.contains_key("wake") {
-            crate::bgtasks::user_prompted(project, &entry.key);
+            crate::bgtasks::settle(project, &entry.key);
         }
         // A prompt submitted while the session is still busy queues behind the
         // turn instead of starting one; it is held for the Stop that ends that turn.

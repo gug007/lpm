@@ -1,6 +1,6 @@
-import { Archive, ArrowUpRight, Circle, CircleDot, Copy, GitFork, Settings2, Users } from "lucide-react";
+import { Archive, ArrowUpRight, Circle, CircleCheck, CircleDot, Copy, GitFork, Settings2, Users } from "lucide-react";
 import { ARCHIVE_AGENT_CHORD } from "../agentArchive";
-import { PAUSED_LABEL } from "../agentPause";
+import { FINISH_PAUSED_LABEL, PAUSED_LABEL } from "../agentPause";
 import { AGENT_STATE_LABEL } from "../agentStatus";
 import { chordLabel } from "../keys";
 import { peerSlugOf } from "../peer/markers";
@@ -26,6 +26,8 @@ interface SidebarAgentMenuProps {
   onArchive?: () => void;
   onMarkSeen?: () => void;
   onMarkUnread?: () => void;
+  // Present while the row is paused: says its work is over.
+  onFinishPause?: () => void;
   onSettings?: () => void;
   onClose: () => void;
 }
@@ -42,6 +44,7 @@ export function SidebarAgentMenu({
   onArchive,
   onMarkSeen,
   onMarkUnread,
+  onFinishPause,
   onSettings,
   onClose,
 }: SidebarAgentMenuProps) {
@@ -59,6 +62,13 @@ export function SidebarAgentMenu({
         {seen && " · Seen"}
       </div>
       <ContextMenuItem label="Open" icon={<ArrowUpRight size={12} />} onClick={close(onOpen)} />
+      {onFinishPause && (
+        <ContextMenuItem
+          label={FINISH_PAUSED_LABEL}
+          icon={<CircleCheck size={12} />}
+          onClick={close(onFinishPause)}
+        />
+      )}
       {act && (
         <>
           <ContextMenuItem label="Copy last answer" icon={<Copy size={12} />} onClick={act("copyAnswer")} />

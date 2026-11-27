@@ -2692,8 +2692,9 @@ final class AppModel {
     private func reconcileNotifications(_ projects: [Project]) {
         var live: [String: [String: String]] = [:]
         for project in projects {
+            // A long pause's notice stands while the turn sits paused.
             live[project.name] = Dictionary(
-                project.statusEntries.map { ($0.key, $0.value) },
+                project.statusEntries.map { ($0.key, $0.pause == nil ? $0.value : AgentPause.status) },
                 uniquingKeysWith: { first, _ in first }
             )
         }

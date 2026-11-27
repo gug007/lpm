@@ -16,6 +16,9 @@ data class AgentPause(
 
     companion object {
         const val LABEL = "Paused"
+
+        /** The status the Mac's notice about a long pause carries. */
+        const val STATUS = "Paused"
     }
 }
 

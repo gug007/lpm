@@ -11,6 +11,8 @@ const app = vi.hoisted(() => ({
 }));
 vi.mock("../store/app", () => ({ useAppStore: (select: (s: typeof app) => unknown) => select(app) }));
 vi.mock("../../bridge/runtime", () => ({ EventsOn: () => () => {} }));
+const finishPaused = vi.hoisted(() => vi.fn());
+vi.mock("../agentArchive", async (actual) => ({ ...(await actual<typeof import("../agentArchive")>()), finishPaused }));
 
 vi.mock("./SidebarAgentAsk", () => ({
   SidebarAgentAsk: ({ terminalId }: { terminalId: string }) => <div data-ask={terminalId} />,
@@ -105,13 +107,13 @@ describe("SidebarAgentRows", () => {
               key: "claude_code_p",
               state: "working",
               title: "Permissions",
-              pause: { since: stopped, shells: ["Wait for Screen Recording permission"] },
+              pause: { since: stopped, shells: ["Wait for Screen Recording permission"], key: "claude_code_a" },
             }),
             agent({
               key: "claude_code_t",
               state: "working",
               title: "Run tests",
-              pause: { since: stopped, shells: ["Run unit tests", "Run the linter"] },
+              pause: { since: stopped, shells: ["Run unit tests", "Run the linter"], key: "claude_code_a" },
             }),
             agent({ key: "codex_1", state: "working", title: "Fix login", provider: "Codex" }),
           ]}
@@ -306,6 +308,19 @@ describe("SidebarAgentRows menu", () => {
     expect(labels).toContain("Mark as unread");
     expect(labels.find((l) => l?.startsWith("Archive"))).not.toContain("Answer it first");
     expect(document.querySelector(".menu-pop")?.textContent).toContain("Done · Seen");
+  });
+
+  it("marks a paused agent finished from its row, and offers it only while paused", () => {
+    const pause = { since: 1, shells: ["Run the test suite"], key: "claude_code_a" };
+    const labels = openMenu({ state: "working", pause });
+    expect(labels.slice(0, 2)).toEqual(["Open", "Mark as finished"]);
+    act(() => {
+      [...document.querySelectorAll<HTMLButtonElement>(".menu-pop button")]
+        .find((b) => b.textContent === "Mark as finished")
+        ?.click();
+    });
+    expect(finishPaused).toHaveBeenCalledWith("crypto-portfolio", pause);
+    expect(openMenu({ state: "working" })).not.toContain("Mark as finished");
   });
 
   it("offers to mark a new finish seen only while finished agents are kept", () => {

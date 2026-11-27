@@ -13,7 +13,7 @@ const NULL: string[] = [
   "copy_claude_session_for_fork", "copy_png_image", "crash_report_config", "create_branch", "create_template", "delete_agent_skill",
   "delete_branch", "delete_job_history", "delete_memory_session", "delete_remote_tracking_ref",
   "delete_template", "detach_project", "dismiss_claude_limit_stop", "dismiss_port_suggestion", "download_project_file",
-  "drain_pending_job_tasks",
+  "drain_pending_job_tasks", "finish_paused_agent",
   "focus_main_window", "follow_pause", "ignored_sync_cancel", "ignored_sync_forget",
   "ignored_sync_save", "ignored_sync_saved", "ignored_sync_set", "follow_resume", "follow_stop", "generate_agent_skill",
   "get_claude_statusline_state", "get_codex_statusline_state", "get_msys_mounts",

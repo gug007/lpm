@@ -35,6 +35,7 @@ class ProjectRowActions(
     val archiveAgent: (Project, ProjectAgentRow) -> Unit = { _, _ -> },
     val markAgentSeen: (Project, ProjectAgentRow) -> Unit = { _, _ -> },
     val markAgentUnread: (Project, ProjectAgentRow) -> Unit = { _, _ -> },
+    val finishPausedAgent: (Project, ProjectAgentRow) -> Unit = { _, _ -> },
     val cancelQueued: (id: String) -> Unit = {},
     val retryQueued: (id: String) -> Unit = {},
     /** Asks for a waiting agent's dialog while its row is on screen. */

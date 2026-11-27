@@ -73,6 +73,7 @@
     <string name="agent_mark_seen">Mark as Seen</string>
     <string name="agent_mark_unread">Mark as Unread</string>
     <string name="agent_archive">Archive</string>
+    <string name="agent_mark_finished">Mark as finished</string>
     <plurals name="agents_more_seen">
         <item quantity="one">%1$d more seen</item>
         <item quantity="other">%1$d more seen</item>

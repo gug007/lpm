@@ -65,7 +65,7 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `clock.badge.xmark` | `timer_off` | 44 dp | "No answer" | |
 | `checkmark.shield` | `verified_user` | 46 dp sheet, 22 dp row | "Confirm on your Mac", "Open admin console" | |
 | `checkmark.circle.fill` | `check_circle` (fill) | 56 dp, 24 dp, 22 dp, 16 dp | "Connected to …", lpm update bar ("Updated to lpm …", "lpm is up to date"), update section, Git notice ("Pulled") | |
-| `checkmark.circle` | `check_circle` | 22 dp | "Test addresses" | |
+| `checkmark.circle` | `check_circle` | 22 dp | "Test addresses", "Mark as finished" | |
 | `bell.badge.fill` | `notifications_unread` (fill) | 18 dp | paired summary Notifications | |
 | `exclamationmark.shield` | `gpp_maybe` | 46 dp sheet, 18 dp issue | identity check | |
 | `xmark.shield` | `gpp_bad` | 18 dp | "Identity check failed" | |

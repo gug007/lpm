@@ -249,6 +249,9 @@ export function MarkAgentStatusSeen(project, keys) {
 export function MarkAgentStatusUnread(project, keys) {
   return invoke("mark_agent_status_unread", { project, keys });
 }
+export function FinishPausedAgent(project, keys) {
+  return invoke("finish_paused_agent", { project, keys });
+}
 export function MovePaneStatus(project, oldPaneID, newPaneID) {
   return invoke("move_pane_status", {
     project,

@@ -27,12 +27,14 @@ struct Task {
 }
 
 /// The background shells seen running at a Stop of each session, those of
-/// them that no longer keep a Done back, and what the last Stop waits on.
+/// them that no longer keep a Done back, what the last Stop waits on (id and
+/// label), and the ones a pause notice already named.
 #[derive(Default)]
 struct Shells {
     seen: HashSet<String>,
     settled: HashSet<String>,
-    waited: Vec<String>,
+    waited: Vec<(String, String)>,
+    noticed: HashSet<String>,
 }
 
 fn shells() -> &'static Mutex<HashMap<Id, Shells>> {
@@ -108,7 +110,7 @@ pub fn stopped_beside(project: &str, key: &str, background_tasks: &str) {
         .seen
         .extend(running_shells(&tasks).map(|t| t.id.clone()));
     shells.waited = waited(&tasks, Some(&shells.settled))
-        .map(Task::label)
+        .map(|t| (t.id.clone(), t.label()))
         .collect();
     drop(all);
     if tasks
@@ -142,14 +144,28 @@ pub fn waited_on(project: &str, key: &str) -> Vec<String> {
         .lock()
         .unwrap()
         .get(&id(project, key))
-        .map(|s| s.waited.clone())
+        .map(|s| s.waited.iter().map(|(_, label)| label.clone()).collect())
         .unwrap_or_default()
 }
 
-/// The user sent a prompt (not a wake-up): whatever shell was running before it
-/// is the background the session works beside — a server, a watcher — not
-/// something a later turn waits on.
-pub fn user_prompted(project: &str, key: &str) {
+/// The shells to name in a notice that the turn is still paused: all it waits
+/// on, once one of them is new to such a notice. A session woken now and then
+/// beside the same long shell hears about it once.
+pub fn take_unnoticed(project: &str, key: &str) -> Option<Vec<String>> {
+    let mut all = shells().lock().unwrap();
+    let shells = all.get_mut(&id(project, key))?;
+    let mut new = false;
+    for (id, _) in &shells.waited {
+        new |= shells.noticed.insert(id.clone());
+    }
+    new.then(|| shells.waited.iter().map(|(_, label)| label.clone()).collect())
+}
+
+/// Every shell seen running so far keeps no later Done back. The user marked
+/// the work finished, or sent a prompt (not a wake-up): whatever shell was
+/// running before it is the background the session works beside — a server, a
+/// watcher — not something a later turn waits on.
+pub fn settle(project: &str, key: &str) {
     if let Some(shells) = shells().lock().unwrap().get_mut(&id(project, key)) {
         let seen = std::mem::take(&mut shells.seen);
         shells.settled.extend(seen);
@@ -196,8 +212,8 @@ const LONG_LIVED_COMMANDS: [&str; 26] = [
 
 /// A shell that runs until stopped: a dev server, a watcher, a launched app.
 /// Guessed that way wrongly, the turn is announced the moment it stops, as
-/// every turn beside a background shell used to be; missed, its finish waits
-/// for WAIT_CAP or the user's next prompt.
+/// every turn beside a background shell used to be; missed, the turn stays
+/// paused until the user prompts or marks it finished.
 fn long_lived(description: &str, command: &str) -> bool {
     let description = description.to_lowercase();
     description

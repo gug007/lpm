@@ -1,5 +1,5 @@
 import { Fragment, lazy, memo, Suspense, useEffect, useRef, useState } from "react";
-import { archiveAgents, markAgentSeen, markAgentUnread } from "../agentArchive";
+import { archiveAgents, finishPaused, markAgentSeen, markAgentUnread } from "../agentArchive";
 import { edgeAgentsOfRow } from "../sidebarAgentEdges";
 import type { SidebarAgentRow } from "../sidebarAgents";
 import { useExpandedSeenAgents } from "../sidebarCollapsed";
@@ -106,6 +106,7 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
     archiveAgents(projectName, [agent]);
     next?.focus();
   };
+  const pause = menu?.agent.pause;
 
   return (
     <div
@@ -171,6 +172,7 @@ export const SidebarAgentRows = memo(function SidebarAgentRows({
           onMarkUnread={
             menu.agent.seenAt !== undefined ? () => markAgentUnread(projectName, menu.agent) : undefined
           }
+          onFinishPause={pause ? () => finishPaused(projectName, pause) : undefined}
           onSettings={() => openSettings(menu.agent)}
           onClose={() => setMenu(null)}
         />

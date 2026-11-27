@@ -10,6 +10,8 @@ struct AgentPause: Equatable {
     var shells: [String]
 
     static let label = "Paused"
+    /// The status the Mac's notice about a long pause carries.
+    static let status = "Paused"
     /// The desktop's violet: working's color, held still.
     static let tint = Color(light: "#6D28D9", dark: "#A78BFA")
 

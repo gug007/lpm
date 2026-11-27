@@ -125,6 +125,10 @@ fun ProjectsRoute(
                 tap()
                 viewModel.markAgentUnread(project, row)
             },
+            finishPausedAgent = { project, row ->
+                tap()
+                viewModel.finishPausedAgent(project, row)
+            },
             cancelQueued = viewModel::cancelQueued,
             retryQueued = viewModel::retryQueued,
             followDialog = { project, terminal, key ->

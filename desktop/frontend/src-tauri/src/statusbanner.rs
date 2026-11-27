@@ -5,7 +5,7 @@
 use crate::agent_last_answer::newest_answer;
 use crate::agentkind::AgentKind;
 use crate::notifychannels::NotificationEvent;
-use crate::sound::StatusSound;
+use crate::sound::{StatusSound, PAUSED_NEWS};
 use crate::status::{StatusEntry, STATUS_DONE, STATUS_ERROR};
 use std::time::Duration;
 
@@ -24,8 +24,12 @@ impl Banner {
     /// The banner for a transition worth interrupting for; Running is a
     /// progress detail, never one.
     pub fn of(news: &StatusSound) -> Option<Self> {
-        let event = NotificationEvent::of_status(&news.value)?;
-        let mut body = what_happened(event, news.elapsed_ms.and_then(took))?;
+        let took = news.elapsed_ms.and_then(took);
+        let mut body = if news.value == PAUSED_NEWS {
+            paused_for(took)
+        } else {
+            what_happened(NotificationEvent::of_status(&news.value)?, took)?
+        };
         if let Some(answer) = news.answer.as_deref().filter(|a| !a.is_empty()) {
             body.push('\n');
             body.push_str(answer);
@@ -56,6 +60,23 @@ fn what_happened(event: NotificationEvent, took: Option<String>) -> Option<Strin
         (NotificationEvent::AgentError, None) => "Stopped with an error.".to_string(),
         _ => return None,
     })
+}
+
+/// "Paused 15m, waiting on:", with what it waits on to follow.
+fn paused_for(took: Option<String>) -> String {
+    match took {
+        Some(took) => format!("Paused {took}, waiting on:"),
+        None => "Paused, waiting on:".to_string(),
+    }
+}
+
+/// The pause news on one line, as a phone's notification shows it.
+pub fn paused_summary(news: &StatusSound) -> String {
+    let line = paused_for(news.elapsed_ms.and_then(took));
+    match news.answer.as_deref().filter(|a| !a.is_empty()) {
+        Some(shells) => format!("{line} {shells}"),
+        None => line,
+    }
 }
 
 /// "45s", "4m 12s", "1h 5m". Under a second says nothing worth reading.
@@ -231,6 +252,23 @@ mod tests {
             ANSWER_CHARS
         );
         assert_eq!(first_line(" \n\t"), None);
+    }
+
+    #[test]
+    fn a_long_pause_names_what_it_waits_on_and_never_says_finished() {
+        let mut paused = news(PAUSED_NEWS, "myapp", "tests", Some(900_000));
+        paused.answer = Some("Run the test suite · Build the app".into());
+        assert_eq!(
+            banner(&paused),
+            (
+                "myapp · tests".into(),
+                "Paused 15m, waiting on:\nRun the test suite · Build the app".into()
+            )
+        );
+        assert_eq!(
+            paused_summary(&paused),
+            "Paused 15m, waiting on: Run the test suite · Build the app"
+        );
     }
 
     #[test]

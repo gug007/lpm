@@ -145,6 +145,10 @@ enum Wire {
     static func markStatusUnread(project: String, keys: [String]) -> String {
         json(["t": "markStatusUnread", "project": project, "keys": keys])
     }
+    /// Only for a Mac whose `features` has "finishPaused".
+    static func finishPaused(project: String, keys: [String]) -> String {
+        json(["t": "finishPaused", "project": project, "keys": keys])
+    }
     static func jobs() -> String { json(["t": "jobs"]) }
     static func jobHistory(project: String, jobId: String) -> String {
         json(["t": "jobHistory", "project": project, "jobId": jobId])

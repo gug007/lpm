@@ -16,6 +16,17 @@ pub(super) fn send(
     wants: impl Fn(&PushDevice) -> bool,
     build: impl FnOnce(&str, i64) -> String,
 ) {
+    send_in(hub, "", key, wants, build);
+}
+
+/// The same, about an agent in `project`: its next push replaces this one.
+pub(super) fn send_in(
+    hub: &RemoteHub,
+    project: &str,
+    key: &str,
+    wants: impl Fn(&PushDevice) -> bool,
+    build: impl FnOnce(&str, i64) -> String,
+) {
     if !hub.inner.enabled.load(Ordering::Relaxed) || !hub.inner.running.load(Ordering::Relaxed) {
         return;
     }
@@ -30,7 +41,7 @@ pub(super) fn send(
         return;
     }
     let plaintext = build(&server_id, crate::status::now_millis());
-    let collapse_id = push_collapse_id(&server_id, "", key);
+    let collapse_id = push_collapse_id(&server_id, project, key);
     send_alerts(
         hub,
         cfg.effective_relay(),

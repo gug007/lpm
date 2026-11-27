@@ -112,13 +112,15 @@ pub fn notify_unattended(app: AppHandle, title: String, body: String, event: Str
 }
 
 /// One banner per status transition worth interrupting for, said the way
-/// statusbanner.rs words it. `news` is asked for only once the banner will show.
+/// statusbanner.rs words it, standing while the pane still shows
+/// `stands_while`. `news` is asked for only once the banner will show.
 pub fn notify_status(
     app: &AppHandle,
     event: NotificationEvent,
     settings: &Value,
     project: &str,
     pane_id: &str,
+    stands_while: &str,
     news: &dyn Fn() -> StatusSound,
 ) {
     if !should_notify_in(app, event, settings) {
@@ -129,13 +131,13 @@ pub fn notify_status(
         return;
     };
     notify(app, &banner.title, &banner.body);
-    crate::bannerwithdraw::record(project, pane_id, &news.value, &banner);
+    crate::bannerwithdraw::record(project, pane_id, stands_while, &banner);
 }
 
 /// The same banner for a transition on a paired host, which already resolved
 /// what it wants said (an older host sends the bare status, or only names).
 pub fn notify_status_named(app: &AppHandle, news: &StatusSound) {
-    let Some(event) = NotificationEvent::of_status(&news.value) else {
+    let Some(event) = NotificationEvent::of_news(&news.value) else {
         return;
     };
     if !should_notify(app, event) {

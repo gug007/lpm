@@ -13,6 +13,8 @@ import cx.lpm.mobile.core.data.git.GitNotice
 import cx.lpm.mobile.core.data.git.GitOpError
 import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.projects.ProjectsStore
+import cx.lpm.mobile.core.data.projects.canFinishPausedAgents
+import cx.lpm.mobile.core.data.projects.finishPausedAgent
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
@@ -20,6 +22,7 @@ import cx.lpm.mobile.core.model.AutoPullMode
 import cx.lpm.mobile.core.model.AutoPulled
 import cx.lpm.mobile.core.model.GitAutoKind
 import cx.lpm.mobile.core.model.Project
+import cx.lpm.mobile.core.model.ProjectAgentRow
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.WorkStatusChoice
 import cx.lpm.mobile.core.model.WorkStatusInput
@@ -64,7 +67,9 @@ data class ProjectMenuUiState(
     /** The Mac lists the branch's commits (History), and the project isn't on SSH. */
     val canShowHistory: Boolean = false,
     /** The Mac keeps lpm commands (Commands). */
-    val canManageCommands: Boolean = false
+    val canManageCommands: Boolean = false,
+    /** The Mac marks a paused agent finished (a terminal's Mark as finished). */
+    val canFinishPaused: Boolean = false
 )
 
 /**
@@ -115,7 +120,8 @@ class ProjectMenuViewModel @AssistedInject constructor(
             canBrowseFiles = live != null && s.store<ProjectFilesStore>().canBrowseFiles(live),
             canResumeSessions = live != null && s.store<AgentLaunchStore>().canResumeSessions(live),
             canShowHistory = live != null && s.store<GitHistoryStore>().canShowHistory(live),
-            canManageCommands = s.store<LpmCommandsStore>().available
+            canManageCommands = s.store<LpmCommandsStore>().available,
+            canFinishPaused = s.store<ProjectsStore>().canFinishPausedAgents
         )
     }
 
@@ -154,6 +160,8 @@ class ProjectMenuViewModel @AssistedInject constructor(
     }
 
     fun setWorkStatus(input: WorkStatusInput?) = projects?.setWorkStatus(project, input)
+
+    fun finishPausedAgent(row: ProjectAgentRow) = projects?.finishPausedAgent(row, project)
 
     fun setAutoPull(value: Boolean?) {
         if (value == uiState.value.project?.autoPull) return

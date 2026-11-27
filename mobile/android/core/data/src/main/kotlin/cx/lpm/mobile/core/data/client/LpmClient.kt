@@ -388,6 +388,9 @@ class LpmClient internal constructor(
         // Seen agents, `archiveStatus`, `markStatusSeen` and `markStatusUnread`.
         const val AGENT_ARCHIVE_FEATURE = "agentArchive"
 
+        // `finishPaused`: a paused agent marked finished.
+        const val FINISH_PAUSED_FEATURE = "finishPaused"
+
         // `limitReminders`, `setLimitReminder` and `clearLimitReminder`.
         const val LIMIT_REMINDERS_FEATURE = "limitReminders"
 

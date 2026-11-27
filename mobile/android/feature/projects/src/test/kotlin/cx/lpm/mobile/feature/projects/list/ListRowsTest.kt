@@ -201,6 +201,8 @@ class ListRowsTest {
         assertEquals(1, folded.foldedSeen)
         assertTrue(folded.archivable)
         assertFalse(folded.keepsFinished)
+        assertFalse(folded.finishesPaused)
+        assertTrue(entry(RowInputs(archivable = true, finishesPaused = true)).finishesPaused)
         val keeping = state.copy(keepFinishedAgents = true).listRows(RowInputs(archivable = true))
         assertTrue(keeping.filterIsInstance<ProjectsListRow.ProjectEntry>().single().keepsFinished)
         val open = entry(RowInputs(archivable = true, expanded = mapOf("s:blog" to true)))

@@ -61,7 +61,8 @@ import cx.lpm.mobile.feature.projects.agents.AgentStatusTrail
  * From a Mac that archives agents ([actions] set), a finished row archives with a
  * swipe, its long-press menu marks it unread once seen (or seen, while the Mac keeps
  * finished agents), and the [folded] seen rows past the Mac's limit fold into one
- * line that expands in place. On the live Mac ([asking] set), a waiting agent's row
+ * line that expands in place. From a Mac that marks a paused agent finished, a paused
+ * row's long-press menu offers that. On the live Mac ([asking] set), a waiting agent's row
  * carries the question it waits on, to answer from here.
  */
 @Composable
@@ -168,7 +169,10 @@ private fun AskingAgentRow(
     }
 }
 
-/** One row of the deck, with its swipe and long-press menu when the Mac archives agents. */
+/**
+ * One row of the deck, with its swipe and long-press menu when the Mac archives agents,
+ * and the menu on a paused row when the Mac marks it finished.
+ */
 @Composable
 private fun DeckAgentRow(
     row: ProjectAgentRow,
@@ -177,14 +181,15 @@ private fun DeckAgentRow(
     actions: AgentRowActions?
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    val archive = actions?.takeIf { row.state.isFinished }?.let { { it.archive(row) } }
+    val archive = actions?.archive?.takeIf { row.state.isFinished }?.let { { it(row) } }
+    val menu = actions?.takeIf { it.hasMenu(row) }
     Box {
         val terminalRow = @Composable {
             ProjectTerminalRow(
                 row = row,
                 onOpen = onOpen,
                 enabled = enabled,
-                onLongPress = actions?.let { { menuOpen = true } },
+                onLongPress = menu?.let { { menuOpen = true } },
                 onArchive = archive
             )
         }
@@ -195,13 +200,13 @@ private fun DeckAgentRow(
         } else {
             terminalRow()
         }
-        if (actions != null) {
+        if (menu != null) {
             AgentRowMenu(
                 expanded = menuOpen,
                 onDismiss = { menuOpen = false },
                 row = row,
                 onOpen = onOpen.takeIf { row.terminalId != null },
-                actions = actions
+                actions = menu
             )
         }
     }

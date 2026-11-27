@@ -19,7 +19,9 @@ import cx.lpm.mobile.core.data.projects.ProjectsState
 import cx.lpm.mobile.core.data.projects.ProjectsStore
 import cx.lpm.mobile.core.data.projects.archiveAgent
 import cx.lpm.mobile.core.data.projects.canArchiveAgents
+import cx.lpm.mobile.core.data.projects.canFinishPausedAgents
 import cx.lpm.mobile.core.data.projects.canPinProjects
+import cx.lpm.mobile.core.data.projects.finishPausedAgent
 import cx.lpm.mobile.core.data.projects.markAgentSeen
 import cx.lpm.mobile.core.data.projects.markAgentUnread
 import cx.lpm.mobile.core.data.projects.setPinned
@@ -145,6 +147,7 @@ class ProjectsViewModel @Inject constructor(
             machines = sections,
             activeMacId = s.activeMacId,
             archivable = projects.canArchiveAgents,
+            finishesPaused = projects.canFinishPausedAgents,
             canPin = projects.canPinProjects,
             dialogs = asks.takeIf { dialogs.available }
         )
@@ -232,6 +235,9 @@ class ProjectsViewModel @Inject constructor(
 
     fun markAgentUnread(project: Project, row: ProjectAgentRow) =
         projects.markAgentUnread(row, project.name)
+
+    fun finishPausedAgent(project: Project, row: ProjectAgentRow) =
+        projects.finishPausedAgent(row, project.name)
 
     /** Ask for a waiting agent's dialog while its row is on screen. */
     suspend fun followDialog(project: String, terminal: String, key: String) =

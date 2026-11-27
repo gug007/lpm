@@ -102,6 +102,35 @@ class ProjectMenuItemsTest {
     }
 
     @Test
+    fun aPausedAgentsTabMarksItFinishedAfterFind() {
+        compose.setContent {
+            LpmTheme {
+                Box {
+                    ContextMenu(expanded = true, onDismissRequest = {}) {
+                        ProjectMenuItems(
+                            state = ProjectMenuUiState(),
+                            project = storefront,
+                            actions = ProjectMenuActions(
+                                find = { events += "find" },
+                                finishPaused = { events += "finish" }
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        compose.onNodeWithText("Find in Terminal").assertExists()
+        compose.onNodeWithText("Mark as finished").performClick()
+        assertEquals(listOf("finish"), events)
+    }
+
+    @Test
+    fun withoutAPausedAgentThereIsNothingToMarkFinished() {
+        show(ProjectMenuUiState())
+        compose.onNodeWithText("Mark as finished").assertDoesNotExist()
+    }
+
+    @Test
     fun filesAndResumeFollowReviewChangesWhenTheMacOffersThem() {
         compose.setContent {
             LpmTheme {

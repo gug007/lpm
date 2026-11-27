@@ -29,6 +29,12 @@ pub struct StatusSound {
     pub answer: Option<String>,
 }
 
+/// A `StatusSound` value: news that a turn is still paused (pausedturn.rs),
+/// told like a finish, under the same switches, but never as one. Not a status
+/// value — the entry stays Running — so a Mac or phone from before it says
+/// nothing, or names it as is.
+pub const PAUSED_NEWS: &str = "Paused";
+
 impl StatusSound {
     /// Reads either payload shape: the object above, or the bare value string
     /// a host from before names rode along still emits.
@@ -133,7 +139,7 @@ pub fn announce_status(
 
 /// The sound for a paired host's agent status, under this Mac's settings.
 pub fn play_status_sound(value: &str) {
-    if let Some(event) = NotificationEvent::of_status(value) {
+    if let Some(event) = NotificationEvent::of_news(value) {
         play_event_sound(event, &config::load_settings());
     }
 }

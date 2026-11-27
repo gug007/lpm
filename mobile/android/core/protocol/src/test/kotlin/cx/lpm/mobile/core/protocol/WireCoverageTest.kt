@@ -37,7 +37,8 @@ class WireCoverageTest {
         "restartService", "stopService", "restartTerminal", "agentOptions", "agentSessions",
         "resumeSession", "listDir", "locatePath",
         "answerAgent", "liveActivity", "weeklyRecap", "archiveStatus",
-        "markStatusSeen", "markStatusUnread", "sidebarPin", "gitHistory", "gitChecks",
+        "markStatusSeen", "markStatusUnread", "finishPaused", "sidebarPin", "gitHistory",
+        "gitChecks",
         "gitChecksRerun", "gitMergePr", "gitCommitChecks", "gitCommitFiles", "ciFixLoop",
         "gitCommitPatch", "lpmCommands", "lpmCommandSave", "lpmCommandDelete", "lpmCommandFolder",
         "lpmCommandExpand", "lpmCommandOtherFolder", "lpmCommandConvert", "agentDialog",
@@ -52,7 +53,7 @@ class WireCoverageTest {
 
     @Test
     fun everyIosBuilderHasAKotlinCounterpart() {
-        assertEquals(199, iosBuilders.toSet().size)
+        assertEquals(200, iosBuilders.toSet().size)
         val kotlin = Wire::class.java.methods.map { it.name }.toSet()
         assertEquals(emptyList<String>(), iosBuilders.filterNot { it in kotlin })
     }

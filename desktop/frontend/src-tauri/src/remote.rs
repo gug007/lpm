@@ -67,6 +67,7 @@ mod mac_alert;
 mod mentions;
 mod notify_levels;
 mod power;
+mod paused;
 mod push_detail;
 mod push_fit;
 mod recap_push;
@@ -82,6 +83,7 @@ pub(crate) mod tabs;
 
 pub(crate) use ci_push::{push_ci_result, push_fix_loop_result};
 pub(crate) use mac_alert::send_all as send_mac_alert;
+pub(crate) use paused::push_pause_notice;
 pub(crate) use recap_push::send_weekly_recap;
 pub(crate) use generate::push_generate_request;
 pub(crate) use reminders::push_limit_reminder;
@@ -189,6 +191,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::weekly_recap::PHONE_FEATURE,
     crate::weekly_recap::PHONE_MONTH_FEATURE,
     crate::remote_seen::FEATURE,
+    paused::FEATURE,
     crate::remote_pins::FEATURE,
     crate::remote_history::FEATURE,
     reminders::FEATURE,
@@ -3010,6 +3013,7 @@ fn handle_msg(
             }
         }
         "archiveStatus" | "markStatusSeen" | "markStatusUnread" => crate::remote_seen::handle(app, t, &v),
+        "finishPaused" => paused::handle(app, &v),
         // Register (or refresh) this device's push identity: its push token (APNs
         // from iOS's `apnsToken`, APNs or FCM from `pushToken`), the APNs
         // environment, and the phone's AES key the sealed payload is encrypted

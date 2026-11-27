@@ -12,8 +12,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -34,6 +36,7 @@ import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.model.TerminalInfo
 import cx.lpm.mobile.core.model.TerminalViewChoice
+import cx.lpm.mobile.core.model.agentRow
 import cx.lpm.mobile.core.navigation.AutomationsKey
 import cx.lpm.mobile.core.navigation.CommandsKey
 import cx.lpm.mobile.core.navigation.GitAutoKey
@@ -61,7 +64,8 @@ import kotlinx.coroutines.launch
  * for its actions when it has some, and the "…" menu (green while it runs, a
  * spinner while a Start/Stop is out), plus everything that menu opens. On a
  * terminal's screen ([terminal]) its Rename names that tab, [view] leads the menu on
- * an agent's, and [onFind] follows it while that tab is live here. [onSpawnedTerminal] is told about a terminal an
+ * an agent's, and [onFind] follows it while that tab is live here, then Mark as finished while
+ * its agent is paused. [onSpawnedTerminal] is told about a terminal an
  * action run spawns.
  */
 @Composable
@@ -98,9 +102,19 @@ fun ProjectMenuToolbar(
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val confirmRisky = LocalConfirmRisky.current
+    val haptics = LocalHapticFeedback.current
+    val paused = terminal?.takeIf { state.canFinishPaused }
+        ?.let { agentRow(live, it.id, System.currentTimeMillis()) }
+        ?.takeIf { it.pause != null }
     val actions = ProjectMenuActions(
         view = view,
         find = onFind,
+        finishPaused = paused?.let {
+            {
+                haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+                viewModel.finishPausedAgent(it)
+            }
+        },
         start = viewModel::start,
         stop = { confirmRisky.stopProject(project) { viewModel.stop() } },
         reviewChanges = { onNavigate(GitReviewKey(project, session)) },

@@ -70,6 +70,12 @@ sealed interface WireProjects {
         putStrings("keys", keys)
     }
 
+    /** Only for a Mac whose `features` has "finishPaused". */
+    fun finishPaused(project: String, keys: List<String>): String = frame("finishPaused") {
+        put("project", project)
+        putStrings("keys", keys)
+    }
+
     fun duplicate(name: String, options: DuplicateOptions): String = frame("duplicate") {
         put("name", name)
         put("count", options.count)

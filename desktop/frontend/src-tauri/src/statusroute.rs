@@ -7,7 +7,7 @@
 // every transition to all of its Macs (sound.rs).
 use crate::notifychannels::NotificationEvent;
 use crate::sound::{StatusSound, STATUS_SOUND_EVENT};
-use crate::status::StatusEntry;
+use crate::status::{StatusEntry, STATUS_RUNNING};
 use serde_json::json;
 use std::cell::OnceCell;
 use std::collections::HashMap;
@@ -70,6 +70,27 @@ fn tell(app: &AppHandle, project: &str, entry: &StatusEntry) {
         })
         .clone()
     };
+    deliver(app, event, project, &entry.pane_id, &entry.value, &news);
+}
+
+/// News already worded — a turn still paused (pausedturn.rs) — told the way a
+/// transition on `pane_id` is. Its banner stands while the turn still reads as
+/// working.
+pub fn announce_news(app: &AppHandle, project: &str, pane_id: &str, news: &StatusSound) {
+    let Some(event) = NotificationEvent::of_news(&news.value) else {
+        return;
+    };
+    deliver(app, event, project, pane_id, STATUS_RUNNING, &|| news.clone());
+}
+
+fn deliver(
+    app: &AppHandle,
+    event: NotificationEvent,
+    project: &str,
+    pane_id: &str,
+    stands_while: &str,
+    news: &dyn Fn() -> StatusSound,
+) {
     if !crate::sys::headless() && !crate::statusnotify::window_attended(app) {
         if let Some(device) = with(|a| used_last(a).map(str::to_string)) {
             let frame = json!({ "t": "evt", "name": STATUS_SOUND_EVENT, "payload": news() });
@@ -79,8 +100,8 @@ fn tell(app: &AppHandle, project: &str, entry: &StatusEntry) {
         }
     }
     let settings = crate::config::load_settings();
-    crate::sound::announce_status(app, event, &settings, &news);
-    crate::statusnotify::notify_status(app, event, &settings, project, &entry.pane_id, &news);
+    crate::sound::announce_status(app, event, &settings, news);
+    crate::statusnotify::notify_status(app, event, &settings, project, pane_id, stands_while, news);
 }
 
 #[cfg(test)]

@@ -81,14 +81,31 @@ fn statuses_json(entries: &[StatusEntry]) -> Vec<Value> {
     entries
         .iter()
         .map(|e| {
-            json!({
+            let mut status = json!({
                 "key": e.key,
                 "value": e.value,
                 "paneID": e.pane_id,
                 "timestamp": e.timestamp,
-            })
+            });
+            e.add_pause(&mut status);
+            status
         })
         .collect()
+}
+
+/// Why agents that look busy may stay that way: paused turns and the shells
+/// they wait on.
+fn paused_hint(entries: &[StatusEntry]) -> String {
+    let shells: Vec<&str> = entries
+        .iter()
+        .filter(|e| e.paused())
+        .flat_map(|e| e.shells.iter().map(String::as_str))
+        .collect();
+    if shells.is_empty() {
+        String::new()
+    } else {
+        format!(" (paused, waiting on: {})", shells.join(" · "))
+    }
 }
 
 pub fn run(ctx: &Ctx, project: Option<&str>, timeout: i64, as_json: bool) -> Result<(), RunError> {
@@ -143,7 +160,8 @@ pub fn run(ctx: &Ctx, project: Option<&str>, timeout: i64, as_json: bool) -> Res
                 }));
             }
             return Err(RunError::Internal(format!(
-                "timed out after {timeout}s waiting for {waiting_for}"
+                "timed out after {timeout}s waiting for {waiting_for}{}",
+                paused_hint(&entries)
             )));
         }
     }
@@ -163,6 +181,8 @@ mod tests {
             timestamp,
             agent_pid: 0,
             pane_id: pane.into(),
+            paused_at: 0,
+            shells: Vec::new(),
         }
     }
 
@@ -214,5 +234,18 @@ mod tests {
         let mut w = AgentWatch::new(None, &[]);
         let entries = [entry("a", "Done", "p1", 5), entry("b", "Running", "p2", 5)];
         assert!(!w.settled(&entries));
+    }
+
+    #[test]
+    fn a_timeout_names_what_paused_agents_wait_on() {
+        let mut paused = entry("a", "Running", "p1", 5);
+        paused.paused_at = 5;
+        paused.shells = vec!["Run the test suite".into()];
+        assert_eq!(
+            paused_hint(&[paused.clone(), entry("b", "Running", "p2", 5)]),
+            " (paused, waiting on: Run the test suite)"
+        );
+        assert_eq!(statuses_json(&[paused])[0]["shells"][0], "Run the test suite");
+        assert_eq!(paused_hint(&[entry("b", "Running", "p2", 5)]), "");
     }
 }

@@ -88,6 +88,27 @@ class PushMessageTest {
     }
 
     @Test
+    fun aLongPauseReadsLikeIos() {
+        val paused = PushAlert.parse(
+            json(
+                """{"serverId":"srv-1","project":"api","projectLabel":"API",""" +
+                    """"target":"terminal","terminal":"Claude","terminalId":"t-1",""" +
+                    """"key":"claude_code_t-1","ts":1792089000123,"status":"Paused",""" +
+                    """"summary":"Paused 15m, waiting on: Run the test suite · Watch the build"}"""
+            )
+        )!!
+        assertEquals("API", paused.title)
+        assertEquals("Claude — Agent is paused", paused.body)
+        assertEquals(
+            "Paused 15m, waiting on: Run the test suite · Watch the build",
+            paused.summary
+        )
+        assertEquals(PushKind.Done, paused.kind)
+        assertEquals("Paused", paused.status)
+        assertEquals(emptyList<AgentAnswerAction>(), paused.actions)
+    }
+
+    @Test
     fun anAutomationAlertFallsInTheKindOfItsOutcome() {
         fun kind(status: String) = PushAlert.parse(
             json(

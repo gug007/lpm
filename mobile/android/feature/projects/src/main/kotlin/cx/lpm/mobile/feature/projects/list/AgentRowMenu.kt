@@ -12,21 +12,28 @@ import cx.lpm.mobile.core.model.ProjectAgentRow
 import cx.lpm.mobile.feature.projects.R as ProjectsR
 
 /**
- * What an agent row does besides opening, from a Mac that archives agents. [markSeen]
- * is null while the Mac keeps no finished agents: it would archive them instead.
+ * What an agent row does besides opening. [archive] is null unless the Mac archives
+ * agents; [markSeen] is null while the Mac keeps no finished agents: it would archive
+ * them instead. [finishPaused] is null unless the Mac marks a paused agent finished.
  */
 @Immutable
 class AgentRowActions(
-    val archive: (ProjectAgentRow) -> Unit = {},
+    val archive: ((ProjectAgentRow) -> Unit)? = null,
     val markSeen: ((ProjectAgentRow) -> Unit)? = null,
-    val markUnread: (ProjectAgentRow) -> Unit = {}
-)
+    val markUnread: (ProjectAgentRow) -> Unit = {},
+    val finishPaused: ((ProjectAgentRow) -> Unit)? = null
+) {
+    /** Whether a long press on [row] has a menu to open. */
+    fun hasMenu(row: ProjectAgentRow): Boolean = archive != null || finishes(row)
+
+    fun finishes(row: ProjectAgentRow): Boolean = finishPaused != null && row.pause != null
+}
 
 /**
- * An agent row's long-press menu: Open, then for a finished turn Mark as Seen (or
- * Mark as Unread once seen) and Archive. A running or waiting agent offers only
- * Open: archiving it would hide work still going, or a question still waiting on an
- * answer. A row with no tab has nothing to open.
+ * An agent row's long-press menu: Open, Mark as finished while paused, then for a
+ * finished turn Mark as Seen (or Mark as Unread once seen) and Archive. A running or
+ * waiting agent offers nothing else: archiving it would hide work still going, or a
+ * question still waiting on an answer. A row with no tab has nothing to open.
  */
 @Composable
 fun AgentRowMenu(
@@ -45,7 +52,15 @@ fun AgentRowMenu(
                 onClick = onOpen
             )
         }
-        if (row.state.isFinished) {
+        if (actions.finishes(row)) {
+            ContextMenuItem(
+                title = stringResource(ProjectsR.string.agent_mark_finished),
+                icon = painterResource(R.drawable.ic_check_circle),
+                onClick = { actions.finishPaused?.invoke(row) }
+            )
+        }
+        val archive = actions.archive
+        if (archive != null && row.state.isFinished) {
             if (row.seen) {
                 ContextMenuItem(
                     title = stringResource(ProjectsR.string.agent_mark_unread),
@@ -62,7 +77,7 @@ fun AgentRowMenu(
             ContextMenuItem(
                 title = stringResource(ProjectsR.string.agent_archive),
                 icon = painterResource(R.drawable.ic_archive),
-                onClick = { actions.archive(row) }
+                onClick = { archive(row) }
             )
         }
     }

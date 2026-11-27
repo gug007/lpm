@@ -9,7 +9,8 @@ import SwiftUI
 /// From a Mac that archives agents (`archivable`), a finished row archives with a
 /// swipe, its long-press menu marks it unread once seen (or seen, while the Mac
 /// keeps finished agents), and the seen rows past the Mac's limit fold into one
-/// line that expands in place.
+/// line that expands in place. From a Mac that takes `finishPaused`
+/// (`finishesPaused`), a paused row's long-press menu marks it finished.
 struct ProjectTerminalDeck: View {
     @Environment(AppModel.self) private var model
     let project: String
@@ -20,6 +21,7 @@ struct ProjectTerminalDeck: View {
     var expanded = false
     var toggleFold: () -> Void = {}
     var archivable = false
+    var finishesPaused = false
     let indent: CGFloat
     let open: (ProjectAgentRow) -> Void
 
@@ -69,11 +71,11 @@ struct ProjectTerminalDeck: View {
         }
         .buttonStyle(.plain)
         .disabled(row.terminalId == nil)
-        if archivable {
+        if archivable || finishable(row) {
             button
                 .contextMenu { menu(row) }
                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    if row.state.isFinished {
+                    if archivable && row.state.isFinished {
                         archiveButton(row).tint(.blue)
                     }
                 }
@@ -82,8 +84,13 @@ struct ProjectTerminalDeck: View {
         }
     }
 
-    /// A running or waiting agent offers only Open: archiving it would hide work
-    /// still going, or a question still waiting on an answer.
+    private func finishable(_ row: ProjectAgentRow) -> Bool {
+        finishesPaused && row.pause != nil
+    }
+
+    /// A running or waiting agent offers only Open, and Mark as finished while
+    /// paused: archiving it would hide work still going, or a question still
+    /// waiting on an answer.
     @ViewBuilder
     private func menu(_ row: ProjectAgentRow) -> some View {
         if row.terminalId != nil {
@@ -91,7 +98,12 @@ struct ProjectTerminalDeck: View {
                 Label("Open", systemImage: "terminal")
             }
         }
-        if row.state.isFinished {
+        if finishable(row) {
+            Button { model.finishPausedAgent(row, project: project) } label: {
+                Label("Mark as finished", systemImage: "checkmark.circle")
+            }
+        }
+        if archivable && row.state.isFinished {
             if row.seen {
                 Button { model.markAgentUnread(row, project: project) } label: {
                     Label("Mark as Unread", systemImage: "envelope.badge")

@@ -30,6 +30,8 @@ struct ProjectRunControl: View {
     let onChecks: () -> Void
     /// Find in the terminal this menu sits over; nil leaves the row out.
     let onFind: (() -> Void)?
+    /// Mark that terminal's paused agent finished; nil leaves the row out.
+    let onFinishPaused: (() -> Void)?
     /// What an agent tab's screen shows; nil when there's only its terminal.
     let viewMode: Binding<TerminalViewMode>?
     // On a terminal's screen Rename names that tab, not the project.
@@ -62,8 +64,13 @@ struct ProjectRunControl: View {
                 TerminalViewMenu(mode: viewMode)
                 Divider()
             }
-            if let onFind {
-                Button(action: onFind) { Label("Find in Terminal", systemImage: "magnifyingglass") }
+            if onFind != nil || onFinishPaused != nil {
+                if let onFind {
+                    Button(action: onFind) { Label("Find in Terminal", systemImage: "magnifyingglass") }
+                }
+                if let onFinishPaused {
+                    Button(action: onFinishPaused) { Label("Mark as finished", systemImage: "checkmark.circle") }
+                }
                 Divider()
             }
             // A YAML the Mac can't read has nothing to start, as on the desktop.

@@ -171,7 +171,8 @@ typed into Go to file leads (`locatePath`); the last five under
 desktop's weekly recap card (`weeklyRecap`); `"recapMonth"` — `weeklyRecap` with
 `period: "month"`; `"agentArchive"` — seen agents
 (`seenEntries`, `seen`, `seenAgentsShown`) and `archiveStatus`, `markStatusSeen` and
-`markStatusUnread` (see [Seen and archived agents](#seen-and-archived-agents)); `"limitReminders"` —
+`markStatusUnread` (see [Seen and archived agents](#seen-and-archived-agents)); `"finishPaused"` —
+`finishPaused`, Mark as finished on a paused agent; `"limitReminders"` —
 `limitReminders`, `setLimitReminder` and `clearLimitReminder` (see
 [Limit reminders](#limit-reminders)); `"wake"` — waking another paired machine (`wake`, see
 [Waking a sleeping Mac](#waking-a-sleeping-mac)); `"projectPins"` — `pins` on every sidebar
@@ -414,6 +415,7 @@ holds no credential of its own, so removing it sends nothing.
 | `{ "t": "clearStatus", "project": "<name>", "paneId": "<terminal id>", "value": "Done"\|"Error" }` | — dismisses a finished agent status, acting on **every** entry on `paneId` whose value is `value`; two agents sharing one terminal therefore clear together. The terminal screen sends it, once per value, for the `Done` and `Error` its terminal shows when it opens and on the next touch while it is on top — the desktop's tab click — and leaves `Waiting` alone. While the Mac's **Keep finished agents until archived** is on (`features` has `"agentArchive"`), those entries are marked **seen** — they move from `statusEntries` to `seenEntries` — instead of removed; with it off, or on an older Mac, they are removed. No reply: on a change the Mac emits `status-changed`, which refreshes the desktop and every connected phone. A no-op when nothing matches |
 | `{ "t": "archiveStatus", "project": "<name>", "keys": ["<status key>"…] }` | — archives agents: removes each key's `Done` or `Error` from `statusEntries`, or its entry from `seenEntries`. A `Running` or `Waiting` entry is left alone. No reply; `status-changed` follows a change. Only when `features` has `"agentArchive"` |
 | `{ "t": "markStatusSeen", "project": "<name>", "keys": ["<status key>"…] }` | — marks agents seen without opening them: each key's `Done` or `Error` moves from `statusEntries` to `seenEntries`. No reply; `status-changed` follows a change. Only when `features` has `"agentArchive"` |
+| `{ "t": "finishPaused", "project": "<name>", "keys": ["<status key>"…] }` | — marks paused agents finished: each key whose `Running` entry carries `pausedAt` turns `Done` now, as if its shells had ended, and those shells hold back none of the session's later finishes. Other keys are left alone. No reply; `status-changed` follows, and the finish is announced as any finish. Only when `features` has `"finishPaused"` |
 | `{ "t": "markStatusUnread", "project": "<name>", "keys": ["<status key>"…] }` | — takes seen agents back to new: each key's entry moves from `seenEntries` back to `statusEntries`, unchanged. No push notification is sent for them again. No reply; `status-changed` follows a change. Only when `features` has `"agentArchive"` |
 | `{ "t": "sub", "id": "<termId>", "from": <streamOffset>? }` | `{ "t": "seed", "id": "<termId>", "cols": N, "rows": N, "data": "<recent scrollback>", "off": <streamOffset>, "reset": bool, "owner": ControlOwner\|null, "draft": { "text": "…", "rev": N }? }`, then a live stream of `o` frames. A terminal the Mac no longer has gets `exit` with `gone: true` instead of a seed. Subscribing also *claims* the terminal (see control ownership below); `owner` tells the phone whether it may render live or must show a "take control" placeholder. `cols`/`rows` are the PTY's current size, which can still be the previous owner's — an owning phone whose fitted size differs sends `resize` right after the seed. The optional `draft` carries the terminal composer's mirrored active-input text (see composer draft sync below); it is **present only** when a non-empty draft is stored, so on (re)open/reconnect the phone restores it — but only into an empty input, never clobbering a prompt in progress. **Resuming:** a phone that still has the terminal on screen (reconnect, unlock, a gap in `o` frames) sends `from` = the offset it last applied; when the Mac still holds that point the reply is `reset: false` and `data` is **only the missed slice**, appended to the live emulator. Otherwise (`from` omitted, or scrolled out of the ring) it is `reset: true`: reset the emulator and replay `data` as the whole screen. Prefer resuming — a replay only approximates the screen a running full-screen program believes it is drawing on, so its next incremental update lands on stale cells |
 | `{ "t": "unsub", "id": "<termId>" }` | — (also stops presenting the terminal) |
@@ -1369,6 +1371,17 @@ An `Error` alert for a Claude tab that stopped at a usage limit (see LimitStop) 
 weekly limit. Tap to continue on Claude 2." Show it as the body, as for a finish; tapping
 opens the terminal, whose bar does the moving.
 
+A `Paused` alert says a turn has sat paused for 15 minutes (see the paused turn under
+StatusEntry): `"status": "Paused"` with the agent's own `key`, `terminal` and
+`terminalId`, and `"summary"` like "Paused 15m, waiting on: Run the test suite" (several
+shells joined with " · "). It goes once per pause, to phones that want agent finishes,
+under the agent's collapse id, so its finish replaces it. Show "Agent is paused" with the
+status and `summary` as the body; it changes no state the phone keeps for the agent
+(widgets, Live Activities), whose entry is still `Running`. When the app reconciles its
+notifications, a `Running` entry with `pausedAt` counts as `"Paused"`, so the notice stays
+while the pause lasts and goes once the agent finishes or carries on. An app from before
+shows the bare status. `"Paused"` is never a status entry's value.
+
 A `Done` alert also carries what the turn left behind, when the Mac knows it:
 `"changes": { "files": N, "added": N, "removed": N }` — the project's uncommitted
 changes, counted as the terminal header counts them (absent when there are none, or
@@ -2140,8 +2153,11 @@ nothing rings and keep-awake goes on) and carries `pausedAt` and `shells`, each 
 as the agent described it. Both apps show such a tab still, in violet, with a
 "1 shell" / "2 shells" chip where the mark and the clock go, and "Paused" where the
 state is spelled out. The fields leave again, with a `status-changed`, when the agent
-carries on, or with the finish 15 minutes later. A Mac that doesn't send them shows
-the tab as working.
+carries on, when the user sends a prompt, or when the user marks it finished
+(`finishPaused`) — never on a timer. A pause that lasts 15 minutes is told
+once, as a `"Paused"` push (see [Push notifications](#push-notifications-apns-and-fcm)). A Mac that doesn't
+send the fields shows the tab as working; a Mac from before this rule published the
+finish by itself 15 minutes in.
 
 ### KeepAwake
 

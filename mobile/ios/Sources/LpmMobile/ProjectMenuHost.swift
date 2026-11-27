@@ -50,6 +50,13 @@ struct ProjectMenuHost: ViewModifier {
         return s.files.count
     }
     private var pending: Bool { model.pendingRun[project.name] != nil }
+    /// Mark the paused agent of the terminal whose screen hosts the menu finished.
+    private var finishPaused: (() -> Void)? {
+        guard let terminal, model.canFinishPausedAgents,
+              let agent = model.agentRow(terminal: terminal.id, project: project.name),
+              agent.pause != nil else { return nil }
+        return { model.finishPausedAgent(agent, project: project.name) }
+    }
 
     func body(content: Content) -> some View {
         @Bindable var git = sharedGit ?? ownGit
@@ -164,6 +171,7 @@ struct ProjectMenuHost: ViewModifier {
                                       onDiscard: { confirmingDiscard = true },
                                       onChecks: { git.checks = true },
                                       onFind: onFind,
+                                      onFinishPaused: finishPaused,
                                       viewMode: viewMode,
                                       renamesTab: terminal != nil,
                                       onRename: rename,

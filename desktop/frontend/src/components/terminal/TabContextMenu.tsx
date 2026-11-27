@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { CircleDot, Copy, GitFork, Link2, PictureInPicture2, Pin, PinOff, Sparkles, TimerOff, Users } from "lucide-react";
+import { CircleCheck, CircleDot, Copy, GitFork, Link2, PictureInPicture2, Pin, PinOff, Sparkles, TimerOff, Users } from "lucide-react";
+import { FINISH_PAUSED_LABEL } from "../../agentPause";
 import { PencilIcon, XIcon } from "../icons";
 import { ContextMenuItem } from "../ui/ContextMenuItem";
 import { ContextMenuSeparator } from "../ui/ContextMenuSeparator";
@@ -26,6 +27,8 @@ interface TabContextMenuProps {
   onTogglePin: () => void;
   // Absent unless the tab's agent finished and was already seen.
   onMarkUnread?: () => void;
+  // Present while the tab's agent sits paused: says its work is over.
+  onFinishPause?: () => void;
   onFork: () => void;
   onForkCopy: () => void;
   // The Claude account submenu, on a Claude tab when there's more than one.
@@ -62,6 +65,7 @@ export function TabContextMenu({
   onRestoreSessionTitle,
   onTogglePin,
   onMarkUnread,
+  onFinishPause,
   onFork,
   onForkCopy,
   accountMenu,
@@ -103,6 +107,13 @@ export function TabContextMenu({
           label="Mark as unread"
           icon={<CircleDot size={12} />}
           onClick={close(onMarkUnread)}
+        />
+      )}
+      {onFinishPause && (
+        <ContextMenuItem
+          label={FINISH_PAUSED_LABEL}
+          icon={<CircleCheck size={12} />}
+          onClick={close(onFinishPause)}
         />
       )}
       {canFork && (

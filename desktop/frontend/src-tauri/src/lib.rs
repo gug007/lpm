@@ -264,6 +264,7 @@ mod paneexit;
 mod panehook;
 #[cfg(any(windows, test))]
 mod panestop;
+mod pausedturn;
 mod peer;
 mod peerclient;
 mod peercopy;
@@ -661,6 +662,7 @@ use sound::*;
 use sshconfig::*;
 use status::*;
 use status::seen::*;
+use pausedturn::finish_paused_agent;
 use statusnotify::notify_unattended;
 use tailnet_cmds::{tailnet_set_enabled, tailnet_sign_in, tailnet_sign_out, tailnet_state};
 use keepawake_cmds::{keep_awake_set, keep_awake_set_prefs, keep_awake_state};

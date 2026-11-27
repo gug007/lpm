@@ -154,6 +154,7 @@ data class PushAlert(
                 "Waiting" -> "Agent is waiting for you"
                 "Done" -> "Agent finished"
                 "Error" -> "Agent hit an error"
+                "Paused" -> "Agent is paused"
                 else -> status
             }
             return if (terminal.isEmpty()) phrase else "$terminal — $phrase"

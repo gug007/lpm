@@ -10,6 +10,10 @@ use crate::util::{now_millis, print_json, relative};
 use serde_json::{json, Value};
 use std::io::IsTerminal;
 
+/// How a Running turn that waits on background shells reads: it is idle until
+/// one ends, the user prompts, or the user marks it finished in the app.
+const PAUSED: &str = "Paused";
+
 pub fn run(ctx: &Ctx, project: Option<&str>, as_json: bool) -> Result<(), RunError> {
     if !statussock::ping(&ctx.socket_path()) {
         if as_json {
@@ -67,16 +71,20 @@ fn render_json(groups: &[(String, Vec<StatusEntry>)]) -> Value {
         .map(|(name, entries)| {
             json!({
                 "name": name,
-                "statuses": entries.iter().map(|e| json!({
-                    "key": e.key,
-                    "value": e.value,
-                    "icon": e.icon,
-                    "color": e.color,
-                    "priority": e.priority,
-                    "timestamp": e.timestamp,
-                    "timestampRelative": relative(e.timestamp, now),
-                    "paneID": e.pane_id,
-                })).collect::<Vec<_>>(),
+                "statuses": entries.iter().map(|e| {
+                    let mut status = json!({
+                        "key": e.key,
+                        "value": e.value,
+                        "icon": e.icon,
+                        "color": e.color,
+                        "priority": e.priority,
+                        "timestamp": e.timestamp,
+                        "timestampRelative": relative(e.timestamp, now),
+                        "paneID": e.pane_id,
+                    });
+                    e.add_pause(&mut status);
+                    status
+                }).collect::<Vec<_>>(),
             })
         })
         .collect();
@@ -98,14 +106,71 @@ fn render_human(s: &Style, groups: &[(String, Vec<StatusEntry>)]) -> String {
             } else {
                 s.dim(&format!("[{}]", e.pane_id))
             };
+            let (value, since) = if e.paused() {
+                (s.magenta(PAUSED), e.paused_at)
+            } else {
+                (status_value(s, &e.value), e.timestamp)
+            };
             o.push_str(&format!(
                 "  {} {}  {}  {}\n",
-                status_value(s, &e.value),
+                value,
                 s.bold(&e.key),
                 pane,
-                s.dim(&relative(e.timestamp, now)),
+                s.dim(&relative(since, now)),
             ));
+            if e.paused() {
+                o.push_str(&format!(
+                    "    {}\n",
+                    s.dim(&format!("waiting on: {}", e.shells.join(" · ")))
+                ));
+            }
         }
     }
     o
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn entry(value: &str, paused_at: i64, shells: &[&str]) -> StatusEntry {
+        StatusEntry {
+            key: "claude_code_s1".into(),
+            value: value.into(),
+            icon: String::new(),
+            color: String::new(),
+            priority: 0,
+            timestamp: now_millis(),
+            agent_pid: 0,
+            pane_id: "lpm-1".into(),
+            paused_at,
+            shells: shells.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    #[test]
+    fn a_turn_waiting_on_shells_reads_as_paused_with_what_it_waits_on() {
+        let groups = vec![(
+            "web".to_string(),
+            vec![entry("Running", now_millis(), &["Run the test suite"])],
+        )];
+        let out = render_human(&Style { on: false }, &groups);
+        assert!(out.contains("  Paused claude_code_s1"), "{out}");
+        assert!(out.contains("waiting on: Run the test suite"), "{out}");
+        let json = render_json(&groups);
+        let status = &json["projects"][0]["statuses"][0];
+        assert_eq!(status["value"], "Running");
+        assert_eq!(status["shells"][0], "Run the test suite");
+        assert!(status["pausedAt"].as_i64().unwrap() > 0);
+    }
+
+    #[test]
+    fn a_working_turn_is_left_as_it_was() {
+        let groups = vec![("web".to_string(), vec![entry("Running", 0, &[])])];
+        let out = render_human(&Style { on: false }, &groups);
+        assert!(out.contains("  Running claude_code_s1"), "{out}");
+        assert!(!out.contains("waiting on"));
+        let json = render_json(&groups);
+        assert!(json["projects"][0]["statuses"][0].get("pausedAt").is_none());
+    }
 }

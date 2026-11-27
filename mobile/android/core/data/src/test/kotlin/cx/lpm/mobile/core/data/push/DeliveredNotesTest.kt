@@ -64,6 +64,29 @@ class DeliveredNotesTest {
     }
 
     @Test
+    fun aLongPausesNoteStandsWhileTheTurnSitsPaused() {
+        val delivered = listOf(
+            note(1, key = "k1", status = "Paused"),
+            note(2, key = "k2", status = "Paused"),
+            note(3, key = "k3", status = "Paused"),
+            note(4, key = "k1", status = "Done")
+        )
+        val api = Project.parse(
+            Json.parseToJsonElement(
+                """{"name":"api","statusEntries":[""" +
+                    """{"key":"k1","value":"Running","priority":0,"timestamp":0,""" +
+                    """"pausedAt":1500,"shells":["Run the test suite"]},""" +
+                    """{"key":"k2","value":"Running","priority":0,"timestamp":0},""" +
+                    """{"key":"k3","value":"Done","priority":0,"timestamp":0}]}"""
+            ) as JsonObject
+        )
+        assertEquals(
+            listOf(2, 3, 4),
+            DeliveredNotes.stale(delivered, listOf(api), activeServerId = "srv-1").map { it.id }
+        )
+    }
+
+    @Test
     fun withNoKnownServerOnlyLegacyNotesAreJudged() {
         val delivered = listOf(note(1, key = "gone"), note(2, key = "gone", serverId = null))
         val stale = DeliveredNotes.stale(delivered, listOf(project("api")), activeServerId = null)

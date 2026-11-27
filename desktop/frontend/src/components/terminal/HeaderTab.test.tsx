@@ -21,7 +21,7 @@ afterEach(() => {
 
 const NOW = Date.now();
 const working: PaneAgentStatus = { state: "working", since: NOW - 240_000 };
-const paused: PaneAgentStatus = { ...working, pause: { since: NOW - 60_000, shells: ["Run the test suite"] } };
+const paused: PaneAgentStatus = { ...working, pause: { since: NOW - 60_000, shells: ["Run the test suite"], key: "claude_code_a" } };
 
 function render(agentStatus: PaneAgentStatus, flags: { waiting?: boolean } = {}) {
   act(() =>

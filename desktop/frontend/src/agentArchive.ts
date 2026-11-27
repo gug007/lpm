@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { ArchiveAgentStatus, MarkAgentStatusSeen, MarkAgentStatusUnread } from "../bridge/commands";
+import { ArchiveAgentStatus, FinishPausedAgent, MarkAgentStatusSeen, MarkAgentStatusUnread } from "../bridge/commands";
+import type { AgentPause } from "./agentPause";
 import { showUndoCloseToast } from "./components/UndoCloseToast";
 import type { Chord } from "./keys";
 import { toast } from "./notifications/toast";
@@ -105,4 +106,10 @@ export function markAgentSeen(project: string, row: SidebarAgentRow): void {
 
 export function markAgentUnread(project: string, row: Pick<SidebarAgentRow, "keys">): void {
   MarkAgentStatusUnread(project, row.keys).catch(() => {});
+}
+
+/** The user says a paused agent's work is over: the finish lpm held back for
+ *  its shells goes out now. */
+export function finishPaused(project: string, pause: Pick<AgentPause, "key">): void {
+  FinishPausedAgent(project, [pause.key]).catch(() => {});
 }

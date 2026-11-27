@@ -93,20 +93,31 @@ fun ProjectListItem(
             )
         }
         if (entry.agents.isNotEmpty() && !entry.pinLink) {
-            val agentActions = remember(entry.archivable, entry.keepsFinished, project, actions) {
-                if (entry.archivable) {
-                    AgentRowActions(
-                        archive = { actions.archiveAgent(project, it) },
-                        markSeen = if (entry.keepsFinished) {
-                            { actions.markAgentSeen(project, it) }
-                        } else {
-                            null
-                        },
-                        markUnread = { actions.markAgentUnread(project, it) }
-                    )
-                } else {
-                    null
-                }
+            val agentActions = remember(
+                entry.archivable,
+                entry.keepsFinished,
+                entry.finishesPaused,
+                project,
+                actions
+            ) {
+                AgentRowActions(
+                    archive = if (entry.archivable) {
+                        { actions.archiveAgent(project, it) }
+                    } else {
+                        null
+                    },
+                    markSeen = if (entry.keepsFinished) {
+                        { actions.markAgentSeen(project, it) }
+                    } else {
+                        null
+                    },
+                    markUnread = { actions.markAgentUnread(project, it) },
+                    finishPaused = if (entry.finishesPaused) {
+                        { actions.finishPausedAgent(project, it) }
+                    } else {
+                        null
+                    }
+                )
             }
             val asking = remember(entry.asks, project, actions) {
                 entry.asks?.let { asks ->

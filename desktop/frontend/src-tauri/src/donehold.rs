@@ -15,8 +15,10 @@
 // - a sub-agent's open question (statusask.rs);
 // - a background shell the turn started, which wakes the session when it
 //   exits (bgtasks.rs). A dev server or a watcher never exits, so a shell that
-//   looks like one, one already running when the user last sent a prompt, and
-//   one still running after WAIT_CAP settle the turn as before;
+//   looks like one, and one already running when the user last sent a prompt,
+//   settle the turn as before. Any other keeps it paused for as long as it
+//   runs, as the agent itself sees it: no clock says a build is over. At
+//   NOTICE_MS the user hears that it is still paused, and may mark it finished;
 // - for a prompt queued behind the turn, and for Codex, the pane still drawing.
 //
 // Any newer report from the agent drops the held Done: the next turn speaks for
@@ -34,16 +36,18 @@ use tauri::{AppHandle, Emitter, Manager};
 /// Longer than Claude takes to start a turn that was due when the last one
 /// stopped (observed: 20-40 ms); shorter than anyone waits on a chime.
 const GRACE_MS: i64 = 1_500;
-/// How long a background shell the turn left running may keep its Done back:
-/// longer than most builds and test runs take, short enough that a server that
-/// doesn't look like one costs minutes.
-const WAIT_CAP_MS: i64 = 15 * 60_000;
+/// How long a turn sits paused before the user is told it still is: longer
+/// than most builds and test runs take, short enough that a server that
+/// doesn't look like one is caught within minutes.
+const NOTICE_MS: i64 = 15 * 60_000;
 /// How long a Claude pane that keeps drawing may keep a queued prompt's Done
 /// back: a teammate's footer animates while it sits idle.
 const DRAW_CAP_MS: i64 = 60_000;
 /// Output this recent means the pane is still at work.
 const DRAWING_MS: i64 = 1_000;
 const TICK: Duration = Duration::from_millis(250);
+/// A pause can last hours, and ends with a report the next look catches.
+const PAUSED_TICK: Duration = Duration::from_secs(1);
 
 /// What may still continue the work a Done reports.
 #[derive(Clone, Copy, Default, PartialEq, Debug)]
@@ -124,8 +128,9 @@ pub fn hold(app: &AppHandle, project: &str, done: StatusEntry, why: Why) {
     };
     pending().lock().unwrap().insert(key.clone(), held);
     let app = app.clone();
+    let mut tick = TICK;
     std::thread::spawn(move || loop {
-        std::thread::sleep(TICK);
+        std::thread::sleep(tick);
         let store = app.state::<Arc<StatusStore>>();
         let Some(observed) = observe(&app, &store, &key, token) else {
             return;
@@ -135,9 +140,14 @@ pub fn hold(app: &AppHandle, project: &str, done: StatusEntry, why: Why) {
                 if observed.work_goes_on() {
                     extend(&key, token);
                 }
+                let paused = observed.paused();
+                tick = if paused { PAUSED_TICK } else { TICK };
                 // The tab reads differently while paused, and no report says so.
-                if mark_paused(&key, token, observed.paused()) {
+                if mark_paused(&key, token, paused) {
                     let _ = app.emit("status-changed", &key.0);
+                }
+                if observed.notice_due() {
+                    crate::pausedturn::notice(&app, &key.0, &key.1, &observed.pane, observed.age);
                 }
             }
             Verdict::Drop => {
@@ -208,6 +218,7 @@ fn observe(app: &AppHandle, store: &StatusStore, key: &Id, token: u64) -> Option
         drawing,
         why,
         capped_drawing: agent == Some(AgentKind::Claude),
+        pane,
     })
 }
 
@@ -237,6 +248,8 @@ struct Observed {
     why: Why,
     /// The drawing hold ends at DRAW_CAP_MS.
     capped_drawing: bool,
+    /// The tab the turn's pane is now.
+    pane: String,
 }
 
 impl Observed {
@@ -257,7 +270,12 @@ impl Observed {
 
     /// Whether a background shell is all the finish still waits for.
     fn paused(&self) -> bool {
-        self.why.waits && (GRACE_MS..WAIT_CAP_MS).contains(&self.age) && !self.work_goes_on()
+        self.why.waits && self.age >= GRACE_MS && !self.work_goes_on()
+    }
+
+    /// Whether the pause has gone on long enough to tell the user about.
+    fn notice_due(&self) -> bool {
+        self.paused() && self.age >= NOTICE_MS
     }
 }
 
@@ -265,16 +283,19 @@ fn verdict(o: &Observed) -> Verdict {
     if o.rev_moved || o.taken_over || o.gone {
         return Verdict::Drop;
     }
-    let waiting = o.why.waits && o.age < WAIT_CAP_MS;
-    if o.age < GRACE_MS || waiting || o.work_goes_on() {
+    if o.age < GRACE_MS || o.why.waits || o.work_goes_on() {
         return Verdict::Hold;
     }
     Verdict::Publish
 }
 
 fn take(key: &Id, token: u64) -> Option<Pending> {
+    take_if(key, |p| p.token == token)
+}
+
+fn take_if(key: &Id, holds: impl FnOnce(&Pending) -> bool) -> Option<Pending> {
     let mut held = pending().lock().unwrap();
-    if held.get(key).is_some_and(|p| p.token == token) {
+    if held.get(key).is_some_and(holds) {
         held.remove(key)
     } else {
         None
@@ -300,6 +321,18 @@ fn mark_paused(key: &Id, token: u64, paused: bool) -> bool {
         .get_mut(key)
         .filter(|p| p.token == token)
         .is_some_and(|p| std::mem::replace(&mut p.paused, paused) != paused)
+}
+
+/// The user says a paused turn's work is over: its finish goes out now, and
+/// the shells it waited on keep no later finish back. Nothing when `key` isn't
+/// paused.
+pub fn finish_paused(app: &AppHandle, project: &str, key: &str) {
+    let Some(p) = take_if(&id(project, key), |p| p.paused) else {
+        return;
+    };
+    crate::bgtasks::settle(project, key);
+    let store = app.state::<Arc<StatusStore>>();
+    crate::socketsrv::publish(app, &store, project, released(&store, p));
 }
 
 /// A turn that stopped beside background shells and sits idle until one ends.

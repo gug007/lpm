@@ -71,6 +71,9 @@ fun LpmClient.markStatusSeen(project: String, keys: List<String>) =
 fun LpmClient.markStatusUnread(project: String, keys: List<String>) =
     send(Wire.markStatusUnread(project, keys))
 
+fun LpmClient.finishPaused(project: String, keys: List<String>) =
+    send(Wire.finishPaused(project, keys))
+
 fun LpmClient.runAction(
     project: String,
     action: String,

@@ -36,6 +36,9 @@ impl Style {
     pub fn blue(&self, s: &str) -> String {
         self.paint("34", s)
     }
+    pub fn magenta(&self, s: &str) -> String {
+        self.paint("35", s)
+    }
 }
 
 /// Color an agent-status value with its canonical color; unknown values pass

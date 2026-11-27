@@ -64,7 +64,7 @@ describe("TabTooltipCard", () => {
     const text = render({
       state: "working",
       since: ago(300),
-      pause: { since: ago(60), shells: ["Wait for Screen Recording permission"] },
+      pause: { since: ago(60), shells: ["Wait for Screen Recording permission"], key: "claude_code_a" },
     });
     expect(text).toContain("StatusPaused");
     expect(text).not.toContain("Working");
@@ -86,7 +86,7 @@ describe("tabCardHasDetails", () => {
     expect(tabCardHasDetails({ state: "working", since: null }, undefined)).toBe(false);
     expect(tabCardHasDetails({ state: "working", since: ago(5) }, undefined)).toBe(true);
     expect(
-      tabCardHasDetails({ state: "working", since: null, pause: { since: ago(5), shells: ["Build"] } }, undefined),
+      tabCardHasDetails({ state: "working", since: null, pause: { since: ago(5), shells: ["Build"], key: "claude_code_a" } }, undefined),
     ).toBe(true);
     expect(tabCardHasDetails({ state: "needs-you", since: null }, undefined)).toBe(true);
     expect(tabCardHasDetails(null, "Ultracode")).toBe(true);

@@ -88,7 +88,7 @@ import { peerSlugOf } from "../peer/markers";
 import { TerminalCopyAnswerOverlay } from "./TerminalCopyAnswerOverlay";
 import { useClearStatusOnInteraction } from "../hooks/useClearStatusOnInteraction";
 import { useUnreadHold } from "../hooks/useUnreadHold";
-import { markAgentUnread } from "../agentArchive";
+import { finishPaused, markAgentUnread } from "../agentArchive";
 import { paneAgentStatus, type PaneStatus } from "../hooks/usePaneStatus";
 import { closePaneTooltip, runningAgentCount } from "../paneCloseSummary";
 import { useBrowserUrls } from "../store/browserUrls";
@@ -1119,6 +1119,7 @@ function PaneViewImpl(props: PaneViewProps) {
         const canCloseOthers = otherClosableTabs(targetPane.tabs, tab.id).length > 0;
         const forkable = isTerminalTab(tab) && canForkSession(tab.resumeCmd);
         const seenKeys = paneStatus?.seen.get(tab.id);
+        const pause = paneAgentStatus(paneStatus, tab.id)?.pause;
         return (
           <TabContextMenu
             x={tabMenu.x}
@@ -1171,6 +1172,7 @@ function PaneViewImpl(props: PaneViewProps) {
                   }
                 : undefined
             }
+            onFinishPause={pause ? () => finishPaused(projectName, pause) : undefined}
             onFork={() => onForkTerminal(tabMenu.paneId, tab.id)}
             onForkCopy={() =>
               onForkTerminalIntoCopy(

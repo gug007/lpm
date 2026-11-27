@@ -66,7 +66,7 @@ fn a_shell_running_when_the_user_prompts_again_settles_later_turns() {
     )]);
     stopped_beside("w4", "claude_code_s1", &server);
     assert!(waits_on_shells("w4", "claude_code_s1", &server));
-    user_prompted("w4", "claude_code_s1");
+    settle("w4", "claude_code_s1");
     assert!(!waits_on_shells("w4", "claude_code_s1", &server));
     let build = tasks(&[
         shell("x1", "Run the recording socket", "python3 listener.py"),
@@ -86,7 +86,7 @@ fn a_shell_seen_at_a_paused_stop_settles_with_the_next_prompt() {
         serde_json::json!({ "id": "a1", "type": "subagent", "status": "running" }).to_string();
     let paused = tasks(&[shell("y1", "Run the API", "go run ./cmd/api"), agent]);
     stopped_beside("w6", "claude_code_s1", &paused);
-    user_prompted("w6", "claude_code_s1");
+    settle("w6", "claude_code_s1");
     let later = tasks(&[shell("y1", "Run the API", "go run ./cmd/api")]);
     assert!(!waits_on_shells("w6", "claude_code_s1", &later));
 }
@@ -177,4 +177,36 @@ fn a_stop_records_what_the_turn_waits_on() {
         ]
     );
     assert!(waited_on("w10", "claude_code_other").is_empty());
+}
+
+#[test]
+fn a_pause_notice_names_its_shells_once_and_again_for_a_new_one() {
+    let (project, agent) = ("w11", "claude_code_s1");
+    let one = tasks(&[shell("b1", "Run the test suite", "npm test")]);
+    stopped_beside(project, agent, &one);
+    assert_eq!(
+        take_unnoticed(project, agent),
+        Some(vec!["Run the test suite".to_string()])
+    );
+    stopped_beside(project, agent, &one);
+    assert_eq!(take_unnoticed(project, agent), None);
+    let two = tasks(&[
+        shell("b1", "Run the test suite", "npm test"),
+        shell("b2", "Build the app", "cargo build"),
+    ]);
+    stopped_beside(project, agent, &two);
+    assert_eq!(
+        take_unnoticed(project, agent),
+        Some(vec!["Run the test suite".to_string(), "Build the app".to_string()])
+    );
+}
+
+#[test]
+fn a_turn_marked_finished_keeps_no_later_finish_back() {
+    let (project, agent) = ("w12", "claude_code_s1");
+    let bg = tasks(&[shell("b1", "Run the test suite", "npm test")]);
+    stopped_beside(project, agent, &bg);
+    assert!(waits_on_shells(project, agent, &bg));
+    settle(project, agent);
+    assert!(!waits_on_shells(project, agent, &bg));
 }

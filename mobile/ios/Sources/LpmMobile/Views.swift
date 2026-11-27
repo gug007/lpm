@@ -300,7 +300,8 @@ struct ProjectsView: View {
             ProjectTerminalDeck(project: name, rows: fold.rows, folded: fold.folded,
                                 expanded: seenExpanded.contains(name),
                                 toggleFold: { seenExpanded.formSymmetricDifference([name]) },
-                                archivable: model.canArchiveAgents, indent: indent) { agent in
+                                archivable: model.canArchiveAgents,
+                                finishesPaused: model.canFinishPausedAgents, indent: indent) { agent in
                 if let terminal = agent.terminalId {
                     openTerminal = TerminalTarget(project: name, terminalId: terminal)
                 }

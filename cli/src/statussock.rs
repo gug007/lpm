@@ -41,6 +41,29 @@ pub struct StatusEntry {
     pub agent_pid: i64,
     #[serde(rename = "paneID", default)]
     pub pane_id: String,
+    /// When a Running turn stopped beside background shells it waits on: the
+    /// agent sits paused, not working. 0 otherwise.
+    #[serde(rename = "pausedAt", default)]
+    pub paused_at: i64,
+    /// What those shells are doing, as the agent described each.
+    #[serde(default)]
+    pub shells: Vec<String>,
+}
+
+impl StatusEntry {
+    /// A Running turn that stopped beside background shells and sits idle
+    /// until one ends: not finished, and not at work either.
+    pub fn paused(&self) -> bool {
+        self.value == "Running" && self.paused_at > 0 && !self.shells.is_empty()
+    }
+
+    /// Adds when the turn paused and what it waits on to its JSON, if paused.
+    pub fn add_pause(&self, status: &mut serde_json::Value) {
+        if self.paused() {
+            status["pausedAt"] = serde_json::json!(self.paused_at);
+            status["shells"] = serde_json::json!(self.shells);
+        }
+    }
 }
 
 /// Timeout for a control round-trip. Longer than `ping`/`list_status`'s 2s

@@ -70,8 +70,18 @@ class AgentWidgetStoreTest {
         val store = store()
         store.apply(push("Done", ts = 400, target = "automation"))
         store.apply(push("Running", ts = 400))
+        store.apply(push("Paused", ts = 400))
         assertEquals(emptyList<AgentWidgetMac>(), store.macs.value)
         assertEquals(0, refreshes)
+    }
+
+    @Test
+    fun `a long pause's notice leaves a working row as it was`() {
+        val store = store()
+        store.publish(AgentWidgetMac("mac", listOf(working)))
+        val before = store.macs.value
+        store.apply(push("Paused", ts = 400))
+        assertEquals(before, store.macs.value)
     }
 
     @Test

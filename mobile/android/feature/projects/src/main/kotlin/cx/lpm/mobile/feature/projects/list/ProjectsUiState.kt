@@ -125,6 +125,8 @@ sealed interface ProjectsListRow {
         val archivable: Boolean = false,
         /** The Mac keeps finished agents as seen once opened, so a new one can be marked seen. */
         val keepsFinished: Boolean = false,
+        /** The Mac marks a paused agent finished: a paused row's menu offers it. */
+        val finishesPaused: Boolean = false,
         /** Pinned on the Mac; null when the Mac doesn't pin projects (no menu row). */
         val pinned: Boolean? = null,
         /** A row of the Pinned section: a way back, so its agents stay in its place below. */
@@ -229,6 +231,8 @@ data class RowInputs(
     val activeMacId: String? = null,
     /** The Mac archives agents and lists the seen ones it keeps. */
     val archivable: Boolean = false,
+    /** The Mac marks a paused agent finished (`finishPaused`). */
+    val finishesPaused: Boolean = false,
     /** The Mac pins projects: rows offer Pin to top / Unpin. */
     val canPin: Boolean = false,
     /** What the live Mac read off its waiting agents' terminals; null when it can't. */
@@ -309,6 +313,7 @@ private fun ProjectsState.projectEntry(
         seenExpanded = expanded,
         archivable = inputs.archivable,
         keepsFinished = inputs.archivable && keepFinishedAgents,
+        finishesPaused = inputs.finishesPaused,
         pinned = if (inputs.canPin) name in pins else null,
         asks = inputs.dialogs?.let { agents.rows.asks(it) }
     )

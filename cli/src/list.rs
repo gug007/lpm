@@ -205,6 +205,8 @@ mod tests {
             timestamp: 0,
             agent_pid: 0,
             pane_id: String::new(),
+            paused_at: 0,
+            shells: Vec::new(),
         }
     }
 

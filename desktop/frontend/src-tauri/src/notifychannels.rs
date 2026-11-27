@@ -92,6 +92,14 @@ impl NotificationEvent {
         }
     }
 
+    /// The event a piece of agent news is heard under: a status, or a pause
+    /// that went on (sound::PAUSED_NEWS), which the finish's switches cover
+    /// since it stands where the finish would.
+    pub fn of_news(value: &str) -> Option<Self> {
+        Self::of_status(value)
+            .or_else(|| (value == crate::sound::PAUSED_NEWS).then_some(Self::AgentDone))
+    }
+
     fn default_for(self, channel: NotificationChannel) -> Option<bool> {
         let (_, offered) = NOTIFICATION_EVENTS
             .iter()

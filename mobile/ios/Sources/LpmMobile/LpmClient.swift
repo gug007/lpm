@@ -315,6 +315,7 @@ final class LpmClient: NSObject {
     static let generateApprovalFeature = "generateApproval"
     static let wakeFeature = "wake"
     static let agentArchiveFeature = "agentArchive"
+    static let finishPausedFeature = "finishPaused"
     static let projectPinsFeature = "projectPins"
     static let gitHistoryFeature = "gitHistory"
     static let gitChecksFeature = "gitChecks"
@@ -1033,6 +1034,9 @@ final class LpmClient: NSObject {
     }
     func markStatusUnread(project: String, keys: [String]) {
         send(Wire.markStatusUnread(project: project, keys: keys))
+    }
+    func finishPaused(project: String, keys: [String]) {
+        send(Wire.finishPaused(project: project, keys: keys))
     }
     func requestJobs() { send(Wire.jobs()) }
     func requestJobHistory(project: String, jobId: String) {

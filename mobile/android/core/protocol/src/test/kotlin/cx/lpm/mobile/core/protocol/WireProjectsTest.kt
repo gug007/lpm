@@ -49,6 +49,10 @@ class WireProjectsTest {
             """{ "t": "markStatusUnread", "project": "api", "keys": ["codex_api-1", "omp_api-1"] }""",
             Wire.markStatusUnread("api", listOf("codex_api-1", "omp_api-1"))
         )
+        assertFrame(
+            """{ "t": "finishPaused", "project": "api", "keys": ["claude_code_api-1"] }""",
+            Wire.finishPaused("api", listOf("claude_code_api-1"))
+        )
         assertFrame("""{ "t": "remove", "name": "api-2" }""", Wire.remove("api-2"))
         assertFrame(
             """{ "t": "renameProject", "project": "api", "name": "" }""",

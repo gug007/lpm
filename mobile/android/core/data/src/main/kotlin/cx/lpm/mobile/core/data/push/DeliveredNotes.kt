@@ -1,6 +1,8 @@
 package cx.lpm.mobile.core.data.push
 
+import cx.lpm.mobile.core.model.AgentPause
 import cx.lpm.mobile.core.model.Project
+import cx.lpm.mobile.core.model.pause
 
 /** What a posted notification carries to be found again later. */
 data class DeliveredNote(
@@ -33,8 +35,11 @@ object DeliveredNotes {
         projects: List<Project>,
         activeServerId: String?
     ): List<DeliveredNote> {
+        // A long pause's notice stands while the turn sits paused.
         val live = projects.associate { p ->
-            p.name to p.statusEntries.groupBy { it.key }.mapValues { it.value.first().value }
+            p.name to p.statusEntries.groupBy { it.key }.mapValues { (_, entries) ->
+                entries.first().let { if (it.pause == null) it.value else AgentPause.STATUS }
+            }
         }
         return delivered.filter { note ->
             val project = note.project ?: return@filter false
