@@ -72,10 +72,10 @@ export const chipIcon = (shapes: string) =>
 
 const PLACEHOLDER_ICON = chipIcon('<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="m21 15-5-5L7 21"/>');
 // Non-image attachments, by file category.
-const DOC_ICON = chipIcon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>');
+export const DOC_ICON = chipIcon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>');
 const VIDEO_ICON = chipIcon('<path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/>');
 const AUDIO_ICON = chipIcon('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>');
-const FOLDER_ICON = chipIcon('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>');
+export const FOLDER_ICON = chipIcon('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>');
 const VIDEO_EXT_RE = /\.(mp4|mov|webm|mkv|avi|m4v|flv|wmv|mpe?g)$/i;
 const AUDIO_EXT_RE = /\.(mp3|wav|m4a|aac|flac|ogg|oga|opus|aiff?)$/i;
 
@@ -724,19 +724,60 @@ function unwrapCmdSpans(root: HTMLElement): void {
 }
 
 // The lpm-memory invocation in either CLI's form ("/" Claude, "$" Codex)
-// followed by a session-id token — the id is wrapped as a pill when it names a
-// known session (see highlightCommand).
-const MEMORY_ARG_TOKEN_RE = /^\s*[/$]lpm-memory\s+([a-z0-9-]+)(?=[\s\u200B]|$)/i;
+// followed on its line by a session-id token — the two are drawn as one pill
+// when the id names a known session (see highlightCommand).
+const MEMORY_ARG_TOKEN_RE = /^\s*[/$]lpm-memory([ \t]+)([a-z0-9-]+)(?=[\s\u200B]|$)/i;
+
+interface MemoryPill {
+  gap: string;
+  id: string;
+}
+
+// Wrap `length` characters of `node` from `start` in a data-cmd span. The text
+// is split by hand: Range.surroundContents leaves an empty text node in front
+// of the span, which would sit between the two halves of the memory pill.
+function wrapCmdSpan(node: Text, start: number, length: number): HTMLElement {
+  const text = start > 0 ? node.splitText(start) : node;
+  if (text.length > length) text.splitText(length);
+  const span = document.createElement("span");
+  span.dataset.cmd = "";
+  text.replaceWith(span);
+  span.appendChild(text);
+  return span;
+}
+
+function wrapsAreCurrent(
+  spans: NodeListOf<HTMLElement>,
+  command: string,
+  pill: MemoryPill | null,
+): boolean {
+  if (pill === null) {
+    return (
+      spans.length === 1 &&
+      spans[0].textContent === command &&
+      spans[0].dataset.memchip === undefined
+    );
+  }
+  return (
+    spans.length === 2 &&
+    spans[0].dataset.memchip === pill.id &&
+    spans[0].textContent === command + pill.gap &&
+    spans[1].dataset.memchip === pill.id &&
+    spans[1].textContent === pill.id
+  );
+}
 
 // Color a recognized leading "/command" in the composer the way the CLIs do. The
 // command is wrapped in an inline span (serialized away by serializeEditor) only
 // when `isCommand` recognizes it, so partial/unknown tokens stay plain. When the
 // command is "/lpm-memory" and its first argument names a session in
-// `memorySessionIds`, that token is additionally wrapped as a hoverable pill.
-// Both wraps share the data-cmd family, so every serialization and caret path
-// treats them as plain inline text. Idempotent and caret-preserving: when the
-// wraps are already correct it does nothing, so steady typing of arguments never
-// restructures the DOM.
+// `memorySessionIds`, the two become one hoverable pill instead: a span over the
+// command and the gap after it, then a span over the id. The gap sits in the
+// first span so the pill has no hole, and the pill can still wrap there in a
+// narrow field. Every wrap is in the data-cmd family, so every serialization and
+// caret path treats it as plain inline text. Idempotent and caret-preserving:
+// when the wraps are already correct it does nothing, so steady typing of
+// arguments never restructures the DOM.
 export function highlightCommand(
   root: HTMLElement,
   isCommand: (name: string) => boolean,
@@ -752,60 +793,31 @@ export function highlightCommand(
       ? match[2].slice(1).toLowerCase() === "lpm-memory"
       : isCommand(match[2].slice(1)));
   const argMatch = want ? MEMORY_ARG_TOKEN_RE.exec(leading) : null;
-  const pillId =
-    argMatch && memorySessionIds?.has(argMatch[1].toLowerCase()) ? argMatch[1] : null;
+  const pill: MemoryPill | null =
+    argMatch && memorySessionIds?.has(argMatch[2].toLowerCase())
+      ? { gap: argMatch[1], id: argMatch[2] }
+      : null;
 
   const spans = root.querySelectorAll<HTMLElement>("[data-cmd]");
   if (!want && spans.length === 0) return;
-  const cmdOk =
-    want && spans.length > 0 && spans[0].textContent === match![2] && spans[0].dataset.memchip === undefined;
-  if (cmdOk && pillId === null && spans.length === 1) return;
-  if (
-    cmdOk &&
-    pillId !== null &&
-    spans.length === 2 &&
-    spans[1].dataset.memchip === pillId &&
-    spans[1].textContent === pillId
-  ) {
-    return;
-  }
+  if (want && wrapsAreCurrent(spans, match![2], pill)) return;
 
   const offset = caretOffsetInSerialized(root);
   unwrapCmdSpans(root);
-  if (want) {
-    const node = firstTextNode(root);
-    const m = node ? COMMAND_TOKEN_RE.exec(node.nodeValue ?? "") : null;
-    if (node && m) {
-      const start = m[1].length;
-      const range = document.createRange();
-      range.setStart(node, start);
-      range.setEnd(node, start + m[2].length);
-      const span = document.createElement("span");
-      span.dataset.cmd = "";
-      span.style.color = COMMAND_COLOR;
-      try {
-        range.surroundContents(span);
-      } catch {
-        // A boundary we can't cleanly wrap — leave the text plain.
-      }
-      const after = span.isConnected ? span.nextSibling : null;
-      if (pillId !== null && after?.nodeType === Node.TEXT_NODE) {
-        const am = /^(\s+)([a-z0-9-]+)/i.exec((after as Text).nodeValue ?? "");
-        if (am && am[2] === pillId) {
-          const pillRange = document.createRange();
-          pillRange.setStart(after, am[1].length);
-          pillRange.setEnd(after, am[1].length + am[2].length);
-          const pill = document.createElement("span");
-          pill.dataset.cmd = "";
-          pill.dataset.memchip = pillId;
-          pill.className = "composer-memchip";
-          try {
-            pillRange.surroundContents(pill);
-          } catch {
-            // A boundary we can't cleanly wrap — leave the text plain.
-          }
-        }
-      }
+  const node = want ? firstTextNode(root) : null;
+  const m = node ? COMMAND_TOKEN_RE.exec(node.data) : null;
+  if (node && m) {
+    const start = m[1].length;
+    const drawn =
+      pill && node.data.startsWith(pill.gap + pill.id, start + m[2].length) ? pill : null;
+    const command = wrapCmdSpan(node, start, m[2].length + (drawn?.gap.length ?? 0));
+    if (drawn) {
+      const session = wrapCmdSpan(command.nextSibling as Text, 0, drawn.id.length);
+      command.dataset.memchip = session.dataset.memchip = drawn.id;
+      command.className = "composer-memchip composer-memchip-cmd";
+      session.className = "composer-memchip composer-memchip-id";
+    } else {
+      command.style.color = COMMAND_COLOR;
     }
   }
   if (offset !== null) setCaretAtOffset(root, offset);

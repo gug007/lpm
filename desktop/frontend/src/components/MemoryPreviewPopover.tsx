@@ -1,65 +1,27 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { createPortal } from "react-dom";
 import { relativeTime } from "../relativeTime";
+import { useAnchoredPosition } from "../hooks/useAnchoredPosition";
 import type { MemorySessionInfo } from "../hooks/useMemorySessions";
-
-const GAP = 8;
-const EDGE_MARGIN = 8;
 
 interface MemoryPreviewPopoverProps {
   session: MemorySessionInfo | undefined;
   anchor: DOMRect;
 }
 
-type Pos = { top: number; left: number; placement: "top" | "bottom" };
-
 // Hover preview for the composer's "/lpm-memory <session-id>" pill — the memory
-// twin of ImagePreviewPopover, sharing its measurement and placement recipe.
+// twin of ImagePreviewPopover.
 export function MemoryPreviewPopover({ session, anchor }: MemoryPreviewPopoverProps) {
-  const [pos, setPos] = useState<Pos | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-
-  const reposition = useCallback(() => {
-    const el = ref.current;
-    if (!el) return;
-    const w = el.offsetWidth;
-    const h = el.offsetHeight;
-    let placement: "top" | "bottom" = "top";
-    let top = anchor.top - h - GAP;
-    if (top < EDGE_MARGIN) {
-      top = anchor.bottom + GAP;
-      placement = "bottom";
-    }
-    let left = anchor.left + anchor.width / 2 - w / 2;
-    left = Math.max(EDGE_MARGIN, Math.min(left, window.innerWidth - EDGE_MARGIN - w));
-    top = Math.max(EDGE_MARGIN, Math.min(top, window.innerHeight - EDGE_MARGIN - h));
-    setPos({ top, left, placement });
-  }, [anchor]);
-
-  useLayoutEffect(() => {
-    reposition();
-  }, [session, reposition]);
-
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => reposition());
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [reposition]);
+  const { style, placement } = useAnchoredPosition(ref, anchor, "center");
 
   return createPortal(
     <div
       ref={ref}
       role="tooltip"
-      style={{
-        top: pos?.top ?? 0,
-        left: pos?.left ?? 0,
-        visibility: pos ? "visible" : "hidden",
-        transformOrigin: pos?.placement === "bottom" ? "top center" : "bottom center",
-      }}
+      style={{ ...style, transformOrigin: placement === "bottom" ? "top center" : "bottom center" }}
       className={`pointer-events-none fixed z-[9999] w-[300px] overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] shadow-[0_8px_24px_rgba(0,0,0,0.22)] ${
-        pos ? (pos.placement === "bottom" ? "image-preview-pop image-preview-pop-below" : "image-preview-pop") : ""
+        placement ? (placement === "bottom" ? "image-preview-pop image-preview-pop-below" : "image-preview-pop") : ""
       }`}
     >
       {session ? (

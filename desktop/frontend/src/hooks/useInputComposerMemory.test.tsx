@@ -26,16 +26,24 @@ vi.mock("../../bridge/runtime", () =>
 
 import { useAppStore } from "../store/app";
 import type { ProjectInfo } from "../types";
-import { useInputComposerMemory, type InputComposerMemorySource } from "./useInputComposerMemory";
+import {
+  useInputComposerMemory,
+  type InputComposerMemorySource,
+  type InputComposerMemoryState,
+} from "./useInputComposerMemory";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let container: HTMLDivElement;
 let root: Root;
 let highlight: () => void = () => {};
+let preview: InputComposerMemoryState["preview"] = null;
 
 function Harness({ source, text }: { source?: InputComposerMemorySource; text: string }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const state = useInputComposerMemory(source, editorRef);
   highlight = state.highlight;
+  preview = state.preview;
   return (
     <div ref={editorRef} contentEditable suppressContentEditableWarning>
       {text}
@@ -50,8 +58,8 @@ async function render(text: string, source?: InputComposerMemorySource) {
 }
 
 const editor = () => container.querySelector<HTMLElement>("[contenteditable]")!;
-const command = () => editor().querySelector<HTMLElement>("[data-cmd]:not([data-memchip])");
-const pill = () => editor().querySelector<HTMLElement>("[data-memchip]");
+const command = () => editor().querySelector<HTMLElement>("[data-cmd]");
+const pill = () => editor().querySelector<HTMLElement>(".composer-memchip-id");
 
 const SOURCE: InputComposerMemorySource = { project: "web", agent: "claude" };
 
@@ -72,19 +80,34 @@ afterEach(() => {
 });
 
 describe("useInputComposerMemory", () => {
-  it("colors the invocation and pills a saved session", async () => {
+  it("draws the invocation and a saved session as one pill", async () => {
     await render("/lpm-memory auth-refactor continue", SOURCE);
 
-    expect(command()?.textContent).toBe("/lpm-memory");
-    expect(pill()?.dataset.memchip).toBe("auth-refactor");
+    expect(command()?.textContent).toBe("/lpm-memory ");
+    expect(command()?.dataset.memchip).toBe("auth-refactor");
+    expect(pill()?.textContent).toBe("auth-refactor");
     expect(editor().textContent).toBe("/lpm-memory auth-refactor continue");
   });
 
   it("colors Codex's skill mention too", async () => {
     await render("$lpm-memory auth-refactor", { project: "web", agent: "codex" });
 
-    expect(command()?.textContent).toBe("$lpm-memory");
+    expect(command()?.textContent).toBe("$lpm-memory ");
     expect(pill()).not.toBeNull();
+  });
+
+  it("previews one session from either half of the pill", async () => {
+    await render("/lpm-memory auth-refactor continue", SOURCE);
+    const hover = (el: HTMLElement) =>
+      act(() => {
+        el.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+      });
+
+    hover(pill()!);
+    const shown = preview;
+    expect(shown?.id).toBe("auth-refactor");
+    hover(command()!);
+    expect(preview).toBe(shown);
   });
 
   it("leaves an unknown session as plain text", async () => {

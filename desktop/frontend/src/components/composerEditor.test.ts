@@ -345,22 +345,47 @@ describe("highlightCommand memory pill", () => {
   const known = new Set(["session-memory"]);
   const isCmd = (n: string) => n === "lpm-memory";
 
-  it("wraps the command and a known session id as a pill", () => {
+  it("draws the command and a known session id as one pill", () => {
     const root = editor();
     root.appendChild(document.createTextNode("/lpm-memory session-memory more"));
     highlightCommand(root, isCmd, known);
     const spans = root.querySelectorAll<HTMLElement>("[data-cmd]");
     expect(spans.length).toBe(2);
-    expect(spans[0].textContent).toBe("/lpm-memory");
-    expect(spans[1].dataset.memchip).toBe("session-memory");
+    expect(spans[0].textContent).toBe("/lpm-memory ");
+    expect(spans[0].className).toBe("composer-memchip composer-memchip-cmd");
+    expect(spans[0].style.color).toBe("");
     expect(spans[1].textContent).toBe("session-memory");
-    expect(spans[1].className).toBe("composer-memchip");
+    expect(spans[1].className).toBe("composer-memchip composer-memchip-id");
+    expect(spans[0].nextSibling).toBe(spans[1]);
+    expect([...spans].map((s) => s.dataset.memchip)).toEqual(["session-memory", "session-memory"]);
     expect(root.textContent).toBe("/lpm-memory session-memory more");
+  });
+
+  it("keeps a wider gap inside the pill", () => {
+    const root = editor();
+    root.appendChild(document.createTextNode("  /lpm-memory \t session-memory"));
+    highlightCommand(root, isCmd, known);
+    const spans = root.querySelectorAll<HTMLElement>("[data-cmd]");
+    expect(spans[0].textContent).toBe("/lpm-memory \t ");
+    expect(spans[0].nextSibling).toBe(spans[1]);
+    expect(root.textContent).toBe("  /lpm-memory \t session-memory");
   });
 
   it("leaves an unknown id plain", () => {
     const root = editor();
     root.appendChild(document.createTextNode("/lpm-memory nope"));
+    highlightCommand(root, isCmd, known);
+    const spans = root.querySelectorAll<HTMLElement>("[data-cmd]");
+    expect(spans.length).toBe(1);
+    expect(spans[0].textContent).toBe("/lpm-memory");
+    expect(spans[0].className).toBe("");
+    expect(spans[0].style.color).not.toBe("");
+    expect(root.querySelector("[data-memchip]")).toBeNull();
+  });
+
+  it("leaves a session id on the next line plain", () => {
+    const root = editor();
+    root.appendChild(document.createTextNode("/lpm-memory\nsession-memory"));
     highlightCommand(root, isCmd, known);
     expect(root.querySelectorAll("[data-cmd]").length).toBe(1);
     expect(root.querySelector("[data-memchip]")).toBeNull();
@@ -379,12 +404,25 @@ describe("highlightCommand memory pill", () => {
     const root = editor();
     root.appendChild(document.createTextNode("/lpm-memory session-memory"));
     highlightCommand(root, isCmd, known);
-    const pill = root.querySelector<HTMLElement>("[data-memchip]");
+    const pill = root.querySelector<HTMLElement>(".composer-memchip-id");
     expect(pill).not.toBeNull();
     pill!.textContent = "session-memoryx";
     highlightCommand(root, isCmd, known);
     expect(root.querySelector("[data-memchip]")).toBeNull();
     expect(root.textContent).toBe("/lpm-memory session-memoryx");
+    const spans = root.querySelectorAll<HTMLElement>("[data-cmd]");
+    expect(spans.length).toBe(1);
+    expect(spans[0].textContent).toBe("/lpm-memory");
+  });
+
+  it("moves a space typed after the id out of the pill", () => {
+    const root = editor();
+    root.appendChild(document.createTextNode("/lpm-memory session-memory"));
+    highlightCommand(root, isCmd, known);
+    root.querySelector<HTMLElement>(".composer-memchip-id")!.textContent = "session-memory ";
+    highlightCommand(root, isCmd, known);
+    expect(root.querySelector(".composer-memchip-id")?.textContent).toBe("session-memory");
+    expect(root.textContent).toBe("/lpm-memory session-memory ");
   });
 
   it("keeps the serialized text identical with and without the pill", () => {
@@ -401,7 +439,7 @@ describe("highlightCommand memory pill", () => {
     highlightCommand(root, () => false, known);
     const spans = root.querySelectorAll<HTMLElement>("[data-cmd]");
     expect(spans.length).toBe(2);
-    expect(spans[0].textContent).toBe("$lpm-memory");
+    expect(spans[0].textContent).toBe("$lpm-memory ");
     expect(spans[1].dataset.memchip).toBe("session-memory");
   });
 

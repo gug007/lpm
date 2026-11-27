@@ -9,6 +9,7 @@ import {
   loadPersistedDraft,
   schedulePersistDraft,
 } from "./composerDraftPersist";
+import { forgetChips } from "./composerChipMemory";
 
 // One recalled (already-sent) message: the tokenized text plus the token→path
 // map, so Arrow-Up recall rebuilds image chips exactly like the history popover.
@@ -106,6 +107,7 @@ export function saveComposerDraft(terminalId: string, draft: ComposerDraft, hist
 export function forgetComposerDraft(terminalId: string, historyKey?: string): void {
   drafts.delete(terminalId);
   unsentElsewhere.delete(terminalId);
+  forgetChips(terminalId);
   if (historyKey) deletePersistedDraft(historyKey);
 }
 

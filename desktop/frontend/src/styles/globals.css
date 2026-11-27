@@ -730,20 +730,73 @@ body {
   }
 }
 
-/* The "/lpm-memory <session-id>" pill in the composer. A styled data-cmd span —
-   ordinary editable text underneath, so serialization and the caret treat it as
-   the plain session id; the brain glyph is a pseudo-element and never enters
-   the text. */
+/* The "/lpm-memory <session-id>" pill in the composer: two adjacent data-cmd
+   spans, the command with the gap after it and then the id, drawn as one shape.
+   Ordinary editable text underneath, so serialization and the caret treat it as
+   the plain invocation; the brain is a pseudo-element and never enters the
+   text. Only the id refuses to wrap, so a narrow field breaks the pill at its
+   gap instead of pushing it out of the field. */
 .composer-memchip {
-  border-radius: 6px;
-  padding: 0 5px 1px;
+  padding-block: 1px 2px;
   background: color-mix(in srgb, var(--accent-purple) 16%, transparent);
   color: var(--accent-purple);
+}
+.composer-memchip-cmd {
+  border-radius: 6px 0 0 6px;
+  padding-left: 6px;
+  color: color-mix(in srgb, var(--accent-purple) 65%, transparent);
+}
+.composer-memchip-cmd::before {
+  --memchip-brain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z'/%3E%3Cpath d='M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z'/%3E%3C/svg%3E");
+  content: "";
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin-right: 6px;
+  vertical-align: -2px;
+  background: var(--accent-purple);
+  -webkit-mask: var(--memchip-brain) center / contain no-repeat;
+  mask: var(--memchip-brain) center / contain no-repeat;
+}
+.composer-memchip-id {
+  border-radius: 0 6px 6px 0;
+  padding-right: 8px;
   white-space: nowrap;
 }
-.composer-memchip::before {
-  content: "🧠 ";
-  font-size: 0.85em;
+
+/* Composer chips take their family's colour: attachments sky, projects and
+   places indigo, git orange, output and logs teal. The text mixes the hue with
+   the field's own text colour, so a chip reads on any terminal theme, dark or
+   light. Red stays free for the dot on a chip whose content failed. */
+.composer-terminal-surface [data-img] {
+  --chip-hue: #0284c7;
+  background-color: color-mix(in srgb, var(--chip-hue) 14%, transparent);
+  color: color-mix(in srgb, var(--chip-hue) 45%, var(--composer-fg));
+}
+.composer-terminal-surface [data-img]:hover {
+  background-color: color-mix(in srgb, var(--chip-hue) 24%, transparent);
+}
+.composer-terminal-surface [data-img] [data-img-thumb] {
+  background-color: var(--composer-surface);
+}
+.composer-terminal-surface [data-hue="place"] {
+  --chip-hue: #4f46e5;
+}
+.composer-terminal-surface [data-hue="git"] {
+  --chip-hue: #ea580c;
+}
+.composer-terminal-surface [data-hue="output"] {
+  --chip-hue: #0d9488;
+}
+.composer-terminal-surface [data-img][data-failed] [data-img-thumb]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-red);
 }
 
 /* Opacity-only: a context menu opens under the cursor, so any transform that

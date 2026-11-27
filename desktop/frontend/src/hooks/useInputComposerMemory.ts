@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { highlightCommand } from "../components/composerEditor";
+import { memoryPillAt, memoryPillRect } from "../components/composerMemoryPill";
 import type { MentionItem } from "../mentions";
 import { useMemorySessions, type MemorySessionInfo } from "./useMemorySessions";
 
@@ -57,10 +58,10 @@ export function useInputComposerMemory(
     const editor = editorRef.current;
     if (!editor || !on) return;
     const move = (e: MouseEvent) => {
-      const chip = (e.target as HTMLElement).closest<HTMLElement>("[data-memchip]");
+      const chip = memoryPillAt(e.target as HTMLElement);
       if (chip === hovered.current) return;
       hovered.current = chip;
-      setPreview(chip ? { id: chip.dataset.memchip ?? "", rect: chip.getBoundingClientRect() } : null);
+      setPreview(chip ? { id: chip.dataset.memchip ?? "", rect: memoryPillRect(chip) } : null);
     };
     const leave = () => {
       hovered.current = null;

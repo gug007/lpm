@@ -1,16 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { REACH_NOTE } from "./components/composerChips";
 import { computerRows, runsHere, type MentionComputer } from "./computerMentions";
 import { mentionGroup, rankMentions } from "./mentions";
 import { projectMentionItems } from "./hooks/useMentions";
 import { prefixRoot } from "./peer/markers";
 import type { ProjectInfo } from "./types";
 
-const tail = " (on another computer; reach it with lpm exec --on and lpm cp)";
-
 const place = (name: string, label: string, path: string) => ({
   label,
   path: `${name}:${path}`,
-  insert: `${name}:${path}${tail}`,
+  insert: `${name}:${path}${REACH_NOTE}`,
 });
 
 const mini: MentionComputer = {
@@ -41,7 +40,7 @@ describe("computerRows", () => {
     expect(places[0]).toEqual({
       kind: "computer",
       label: "storefront",
-      insert: `Mac mini:~/storefront${tail}`,
+      insert: `Mac mini:~/storefront${REACH_NOTE}`,
       detail: "Mac mini:~/storefront",
       search: "Mac mini:~/storefront",
     });

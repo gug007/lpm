@@ -146,6 +146,7 @@ const description = [
   hook,
   LPM_LINE,
   "https://lpm.cx",
+  "Free and open source on GitHub: https://github.com/gug007/lpm",
   yt.learn?.length ? `What you'll learn:\n${yt.learn.map((l) => `- ${l}`).join("\n")}` : null,
   ...(yt.sections || []).map((x) => `${x.heading}:\n${x.lines.map((l) => `- ${l}`).join("\n")}`),
   `Chapters:\n${chaptersText(ch.list).trim()}`,

@@ -18,12 +18,7 @@ import { USAGE_TOOLS, type UsageWindowChoice } from "../sidebarUsage";
 import { normalizeSidebarNav, type NavItemId } from "../sidebarNav";
 import { normalizeRowLayout, type SidebarRowLayout } from "../sidebarRowLayout";
 import { normalizePaneToolbar, type PaneActionId } from "../paneActions";
-import {
-  normalizeComposerToolTimes,
-  normalizeComposerToolbar,
-  type ComposerToolId,
-  type ComposerToolTimes,
-} from "../composerTools";
+import { normalizeComposerToolbar, type ComposerToolId } from "../composerTools";
 import type { PeerRowOrder } from "../components/peerRowOrder";
 import { normalizeRecapTheme, type RecapTheme } from "../components/recap/recapCardTheme";
 import { normalizeRecapRows, type RecapRow } from "../components/recap/weeklyRecapModel";
@@ -117,8 +112,6 @@ export interface Settings {
   // The tools that row had to choose from when it was saved, so a tool added
   // since can take its default seat. Unset for a row saved before this was kept.
   composerToolbarKnown?: ComposerToolId[];
-  // When each new composer tool stops wearing its New dot.
-  composerToolsNewUntil?: ComposerToolTimes;
   // Named pane arrangements per project (savedLayouts.ts), and which one opens
   // by itself.
   savedLayouts?: SavedLayoutsConfig;
@@ -289,7 +282,6 @@ function normalize(s: main.Settings): Settings {
     paneToolbar: normalizePaneToolbar(s.paneToolbar),
     composerToolbar: normalizeComposerToolbar(s.composerToolbar),
     composerToolbarKnown: normalizeComposerToolbar(s.composerToolbarKnown),
-    composerToolsNewUntil: normalizeComposerToolTimes(s.composerToolsNewUntil),
     savedLayouts: normalizeSavedLayouts(s.savedLayouts),
     filesTreeSide: s.filesTreeSide === "left" || s.filesTreeSide === "right" ? s.filesTreeSide : undefined,
     autoGenerateCommitMessage: s.autoGenerateCommitMessage,

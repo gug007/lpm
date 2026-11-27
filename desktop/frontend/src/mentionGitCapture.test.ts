@@ -13,6 +13,7 @@ vi.mock("../bridge/commands", () => ({
   ReadIssue: (...args: unknown[]) => readIssue(...args),
 }));
 
+import { findChips } from "./components/composerChips";
 import {
   capLines,
   captureGitMention,
@@ -129,5 +130,19 @@ describe("captureGitMention", () => {
   it("rejects when the branch has no pull request", async () => {
     discussion.mockResolvedValue(null);
     await expect(captureGitMention(prItem, "/repo")).rejects.toThrow("This branch has no pull request");
+  });
+
+  it("writes each block under a heading the composer reads back as its chip", async () => {
+    changedFiles.mockResolvedValue([{ path: "a.ts" }, { path: "b.ts" }]);
+    gitDiff.mockResolvedValue("diff --git a/a.ts b/a.ts\n+x\n");
+    showCommit.mockResolvedValue("commit a1f3c9e\n\nAdd CSV export\n");
+    discussion.mockResolvedValue(thread);
+    const read = async (item: MentionItem) => {
+      const text = await captureGitMention(item, "/repo");
+      return findChips(text, { projects: new Map(), saved: new Map() }).map((m) => [m.spec.kind, m.spec.label, m.spec.detail]);
+    };
+    expect(await read(diffItem)).toEqual([["diff", "Uncommitted changes", "2 files"]]);
+    expect(await read(commitItem)).toEqual([["commit", "a1f3c9e", "Add CSV export"]]);
+    expect(await read(prItem)).toEqual([["pr", "#212", "3 comments"]]);
   });
 });

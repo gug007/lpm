@@ -13,7 +13,6 @@ import {
 import { toast } from "../notifications/toast";
 import {
   DeleteMemorySession,
-  GetServiceLogs,
   FileExists,
   ListDirs,
   NotesReadFileAsInput,
@@ -62,7 +61,7 @@ import {
 import { stepRecall } from "./composerRecall";
 import { recordMessage, saveDraft } from "../store/messageHistory";
 import { buildTerminalPayload } from "../composerPayload";
-import { captureGitMention, fencedBlock } from "../mentionGitCapture";
+import { captureGitMention } from "../mentionGitCapture";
 import { blockBreak, insertBlockAtCaret } from "./composerQuote";
 import { sendToTerminal } from "../store/terminalTargets";
 import { openFileViewer } from "../store/fileViewer";
@@ -80,7 +79,7 @@ import { loadImageDataUrl, seedImageDataUrl } from "./imageDataUrl";
 import { TerminalDropOverlay } from "./terminal/TerminalDropOverlay";
 import { readBackendImage, readPasteContent, unlessNativePaste } from "./terminal/clipboardRead";
 import { TERMINAL_FONT_FAMILY, composerFontSize } from "./terminal-utils";
-import { basename } from "../path";
+import { basename, joinAbs } from "../path";
 import { composerPlaceholder } from "../composerText";
 import {
   caretEdges,
@@ -121,7 +120,22 @@ import {
   textBeforeCaret,
   type ComposerImage,
 } from "./composerEditor";
-import { chipMentions, projectMentionChips, type MentionChipLookup } from "./composerMentionChips";
+import { memoryPillAt, memoryPillRect } from "./composerMemoryPill";
+import { chipMentions, createMentionChip, mentionOf, projectMentionChips } from "./composerMentionChips";
+import { trimLogBody, type Captured, type ChipSpec } from "./composerChips";
+import {
+  gitChip,
+  pasteChip,
+  quoteChip,
+  referenceChip,
+  serviceChip,
+  serviceLogBody,
+  terminalChip,
+} from "./composerChipCapture";
+import { ComposerChipCard } from "./ComposerChipCard";
+import { ComposerChipPreview } from "./ComposerChipPreview";
+import { rememberChip, rememberedChips } from "../store/composerChipMemory";
+import { anchorEditor } from "./composerCanon";
 import {
   deleteBeside,
   deleteSelection,
@@ -310,6 +324,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const [preview, setPreview] = useState<
     | { kind: "image"; path: string; rect: DOMRect }
     | { kind: "memory"; id: string; rect: DOMRect }
+    | { kind: "chip"; text: string; spec: ChipSpec; rect: DOMRect }
     | null
   >(null);
   // Local path of the image shown full-window in the lightbox, or null when closed.
@@ -366,14 +381,26 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const projectIsRemote = useAppStore((s) => s.projects.find((p) => p.name === projectName)?.isRemote ?? false);
   // Read when the field is rebuilt rather than subscribed to, so project status
   // updates don't re-render the composer.
-  const mentionChips = useRef<{ projects: unknown; lookup: MentionChipLookup } | null>(null);
-  const chipProjectMentions = useCallback((editor: HTMLElement) => {
+  const projectChips = useRef<{ projects: unknown; lookup: Map<string, ChipSpec> } | null>(null);
+  const projectChipLookup = useCallback(() => {
     const { projects } = useAppStore.getState();
-    if (mentionChips.current?.projects !== projects) {
-      mentionChips.current = { projects, lookup: projectMentionChips(projects) };
+    if (projectChips.current?.projects !== projects) {
+      projectChips.current = { projects, lookup: projectMentionChips(projects) };
     }
-    chipMentions(editor, mentionChips.current.lookup);
+    return projectChips.current.lookup;
   }, []);
+  const chipFieldMentions = useCallback(
+    (editor: HTMLElement) => {
+      chipMentions(editor, { projects: projectChipLookup(), saved: rememberedChips(terminalId) });
+    },
+    [terminalId, projectChipLookup],
+  );
+  const rememberAsChip = useCallback(
+    (chip: Captured | null) => {
+      if (chip) rememberChip(terminalId, chip.text, chip.spec);
+    },
+    [terminalId],
+  );
   // lpm skills are the user's own: a guest at a shared tab doesn't get them.
   const lpmProject = guest ? null : projectName;
   const {
@@ -594,13 +621,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     histStash.current = tab.stash;
     activeId.current = tab.id;
     setEditorContent(editor, tab.text);
-    chipProjectMentions(editor);
+    chipFieldMentions(editor);
     setBlank(isEditorEmpty(editor));
     setDisabled(serializeEditor(editor).trim() === "");
     setPreview(null);
     placeCaretAtEnd(editor);
     hydrateChips();
-  }, [hydrateChips, chipProjectMentions]);
+  }, [hydrateChips, chipFieldMentions]);
 
   // Restore this terminal's saved draft on mount (the composer is remounted per
   // terminal), then focus it — so switching terminals brings back what you'd
@@ -735,12 +762,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       }
       lastRemoteApplied.current = text;
       setEditorContent(editor, text);
-      chipProjectMentions(editor);
+      chipFieldMentions(editor);
       setPreview(null);
       placeCaretAtEnd(editor);
       syncState();
     });
-  }, [terminalId, syncState, chipProjectMentions]);
+  }, [terminalId, syncState, chipFieldMentions]);
 
   // Take in a prompt moved here from another composer. It never displaces what is
   // in the field: it arrives as its own prepared prompt, and only becomes the one
@@ -932,6 +959,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     return subscribeComposerInsert(terminalId, (text: string, block: boolean, images: Record<string, string>) => {
       const editor = editorRef.current;
       if (!editor) return;
+      if (block && text.startsWith(">")) rememberAsChip(quoteChip(text.replace(/\n+$/, "")));
+      const file = /^@(\S+) $/.exec(text);
+      rememberAsChip(file && referenceChip({ kind: "file", label: file[1], insert: file[1] }));
       if (Object.keys(images).length > 0) {
         const lead = block ? blockBreak(editor) : "";
         insertItems(payloadToItems({ text: lead + text, images }, registerImagePath), false);
@@ -941,9 +971,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       else if (!insertSpacedAtCaret(editor, text)) return;
       histIdx.current = -1;
       normalizeComposer(editor);
+      chipFieldMentions(editor);
       syncState();
     });
-  }, [terminalId, syncState, insertItems, registerImagePath]);
+  }, [terminalId, syncState, insertItems, registerImagePath, rememberAsChip, chipFieldMentions]);
 
   // Insert the chips that resolved and warn about any that didn't, so a failed
   // save (decode/temp-write error) never vanishes without feedback.
@@ -1086,11 +1117,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
           false,
         );
       } else {
-        insertPlainText(editorRef.current!, text, "insertFromPaste");
+        const clean = text.replace(/\r\n?/g, "\n");
+        rememberAsChip(pasteChip(clean));
+        insertPlainText(editorRef.current!, clean, "insertFromPaste");
       }
-      chipProjectMentions(editorRef.current!);
+      chipFieldMentions(editorRef.current!);
     },
-    [insertItems, chipProjectMentions],
+    [insertItems, chipFieldMentions, rememberAsChip],
   );
 
   const handlePaste = useCallback(
@@ -1549,7 +1582,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       }
     }
     imgCounter.current = maxIdx;
-    chipProjectMentions(editor);
+    chipFieldMentions(editor);
     syncState();
     placeCaretAtEnd(editor);
   };
@@ -1588,6 +1621,34 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     locked: () => transforming.current,
   });
   const commitUndo = edits.commit;
+
+  // The card a mention chip opens on click, anchored where the chip sat.
+  const [chipCard, setChipCard] = useState<{ chip: HTMLElement; rect: DOMRect } | null>(null);
+  const openChipCard = (chip: HTMLElement) => setChipCard({ chip, rect: chip.getBoundingClientRect() });
+  const cardMention = chipCard && mentionOf(chipCard.chip);
+  // Each change from the card is its own undo step.
+  const replaceChipNode = (chip: HTMLElement, next: Node) => {
+    const editor = editorRef.current;
+    if (!editor || !chip.isConnected) return false;
+    commitUndo();
+    chip.replaceWith(next);
+    anchorEditor(editor);
+    histIdx.current = -1;
+    syncState();
+    commitUndo();
+    return true;
+  };
+  const replaceChip = (chip: HTMLElement, next: Captured) => {
+    rememberAsChip(next);
+    const node = createMentionChip(next.text, next.spec);
+    if (replaceChipNode(chip, node)) openChipCard(node);
+  };
+  const showChipAsText = (chip: HTMLElement, { text, spec }: Captured) => {
+    rememberAsChip({ text, spec: { ...spec, asText: true } });
+    replaceChipNode(chip, document.createTextNode(text));
+    setChipCard(null);
+    editorRef.current?.focus();
+  };
 
   // Off macOS a Ctrl+B/I/U formatting input is never wanted in a plain prompt.
   useEffect(() => {
@@ -1830,17 +1891,23 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       return;
     }
     if (item.kind === "terminal-log") {
-      const body = trimLogBody(captureInteractivePaneLog(item.terminalId ?? terminalId, MENTION_LOG_LINES));
-      injectLog(editor, item.label, "terminal output", body);
+      const source = item.terminalId ?? terminalId;
+      const body = trimLogBody(captureInteractivePaneLog(source, MENTION_LOG_LINES));
+      injectLog(editor, item.label, body ? terminalChip(item.label, body, { terminalId: source, lines: MENTION_LOG_LINES }) : null);
       return;
     }
     if (item.kind === "diff" || item.kind === "commit" || item.kind === "pr" || item.kind === "issue") {
       void insertGitMention(editor, item);
       return;
     }
+    rememberAsChip(referenceChip(item));
     if (item.kind === "computer") {
       injectCaptured(editor, `${item.insert} `);
       return;
+    }
+    const project = projectChipLookup().get(`@${item.insert}`);
+    if (project && (item.kind === "project" || item.kind === "duplicate")) {
+      rememberAsChip({ text: `@${item.insert}`, spec: project });
     }
     if (replaceMentionFragment(editor, item.insert)) {
       afterMentionEdit(editor);
@@ -1853,7 +1920,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const afterMentionEdit = (editor: HTMLDivElement) => {
     histIdx.current = -1;
     normalizeComposer(editor);
-    chipProjectMentions(editor);
+    chipFieldMentions(editor);
     syncState();
   };
 
@@ -1902,15 +1969,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
 
   // Capture the service's current pane output (an async grab) and inject it.
   const insertServiceLog = async (editor: HTMLDivElement, item: MentionItem) => {
-    let body = "";
-    try {
-      const out = await GetServiceLogs(projectName, item.paneIndex ?? 0, MENTION_LOG_LINES);
-      body = typeof out === "string" ? trimLogBody(out) : "";
-    } catch {
-      body = "";
-    }
+    const body = await serviceLogBody(projectName, item.paneIndex ?? 0, MENTION_LOG_LINES).catch(() => "");
     if (!editor.isConnected) return;
-    injectLog(editor, item.label, `${item.label} service logs`, body);
+    injectLog(
+      editor,
+      item.label,
+      body ? serviceChip(item.label, body, { paneIndex: item.paneIndex, lines: MENTION_LOG_LINES }) : null,
+    );
   };
 
   // Read the diff, commit, review thread or issue and drop it where
@@ -1923,6 +1988,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       toast.error(err instanceof Error ? err.message : String(err));
     }
     if (!editor.isConnected) return;
+    rememberAsChip(gitChip(text));
     injectCaptured(editor, text);
   };
 
@@ -1930,9 +1996,10 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // fenced block — point-in-time, whatever the source shows now, not a live tail.
   // On an empty capture the typed "@<frag>" is removed and a toast explains why,
   // so nothing dangles. Shared by the service- and terminal-log mentions.
-  const injectLog = (editor: HTMLDivElement, label: string, heading: string, body: string) => {
-    if (!body) toast.error(`No logs for ${label}`);
-    injectCaptured(editor, body ? fencedBlock(heading, body) : "");
+  const injectLog = (editor: HTMLDivElement, label: string, chip: Captured | null) => {
+    if (chip) rememberAsChip(chip);
+    else toast.error(`No logs for ${label}`);
+    injectCaptured(editor, chip?.text ?? "");
   };
 
   const injectCaptured = (editor: HTMLDivElement, text: string) => {
@@ -2364,6 +2431,15 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     // mapped path (shouldn't happen) falls back to selecting it as a unit so it
     // can still be deleted with Backspace.
     const chip = target.closest<HTMLElement>("[data-img]");
+    const mention = chip && mentionOf(chip);
+    if (chip && mention) {
+      e.preventDefault();
+      dismissPreview();
+      const path = mention.spec.kind === "file" ? mention.spec.source?.path : undefined;
+      if (path) openFileViewer({ absPath: joinAbs(cwd, path), line: 0, col: 0, projectRoot: cwd });
+      else openChipCard(chip);
+      return;
+    }
     if (chip) {
       e.preventDefault();
       const path = imagePaths.current.get(Number(chip.dataset.img));
@@ -2396,9 +2472,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     // A held button means a drag/selection gesture, not a hover.
     if (e.buttons !== 0) return;
     const target = e.target as HTMLElement;
-    const chip =
-      target.closest<HTMLElement>("[data-img]") ??
-      target.closest<HTMLElement>("[data-memchip]");
+    const chip = target.closest<HTMLElement>("[data-img]") ?? memoryPillAt(target);
     if (chip === hoverChip.current) return;
     hoverChip.current = chip;
     if (!chip) {
@@ -2406,7 +2480,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       return;
     }
     if (chip.dataset.memchip !== undefined) {
-      setPreview({ kind: "memory", id: chip.dataset.memchip, rect: chip.getBoundingClientRect() });
+      setPreview({ kind: "memory", id: chip.dataset.memchip, rect: memoryPillRect(chip) });
+      return;
+    }
+    const mention = mentionOf(chip);
+    if (mention) {
+      setPreview({ kind: "chip", ...mention, rect: chip.getBoundingClientRect() });
       return;
     }
     const path = imagePaths.current.get(Number(chip.dataset.img));
@@ -2642,6 +2721,26 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       {preview?.kind === "memory" && (
         <MemoryPreviewPopover session={memorySessionById.get(preview.id)} anchor={preview.rect} />
       )}
+      {preview?.kind === "chip" && !chipCard && (
+        <ComposerChipPreview text={preview.text} spec={preview.spec} anchor={preview.rect} />
+      )}
+      {chipCard && cardMention && (
+        <ComposerChipCard
+          key={cardMention.text}
+          text={cardMention.text}
+          spec={cardMention.spec}
+          anchor={chipCard.rect}
+          env={{ projectName, cwd }}
+          onReplace={(next) => replaceChip(chipCard.chip, next)}
+          onShowAsText={() => showChipAsText(chipCard.chip, cardMention)}
+          onRemove={() => {
+            deleteImageChip(chipCard.chip);
+            setChipCard(null);
+            editorRef.current?.focus();
+          }}
+          onClose={() => setChipCard(null)}
+        />
+      )}
       {lightboxPath && (
         <ImageLightbox path={lightboxPath} onClose={() => setLightboxPath(null)} slug={peerSlug} />
       )}
@@ -2715,9 +2814,3 @@ function blobToBase64(blob: Blob): Promise<string | null> {
   });
 }
 
-// Tidy a raw pane capture for the prompt: drop trailing spaces each line
-// keeps, then strip blank lines that bookend the grab (a full-height pane pads
-// the bottom), leaving the meaningful run intact.
-function trimLogBody(raw: string): string {
-  return raw.replace(/[ \t]+$/gm, "").replace(/^\n+/, "").replace(/\n+$/, "");
-}

@@ -93,10 +93,6 @@ export interface ComposerToolPresentation {
   onOpenChange?: (open: boolean) => void;
 }
 
-export function isComposerToolId(value: unknown): value is ComposerToolId {
-  return typeof value === "string" && (COMPOSER_TOOL_IDS as readonly string[]).includes(value);
-}
-
 /** Sanitize a stored list: known ids only, deduped, in canonical order.
  *  `undefined` for anything that isn't a list, so an emptied row stays
  *  distinct from one that was never touched. */
@@ -124,28 +120,4 @@ export function isDefaultComposerToolbar(current: readonly ComposerToolId[]): bo
     current.length === DEFAULT_COMPOSER_TOOLBAR.length &&
     DEFAULT_COMPOSER_TOOLBAR.every((id, i) => current[i] === id)
   );
-}
-
-// Tools that wear a dot as new until someone hovers or clicks them, or for a
-// week from the first time they're on screen, whichever comes first.
-export const ANNOUNCED_COMPOSER_TOOLS: readonly ComposerToolId[] = ["video"];
-export const NEW_COMPOSER_TOOL_MS = 7 * 24 * 60 * 60 * 1000;
-
-// When each announced tool stops looking new: a week after it was first on
-// screen, or 0 once it's been hovered or clicked. No entry yet means it hasn't
-// been on screen.
-export type ComposerToolTimes = Partial<Record<ComposerToolId, number>>;
-
-export function isNewComposerTool(id: ComposerToolId, until: number | undefined, now: number): boolean {
-  return ANNOUNCED_COMPOSER_TOOLS.includes(id) && (until === undefined || now < until);
-}
-
-/** Sanitize stored times: known ids with a real time only. */
-export function normalizeComposerToolTimes(raw: unknown): ComposerToolTimes | undefined {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
-  const out: ComposerToolTimes = {};
-  for (const [id, at] of Object.entries(raw)) {
-    if (isComposerToolId(id) && typeof at === "number" && Number.isFinite(at)) out[id] = at;
-  }
-  return out;
 }
