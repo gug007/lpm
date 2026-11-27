@@ -49,7 +49,7 @@ export const FEATURES: OsFeature[] = [
   {
     icon: Terminal,
     title: "The shell you like for terminals",
-    body: "Open a plain terminal in PowerShell, Command Prompt, Git Bash or a WSL distro. Set the default under Settings → Terminal → Shell, or per project with terminal: { shell }. Services, actions and agents keep the login shell.",
+    body: "Open a plain terminal in PowerShell, Command Prompt, Git Bash or a WSL distro. Set the default under Settings → Terminal → Shell, or per project with terminal: { shell }. Services, actions and agents keep the login shell. The same settings page can copy the font, size and colors from Windows Terminal or Alacritty.",
   },
   {
     icon: Bot,

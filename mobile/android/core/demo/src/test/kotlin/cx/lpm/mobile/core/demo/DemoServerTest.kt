@@ -121,7 +121,7 @@ class DemoServerTest {
         "moveTerminal", "sidebarPin",
         "keepAwake", "keepAwakeSet", "power", "lockScreen", "sleepNow", "sleepWhenIdle",
         "gitHistory", "gitCommitFiles", "gitCommitPatch", "gitChecks", "gitChecksRerun",
-        "gitMergePr", "gitCommitChecks", "ciFixLoop",
+        "gitMergePr", "gitCommitChecks", "ciFixLoop", "gitMergePrWhenReady", "gitMergePrCancel",
         "lpmCommands", "lpmCommandSave", "lpmCommandDelete", "lpmCommandFolder", "lpmCommandExpand",
         "lpmCommandOtherFolder", "lpmCommandConvert", "agentDialog", "gitDiscardFiles",
         "gitMergeResolve",

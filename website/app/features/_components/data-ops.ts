@@ -35,8 +35,8 @@ export const AUTOMATIONS_AREA: FeatureArea = {
   features: [
     {
       title: "Started by an event",
-      body: "A job can start when CI fails on a commit you pushed, when a service crashes, or when an agent finishes its turn. Narrow it to branches, services or projects, and react once per commit or once a day.",
-      note: "CI events need the GitHub CLI signed in. A CI job stops after three runs in a row on a branch until CI passes there.",
+      body: "A job can start when CI fails on a commit you pushed, when a service crashes, when an agent finishes its turn, when a pull request is opened, or when one of yours gets a review. Narrow it to branches, services or projects, or to pull requests into a branch, and react once per commit or once a day.",
+      note: "CI and pull request events need the GitHub or GitLab CLI signed in. A CI job stops after three runs in a row on a branch until CI passes there.",
     },
     {
       title: "Work in a fresh copy",

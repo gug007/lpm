@@ -34,7 +34,7 @@ const OUTCOMES: Outcome[] = [
   },
   {
     title: "Any conversation picks up where you left it",
-    body: "The resume picker lists every Claude Code and Codex conversation for the project, including ones started outside lpm and tabs you closed. Fork a conversation into a new tab to try another direction, or copy the last answer as clean text with its tables intact. After a relaunch, agent tabs reopen on the conversation they had.",
+    body: "The resume picker lists every Claude Code and Codex conversation for the project, including ones started outside lpm and tabs you closed, and Gemini CLI, OpenCode and Cursor CLI conversations too. Fork a Claude Code or Codex conversation into a new tab to try another direction, or copy the last answer as clean text with its tables intact. After a relaunch, agent tabs reopen on the conversation they had.",
   },
   {
     title: "You see how much of your plan the agents have burned",

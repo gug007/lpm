@@ -1,5 +1,5 @@
 import { AtSign, BellRing, Bot, MessageSquareText, Radio, Slash } from "lucide-react";
-import { OTHER_STATUS_AGENT_NAMES, STATUS_AGENT_NAMES } from "@/lib/app-facts";
+import { OTHER_STATUS_AGENT_NAMES, RESUME_AGENT_NAMES, STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { AI_AGENTS_PATH, PROJECT_SIDEBAR_PATH, lessonPath } from "@/lib/links";
 import type { FeatureArea } from "./feature-types";
 
@@ -46,8 +46,7 @@ export const AGENTS_AREA: FeatureArea = {
     },
     {
       title: "Resume past sessions",
-      body: "Browse every Claude Code and Codex conversation for a project, including ones started outside lpm, search them, and reopen one in a new tab.",
-      scope: "claude-codex",
+      body: `Browse every ${RESUME_AGENT_NAMES} conversation for a project, including ones started outside lpm, search them, and reopen one in a new tab.`,
     },
     {
       title: "Session restore",
@@ -101,8 +100,14 @@ export const AGENTS_AREA: FeatureArea = {
       note: "On Linux, the address opens in your default browser instead.",
     },
     {
+      title: "Keep awake",
+      body: "Keep the computer from sleeping while agents work, for a set time or until a time of day, or until you turn it off, with the screen on too if you like and a heads-up 5 minutes before it can sleep. Set it from the footer, from lpm Link, or with lpm awake.",
+      note: "On battery it lets go at a level you pick.",
+      since: "0.7.48",
+    },
+    {
       title: "Themes and fonts",
-      body: "Eight terminal color themes, any monospace font you have installed, sizes from 8 to 24, and adjustable line height.",
+      body: "Eight terminal color themes, any monospace font you have installed, sizes from 8 to 24, and adjustable line height. Or take the font, size and colors from Ghostty, iTerm2, Kitty, Alacritty or Windows Terminal in one click.",
       keys: ["⌘+", "⌘−"],
     },
   ],
@@ -143,6 +148,12 @@ export const COMPOSER_AREA: FeatureArea = {
       scope: "claude-codex",
     },
     {
+      title: "Switch the agent's mode",
+      body: "Press Shift+Tab in the composer to switch the agent's mode, plan or accept edits, as you would in its own CLI.",
+      keys: ["⇧⇥"],
+      since: "0.7.67",
+    },
+    {
       title: "Refine with AI",
       body: "Rewrite a prompt before sending: improve it, make it concise, fix grammar, add acceptance criteria, plan first, or use your own rewrites, with up to five versions to pick from.",
       note: "Runs through your own agent CLI and plan.",
@@ -161,6 +172,17 @@ export const COMPOSER_AREA: FeatureArea = {
       title: "History and favorites",
       body: "Press ↑ to recall earlier prompts, or search past prompts across projects, star favorites, and file them into folders.",
       keys: ["↑"],
+    },
+    {
+      title: "Send later",
+      body: "Pick a moment on a timeline, today or later, and the prompt goes out then. The tab shows what's waiting.",
+      keys: ["⌥↩"],
+    },
+    {
+      title: "Send when done",
+      body: "Queue a prompt while the agent is still working: it waits for the agent to finish its turn, then sends.",
+      keys: ["⌥⇧↩"],
+      since: "0.7.42",
     },
     {
       title: "Send to another tab",

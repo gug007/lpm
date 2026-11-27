@@ -7,7 +7,7 @@ export const OPERATING_SYSTEMS =
 
 // The agents that report Working, Needs you and Done to lpm on their own: the
 // status hooks in desktop/frontend/src-tauri/src/hooks/mod.rs. Claude Code and
-// Codex lead because they also get resume, fork and the model picker.
+// Codex lead because they also get fork and the model picker.
 export const STATUS_AGENTS = [
   "Claude Code",
   "Codex",
@@ -23,6 +23,12 @@ export function listNames(names: readonly string[], conjunction = "and"): string
 }
 
 export const STATUS_AGENT_NAMES = listNames(STATUS_AGENTS);
+
+// The agents whose past conversations Resume session lists:
+// RESUMABLE_PROVIDERS in desktop/frontend/src/agentSession.ts.
+export const RESUME_AGENTS = ["Claude Code", "Codex", "Gemini CLI", "OpenCode", "Cursor CLI"] as const;
+export const RESUME_AGENT_NAMES = listNames(RESUME_AGENTS);
+export const OTHER_RESUME_AGENT_NAMES = listNames(RESUME_AGENTS.slice(2));
 export const STATUS_AGENT_CHOICES = listNames(STATUS_AGENTS, "or");
 export const OTHER_STATUS_AGENT_NAMES = listNames(STATUS_AGENTS.slice(2));
 
@@ -35,7 +41,7 @@ export const FEATURE_LIST = [
   "Prompt composer with @ mentions, images, and slash-command autocomplete",
   "Duplicate a project or create Git worktrees to run agents in parallel",
   "Automations that run agent prompts, commands, or actions on a schedule, or when CI fails, a service crashes or an agent finishes",
-  "Review changes, AI commit messages, and GitHub pull requests",
+  "Review changes, AI commit messages, GitHub pull requests and GitLab merge requests",
   "Files tab with an editor, Git status, and editable diffs",
   "Claude Code and Codex token stats and plan-limit meters",
   "Multiple Claude Code accounts pinned per project",

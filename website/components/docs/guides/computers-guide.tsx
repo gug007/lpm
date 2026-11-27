@@ -3,6 +3,7 @@ import { DocLink } from "@/components/config/doc-link";
 import { Section } from "@/components/config/section";
 import { FeatureCard } from "@/components/feature-card";
 import { InstallStepsList } from "@/components/install-steps-list";
+import { P } from "@/components/prose";
 import { docsPath } from "@/lib/docs-pages";
 import type { InstallStep } from "@/lib/install-steps";
 import {
@@ -69,6 +70,26 @@ export function ComputersGuide() {
       <div className="mt-6">
         <GuideLesson lesson="claude-code-codex-remote-server" />
       </div>
+
+      <DocsHeading id="continue">Continue on another computer</DocsHeading>
+      <p className={`mb-4 ${P}`}>
+        A Claude Code conversation can move to a paired computer or Linux
+        server and keep going there. Right-click its tab, choose Continue on
+        and pick the computer. lpm pauses Claude and sends the folder&rsquo;s
+        work, committed or not, and the conversation to the same project over
+        there. A tab there resumes the conversation on the same branch, and
+        if Claude was in the middle of a turn, it carries on. The tab here
+        closes, and this computer can sleep.
+      </p>
+      <GuideList
+        items={[
+          "To bring it back, right-click the tab in the other computer's project and choose Continue on this Mac (this computer on Windows and Linux).",
+          "It's for Claude Code tabs only, once the conversation is saved: send a new tab a message first.",
+          "The other computer needs a project of the same name in Git, with at least one commit and no uncommitted changes of its own, and Claude Code installed. A computer that can't take it shows in the menu with the reason, such as Offline or Needs a newer lpm.",
+          "The folder you left keeps the work as it was sent, and bringing the session back replaces it. If you've changed files there since, lpm asks you to commit or discard them first.",
+          "Tabs in SSH projects can't move.",
+        ]}
+      />
 
       <DocsHeading id="good-to-know">Good to know</DocsHeading>
       <GuideList

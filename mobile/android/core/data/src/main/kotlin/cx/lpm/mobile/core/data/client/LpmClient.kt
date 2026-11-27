@@ -418,6 +418,10 @@ class LpmClient internal constructor(
         // `gitMergePr`, and `merge` on `gitChecks`' pull request.
         const val GIT_MERGE_FEATURE = "gitMerge"
 
+        // `gitMergePrWhenReady`, `gitMergePrCancel`, `bypass` on `gitMergePr`, and
+        // `gitMergeWatch` frames.
+        const val GIT_MERGE_WHEN_READY_FEATURE = "gitMergeWhenReady"
+
         // `ciFixLoop`, and `fixLoop` / `fixLoopPrompt` on `gitChecks`.
         const val CI_FIX_LOOP_FEATURE = "ciFixLoop"
 

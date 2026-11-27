@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Play } from "lucide-react";
 import { AppStoreButton } from "@/components/app-store-button";
 import { GooglePlayButton } from "@/components/google-play-button";
@@ -19,6 +19,7 @@ import { HeroTrustLine } from "./hero-trust-line";
 import { formatLength, OVERVIEW_LESSON } from "./lesson-data";
 import { NoDownloadCard } from "./no-download-card";
 import { SendLinkCta } from "./send-link-cta";
+import { TourVideoDialog } from "./tour-video-dialog";
 
 // The homepage keeps the demo frame in the first viewport, so this row reserves
 // its height: platform detection only runs after hydration and must not shove
@@ -30,22 +31,34 @@ const SECONDARY =
   "items-center justify-center gap-2 rounded-full border border-gray-300 px-6 py-[13px] text-[15px] font-medium text-gray-700 transition-colors duration-200 hover:border-gray-400 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:border-gray-500 dark:hover:text-white";
 
 // From md up the interactive demo already sits under the hero, so the second
-// button offers what isn't on screen yet: the three-minute video. Narrower
-// windows play that video in the demo's place.
+// button offers what isn't on screen yet: the three-minute video, played over
+// the hero. The lessons section it links to is the fallback before hydration
+// and for a new tab. Narrower windows play that video in the demo's place.
 function TourLink() {
+  const [playing, setPlaying] = useState(false);
   return (
     <>
       <a href={DEMO_ANCHOR} className={`inline-flex md:hidden ${SECONDARY}`}>
         <Play className="h-3.5 w-3.5" aria-hidden />
         Watch the demo
       </a>
-      <a href={LESSONS_ANCHOR} className={`hidden md:inline-flex ${SECONDARY}`}>
+      <a
+        href={LESSONS_ANCHOR}
+        aria-haspopup="dialog"
+        onClick={(event) => {
+          if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          setPlaying(true);
+        }}
+        className={`hidden md:inline-flex ${SECONDARY}`}
+      >
         <Play className="h-3.5 w-3.5" aria-hidden />
         Watch the 3-minute tour
         <span className="font-mono text-[13px] tabular-nums opacity-70">
           {formatLength(OVERVIEW_LESSON.seconds)}
         </span>
       </a>
+      <TourVideoDialog open={playing} onClose={() => setPlaying(false)} />
     </>
   );
 }

@@ -18,7 +18,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Push, once the app has loaded its stored keys: the channels, the token, the
- * registration with every Mac, the agents-at-work card, and withdrawing what the
+ * registration with every Mac, the agents-at-work card, the banner for another agent
+ * starting to wait while the app is open, and withdrawing what the
  * live Mac's projects say is over — a backstop for withdrawals that never arrived (a
  * stopped app gets no FCM).
  */
@@ -29,6 +30,7 @@ class PushStartup @Inject constructor(
     private val notifier: PushNotifier,
     private val live: LivePublisher,
     private val liveCards: LiveNotifier,
+    private val headsUp: WaitingHeadsUpNotifier,
     private val session: MacSession,
     @param:ApplicationScope private val scope: CoroutineScope
 ) {
@@ -37,6 +39,7 @@ class PushStartup @Inject constructor(
         tokens.register()
         registrar.start()
         live.start()
+        headsUp.start()
         scope.launch {
             session.store<ProjectsStore>().state
                 .map { it.projects }

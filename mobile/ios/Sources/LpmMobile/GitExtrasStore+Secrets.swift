@@ -1,7 +1,8 @@
 import Foundation
 
-/// A commit the look for secrets holds until the Mac answers.
-struct PendingCommit {
+/// A commit as it was asked for: held while the look for secrets runs, and kept
+/// while a hook's panel offers it again.
+struct PendingCommit: Equatable {
     let message: String
     let files: [String]
     let push: Bool
@@ -105,11 +106,6 @@ extension GitExtrasStore {
     }
 
     private func run(_ project: String, _ pending: PendingCommit) {
-        guard let git = model?.git else { return }
-        if pending.push {
-            git.commitAndPush(project, message: pending.message, files: pending.files)
-        } else {
-            git.commit(project, message: pending.message, files: pending.files)
-        }
+        model?.git.commit(project, pending)
     }
 }

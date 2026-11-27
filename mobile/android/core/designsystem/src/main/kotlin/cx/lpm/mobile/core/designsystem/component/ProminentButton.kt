@@ -42,7 +42,7 @@ enum class ProminentButtonSize(
 /**
  * iOS's `.borderedProminent` button across the width, large unless [size] says
  * otherwise: a capsule in [containerColor] with [icon] before its label. While [busy] a
- * spinner takes the icon's place, or the label's when there's no icon.
+ * spinner in [spinnerColor] takes the icon's place, or the label's when there's no icon.
  */
 @Composable
 fun ProminentButton(
@@ -54,14 +54,15 @@ fun ProminentButton(
     enabled: Boolean = true,
     containerColor: Color = LpmTheme.colors.tint,
     contentColor: Color = Color.White,
-    size: ProminentButtonSize = ProminentButtonSize.Large
+    size: ProminentButtonSize = ProminentButtonSize.Large,
+    spinnerColor: Color =
+        if (size == ProminentButtonSize.Large) Color.White else LpmTheme.colors.gray
 ) {
     val colors = LpmTheme.colors
     val large = size == ProminentButtonSize.Large
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val content = if (enabled) contentColor else colors.tertiaryLabel
-    val spinner = if (large) Color.White else colors.gray
     val style = if (large) LpmTheme.typography.body else LpmTheme.typography.subheadline
     val spinnerOverLabel = busy && icon == null
     Row(
@@ -84,7 +85,7 @@ fun ProminentButton(
     ) {
         if (icon != null) {
             if (busy) {
-                ActivityIndicator(size = ActivityIndicatorSize.Small, color = spinner)
+                ActivityIndicator(size = ActivityIndicatorSize.Small, color = spinnerColor)
             } else {
                 Icon(
                     painter = icon,
@@ -103,7 +104,7 @@ fun ProminentButton(
                 maxLines = size.maxLines
             )
             if (spinnerOverLabel) {
-                ActivityIndicator(size = ActivityIndicatorSize.Small, color = spinner)
+                ActivityIndicator(size = ActivityIndicatorSize.Small, color = spinnerColor)
             }
         }
     }

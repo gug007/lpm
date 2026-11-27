@@ -92,6 +92,10 @@ internal fun TerminalRoute(
             viewModel.openScreen(controller, controller.hooks(scope))
             onDispose { viewModel.closeScreen(controller) }
         }
+        DisposableEffect(terminal.id) {
+            viewModel.onScreen(terminal.id, shown = true)
+            onDispose { viewModel.onScreen(terminal.id, shown = false) }
+        }
         // Opening the terminal is the touch that sees it; a finish landing while it's
         // open waits for the next touch, as on the desktop.
         LaunchedEffect(Unit) { viewModel.markSeen() }

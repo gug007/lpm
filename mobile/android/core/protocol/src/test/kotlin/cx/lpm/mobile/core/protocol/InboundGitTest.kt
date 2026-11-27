@@ -7,6 +7,7 @@ import cx.lpm.mobile.core.model.GitAutoStep
 import cx.lpm.mobile.core.model.GitBranch
 import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitMergeMethod
+import cx.lpm.mobile.core.model.GitMergeWatch
 import cx.lpm.mobile.core.model.RepoIssue
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -407,6 +408,53 @@ class InboundGitTest {
     }
 
     @Test
+    fun gitMergeWhenReady() {
+        assertEquals(
+            Inbound.GitMergeWhenReady("a", cancel = false, error = null),
+            Inbound.parse("""{ "t": "gitMergePrWhenReady", "project": "a", "ok": true }""")
+        )
+        assertEquals(
+            Inbound.GitMergeWhenReady("a", cancel = false, error = "Couldn't set up the merge."),
+            Inbound.parse("""{ "t": "gitMergePrWhenReady", "project": "a", "ok": false }""")
+        )
+        assertEquals(
+            Inbound.GitMergeWhenReady("a", cancel = true, error = "Couldn't stop the merge."),
+            Inbound.parse("""{ "t": "gitMergePrCancel", "project": "a", "ok": false }""")
+        )
+        assertEquals(
+            Inbound.GitMergeWhenReady("a", cancel = true, error = "Nothing armed"),
+            Inbound.parse(
+                """{ "t": "gitMergePrCancel", "project": "a", "ok": false, "error": "Nothing armed" }"""
+            )
+        )
+    }
+
+    @Test
+    fun gitMergeWatch() {
+        val f = decode<Inbound.GitMergeWatch>(
+            """{ "t": "gitMergeWatch", "project": "a", "watch": { "path": "/p", "number": 42,
+                 "title": "Checkout", "method": "rebase", "deleteBranch": true, "bypass": true,
+                 "state": "stopped", "reason": "A check failed.", "deletedBranch": false } }"""
+        )
+        assertEquals("a", f.project)
+        assertEquals(
+            GitMergeWatch(
+                42,
+                "Checkout",
+                GitMergeMethod.REBASE,
+                deleteBranch = true,
+                bypass = true,
+                state = "stopped",
+                reason = "A check failed."
+            ),
+            f.watch
+        )
+        assertNull(
+            decode<Inbound.GitMergeWatch>("""{ "t": "gitMergeWatch", "project": "a" }""").watch
+        )
+    }
+
+    @Test
     fun gitChecksPullRequestMerge() {
         val f = decode<Inbound.GitChecks>(
             """{ "t": "gitChecks", "project": "a", "ok": true, "branch": "feat/x", "commit": null,
@@ -414,10 +462,29 @@ class InboundGitTest {
                    "merge": { "mergeable": "MERGEABLE", "state": "CLEAN", "review": "APPROVED",
                      "head": "abc", "methods": ["rebase"], "deletesBranch": true } } }"""
         )
-        val pr = f.checks!!.pr!!
+        val checks = f.checks!!
+        val pr = checks.pr!!
         assertTrue(pr.isDraft)
         assertEquals(listOf(GitMergeMethod.REBASE), pr.merge!!.methods)
         assertTrue(pr.merge!!.deletesBranch)
+        assertFalse(pr.merge!!.canBypass)
+        assertNull(checks.mergeWatch)
+    }
+
+    @Test
+    fun gitChecksCarriesBypassAndAnArmedWatch() {
+        val f = decode<Inbound.GitChecks>(
+            """{ "t": "gitChecks", "project": "a", "ok": true, "branch": "feat/x", "commit": null,
+                 "mergeWatch": { "path": "/p", "number": 42, "title": "T", "method": "squash",
+                   "deleteBranch": false, "bypass": false, "state": "waiting", "deletedBranch": false },
+                 "pr": { "number": 42, "url": "u", "title": "T", "checks": [],
+                   "merge": { "state": "BLOCKED", "canBypass": true, "base": "main" } } }"""
+        )
+        val checks = f.checks!!
+        assertTrue(checks.pr!!.merge!!.bypassable)
+        assertEquals("main", checks.pr!!.merge!!.baseName)
+        assertEquals(42, checks.mergeWatch!!.number)
+        assertTrue(checks.mergeWatch!!.waiting)
     }
 
     @Test

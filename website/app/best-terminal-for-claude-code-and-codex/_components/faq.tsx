@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
-import { OTHER_STATUS_AGENT_NAMES } from "@/lib/app-facts";
+import { OTHER_RESUME_AGENT_NAMES, OTHER_STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { jsonLdString } from "@/lib/structured-data";
 import {
   CONNECT_AGENTS_PATH,
@@ -40,7 +40,7 @@ const FAQS: QA[] = [
   {
     question: "Can I resume an old Claude Code or Codex session?",
     answer:
-      "Yes. Resume session lists every Claude Code and Codex conversation for the project, including ones started outside lpm and tabs you closed, with search and a filter by agent. Picking one reopens it in a new tab, and you can fork a conversation to try a different direction without losing the original.",
+      "Yes. Resume session lists every Claude Code and Codex conversation for the project, including ones started outside lpm and tabs you closed, with search and a filter by agent. Gemini CLI, OpenCode and Cursor CLI conversations are listed too. Picking one reopens it in a new tab, and you can fork a Claude Code or Codex conversation to try a different direction without losing the original.",
   },
   {
     question: "Can I run multiple agents in parallel on the same repo?",
@@ -77,8 +77,9 @@ const FAQS: QA[] = [
         launch buttons for Gemini CLI and OpenCode when their CLIs are
         installed. {OTHER_STATUS_AGENT_NAMES} also get live status and alerts,
         though Cursor CLI asks for approval without telling lpm, so it never
-        shows Needs you. Resume, fork, and the model switcher are built for
-        Claude Code and Codex. Any agent can still drive lpm
+        shows Needs you. Resume session lists {OTHER_RESUME_AGENT_NAMES}{" "}
+        conversations too; fork and the model switcher are built for Claude
+        Code and Codex. Any agent can still drive lpm
         through the{" "}
         <Link href={CONNECT_AGENTS_PATH} className={LINK}>
           lpm CLI and agent skills
@@ -88,7 +89,7 @@ const FAQS: QA[] = [
       </>
     ),
     answerText:
-      `They run in lpm terminals like any other command, and lpm suggests launch buttons for Gemini CLI and OpenCode when their CLIs are installed. ${OTHER_STATUS_AGENT_NAMES} also get live status and alerts, though Cursor CLI asks for approval without telling lpm, so it never shows Needs you. Resume, fork, and the model switcher are built for Claude Code and Codex. Any agent can still drive lpm through the lpm CLI and agent skills, and post its own status badge with lpm set-status.`,
+      `They run in lpm terminals like any other command, and lpm suggests launch buttons for Gemini CLI and OpenCode when their CLIs are installed. ${OTHER_STATUS_AGENT_NAMES} also get live status and alerts, though Cursor CLI asks for approval without telling lpm, so it never shows Needs you. Resume session lists ${OTHER_RESUME_AGENT_NAMES} conversations too; fork and the model switcher are built for Claude Code and Codex. Any agent can still drive lpm through the lpm CLI and agent skills, and post its own status badge with lpm set-status.`,
   },
   {
     question: "Do I need Docker to use lpm?",

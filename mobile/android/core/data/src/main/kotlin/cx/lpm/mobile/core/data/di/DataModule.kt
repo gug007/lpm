@@ -52,6 +52,7 @@ import cx.lpm.mobile.core.data.push.PushRegistrar
 import cx.lpm.mobile.core.data.push.PushStore
 import cx.lpm.mobile.core.data.push.PushTokenSource
 import cx.lpm.mobile.core.data.push.ResolvedPush
+import cx.lpm.mobile.core.data.push.WaitingHeadsUp
 import cx.lpm.mobile.core.data.services.ServiceLogsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionEnvironment
@@ -268,6 +269,10 @@ object DataModule {
     @Provides
     @IntoSet
     fun projectsStoreFactory(): SessionStore.Factory = SessionStore.Factory(::ProjectsStore)
+
+    @Provides
+    @IntoSet
+    fun waitingHeadsUpFactory(): SessionStore.Factory = SessionStore.Factory(::WaitingHeadsUp)
 
     @Provides
     @IntoSet

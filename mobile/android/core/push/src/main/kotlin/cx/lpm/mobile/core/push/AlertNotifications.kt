@@ -18,6 +18,7 @@ import cx.lpm.mobile.core.data.push.AgentAnswerAction
 import cx.lpm.mobile.core.data.push.NotificationOpenTarget
 import cx.lpm.mobile.core.data.push.PushAlert
 import cx.lpm.mobile.core.data.push.PushChangedFile
+import cx.lpm.mobile.core.data.push.PushDialog
 import cx.lpm.mobile.core.data.push.PushKind
 import cx.lpm.mobile.core.data.push.PushMacNotice
 import cx.lpm.mobile.core.data.push.PushRecap
@@ -37,6 +38,11 @@ internal object AlertExtras {
     const val FILE_ADDED = "alert.files.added"
     const val FILE_REMOVED = "alert.files.removed"
     const val CHANGED_FILES = "alert.changedFiles"
+    const val DIALOG_ID = "alert.dialog.id"
+    const val DIALOG_QUESTION = "alert.dialog.question"
+    const val DIALOG_DETAILS = "alert.dialog.details"
+    const val DIALOG_ALLOW = "alert.dialog.allow"
+    const val DIALOG_ALLOW_KEY = "alert.dialog.allowKey"
 
     /** Alerts share one id; the tag tells them apart. */
     const val NOTIFICATION_ID = 1
@@ -61,6 +67,13 @@ internal fun PushAlert.extras(): Bundle = Bundle().apply {
     putIntArray(AlertExtras.FILE_ADDED, files.map { it.added }.toIntArray())
     putIntArray(AlertExtras.FILE_REMOVED, files.map { it.removed }.toIntArray())
     putInt(AlertExtras.CHANGED_FILES, changedFiles)
+    dialog?.let {
+        putString(AlertExtras.DIALOG_ID, it.id)
+        putString(AlertExtras.DIALOG_QUESTION, it.question)
+        putStringArrayList(AlertExtras.DIALOG_DETAILS, ArrayList(it.details))
+        putString(AlertExtras.DIALOG_ALLOW, it.allow)
+        putString(AlertExtras.DIALOG_ALLOW_KEY, it.allowKey)
+    }
 }
 
 internal fun Bundle.toAlert(): PushAlert? = PushAlert(
@@ -79,8 +92,22 @@ internal fun Bundle.toAlert(): PushAlert? = PushAlert(
     summary = getString(AlertExtras.SUMMARY),
     answer = getString(AlertExtras.ANSWER),
     files = changedFiles(),
-    changedFiles = getInt(AlertExtras.CHANGED_FILES)
+    changedFiles = getInt(AlertExtras.CHANGED_FILES),
+    dialog = dialog()
 )
+
+private fun Bundle.dialog(): PushDialog? {
+    val id = getString(AlertExtras.DIALOG_ID)?.takeIf { it.isNotEmpty() } ?: return null
+    val allowKey =
+        getString(AlertExtras.DIALOG_ALLOW_KEY)?.takeIf { it.isNotEmpty() } ?: return null
+    return PushDialog(
+        id = id,
+        question = getString(AlertExtras.DIALOG_QUESTION).orEmpty(),
+        details = getStringArrayList(AlertExtras.DIALOG_DETAILS).orEmpty(),
+        allow = getString(AlertExtras.DIALOG_ALLOW).orEmpty(),
+        allowKey = allowKey
+    )
+}
 
 private fun Bundle.changedFiles(): List<PushChangedFile> {
     val paths = getStringArrayList(AlertExtras.FILE_PATHS).orEmpty()

@@ -81,7 +81,9 @@ data class GitChecks(
     /** [fixPrompt] asking for a push, for an agent Keep fixing until green follows. */
     val fixLoopPrompt: String? = null,
     /** The project's Keep fixing until green loop, running or lately ended. */
-    val fixLoop: CiFixLoop? = null
+    val fixLoop: CiFixLoop? = null,
+    /** The Mac's wait to merge the pull request once its checks pass, if armed. */
+    val mergeWatch: GitMergeWatch? = null
 ) {
     data class PullRequest(
         override val number: Int,
@@ -168,6 +170,7 @@ data class GitChecks(
             val resolvePrompt = o.string("resolvePrompt")?.takeIf { it.isNotEmpty() }
             val fixLoopPrompt = o.string("fixLoopPrompt")?.takeIf { it.isNotEmpty() }
             val fixLoop = o.obj("fixLoop")?.let(CiFixLoop::parse)
+            val mergeWatch = GitMergeWatch.parse(o.obj("mergeWatch"))?.takeIf { it.waiting }
             val p = o.obj("pr")
             val number = p?.int("number")
             if (p != null && number != null) {
@@ -185,7 +188,8 @@ data class GitChecks(
                     fixPrompt = fixPrompt,
                     resolvePrompt = resolvePrompt,
                     fixLoopPrompt = fixLoopPrompt,
-                    fixLoop = fixLoop
+                    fixLoop = fixLoop,
+                    mergeWatch = mergeWatch
                 )
             }
             val c = o.obj("commit") ?: return null
@@ -198,7 +202,8 @@ data class GitChecks(
                 checks = c.list("checks", CiCheck::parse).filterNotNull(),
                 fixPrompt = fixPrompt,
                 fixLoopPrompt = fixLoopPrompt,
-                fixLoop = fixLoop
+                fixLoop = fixLoop,
+                mergeWatch = mergeWatch
             )
         }
     }

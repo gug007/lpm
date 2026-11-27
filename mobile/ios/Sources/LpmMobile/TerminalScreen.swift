@@ -217,9 +217,13 @@ struct TerminalScreen: View {
             }
             .onAppear {
                 onScreen = true
+                model.headsUp.terminalOnScreen = term.id
                 model.markTerminalSeen(project: term.project, paneId: term.id)
             }
-            .onDisappear { onScreen = false }
+            .onDisappear {
+                onScreen = false
+                if model.headsUp.terminalOnScreen == term.id { model.headsUp.terminalOnScreen = nil }
+            }
             .onChange(of: restored) { _, next in
                 if let next { follow(next) }
             }

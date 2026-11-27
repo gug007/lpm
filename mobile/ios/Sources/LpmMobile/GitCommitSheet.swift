@@ -14,6 +14,11 @@ struct GitCommitSheet: View {
     @Binding var deselected: Set<String>
     let drafted: String?
     @Binding var autoDraftTried: Bool
+    /// Opens the tab a Fix with … row starts.
+    var onSpawnedTerminal: ((TerminalInfo) -> Void)? = nil
+    @State private var gauntlet = ActionRunGauntlet()
+    /// The Fix with … pick whose inputs or confirmation are up, and what it's told.
+    @State private var fixing: (option: LaunchpadOption, prompt: String)?
     // The commit landed while the sheet was up, so the alert it shows (a push that
     // failed after it) closes the sheet once read.
     @State private var committed = false
@@ -26,6 +31,10 @@ struct GitCommitSheet: View {
     private var generating: Bool { model.git.generatingMessage.contains(project) }
     private var scanning: Bool { model.gitExtras.scanning.contains(project) }
     private var findings: [SecretFinding] { model.gitExtras.findings[project] ?? [] }
+    private var hook: CommitHookFailure? { model.git.hookFailures[project] }
+    private var fixTabs: [LaunchpadTab]? {
+        model.fixTabs(project, actions: model.projects.first { $0.name == project }?.actions ?? [])
+    }
     private var trimmedMessage: String { message.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var canCommit: Bool {
         !selectedPaths.isEmpty && !trimmedMessage.isEmpty && !committing && !pushing && !scanning
@@ -46,6 +55,13 @@ struct GitCommitSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let hook {
+                    CommitHookSection(failure: hook, tabs: fixTabs, busy: committing || pushing,
+                                      onFix: { fix($0, hook) },
+                                      onRetry: retryCommit,
+                                      onSkipHooks: { model.git.commitWithoutHooks(project) },
+                                      onDismiss: { model.git.dismissHookFailure(project) })
+                }
                 if !findings.isEmpty {
                     SecretFindingsSection(findings: findings) { path in
                         deselected.insert(path)
@@ -93,7 +109,9 @@ struct GitCommitSheet: View {
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if findings.isEmpty {
+                if hook != nil {
+                    EmptyView()
+                } else if findings.isEmpty {
                     CommitButtons(busy: busy, enabled: canCommit) {
                         let (message, files) = (trimmedMessage, selectedPaths)
                         AppLock.shared.confirm("Commit and push \(project)") {
@@ -132,8 +150,42 @@ struct GitCommitSheet: View {
                 Text(model.git.opError[project]?.message ?? "")
             }
         }
+        .actionRunGauntlet($gauntlet) { action, values in
+            if let fixing { run(fixing.option, action, values, fixing.prompt) }
+        }
         .onAppear(perform: autoDraft)
-        .onDisappear { model.gitExtras.forgetSecrets(project) }
+        .onDisappear {
+            model.gitExtras.forgetSecrets(project)
+            model.git.dismissHookFailure(project)
+        }
+        .task(id: hook != nil) {
+            if hook != nil, model.canLaunchAgents, model.agentLaunch.options == nil { model.agentLaunch.loadOptions() }
+        }
+    }
+
+    /// Try Again: the stopped commit as it was asked for, files a formatter
+    /// rewrote going in with it.
+    private func retryCommit() {
+        guard let stopped = model.git.stoppedCommits[project] else { return }
+        model.git.dismissHookFailure(project)
+        model.gitExtras.commit(project, message: stopped.message, files: stopped.files, push: stopped.push)
+    }
+
+    private func fix(_ option: LaunchpadOption, _ failure: CommitHookFailure) {
+        let stopped = model.git.stoppedCommits[project]
+        let prompt = failure.prompt(message: stopped?.message ?? trimmedMessage, files: stopped?.files ?? selectedPaths)
+        fixing = (option, prompt)
+        if let action = option.action, gauntlet.begin(action) { return }
+        run(option, option.action, [:], prompt)
+    }
+
+    /// Starts the agent with what the hook printed as its first prompt, in a new
+    /// tab the review screen opens.
+    private func run(_ option: LaunchpadOption, _ action: Action?, _ values: [String: String], _ prompt: String) {
+        let spawned = onSpawnedTerminal
+        model.git.dismissHookFailure(project)
+        dismiss()
+        model.startFix(project, option: option, action: action, values: values, prompt: prompt) { spawned?($0) }
     }
 
     /// "4 of 4 · +52 −5": the files going in and the lines they change, once parsed.

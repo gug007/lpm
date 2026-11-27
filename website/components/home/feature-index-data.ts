@@ -32,7 +32,7 @@ import {
   Workflow,
   type LucideIcon,
 } from "lucide-react";
-import { OTHER_STATUS_AGENT_NAMES } from "@/lib/app-facts";
+import { OTHER_RESUME_AGENT_NAMES, OTHER_STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import { docsPath } from "@/lib/docs-pages";
 import {
   AI_AGENTS_PATH,
@@ -169,7 +169,7 @@ export const FEATURE_INDEX: IndexGroup[] = [
         href: STATUSLINE_PATH,
       },
     ],
-    note: `Slash commands, resume, fork and model switching are for Claude Code and Codex only; live status and alerts also cover ${OTHER_STATUS_AGENT_NAMES}.`,
+    note: `Slash commands, fork and model switching are for Claude Code and Codex only. Resume also covers ${OTHER_RESUME_AGENT_NAMES}, and live status and alerts cover ${OTHER_STATUS_AGENT_NAMES}.`,
   },
   {
     id: "ship",
@@ -186,19 +186,19 @@ export const FEATURE_INDEX: IndexGroup[] = [
       {
         icon: GitPullRequestArrow,
         title: "AI commits and pull requests",
-        body: "Your agent writes the message; one step can branch, commit, push and open a GitHub PR.",
+        body: "Your agent writes the message; one step can branch, commit, push and open a GitHub PR or GitLab MR.",
         href: GIT_TERMINAL_MAC_PATH,
       },
       {
         icon: ListChecks,
         title: "CI alerts and fixes",
-        body: "Hear when CI fails on a commit you pushed, then re-run it or hand it to an agent.",
+        body: "Hear when CI fails on a commit you pushed, then re-run it, or hand it to an agent and keep fixing until green.",
         href: `${docsPath("review-and-git")}#ci`,
       },
       {
         icon: Merge,
         title: "Merge pull requests",
-        body: "Merge from the footer now, when checks pass, or past the rules if GitHub lets you.",
+        body: "Merge a pull request or GitLab merge request from the footer, now or when checks pass.",
         href: `${docsPath("review-and-git")}#merge`,
       },
       {

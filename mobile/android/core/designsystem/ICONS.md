@@ -215,7 +215,9 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `arrow.trianglehead.branch` / `checklist` (Git section) | `call_split` / `checklist` | 22 dp | the project screen's Git rows: the branch, Changes | |
 | `arrow.triangle.merge` | `merge` | 22 dp | the CI sheet's "Ready to merge" | |
 | `exclamationmark.triangle` (merge) | `warning` | 22 dp | the CI sheet's "Can't merge yet" | |
+| `exclamationmark.octagon.fill` | `report` (fill) | 20 dp | the commit sheet's "The pre-commit hook stopped this commit" | |
 | `checkmark.seal.fill` | `verified` (fill) | 22 dp row, 56 dp empty state | the CI sheet's "Merged #N", "Pull request created" | |
+| `clock` (merge) | `schedule` | 22 dp | the CI sheet's "Merging when checks pass" | |
 | `link` / `text.alignleft` | `link` / `format_align_left` | 24 dp | the share sheet's row for a link or text | |
 | `plus.square` / `note.text` | `add_box` / `article` | 22 dp | the share sheet's "New agent tab" / "Notes" | |
 | `laptopcomputer.and.iphone` | `devices` | 56 dp | the share sheet's "Connect lpm Link first" | |

@@ -121,6 +121,7 @@ import {
   textBeforeCaret,
   type ComposerImage,
 } from "./composerEditor";
+import { chipMentions, projectMentionChips, type MentionChipLookup } from "./composerMentionChips";
 import {
   deleteBeside,
   deleteSelection,
@@ -363,6 +364,16 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const slashCli = detectAICLI(launchCmd);
   const agentName = session?.provider ?? slashCli ?? "";
   const projectIsRemote = useAppStore((s) => s.projects.find((p) => p.name === projectName)?.isRemote ?? false);
+  // Read when the field is rebuilt rather than subscribed to, so project status
+  // updates don't re-render the composer.
+  const mentionChips = useRef<{ projects: unknown; lookup: MentionChipLookup } | null>(null);
+  const chipProjectMentions = useCallback((editor: HTMLElement) => {
+    const { projects } = useAppStore.getState();
+    if (mentionChips.current?.projects !== projects) {
+      mentionChips.current = { projects, lookup: projectMentionChips(projects) };
+    }
+    chipMentions(editor, mentionChips.current.lookup);
+  }, []);
   // lpm skills are the user's own: a guest at a shared tab doesn't get them.
   const lpmProject = guest ? null : projectName;
   const {
@@ -583,12 +594,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     histStash.current = tab.stash;
     activeId.current = tab.id;
     setEditorContent(editor, tab.text);
+    chipProjectMentions(editor);
     setBlank(isEditorEmpty(editor));
     setDisabled(serializeEditor(editor).trim() === "");
     setPreview(null);
     placeCaretAtEnd(editor);
     hydrateChips();
-  }, [hydrateChips]);
+  }, [hydrateChips, chipProjectMentions]);
 
   // Restore this terminal's saved draft on mount (the composer is remounted per
   // terminal), then focus it — so switching terminals brings back what you'd
@@ -723,11 +735,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       }
       lastRemoteApplied.current = text;
       setEditorContent(editor, text);
+      chipProjectMentions(editor);
       setPreview(null);
       placeCaretAtEnd(editor);
       syncState();
     });
-  }, [terminalId, syncState]);
+  }, [terminalId, syncState, chipProjectMentions]);
 
   // Take in a prompt moved here from another composer. It never displaces what is
   // in the field: it arrives as its own prepared prompt, and only becomes the one
@@ -1072,11 +1085,12 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
             .filter((it) => typeof it !== "string" || it.length > 0),
           false,
         );
-        return;
+      } else {
+        insertPlainText(editorRef.current!, text, "insertFromPaste");
       }
-      insertPlainText(editorRef.current!, text, "insertFromPaste");
+      chipProjectMentions(editorRef.current!);
     },
-    [insertItems],
+    [insertItems, chipProjectMentions],
   );
 
   const handlePaste = useCallback(
@@ -1535,6 +1549,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       }
     }
     imgCounter.current = maxIdx;
+    chipProjectMentions(editor);
     syncState();
     placeCaretAtEnd(editor);
   };
@@ -1838,6 +1853,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   const afterMentionEdit = (editor: HTMLDivElement) => {
     histIdx.current = -1;
     normalizeComposer(editor);
+    chipProjectMentions(editor);
     syncState();
   };
 

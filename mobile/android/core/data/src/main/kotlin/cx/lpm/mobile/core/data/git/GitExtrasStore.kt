@@ -30,7 +30,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-/** A commit the look for secrets holds until the Mac answers. */
+/**
+ * A commit as it was asked for: held while the look for secrets runs, and kept while
+ * a hook's panel offers it again.
+ */
 data class PendingCommit(val message: String, val files: List<String>, val push: Boolean)
 
 data class GitExtrasState(
@@ -157,7 +160,7 @@ class GitExtrasStore(private val session: MacSession) : SessionStore {
 
     fun commit(project: String, message: String, files: List<String>, push: Boolean) {
         val pending = PendingCommit(message, files, push)
-        if (!canScanSecrets) return run(project, pending)
+        if (!canScanSecrets) return git.commit(project, pending)
         mutable.update {
             it.copy(
                 findings = it.findings - project,
@@ -167,7 +170,7 @@ class GitExtrasStore(private val session: MacSession) : SessionStore {
         }
         client?.scanSecrets(project, files)
         timeout.arm("scan\u0000$project", SCAN_TIMEOUT_MS) {
-            if (project in state.value.scanning) take(project)?.let { run(project, it) }
+            if (project in state.value.scanning) take(project)?.let { git.commit(project, it) }
         }
     }
 
@@ -180,7 +183,7 @@ class GitExtrasStore(private val session: MacSession) : SessionStore {
         val open = reply.findings.filter { it.path in pending.files && it.id !in skip }
         if (open.isEmpty()) {
             take(project)
-            run(project, pending)
+            git.commit(project, pending)
         } else {
             mutable.update {
                 it.copy(
@@ -203,11 +206,11 @@ class GitExtrasStore(private val session: MacSession) : SessionStore {
     fun leaveOutAndCommit(project: String) {
         val files = state.value.cleanFiles(project)
         val pending = take(project)
-        if (pending != null && files.isNotEmpty()) run(project, pending.copy(files = files))
+        if (pending != null && files.isNotEmpty()) git.commit(project, pending.copy(files = files))
     }
 
     fun commitAnyway(project: String) {
-        take(project)?.let { run(project, it) }
+        take(project)?.let { git.commit(project, it) }
     }
 
     fun dismissFindings(project: String) {
@@ -241,14 +244,6 @@ class GitExtrasStore(private val session: MacSession) : SessionStore {
             )
         }
         return pending
-    }
-
-    private fun run(project: String, pending: PendingCommit) {
-        if (pending.push) {
-            git.commitAndPush(project, pending.message, pending.files)
-        } else {
-            git.commit(project, pending.message, pending.files)
-        }
     }
 
     // MARK: branch scope

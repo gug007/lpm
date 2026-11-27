@@ -78,7 +78,8 @@ export function PhoneGuide() {
             one needs you. Alerts come from {STATUS_AGENT_NAMES}.
           </>,
           "Write prompts in a real composer, with photos, files, / commands and @ mentions. Drafts sync with the same terminal on your computer.",
-          "Review uncommitted diffs, commit with an AI-written message, pull, push, and open a GitHub pull request.",
+          "Review uncommitted diffs, discard a file's changes or all of them (with Undo), commit with an AI-written message, pull, push, open a pull request, and merge it once it's ready.",
+          "Answer what an agent waits on: a permission prompt, a plan to approve, or a question, and say yes or no when an agent asks to make an image or audio with your keys.",
           "Start and stop projects, run actions, and make copies of a project.",
           <>
             Create, run, pause and answer{" "}

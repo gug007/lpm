@@ -3,12 +3,14 @@ package cx.lpm.mobile.core.protocol
 import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.CiFixLoop
 import cx.lpm.mobile.core.model.CommitFile
+import cx.lpm.mobile.core.model.CommitHookFailure
 import cx.lpm.mobile.core.model.GitAutoRun
 import cx.lpm.mobile.core.model.GitBranch
 import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.GitDiffEntry
 import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitMergeRun
+import cx.lpm.mobile.core.model.GitMergeWatch
 import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.HistoryPage
 import cx.lpm.mobile.core.model.bool
@@ -52,7 +54,13 @@ internal val gitParsers = parsers {
             error = o.failure("Couldn't load the diffs.")
         )
     }
-    put("gitCommit") { o -> Inbound.GitCommit(o.str("project"), o.failure("Couldn't commit.")) }
+    put("gitCommit") { o ->
+        Inbound.GitCommit(
+            project = o.str("project"),
+            error = o.failure("Couldn't commit."),
+            hook = if (o.ok) null else CommitHookFailure.parse(o.obj("hookFailure"))
+        )
+    }
     put("gitPush") { o -> Inbound.GitPush(o.str("project"), o.failure("Couldn't push.")) }
     put("gitGenMessage") { o ->
         Inbound.GitGenMessage(
@@ -147,6 +155,23 @@ internal val gitParsers = parsers {
     }
     put("gitChecksRerun") { o ->
         Inbound.GitChecksRerun(o.str("project"), o.failure("Couldn't run the failed jobs again."))
+    }
+    put("gitMergePrWhenReady") { o ->
+        Inbound.GitMergeWhenReady(
+            project = o.str("project"),
+            cancel = false,
+            error = o.failure("Couldn't set up the merge.")
+        )
+    }
+    put("gitMergePrCancel") { o ->
+        Inbound.GitMergeWhenReady(
+            project = o.str("project"),
+            cancel = true,
+            error = o.failure("Couldn't stop the merge.")
+        )
+    }
+    put("gitMergeWatch") { o ->
+        Inbound.GitMergeWatch(o.str("project"), GitMergeWatch.parse(o.obj("watch")))
     }
     put("gitMergePr") { o ->
         Inbound.GitMergePr(

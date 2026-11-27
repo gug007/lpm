@@ -16,12 +16,15 @@ final class GitChecksStore {
     var merging: Set<String> = []
     var mergeErrors: [String: String] = [:]
     var merged: [String: MergedPullRequest] = [:]
+    /// Arming or cancelling Merge When Checks Pass, on its way to the Mac.
+    var arming: Set<String> = []
     /// Keep fixing until green, by project: running, or how it lately ended.
     var loops: [String: CiFixLoop] = [:]
     var loopErrors: [String: String] = [:]
 
     var available: Bool { client?.hostFeatures.contains(LpmClient.gitChecksFeature) == true }
     var canMerge: Bool { client?.hostFeatures.contains(LpmClient.gitMergeFeature) == true }
+    var canMergeWhenReady: Bool { client?.hostFeatures.contains(LpmClient.gitMergeWhenReadyFeature) == true }
     var canKeepFixing: Bool { client?.hostFeatures.contains(LpmClient.ciFixLoopFeature) == true }
 
     func checks(_ project: String) -> GitChecks? { results[project] }
@@ -80,12 +83,64 @@ final class GitChecksStore {
         load(project)
     }
 
-    func merge(_ project: String, method: GitMergeMethod, deleteBranch: Bool) {
+    func merge(_ project: String, method: GitMergeMethod, deleteBranch: Bool, bypass: Bool = false) {
         guard let pr = results[project]?.pr else { return }
         mergeErrors[project] = nil
         merging.insert(project)
         client?.requestGitMergePr(project: project, number: pr.number, method: method.rawValue,
-                                  head: pr.merge?.head ?? "", deleteBranch: deleteBranch)
+                                  head: pr.merge?.head ?? "", deleteBranch: deleteBranch, bypass: bypass)
+    }
+
+    /// Has the Mac merge the pull request the moment its last check passes
+    /// (the desktop PR card's "When checks pass").
+    func mergeWhenReady(_ project: String, method: GitMergeMethod, deleteBranch: Bool, bypass: Bool) {
+        guard let pr = results[project]?.pr, !arming.contains(project) else { return }
+        mergeErrors[project] = nil
+        arming.insert(project)
+        let watch = GitMergeWatch(number: pr.number, title: pr.title, method: method,
+                                  deleteBranch: deleteBranch, bypass: bypass)
+        results[project]?.mergeWatch = watch
+        client?.requestGitMergePrWhenReady(project: project, watch: watch)
+    }
+
+    func cancelMergeWhenReady(_ project: String) {
+        guard !arming.contains(project) else { return }
+        mergeErrors[project] = nil
+        arming.insert(project)
+        client?.requestGitMergePrCancel(project: project)
+    }
+
+    func applyMergeWhenReady(_ project: String, cancel: Bool, error: String?) {
+        arming.remove(project)
+        if let error {
+            mergeErrors[project] = error
+            if !cancel { results[project]?.mergeWatch = nil }
+            Haptics.error()
+            return
+        }
+        if cancel { results[project]?.mergeWatch = nil } else { Haptics.success() }
+    }
+
+    /// How the Mac's wait to merge stands, wherever it was armed.
+    func applyMergeWatch(_ project: String, watch: GitMergeWatch) {
+        switch watch.state {
+        case "waiting":
+            results[project]?.mergeWatch = watch
+        case "merged":
+            results[project]?.mergeWatch = nil
+            merged[project] = MergedPullRequest(number: watch.number, title: watch.title,
+                                                deletedBranch: watch.deletedBranch,
+                                                isGitLab: results[project]?.pr?.isGitLab ?? false)
+            reloadMerged(project)
+        case "stopped":
+            results[project]?.mergeWatch = nil
+            let ref = (results[project]?.pr?.isGitLab ?? false) ? "!\(watch.number)" : "#\(watch.number)"
+            mergeErrors[project] = "Stopped waiting to merge \(ref). \(watch.reason ?? "")"
+                .trimmingCharacters(in: .whitespaces)
+            if results[project] != nil { load(project) }
+        default:
+            results[project]?.mergeWatch = nil
+        }
     }
 
     func applyMerge(_ project: String, number: Int, deletedBranch: Bool, error: String?) {
@@ -97,8 +152,14 @@ final class GitChecksStore {
         let pr = results[project]?.pr.flatMap { $0.number == number ? $0 : nil }
         merged[project] = MergedPullRequest(number: number, title: pr?.title ?? "", deletedBranch: deletedBranch,
                                             isGitLab: pr?.isGitLab ?? false)
+        reloadMerged(project)
+    }
+
+    /// A merge went through: the branch loads again, and the checks if this
+    /// phone has them (the sheet loads its own when it opens).
+    private func reloadMerged(_ project: String) {
         model?.noteWin()
-        load(project)
+        if results[project] != nil { load(project) }
         model?.git.load(project)
     }
 
@@ -111,6 +172,7 @@ final class GitChecksStore {
     func handleConnectionReset() {
         rerunning = []
         merging = []
+        arming = []
     }
 }
 
@@ -127,6 +189,12 @@ extension AppModel {
         }
         c.onGitMergePr = { [weak self] project, number, deletedBranch, error in
             self?.gitChecks.applyMerge(project, number: number, deletedBranch: deletedBranch, error: error)
+        }
+        c.onGitMergeWhenReady = { [weak self] project, cancel, error in
+            self?.gitChecks.applyMergeWhenReady(project, cancel: cancel, error: error)
+        }
+        c.onGitMergeWatch = { [weak self] project, watch in
+            self?.gitChecks.applyMergeWatch(project, watch: watch)
         }
     }
 }

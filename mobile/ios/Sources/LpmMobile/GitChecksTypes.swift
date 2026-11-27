@@ -100,6 +100,8 @@ struct GitChecks: Equatable {
     var fixLoop: CiFixLoop?
     /// What an agent is told to resolve the pull request's conflicts.
     var resolvePrompt: String?
+    /// The Mac's wait to merge the pull request once its checks pass, if armed.
+    var mergeWatch: GitMergeWatch?
 
     init?(_ o: [String: Any]) {
         branch = o["branch"] as? String ?? ""
@@ -107,6 +109,7 @@ struct GitChecks: Equatable {
         fixLoopPrompt = (o["fixLoopPrompt"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         fixLoop = (o["fixLoop"] as? [String: Any]).flatMap(CiFixLoop.init)
         resolvePrompt = (o["resolvePrompt"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        mergeWatch = GitMergeWatch(o["mergeWatch"] as? [String: Any]).flatMap { $0.waiting ? $0 : nil }
         if let p = o["pr"] as? [String: Any], let number = p["number"] as? Int {
             pr = PullRequest(number: number, url: p["url"] as? String ?? "", title: p["title"] as? String ?? "",
                              isDraft: p["isDraft"] as? Bool ?? false,

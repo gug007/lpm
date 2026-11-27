@@ -1,5 +1,6 @@
 package cx.lpm.mobile.core.protocol
 
+import cx.lpm.mobile.core.model.GitMergeWatch
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -18,12 +19,18 @@ sealed interface WireGit {
         putStrings("paths", paths)
     }
 
-    fun gitCommit(project: String, message: String, files: List<String>): String =
-        frame("gitCommit") {
-            put("project", project)
-            put("message", message)
-            putStrings("files", files)
-        }
+    /** [skipHooks] commits with `--no-verify`: the hook panel's Commit Without Hooks. */
+    fun gitCommit(
+        project: String,
+        message: String,
+        files: List<String>,
+        skipHooks: Boolean = false
+    ): String = frame("gitCommit") {
+        put("project", project)
+        put("message", message)
+        putStrings("files", files)
+        if (skipHooks) put("skipHooks", true)
+    }
 
     fun gitPush(project: String): String = frame("gitPush") { put("project", project) }
 
@@ -65,20 +72,36 @@ sealed interface WireGit {
     fun gitCommitChecks(project: String): String =
         frame("gitCommitChecks") { put("project", project) }
 
-    // A Mac whose `features` has "gitMerge".
+    // A Mac whose `features` has "gitMerge"; [bypass] only for one with "gitMergeWhenReady".
     fun gitMergePr(
         project: String,
         number: Int,
         method: String,
         head: String,
-        deleteBranch: Boolean
+        deleteBranch: Boolean,
+        bypass: Boolean = false
     ): String = frame("gitMergePr") {
         put("project", project)
         put("number", number)
         put("method", method)
         put("head", head)
         put("deleteBranch", deleteBranch)
+        if (bypass) put("bypass", true)
     }
+
+    // Only for a Mac whose `features` has "gitMergeWhenReady".
+    fun gitMergePrWhenReady(project: String, watch: GitMergeWatch): String =
+        frame("gitMergePrWhenReady") {
+            put("project", project)
+            put("number", watch.number)
+            put("title", watch.title)
+            put("method", watch.method.wire)
+            put("deleteBranch", watch.deleteBranch)
+            put("bypass", watch.bypass)
+        }
+
+    fun gitMergePrCancel(project: String): String =
+        frame("gitMergePrCancel") { put("project", project) }
 
     fun gitChecksRerun(project: String, runIds: List<String>): String = frame("gitChecksRerun") {
         put("project", project)

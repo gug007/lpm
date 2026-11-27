@@ -17,8 +17,9 @@ type Steps = { [K in TourAction["id"]]: Step<K> };
 
 const FALLBACK_PROMPT = "Run the tests";
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-// An action button reads as its emoji, if any, then its label.
-const actionName = (label: string) => new RegExp(`^(\\S+\\s)?${escape(label)}$`);
+// An action button reads as its emoji, if any, then its label. The emoji can't
+// be a word, or "Archive Codex" on another project's sidebar row would match.
+const actionName = (label: string) => new RegExp(`^([^\\p{L}\\p{N}\\s]+\\s)?${escape(label)}$`, "u");
 
 const button = (name: string | RegExp, root?: ParentNode) => waitFor(() => find("button, [role=button]", name, root));
 const menuItem = (name: RegExp) =>

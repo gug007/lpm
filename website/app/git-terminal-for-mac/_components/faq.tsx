@@ -36,7 +36,7 @@ const FAQS: QA[] = [
         For the everyday loop, often yes. lpm has a branch switcher with
         search, a diff review of every uncommitted change, a Commit dialog
         that drafts the message with AI and can Commit and Push, and Create PR
-        for GitHub. It does not draw a branch graph or stage individual hunks;
+        for GitHub or GitLab. It does not draw a branch graph or stage individual hunks;
         for those you run{" "}
         <code className="text-xs">git log --oneline --graph</code> or{" "}
         <code className="text-xs">git add -p</code> in the shell pane, or keep
@@ -44,7 +44,7 @@ const FAQS: QA[] = [
       </>
     ),
     answerText:
-      "For the everyday loop, often yes. lpm has a branch switcher with search, a diff review of every uncommitted change, a Commit dialog that drafts the message with AI and can Commit and Push, and Create PR for GitHub. It does not draw a branch graph or stage individual hunks; for those you run git log --oneline --graph or git add -p in the shell pane, or keep your GUI client open alongside lpm.",
+      "For the everyday loop, often yes. lpm has a branch switcher with search, a diff review of every uncommitted change, a Commit dialog that drafts the message with AI and can Commit and Push, and Create PR for GitHub or GitLab. It does not draw a branch graph or stage individual hunks; for those you run git log --oneline --graph or git add -p in the shell pane, or keep your GUI client open alongside lpm.",
   },
   {
     question: "Will my dev server stop running when I switch git branches inside lpm?",

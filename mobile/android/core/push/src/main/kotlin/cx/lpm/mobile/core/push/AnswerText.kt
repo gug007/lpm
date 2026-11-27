@@ -16,6 +16,8 @@ import cx.lpm.mobile.core.data.push.PushChangedFile
  */
 internal fun Context.expandedText(alert: PushAlert, body: String): CharSequence {
     val text = SpannableStringBuilder(body)
+    // A permission prompt shows what Allow approves: the command or file it's about.
+    alert.dialog?.text?.takeIf { it.isNotEmpty() }?.let { text.append('\n').append(it) }
     val answer = alert.answer?.let(::answerText) ?: alert.summary
     if (answer != null) text.append('\n').append(answer)
     if (alert.files.isNotEmpty()) {

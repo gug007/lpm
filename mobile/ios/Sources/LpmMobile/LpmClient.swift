@@ -96,7 +96,7 @@ final class LpmClient: NSObject {
     var onGit: ((_ project: String, _ snapshot: GitSnapshot?, _ error: String?) -> Void)?
     var onGitDiff: ((_ project: String, _ path: String, _ result: GitDiffResult?, _ error: String?) -> Void)?
     var onGitDiffs: ((_ project: String, _ entries: [GitDiffEntry], _ error: String?) -> Void)?
-    var onGitCommit: ((_ project: String, _ error: String?) -> Void)?
+    var onGitCommit: ((_ project: String, _ error: String?, _ hook: CommitHookFailure?) -> Void)?
     var onGitPush: ((_ project: String, _ error: String?) -> Void)?
     var onGitGenMessage: ((_ project: String, _ message: String?, _ error: String?) -> Void)?
     var onGitGenPr: ((_ project: String, _ title: String?, _ body: String?, _ error: String?) -> Void)?
@@ -127,6 +127,8 @@ final class LpmClient: NSObject {
     var onGitCheckLog: ((CheckLogReply) -> Void)?
     var onWriteFile: ((FileWriteReply) -> Void)?
     var onGitMergePr: ((_ project: String, _ number: Int, _ deletedBranch: Bool, _ error: String?) -> Void)?
+    var onGitMergeWhenReady: ((_ project: String, _ cancel: Bool, _ error: String?) -> Void)?
+    var onGitMergeWatch: ((_ project: String, _ watch: GitMergeWatch) -> Void)?
     var onGitCommitFiles: ((_ project: String, _ hash: String, _ files: [CommitFile]?, _ error: String?) -> Void)?
     var onGitCommitPatch: ((_ project: String, _ hash: String, _ path: String, _ result: GitDiffResult?,
                             _ error: String?) -> Void)?
@@ -321,6 +323,9 @@ final class LpmClient: NSObject {
     static let gitChecksFeature = "gitChecks"
     static let gitCommitChecksFeature = "gitCommitChecks"
     static let gitMergeFeature = "gitMerge"
+    // `gitMergePrWhenReady`, `gitMergePrCancel`, `bypass` on `gitMergePr`, and
+    // `gitMergeWatch` frames.
+    static let gitMergeWhenReadyFeature = "gitMergeWhenReady"
     static let ciFixLoopFeature = "ciFixLoop"
     static let keepAwakeFeature = "keepAwake"
     static let powerFeature = "power"
@@ -587,6 +592,7 @@ final class LpmClient: NSObject {
                              Self.limitRemindersFeature, Self.readUsageFeature, Self.projectPinsFeature, Self.gitHistoryFeature,
                              Self.keepAwakeFeature, Self.powerFeature, Self.lpmCommandsFeature, Self.lpmOtherSkillsFeature, Self.lpmNestedFoldersFeature,
                              Self.gitChecksFeature, Self.gitCommitChecksFeature, Self.gitMergeFeature,
+                             Self.gitMergeWhenReadyFeature,
                              Self.ciFixLoopFeature,
                              Self.agentDialogFeature, Self.gitDiscardFilesFeature, Self.gitConflictsFeature,
                              Self.actionPopupFeature,
@@ -1276,8 +1282,8 @@ final class LpmClient: NSObject {
     func requestGit(project: String) { send(Wire.git(project: project)) }
     func requestGitDiff(project: String, path: String) { send(Wire.gitDiff(project: project, path: path)) }
     func requestGitDiffs(project: String, paths: [String]) { send(Wire.gitDiffs(project: project, paths: paths)) }
-    func gitCommit(project: String, message: String, files: [String]) {
-        send(Wire.gitCommit(project: project, message: message, files: files))
+    func gitCommit(project: String, message: String, files: [String], skipHooks: Bool = false) {
+        send(Wire.gitCommit(project: project, message: message, files: files, skipHooks: skipHooks))
     }
     func gitPush(project: String) { send(Wire.gitPush(project: project)) }
     func gitGenMessage(project: String, files: [String]) { send(Wire.gitGenMessage(project: project, files: files)) }
@@ -1312,9 +1318,15 @@ final class LpmClient: NSObject {
     func writeFile(project: String, path: String, content: String, base: String, reqId: String) {
         send(Wire.writeFile(project: project, path: path, content: content, base: base, reqId: reqId))
     }
-    func requestGitMergePr(project: String, number: Int, method: String, head: String, deleteBranch: Bool) {
-        send(Wire.gitMergePr(project: project, number: number, method: method, head: head, deleteBranch: deleteBranch))
+    func requestGitMergePr(project: String, number: Int, method: String, head: String, deleteBranch: Bool,
+                           bypass: Bool = false) {
+        send(Wire.gitMergePr(project: project, number: number, method: method, head: head, deleteBranch: deleteBranch,
+                             bypass: bypass))
     }
+    func requestGitMergePrWhenReady(project: String, watch: GitMergeWatch) {
+        send(Wire.gitMergePrWhenReady(project: project, watch: watch))
+    }
+    func requestGitMergePrCancel(project: String) { send(Wire.gitMergePrCancel(project: project)) }
     func requestGitCommitFiles(project: String, hash: String) {
         send(Wire.gitCommitFiles(project: project, hash: hash))
     }
@@ -1719,7 +1731,7 @@ final class LpmClient: NSObject {
                 self.onGitDiff?(proj, path, result, error)
             case .gitDiffs(let proj, let entries, let error):
                 self.onGitDiffs?(proj, entries, error)
-            case .gitCommit(let proj, let error): self.onGitCommit?(proj, error)
+            case .gitCommit(let proj, let error, let hook): self.onGitCommit?(proj, error, hook)
             case .gitPush(let proj, let error): self.onGitPush?(proj, error)
             case .gitGenMessage(let proj, let message, let error): self.onGitGenMessage?(proj, message, error)
             case .gitGenPr(let proj, let title, let body, let error): self.onGitGenPr?(proj, title, body, error)
@@ -1756,6 +1768,10 @@ final class LpmClient: NSObject {
             case .gitChecksRerun(let proj, let error): self.onGitChecksRerun?(proj, error)
             case .gitMergePr(let proj, let number, let deleted, let error):
                 self.onGitMergePr?(proj, number, deleted, error)
+            case .gitMergeWhenReady(let proj, let cancel, let error):
+                self.onGitMergeWhenReady?(proj, cancel, error)
+            case .gitMergeWatch(let proj, let watch):
+                self.onGitMergeWatch?(proj, watch)
             case .gitCommitFiles(let proj, let hash, let files, let error):
                 self.onGitCommitFiles?(proj, hash, files, error)
             case .gitCommitPatch(let proj, let hash, let path, let result, let error):

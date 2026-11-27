@@ -31,7 +31,9 @@ enum class AgentAnswerAction(val wire: String) {
 
 /**
  * One answer to an alert's report: the Mac types it in only while that same
- * report (`key`, `terminalId`, `ts`) still stands. `serverId` names the Mac.
+ * report (`key`, `terminalId`, `ts`) still stands. `serverId` names the Mac. An
+ * Allow names the dialog the notification showed and the choice it named
+ * (`dialog`, `option`), so Enter lands only while that choice is highlighted.
  */
 data class AgentAnswer(
     val serverId: String?,
@@ -40,7 +42,9 @@ data class AgentAnswer(
     val key: String,
     val ts: Long,
     val action: AgentAnswerAction,
-    val text: String? = null
+    val text: String? = null,
+    val dialog: String? = null,
+    val option: String? = null
 )
 
 /** How sending an answer went. */

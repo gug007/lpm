@@ -466,6 +466,10 @@ enum Wire {
                                     "terminalId": answer.terminalId, "key": answer.key,
                                     "ts": answer.ts, "action": answer.action.rawValue, "reqId": reqId]
         if let text = answer.text { frame["text"] = text }
+        if let dialog = answer.dialog, let option = answer.option {
+            frame["dialog"] = dialog
+            frame["option"] = option
+        }
         return json(frame)
     }
     /// Live updates on or off for this phone, naming the Live Activity's own push
@@ -485,8 +489,10 @@ enum Wire {
     static func gitDiffs(project: String, paths: [String]) -> String {
         json(["t": "gitDiffs", "project": project, "paths": paths])
     }
-    static func gitCommit(project: String, message: String, files: [String]) -> String {
-        json(["t": "gitCommit", "project": project, "message": message, "files": files])
+    static func gitCommit(project: String, message: String, files: [String], skipHooks: Bool = false) -> String {
+        var frame: [String: Any] = ["t": "gitCommit", "project": project, "message": message, "files": files]
+        if skipHooks { frame["skipHooks"] = true }
+        return json(frame)
     }
     static func gitPush(project: String) -> String { json(["t": "gitPush", "project": project]) }
     static func gitGenMessage(project: String, files: [String]) -> String {
@@ -507,9 +513,20 @@ enum Wire {
     }
     // MARK: CI (a Mac whose `features` has "gitChecks")
     static func gitChecks(project: String) -> String { json(["t": "gitChecks", "project": project]) }
-    static func gitMergePr(project: String, number: Int, method: String, head: String, deleteBranch: Bool) -> String {
-        json(["t": "gitMergePr", "project": project, "number": number, "method": method, "head": head,
-              "deleteBranch": deleteBranch])
+    static func gitMergePr(project: String, number: Int, method: String, head: String, deleteBranch: Bool,
+                           bypass: Bool = false) -> String {
+        var frame: [String: Any] = ["t": "gitMergePr", "project": project, "number": number, "method": method,
+                                    "head": head, "deleteBranch": deleteBranch]
+        if bypass { frame["bypass"] = true }
+        return json(frame)
+    }
+    /// Only for a Mac whose `features` has "gitMergeWhenReady".
+    static func gitMergePrWhenReady(project: String, watch: GitMergeWatch) -> String {
+        json(["t": "gitMergePrWhenReady", "project": project, "number": watch.number, "title": watch.title,
+              "method": watch.method.rawValue, "deleteBranch": watch.deleteBranch, "bypass": watch.bypass])
+    }
+    static func gitMergePrCancel(project: String) -> String {
+        json(["t": "gitMergePrCancel", "project": project])
     }
     static func gitChecksRerun(project: String, runIds: [String]) -> String {
         json(["t": "gitChecksRerun", "project": project, "runIds": runIds])
@@ -890,7 +907,7 @@ enum Wire {
         case git(project: String, snapshot: GitSnapshot?, error: String?)
         case gitDiff(project: String, path: String, diff: String, binary: Bool, truncated: Bool, error: String?)
         case gitDiffs(project: String, entries: [GitDiffEntry], error: String?)
-        case gitCommit(project: String, error: String?)
+        case gitCommit(project: String, error: String?, hook: CommitHookFailure?)
         case gitPush(project: String, error: String?)
         case gitGenMessage(project: String, message: String?, error: String?)
         case gitGenPr(project: String, title: String?, body: String?, error: String?)
@@ -933,6 +950,9 @@ enum Wire {
         case gitChecksRerun(project: String, error: String?)
         // The open pull request merged, and whether its branch went with it.
         case gitMergePr(project: String, number: Int, deletedBranch: Bool, error: String?)
+        // Merge When Checks Pass armed or stopped, and how a wait stands (pushed).
+        case gitMergeWhenReady(project: String, cancel: Bool, error: String?)
+        case gitMergeWatch(project: String, watch: GitMergeWatch)
         case gitCommitFiles(project: String, hash: String, files: [CommitFile]?, error: String?)
         case gitCommitPatch(project: String, hash: String, path: String, result: GitDiffResult?, error: String?)
         // An Auto Commit / Auto Create PR run's whole state, pushed on every
@@ -1323,7 +1343,8 @@ enum Wire {
             case "gitCommit":
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitCommit(project: obj["project"] as? String ?? "",
-                                  error: ok ? nil : (obj["error"] as? String ?? "Couldn't commit."))
+                                  error: ok ? nil : (obj["error"] as? String ?? "Couldn't commit."),
+                                  hook: ok ? nil : CommitHookFailure(obj["hookFailure"] as? [String: Any]))
             case "gitPush":
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitPush(project: obj["project"] as? String ?? "",
@@ -1424,6 +1445,15 @@ enum Wire {
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitChecksRerun(project: obj["project"] as? String ?? "",
                                        error: ok ? nil : (obj["error"] as? String ?? "Couldn't run the failed jobs again."))
+            case "gitMergePrWhenReady", "gitMergePrCancel":
+                let ok = obj["ok"] as? Bool ?? false
+                let cancel = t == "gitMergePrCancel"
+                return .gitMergeWhenReady(project: obj["project"] as? String ?? "", cancel: cancel,
+                                          error: ok ? nil : (obj["error"] as? String
+                                              ?? (cancel ? "Couldn't stop the merge." : "Couldn't set up the merge.")))
+            case "gitMergeWatch":
+                guard let watch = GitMergeWatch(obj["watch"] as? [String: Any]) else { return .unknown }
+                return .gitMergeWatch(project: obj["project"] as? String ?? "", watch: watch)
             case "gitMergePr":
                 let ok = obj["ok"] as? Bool ?? false
                 return .gitMergePr(project: obj["project"] as? String ?? "",

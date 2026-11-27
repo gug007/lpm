@@ -24,8 +24,19 @@ data class GitMergeOffer(
     val head: String,
     val methods: List<GitMergeMethod>,
     /** GitHub deletes the branch by itself once it's merged. */
-    val deletesBranch: Boolean
+    val deletesBranch: Boolean,
+    /** GitHub lets this person merge past the rules holding it back. */
+    val canBypass: Boolean = false,
+    val base: String = ""
 ) {
+    /**
+     * The rules on the base branch hold it back, and this person may bypass them (the
+     * desktop's `mergeStatus` `bypass`).
+     */
+    val bypassable: Boolean get() = canBypass && (state == "BLOCKED" || state == "BEHIND")
+
+    val baseName: String get() = base.ifEmpty { "its base branch" }
+
     companion object {
         fun parse(o: JsonObject): GitMergeOffer {
             val methods = o.strings("methods").orEmpty().mapNotNull(GitMergeMethod::of)
@@ -35,7 +46,50 @@ data class GitMergeOffer(
                 review = o.string("review").orEmpty(),
                 head = o.string("head").orEmpty(),
                 methods = methods.ifEmpty { GitMergeMethod.entries },
-                deletesBranch = o.bool("deletesBranch") ?: false
+                deletesBranch = o.bool("deletesBranch") ?: false,
+                canBypass = o.bool("canBypass") ?: false,
+                base = o.string("base").orEmpty()
+            )
+        }
+    }
+}
+
+/**
+ * The Mac's wait to merge a pull request once its checks pass (PROTOCOL.md,
+ * MergeWatch), armed from here or at the desk.
+ */
+data class GitMergeWatch(
+    val number: Int,
+    val title: String,
+    val method: GitMergeMethod,
+    val deleteBranch: Boolean,
+    val bypass: Boolean,
+    /** "waiting", then "merged", "stopped" or "cancelled". */
+    val state: String = "waiting",
+    val reason: String? = null,
+    val deletedBranch: Boolean = false
+) {
+    val waiting: Boolean get() = state == "waiting"
+
+    /** What it will do, as the desktop's PR card says it (`armedText`). */
+    fun armedText(base: String, site: String): String {
+        val branch = if (deleteBranch) ", then delete the branch on $site" else ""
+        return "${method.label} once the running checks pass${bypassing(bypass, base)}$branch. " +
+            "Stops if a check fails."
+    }
+
+    companion object {
+        fun parse(o: JsonObject?): GitMergeWatch? {
+            val number = o?.int("number") ?: return null
+            return GitMergeWatch(
+                number = number,
+                title = o.string("title").orEmpty(),
+                method = GitMergeMethod.of(o.string("method")) ?: GitMergeMethod.SQUASH,
+                deleteBranch = o.bool("deleteBranch") ?: false,
+                bypass = o.bool("bypass") ?: false,
+                state = o.string("state").orEmpty(),
+                reason = o.string("reason")?.takeIf { it.isNotEmpty() },
+                deletedBranch = o.bool("deletedBranch") ?: false
             )
         }
     }
@@ -108,6 +162,25 @@ val GitChecks.mergeStatus: GitMergeStatus?
             else -> GitMergeStatus.Checking
         }
     }
+
+/** How many checks still run, for "lpm merges once the 3 running checks pass". */
+val GitChecks.runningChecks: Int get() = checks.count { it.state == CiCheck.State.PENDING }
+
+/** What Merge When Checks Pass does (the desktop's `waitText`). */
+fun GitChecks.waitText(bypass: Boolean): String {
+    val running = runningChecks
+    val checks = if (running == 1) {
+        "the running check passes"
+    } else {
+        "the $running running checks pass"
+    }
+    val base = pr?.merge?.baseName ?: "its base branch"
+    return "lpm merges once $checks${bypassing(bypass, base)}."
+}
+
+/** ", bypassing the rules on main if they still block it" when the merge bypasses them. */
+private fun bypassing(bypass: Boolean, base: String): String =
+    if (bypass) ", bypassing the rules on $base if they still block it" else ""
 
 private fun GitChecks.readyDetail(offer: GitMergeOffer): String = listOf(
     if (verdict == CiCheck.State.PASS) "All checks passed" else "No checks",

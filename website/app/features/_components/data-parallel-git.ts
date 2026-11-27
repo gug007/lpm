@@ -47,6 +47,12 @@ export const PARALLEL_AREA: FeatureArea = {
   ],
   features: [
     {
+      title: "A worktree from an issue",
+      body: "Pick an open GitHub or GitLab issue in the New worktree dialog: the branch is named after it, and the agent starts with the issue's text as its task.",
+      scope: "git-host",
+      since: "0.7.67",
+    },
+    {
       title: "Copy options",
       body: "Keep committed work only, pull the latest changes, or reinstall Node dependencies in each copy, and group the copies into a sidebar folder.",
     },
@@ -90,7 +96,7 @@ export const GIT_AREA: FeatureArea = {
   id: "git",
   title: "Review what the agent wrote, then ship it",
   description:
-    "See every uncommitted change as one diff, commit with an AI-written message, then open a GitHub pull request, follow its checks and merge it without leaving the app.",
+    "See every uncommitted change as one diff, commit with an AI-written message, then open a pull request on GitHub or a merge request on GitLab, follow its checks and merge it without leaving the app.",
   highlights: [
     {
       icon: FileDiff,
@@ -112,7 +118,7 @@ export const GIT_AREA: FeatureArea = {
       icon: GitPullRequest,
       title: "Auto Create PR",
       body: "Go from uncommitted work to an open pull request in one step: a new AI-named branch if you're on the default one, a commit, a push, and a written title and description.",
-      scope: "github",
+      scope: "git-host",
     },
   ],
   features: [
@@ -125,30 +131,43 @@ export const GIT_AREA: FeatureArea = {
     {
       title: "Pull request dialog",
       body: "Pick a base branch, see the commits it will include, and have AI write the title and description.",
-      scope: "github",
+      scope: "git-host",
     },
     {
       title: "PR status in the footer",
-      body: "When your branch has a pull request, the footer shows PR #N colored by state. Click an open one to see its checks, review and conflicts and merge it; a merged or closed one opens on GitHub.",
-      scope: "github",
+      body: "When your branch has a pull request, the footer shows PR #N colored by state. Click an open one to see its checks, review and conflicts and merge it; a merged or closed one opens on GitHub or GitLab.",
+      scope: "git-host",
     },
     {
       title: "CI checks in the footer",
       body: "See every check on the pull request, or on the last commit you pushed when there's none. When some fail, re-run the failed jobs, or pick Fix with Claude Code or another agent to open a new tab with the failing checks.",
-      scope: "github",
+      scope: "git-host",
       since: "0.7.51",
     },
     {
       title: "CI alerts",
       body: "lpm follows every commit you push from this computer, whatever pushed it, and tells you when CI fails on it and when that branch passes again: in the app, with a banner when you're elsewhere, and on your phone once you turn on CI results in lpm Link.",
-      scope: "github",
+      scope: "git-host",
       since: "0.7.51",
     },
     {
+      title: "Keep fixing until green",
+      body: "Turn it on above the Fix with choices and lpm follows that agent: once it pushes, the new run is watched, and any check that still fails goes back to the same agent until the checks pass, three rounds are used, or the agent needs you.",
+      note: "Also on lpm Link's CI sheet.",
+      scope: "git-host",
+      since: "0.7.67",
+    },
+    {
+      title: "GitHub and GitLab",
+      body: "Pull requests, checks, merging and issues work with GitHub through gh and with GitLab, self-hosted too, through glab. On GitLab the footer shows MR !N, a pipeline's jobs are the checks, and the merge request's discussion is in the @ menu.",
+      note: "Install the CLI for your host and sign in.",
+      since: "0.7.67",
+    },
+    {
       title: "Merge pull requests",
-      body: "Merge from the footer with a method the repository allows: a merge commit, squash or rebase. While checks run, lpm can merge as soon as they pass, and if GitHub lets you bypass the branch's rules, it can merge past them.",
+      body: "Merge from the footer with a method the repository allows: a merge commit, squash or rebase, or merge or squash on GitLab. While checks run, lpm can merge as soon as they pass, and if GitHub lets you bypass the branch's rules, it can merge past them.",
       note: "Waiting needs lpm open and stops if a check fails. Drafts and conflicts can't be merged. lpm Link merges one that's ready.",
-      scope: "github",
+      scope: "git-host",
       since: "0.7.66",
     },
     {

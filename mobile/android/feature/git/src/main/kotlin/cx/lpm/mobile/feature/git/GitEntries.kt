@@ -21,11 +21,16 @@ import cx.lpm.mobile.feature.git.review.GitReviewRoute
 
 /**
  * Review Changes, History with its commits and their files, and the Switch Branch, Pull
- * Request and Auto Commit sheets.
+ * Request and Auto Commit sheets. [slots] holds what other features show in them.
  */
-fun EntryProviderScope<NavKey>.gitEntries(navigator: Navigator) {
+fun EntryProviderScope<NavKey>.gitEntries(navigator: Navigator, slots: GitSlots = GitSlots()) {
     entry<GitReviewKey> { key ->
-        GitReviewRoute(key = key, onNavigate = navigator::navigate, onBack = navigator::back)
+        GitReviewRoute(
+            key = key,
+            onNavigate = navigator::navigate,
+            onBack = navigator::back,
+            slots = slots
+        )
     }
     entry<GitHistoryKey> { key ->
         CommitHistoryRoute(key = key, onNavigate = navigator::navigate, onBack = navigator::back)

@@ -88,7 +88,9 @@ data class PushAlert(
     /** The files the turn left changed, the most changed first. */
     val files: List<PushChangedFile> = emptyList(),
     /** How many files changed in all; [files] names at most a few. */
-    val changedFiles: Int = 0
+    val changedFiles: Int = 0,
+    /** What a permission prompt's Allow approves, read off the Mac's screen. */
+    val dialog: PushDialog? = null
 ) {
     /** What the Mac needs to take an answer to this alert. */
     fun answer(action: AgentAnswerAction, text: String? = null): AgentAnswer? {
@@ -100,7 +102,9 @@ data class PushAlert(
             key = statusKey,
             ts = ts ?: return null,
             action = action,
-            text = text
+            text = text,
+            dialog = dialog?.id?.takeIf { action == AgentAnswerAction.Allow },
+            option = dialog?.allowKey?.takeIf { action == AgentAnswerAction.Allow }
         )
     }
 
@@ -117,11 +121,13 @@ data class PushAlert(
             val answerable = target != "automation" && terminalId != null && key.isNotEmpty() &&
                 ts != null
             val changes = changesText(o.obj("changes"))
+            val dialog = if (status == "Waiting") PushDialog.parse(o.obj("dialog")) else null
             return PushAlert(
                 serverId = o.string("serverId")?.takeIf { it.isNotEmpty() },
                 project = project,
                 title = label.ifEmpty { project },
-                body = body(terminal, status) + changes?.let { " · $it" }.orEmpty(),
+                body = dialog?.headline(terminal)
+                    ?: (body(terminal, status) + changes?.let { " · $it" }.orEmpty()),
                 kind = kind(target, status),
                 target = target,
                 terminalId = terminalId,
@@ -137,7 +143,8 @@ data class PushAlert(
                 summary = o.string("summary")?.takeIf { it.isNotEmpty() },
                 answer = o.string("answer")?.takeIf { it.isNotBlank() },
                 files = o.objects("files").orEmpty().mapNotNull(PushChangedFile::parse),
-                changedFiles = o.obj("changes")?.int("files") ?: 0
+                changedFiles = o.obj("changes")?.int("files") ?: 0,
+                dialog = dialog
             )
         }
 
@@ -174,6 +181,50 @@ data class PushAlert(
             status.startsWith("Automation finished") -> PushKind.AutomationDone
 
             else -> PushKind.AutomationError
+        }
+    }
+}
+
+/**
+ * What a permission prompt's notification says Allow approves (iOS `AgentAlertDialog`,
+ * PROTOCOL.md a `Waiting` alert's `dialog`): the question, the lines about it (the
+ * command, the file) and the highlighted choice Enter picks.
+ */
+data class PushDialog(
+    val id: String,
+    val question: String,
+    val details: List<String>,
+    val allow: String,
+    val allowKey: String
+) {
+    /** "Claude — Do you want to proceed?" */
+    fun headline(terminal: String): String {
+        val asked = question.ifEmpty { "Agent is waiting for you" }
+        return if (terminal.isEmpty()) asked else "$terminal — $asked"
+    }
+
+    /** The lines about what is asked, and what Allow picks when that isn't a plain "Yes". */
+    val text: String
+        get() {
+            val lines = details.toMutableList()
+            if (allow.isNotEmpty() && !allow.equals("yes", ignoreCase = true)) {
+                lines += "Allow picks “$allow”"
+            }
+            return lines.joinToString("\n")
+        }
+
+    companion object {
+        fun parse(o: JsonObject?): PushDialog? {
+            o ?: return null
+            val id = o.string("id")?.takeIf { it.isNotEmpty() } ?: return null
+            val allowKey = o.string("allowKey")?.takeIf { it.isNotEmpty() } ?: return null
+            return PushDialog(
+                id = id,
+                question = o.string("question").orEmpty(),
+                details = o.strings("details").orEmpty().filter { it.isNotEmpty() },
+                allow = o.string("allow").orEmpty(),
+                allowKey = allowKey
+            )
         }
     }
 }

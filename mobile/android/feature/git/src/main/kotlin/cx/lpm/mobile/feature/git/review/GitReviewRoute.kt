@@ -26,6 +26,7 @@ import cx.lpm.mobile.core.navigation.FilePreviewKey
 import cx.lpm.mobile.core.navigation.GitPullRequestKey
 import cx.lpm.mobile.core.navigation.GitReviewKey
 import cx.lpm.mobile.core.navigation.TerminalKey
+import cx.lpm.mobile.feature.git.GitSlots
 import cx.lpm.mobile.feature.git.R
 import cx.lpm.mobile.feature.git.ask.AgentAskSheet
 import kotlinx.coroutines.launch
@@ -42,6 +43,7 @@ fun GitReviewRoute(
     onNavigate: (NavKey) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    slots: GitSlots = GitSlots(),
     viewModel: GitReviewViewModel = hiltViewModel<GitReviewViewModel, GitReviewViewModel.Factory>(
         creationCallback = { it.create(key) }
     )
@@ -65,6 +67,13 @@ fun GitReviewRoute(
     }
     LaunchedEffect(state.opError) {
         if (state.opError != null) haptics.performHapticFeedback(HapticFeedbackType.Reject)
+    }
+    // A hook that stopped a commit after its sheet closed brings the sheet back, with
+    // its panel.
+    LaunchedEffect(state.hook) {
+        if (state.hook == null) return@LaunchedEffect
+        haptics.performHapticFeedback(HapticFeedbackType.Reject)
+        committing = true
     }
     LaunchedEffect(state.notice) {
         if (state.notice != null) haptics.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -140,7 +149,17 @@ fun GitReviewRoute(
                 }
             ),
             secrets = viewModel.secrets,
-            onDismiss = { committing = false }
+            hook = viewModel.hook,
+            onDismiss = { committing = false },
+            fixRows = { onStart ->
+                slots.fixRows(
+                    key.session,
+                    key.project,
+                    R.string.git_hook_fix_detail,
+                    viewModel.hook::prompt,
+                    onStart
+                ) { onNavigate(TerminalKey(key.project, it.id, key.session)) }
+            }
         )
     }
 

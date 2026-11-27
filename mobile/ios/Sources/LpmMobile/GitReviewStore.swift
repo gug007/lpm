@@ -45,6 +45,10 @@ final class GitReviewStore {
     // a bumped counter on a successful commit, a drafted PR, a created PR's URL.
     var generatedMessage: [String: String] = [:]
     var commitTick: [String: Int] = [:]
+    /// The hook that stopped a project's last commit, for the commit sheet's
+    /// panel, and that commit as it was asked for.
+    var hookFailures: [String: CommitHookFailure] = [:]
+    var stoppedCommits: [String: PendingCommit] = [:]
     var prDraft: [String: GitPrDraft] = [:]
     var createdPrURL: [String: String] = [:]
     // A finished pull/push/fetch/commit's confirmation, cleared after a moment.
@@ -239,11 +243,13 @@ final class GitReviewStore {
         }
     }
 
-    func commit(_ project: String, message: String, files: [String]) {
+    func commit(_ project: String, message: String, files: [String], skipHooks: Bool = false) {
         guard !committing.contains(project) else { return }
         committing.insert(project)
         opError[project] = nil
-        client?.gitCommit(project: project, message: message, files: files)
+        hookFailures[project] = nil
+        stoppedCommits[project] = PendingCommit(message: message, files: files, push: commitPushing.contains(project))
+        client?.gitCommit(project: project, message: message, files: files, skipHooks: skipHooks)
         armTimeout("commit", project, seconds: 120) { [weak self] in
             guard let self, self.committing.contains(project) else { return }
             self.finishCommit(project, error: "Commit timed out. Check your Mac and try again.")
@@ -251,11 +257,27 @@ final class GitReviewStore {
     }
 
     /// Commit, then push once the commit lands. A failed push keeps the commit.
-    func commitAndPush(_ project: String, message: String, files: [String]) {
+    func commitAndPush(_ project: String, message: String, files: [String], skipHooks: Bool = false) {
         guard !committing.contains(project), !pushing.contains(project) else { return }
         commitPushing.insert(project)
-        commit(project, message: message, files: files)
+        commit(project, message: message, files: files, skipHooks: skipHooks)
     }
+
+    /// `pending` as it was asked for, pushing after if it was going to.
+    func commit(_ project: String, _ pending: PendingCommit, skipHooks: Bool = false) {
+        if pending.push {
+            commitAndPush(project, message: pending.message, files: pending.files, skipHooks: skipHooks)
+        } else {
+            commit(project, message: pending.message, files: pending.files, skipHooks: skipHooks)
+        }
+    }
+
+    /// The hook panel's Commit Without Hooks: the stopped commit again with `--no-verify`.
+    func commitWithoutHooks(_ project: String) {
+        if let stopped = stoppedCommits[project] { commit(project, stopped, skipHooks: true) }
+    }
+
+    func dismissHookFailure(_ project: String) { hookFailures[project] = nil }
 
     func push(_ project: String) {
         guard !pushing.contains(project) else { return }
@@ -498,10 +520,15 @@ final class GitReviewStore {
         }
     }
 
-    func finishCommit(_ project: String, error: String?) {
+    func finishCommit(_ project: String, error: String?, hook: CommitHookFailure? = nil) {
         clearTimeout("commit", project)
         committing.remove(project)
-        if let error {
+        // A hook that stopped it gets the commit sheet's panel, not an alert.
+        if let hook {
+            commitPushing.remove(project)
+            hookFailures[project] = hook
+            Haptics.error()
+        } else if let error {
             commitPushing.remove(project)
             opError[project] = GitOpError(title: "Commit failed", message: error)
         } else if commitPushing.contains(project) {

@@ -49,7 +49,7 @@ const TOOLS: Tool[] = [
   {
     icon: GitPullRequestArrow,
     title: "Pull requests",
-    body: "Create PR writes the title and description and opens it on GitHub through the gh CLI. The footer then shows the branch's PR number and state.",
+    body: "Create PR writes the title and description and opens it on GitHub through the gh CLI, or as a merge request on GitLab through glab. The footer then shows the branch's PR or MR number and state.",
   },
   {
     icon: GitMerge,

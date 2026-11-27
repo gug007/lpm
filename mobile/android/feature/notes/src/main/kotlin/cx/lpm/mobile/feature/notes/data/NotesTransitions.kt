@@ -103,6 +103,22 @@ internal fun NotesState.sendRefused(key: String, error: String): NotesState =
 internal fun NotesState.sendTimedOut(key: String): NotesState =
     copy(sending = sending - key, sendError = sendError + (key to SEND_TIMED_OUT))
 
+/** A part of the note the Mac took, which the composer now lets go of. */
+internal fun NotesState.withAcceptedPart(key: String, part: NotePart): NotesState {
+    val tick = (accepted[key]?.tick ?: 0) + 1
+    val sent = NoteSentPart(tick, text = part.text.isNotEmpty(), attachments = part.drafts.size)
+    return copy(accepted = accepted + (key to sent))
+}
+
+/**
+ * The link dropped with notes on their way: they may or may not have reached the Mac,
+ * so the composer keeps them and says so rather than looking sent.
+ */
+internal fun NotesState.sendsInterrupted(): NotesState = copy(
+    sending = emptySet(),
+    sendError = sendError + sending.associateWith { SEND_INTERRUPTED }
+)
+
 internal fun NotesState.withAddedNote(
     project: String,
     chatId: String,
@@ -173,3 +189,5 @@ private fun Map<String, List<NoteMessage>>.inProject(
 private const val UNREACHABLE = "Couldn't reach your Mac. Pull to refresh."
 private const val PAGE_FAILED = "Couldn't load these notes. Try again."
 private const val SEND_TIMED_OUT = "Sending timed out. Check your Mac and try again."
+private const val SEND_INTERRUPTED =
+    "The connection dropped before your Mac confirmed this note. Check the chat before sending it again."

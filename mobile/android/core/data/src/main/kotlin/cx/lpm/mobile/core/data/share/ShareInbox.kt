@@ -43,6 +43,22 @@ class ShareInbox(private val root: File, private val io: CoroutineDispatcher) {
         images
     }
 
+    /** Keeps a share the Mac turned down, with why ([failure]), or puts it back in line (null). */
+    suspend fun markFailed(share: PendingShare, failure: String?) = withContext(io) {
+        val file = File(folder(share), SHARE_FILE)
+        if (!file.exists()) return@withContext
+        file.writeAtomically(
+            shareJson.encodeToString(PendingShare.serializer(), share.copy(failure = failure))
+                .toByteArray()
+        )
+    }
+
+    /** A share the Mac turned down, back in line to be sent (its notification's Retry). */
+    suspend fun retry(id: String) {
+        val share = all().firstOrNull { it.id == id } ?: return
+        markFailed(share, null)
+    }
+
     suspend fun remove(share: PendingShare) {
         withContext(io) { folder(share).deleteRecursively() }
     }

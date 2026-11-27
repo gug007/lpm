@@ -62,6 +62,63 @@ export function CopiesGuide() {
         terminal and in new copies of the project, one agent per copy.
       </p>
 
+      <DocsHeading id="issue">Start from an issue</DocsHeading>
+      <p className={`mb-4 ${P}`}>
+        In the New worktree dialog, click From issue&hellip; next to Issue
+        and pick one of the repository&rsquo;s open issues. Type to search
+        them by number, title, label or author. Then:
+      </p>
+      <GuideList
+        items={[
+          "The worktree's branch is named after the issue, such as 431-retry-failed-webhooks, with -2, -3 and so on when that name is taken.",
+          "Run on the worktree switches to the first of the project's actions that starts an agent, unless it already starts one.",
+          "The issue's title, link, text and comments go at the top of the agent's prompt, above anything you typed. A very long one is cut short, with the command that reads the rest.",
+          "When you create the pull request from that branch in lpm, Close #431 on merge is ticked, which adds “Closes #431” to its description.",
+        ]}
+      />
+      <p className={`mt-4 ${P}`}>
+        It works with GitHub issues through the GitHub CLI and with GitLab
+        issues through the GitLab CLI, signed in, in a repository with a
+        remote. From a terminal,{" "}
+        <code className={CODE}>lpm worktree</code>{" "}takes{" "}
+        <code className={CODE}>--issue</code>{" "}and the issue&rsquo;s number.
+      </p>
+
+      <DocsHeading id="archive">Archive a project</DocsHeading>
+      <p className={`mb-4 ${P}`}>
+        Right-click a project you&rsquo;re done with and choose Archive
+        project. It leaves the sidebar, the project switcher and lpm Link,
+        and its duplicates and worktrees go with it. Its services stop, its
+        terminals close and its automations pause. Its setup, notes, memory
+        and folder stay as they are, so archiving alone frees no disk space.
+      </p>
+      <GuideLesson lesson="archive-projects" />
+      <p className={`mt-4 ${P}`}>
+        Archived projects wait on the Archive page, under More at the bottom
+        of the sidebar, with the space each folder takes and how much of it
+        can be rebuilt. To get that space
+        back, click Free at the top of the page for every archived project, or
+        Free in a row&rsquo;s &hellip; menu for one. It moves the folders an
+        install or a build recreates to the Trash (the Recycle Bin on
+        Windows): node_modules, .venv, __pycache__, .next, .nuxt, .turbo,
+        .svelte-kit and .parcel-cache wherever they are in the folder, and
+        target, dist, build and venv when Git tracks nothing inside them. Your
+        code, Git history and setup stay. The space comes back when you empty
+        the Trash. If you unarchive the project later, install or build again
+        to bring those folders back.
+      </p>
+      <p className={`mt-4 ${P}`}>
+        To look inside an archived project without unarchiving it, click Open
+        on its row. It shows under From the Archive in the sidebar, still
+        archived, and its automations stay paused. It closes as soon as you
+        show something else, or click Close above it, and any services you
+        started in it stop. Unarchive puts a project back where it was, set up
+        as before, and its automations resume from then on without catching up
+        on the runs they missed. From a terminal,{" "}
+        <code className={CODE}>lpm archive</code>{" "}and{" "}
+        <code className={CODE}>lpm unarchive</code>{" "}do the same.
+      </p>
+
       <DocsHeading id="good-to-know">Good to know</DocsHeading>
       <GuideList
         items={[

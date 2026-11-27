@@ -36,8 +36,10 @@ export function isCmdSpan(node: Node | null | undefined): node is HTMLElement {
   return node instanceof HTMLElement && node.dataset.cmd !== undefined;
 }
 
+// A project chip stands for its own "@path" text, so the value still carries
+// exactly what is sent; an attachment chip stands for its "[Image #N]" token.
 export function chipToken(chip: HTMLElement): string {
-  return `[Image #${chip.dataset.img}]`;
+  return chip.dataset.mention ?? `[Image #${chip.dataset.img}]`;
 }
 
 export type ComposerPart = { text: string } | { chip: HTMLElement };

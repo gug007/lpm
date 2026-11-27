@@ -13,6 +13,7 @@ import cx.lpm.mobile.core.model.bool
 import cx.lpm.mobile.core.model.objects
 import cx.lpm.mobile.core.model.string
 import cx.lpm.mobile.core.protocol.Wire
+import cx.lpm.mobile.core.protocol.noteGroups
 import java.util.Base64
 import java.util.UUID
 import javax.inject.Inject
@@ -143,20 +144,26 @@ class ShareDelivery @Inject constructor(
         if (chats.bool("ok") != true || chat == null) {
             return Outcome.Failed(chats.string("error") ?: "Couldn't open the project's notes.")
         }
-        val attachments = images.mapIndexed { index, image ->
-            buildJsonObject {
-                put("name", imageName(index))
-                put("mimeType", JPEG)
-                put("data", base64(image))
+        // Images past the budget go as further notes after the first, which carries the text.
+        noteGroups(images.withIndex().toList()) { it.value.size }.forEachIndexed { part, group ->
+            val attachments = group.map { (index, image) ->
+                buildJsonObject {
+                    put("name", imageName(index))
+                    put("mimeType", JPEG)
+                    put("data", base64(image))
+                }
+            }
+            val text = if (part == 0) share.noteText else ""
+            val reqId = newReqId()
+            link.send(Wire.notesAddMessage(share.project, chat, text, attachments, reqId))
+            val reply = link.reply {
+                it.string("t") == "notesAddMessage" && it.string("reqId") == reqId
+            } ?: return Outcome.Unreachable
+            if (reply.bool("ok") != true) {
+                return Outcome.Failed(reply.string("error") ?: "Couldn't add the note.")
             }
         }
-        val reqId = newReqId()
-        link.send(Wire.notesAddMessage(share.project, chat, share.noteText, attachments, reqId))
-        val reply = link.reply {
-            it.string("t") == "notesAddMessage" && it.string("reqId") == reqId
-        } ?: return Outcome.Unreachable
-        if (reply.bool("ok") == true) return Outcome.Sent
-        return Outcome.Failed(reply.string("error") ?: "Couldn't add the note.")
+        return Outcome.Sent
     }
 
     private fun imageName(index: Int) = "shared-${index + 1}.jpg"
@@ -167,6 +174,7 @@ class ShareDelivery @Inject constructor(
 
     private companion object {
         const val UPLOAD_ID = "share"
+
         const val JPEG = "image/jpeg"
         const val SIGN_IN_MS = 6_000L
         val SIGN_IN_REPLIES = setOf("ready", "error")

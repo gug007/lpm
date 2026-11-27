@@ -239,6 +239,7 @@ internal class DemoWorld(val clock: Clock) {
     var gitAutoNextId = 1
     val ciRerunAt = mutableMapOf<String, Long>() // project -> when its failed CI ran again, millis
     val ciMerged = mutableSetOf<String>() // projects whose pull request was merged from the phone
+    val ciMergeWatch = mutableMapOf<String, Dict>() // project -> its armed Merge When Checks Pass
     val ciFixLoops = mutableMapOf<String, DemoFixLoop>() // project -> its Keep fixing run
     var ciFixLoopNextId = 1
     val fileEdits = mutableMapOf<String, String>() // "project\npath" -> what the editor saved

@@ -93,7 +93,7 @@ export const NOTES: OsNote[] = [
   },
   {
     title: "Updates arrive as a download",
-    body: "When a new version is out, lpm tells you and opens its download; install the new package, or swap in the new AppImage.",
+    body: "When a new version is out, lpm tells you and opens its download; install the new package. The AppImage carries its update information, so AppImageUpdate can update it in place.",
   },
   {
     title: "A beta that isn't code-signed yet",

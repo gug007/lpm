@@ -94,11 +94,12 @@ export function InstallGuide() {
       <DocsHeading id="updates">Updates</DocsHeading>
       <p className={P}>
         lpm checks GitHub for a new version at launch and every 24 hours, and
-        offers it in the sidebar. On a Mac, Update installs it and restarts
-        lpm, or waits until your agents finish. On Windows and Linux,
-        Download opens the release, and you install it the way you installed
-        lpm. Settings &rarr; Updates switches between the Stable and Beta
-        channels.
+        offers it in the sidebar. On a Mac, and on Windows when lpm&rsquo;s
+        installer put it there, Update installs it and restarts lpm, or waits
+        until your agents finish. Elsewhere, Download opens the release, and
+        you install it the way you installed lpm. The Linux AppImage carries
+        its update information, so AppImageUpdate can update it in place. Settings &rarr; Updates switches
+        between the Stable and Beta channels.
       </p>
 
       <DocsHeading id="verify">Check what you downloaded</DocsHeading>

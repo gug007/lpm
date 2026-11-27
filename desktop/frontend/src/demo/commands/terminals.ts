@@ -188,7 +188,17 @@ function decodeInput(data: string): string {
   return new TextDecoder().decode(bytes);
 }
 
+// The demo is one window, so the window showing a terminal controls it, and
+// its pane's size reaches the agent drawing into it.
+const thisWindow = ({ realmKind, realmId, label }: Record<string, unknown>) => ({
+  kind: String(realmKind),
+  id: String(realmId),
+  label: String(label),
+});
+
 export const terminalCommands: CommandMap = {
+  terminal_claim_control: thisWindow,
+  terminal_present_control: thisWindow,
   start_terminal: spawn,
   start_terminal_with_cwd_env: spawn,
   start_terminal_for_restore: spawn,

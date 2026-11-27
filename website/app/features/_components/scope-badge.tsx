@@ -6,7 +6,7 @@ const SCOPES: Record<FeatureScope, { label: string; dots: string[] }> = {
     dots: ["bg-[#D97757]", "bg-[#10A37F]"],
   },
   claude: { label: "Claude Code only", dots: ["bg-[#D97757]"] },
-  github: { label: "GitHub + gh CLI", dots: ["bg-gray-400 dark:bg-gray-500"] },
+  "git-host": { label: "GitHub or GitLab", dots: ["bg-gray-400 dark:bg-gray-500"] },
 };
 
 export default function ScopeBadge({ scope }: { scope: FeatureScope }) {

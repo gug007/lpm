@@ -3,11 +3,15 @@ import Foundation
 /// Demo CI: storefront's open pull request with one failing test, api-gateway's
 /// main passing, the rest without CI. Running the failed jobs again shows them
 /// running for a few seconds, then passing, and the pull request ready to merge;
-/// merging it leaves storefront without CI. Keep fixing until green plays two
+/// merging it leaves storefront without CI. Merge When Checks Pass, armed while
+/// they run, merges it 4 seconds after they pass. Keep fixing until green plays two
 /// rounds over 28 seconds and ends with the checks passing. Mirrored in the
 /// Android demo.
 extension DemoServer {
     private static let rerunSeconds: TimeInterval = 6
+    /// How long an armed Merge When Checks Pass waits after the checks pass, as the
+    /// Mac's next look at GitHub would.
+    private static let armedMergeSeconds: TimeInterval = 4
 
     func registerGitChecksHandlers() {
         register("gitChecks") { [weak self] o in
@@ -31,6 +35,33 @@ extension DemoServer {
                 self.push(["t": "ciFixLoop", "project": project, "ok": true,
                            "loop": self.demoFixLoop(project).map { $0 as Any } ?? NSNull()])
             }
+        }
+        register("gitMergePrWhenReady") { [weak self] o in
+            guard let self, let project = o["project"] as? String else { return }
+            let watch: [String: Any] = ["path": "", "number": o["number"] as? Int ?? 0,
+                                        "title": o["title"] as? String ?? "", "method": o["method"] as? String ?? "squash",
+                                        "deleteBranch": o["deleteBranch"] as? Bool ?? false,
+                                        "bypass": o["bypass"] as? Bool ?? false, "state": "waiting",
+                                        "deletedBranch": false]
+            self.world.ciMergeWatch[project] = watch
+            self.push(["t": "gitMergePrWhenReady", "project": project, "ok": true])
+            self.push(["t": "gitMergeWatch", "project": project, "watch": watch])
+            let left = self.world.ciRerunAt[project].map { Self.rerunSeconds - Date().timeIntervalSince($0) } ?? 0
+            self.pushAfter(max(left, 0) + Self.armedMergeSeconds) { [weak self] in
+                guard let self, var armed = self.world.ciMergeWatch.removeValue(forKey: project) else { return nil }
+                self.world.ciMerged.insert(project)
+                armed["state"] = "merged"
+                armed["deletedBranch"] = armed["deleteBranch"] ?? false
+                return ["t": "gitMergeWatch", "project": project, "watch": armed]
+            }
+        }
+        register("gitMergePrCancel") { [weak self] o in
+            guard let self, let project = o["project"] as? String else { return }
+            if var armed = self.world.ciMergeWatch.removeValue(forKey: project) {
+                armed["state"] = "cancelled"
+                self.push(["t": "gitMergeWatch", "project": project, "watch": armed])
+            }
+            self.push(["t": "gitMergePrCancel", "project": project, "ok": true])
         }
         register("gitMergePr") { [weak self] o in
             guard let self, let project = o["project"] as? String else { return }
@@ -121,6 +152,7 @@ extension DemoServer {
             break
         }
         if let loop = demoFixLoop(project) { reply["fixLoop"] = loop }
+        if let watch = world.ciMergeWatch[project] { reply["mergeWatch"] = watch }
         return reply
     }
 }

@@ -46,13 +46,33 @@ struct Request {
 /// The answers a notification about `entry` may offer. Allow and Deny are Enter
 /// and Esc on the dialog, which is what Claude Code's and Codex's permission
 /// prompts take; a question form, an MCP dialog and other agents' prompts need
-/// the app. Any agent that finished its turn takes a reply.
+/// the app. Any agent that finished its turn takes a reply. Allow and Deny stay
+/// only on an alert whose dialog the Mac could read off the screen
+/// (`with_dialog`), so the phone always shows what Allow approves.
 pub(super) fn actions(entry: &StatusEntry) -> Vec<&'static str> {
     match entry.value.as_str() {
         STATUS_WAITING if permission_prompt(entry) => vec![ALLOW, DENY],
         STATUS_DONE if AgentKind::of_key(&entry.key).is_some() => vec![REPLY],
         _ => Vec::new(),
     }
+}
+
+/// The answers left once the alert's dialog was read (`Some`) or couldn't be.
+pub(super) fn with_dialog(
+    actions: Vec<&'static str>,
+    dialog: Option<&Value>,
+) -> Vec<&'static str> {
+    if dialog.is_some() {
+        return actions;
+    }
+    actions
+        .into_iter()
+        .filter(|a| *a != ALLOW && *a != DENY)
+        .collect()
+}
+
+pub(super) fn offers_allow(actions: &[&'static str]) -> bool {
+    actions.contains(&ALLOW)
 }
 
 fn permission_prompt(entry: &StatusEntry) -> bool {
@@ -105,6 +125,11 @@ fn answer(hub: &RemoteHub, app: &AppHandle, r: &Request) -> Result<(), String> {
     match r.action.as_str() {
         ALLOW | DENY => {
             prompt_still_open(&entries, r)?;
+            // An alert that named the choice Allow approves (a Mac that read the
+            // dialog) is answered only while Enter still picks that choice.
+            if r.action == ALLOW && !r.dialog.is_empty() {
+                super::dialog::allow_still_shown(hub, app, &r.terminal, &r.dialog, &r.option)?;
+            }
             let key = if r.action == ALLOW { "\r" } else { "\x1b" };
             crate::pty::remote_write(app, &r.terminal, key).map_err(|_| gone())
         }
@@ -317,6 +342,14 @@ mod tests {
         assert_eq!(actions(&entry("claude_code_s1", STATUS_DONE)), vec![REPLY]);
         assert!(actions(&entry("claude_code_s1", crate::status::STATUS_ERROR)).is_empty());
         assert!(actions(&entry("lpm_job", STATUS_DONE)).is_empty());
+    }
+
+    #[test]
+    fn allow_and_deny_need_a_dialog_read_off_the_screen() {
+        let offered = actions(&entry("claude_code_s1", STATUS_WAITING));
+        assert!(with_dialog(offered.clone(), None).is_empty());
+        assert_eq!(with_dialog(offered, Some(&json!({}))), vec![ALLOW, DENY]);
+        assert_eq!(with_dialog(vec![REPLY], None), vec![REPLY]);
     }
 
     #[test]

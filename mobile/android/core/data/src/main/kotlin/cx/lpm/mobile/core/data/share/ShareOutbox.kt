@@ -10,8 +10,10 @@ import javax.inject.Singleton
  * `AppModel.sendWaitingShares`). A share whose Mac is no longer saved is dropped, one
  * whose Mac still doesn't answer waits for next time (as do that Mac's later shares,
  * without dialling it again), and every other one is told about through `announce`
- * (with the Mac's refusal, or null once it got there) and dropped. Runs on the main
- * thread, one sweep at a time.
+ * (with the Mac's refusal, or null once it got there). One that got there is dropped;
+ * one the Mac turned down stays, marked, for its notification's Retry
+ * ([ShareInbox.retry]), and goes after a week. Runs on the main thread, one sweep at
+ * a time.
  */
 @Singleton
 class ShareOutbox @Inject constructor(
@@ -23,9 +25,14 @@ class ShareOutbox @Inject constructor(
     suspend fun sendWaiting(macs: List<MacRecord>, announce: (PendingShare, String?) -> Unit) {
         if (sending) return
         sending = true
+        val now = System.currentTimeMillis()
         try {
             val unreachable = mutableSetOf<String>()
             for (share in inbox.all()) {
+                if (share.failure != null) {
+                    if (now - share.createdAt > FAILED_KEPT_FOR_MS) inbox.remove(share)
+                    continue
+                }
                 if (share.serverId in unreachable) continue
                 val mac = macs.firstOrNull { it.serverId == share.serverId && it.via == null }
                     ?.toShareMac()
@@ -39,14 +46,23 @@ class ShareOutbox @Inject constructor(
                         continue
                     }
 
-                    ShareDelivery.Outcome.Sent -> announce(share, null)
+                    ShareDelivery.Outcome.Sent -> {
+                        inbox.remove(share)
+                        announce(share, null)
+                    }
 
-                    is ShareDelivery.Outcome.Failed -> announce(share, outcome.message)
+                    is ShareDelivery.Outcome.Failed -> {
+                        inbox.markFailed(share, outcome.message)
+                        announce(share, outcome.message)
+                    }
                 }
-                inbox.remove(share)
             }
         } finally {
             sending = false
         }
+    }
+
+    private companion object {
+        const val FAILED_KEPT_FOR_MS = 7L * 24 * 60 * 60 * 1000
     }
 }

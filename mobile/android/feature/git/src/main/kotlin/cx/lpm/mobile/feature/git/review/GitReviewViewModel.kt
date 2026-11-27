@@ -102,6 +102,9 @@ class GitReviewViewModel @AssistedInject constructor(
 
     /** The commit sheet's answers to what the look for secrets found. */
     val secrets = SecretCheck(project, extras, drafts)
+
+    /** The commit sheet's answers to a git hook that stopped the commit. */
+    val hook = CommitHookCheck(project, git, extras) { draft.message.trim() to selectedPaths }
     private val wraps: Boolean get() = prefs.bool(PreferenceKeys.GIT_REVIEW_WRAP) ?: true
     private val wrap = prefs.data.map { wraps }.distinctUntilChanged()
 

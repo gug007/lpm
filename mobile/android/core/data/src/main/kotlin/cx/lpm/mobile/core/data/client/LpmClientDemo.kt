@@ -58,6 +58,7 @@ internal fun LpmClient.connectDemo() {
                 add(LpmClient.GIT_CHECKS_FEATURE)
                 add(LpmClient.GIT_COMMIT_CHECKS_FEATURE)
                 add(LpmClient.GIT_MERGE_FEATURE)
+                add(LpmClient.GIT_MERGE_WHEN_READY_FEATURE)
                 add(LpmClient.CI_FIX_LOOP_FEATURE)
                 add(LpmClient.AGENT_DIALOG_FEATURE)
                 add(LpmClient.GIT_DISCARD_FILES_FEATURE)

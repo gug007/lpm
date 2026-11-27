@@ -135,11 +135,19 @@ struct GitReviewView: View {
         } message: {
             Text(model.git.opError[name]?.message ?? "")
         }
+        // A hook that stopped a commit after its sheet closed brings the sheet
+        // back, with its panel.
+        .onChange(of: model.git.hookFailures[name]) { _, failure in
+            if failure != nil, !showCommit { showCommit = true }
+        }
         .sheet(isPresented: $showCommit) {
             GitCommitSheet(project: name,
                            message: Binding(get: { message }, set: { message = $0 }),
                            deselected: Binding(get: { deselected }, set: { deselected = $0 }),
-                           drafted: drafted, autoDraftTried: $autoDraftTried)
+                           drafted: drafted, autoDraftTried: $autoDraftTried,
+                           onSpawnedTerminal: { term in
+                               DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { openTerminal = term }
+                           })
                 .environment(model)
         }
         .sheet(isPresented: $showPrSheet) {

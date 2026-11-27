@@ -48,6 +48,7 @@ import cx.lpm.mobile.core.model.LaunchpadOption
 import cx.lpm.mobile.core.model.MergedPullRequest
 import cx.lpm.mobile.core.navigation.PresentationScope
 import cx.lpm.mobile.core.ui.CiStateIcon
+import cx.lpm.mobile.core.ui.HapticEffect
 import cx.lpm.mobile.feature.projects.ActionRunStep
 import cx.lpm.mobile.feature.projects.ActionRunStepHost
 import cx.lpm.mobile.feature.projects.R
@@ -94,6 +95,7 @@ internal fun GitChecksSheet(
                 sheet.dismiss(onDismiss)
             }
             MergedHaptic(state.merged)
+            HapticEffect(state.mergeFeedback)
             ModalSheet(onDismissRequest = onDismiss, state = sheet) {
                 SheetScaffold(title = stringResource(R.string.ci_title), onDone = {
                     sheet.dismiss(onDismiss)

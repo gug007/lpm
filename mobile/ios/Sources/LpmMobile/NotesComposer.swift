@@ -62,12 +62,12 @@ struct NotesComposer: View {
         .background(.bar)
         .onDisappear { dictation.abandon(dictationOwner) }
         .onChange(of: photoItems) { _, items in if !items.isEmpty { loadPhotos(items) } }
-        .onChange(of: isSending) { wasSending, sending in
-            // Hold the text until the Mac accepts it, so a failed send doesn't
-            // swallow what the user wrote.
-            guard wasSending, !sending, notes.sendError[chatKey] == nil else { return }
-            text = ""
-            pending = []
+        .onChange(of: notes.accepted[chatKey]) { _, part in
+            // Hold what was written until the Mac says it has it, so a failed send
+            // or a dropped link never swallows it.
+            guard let part else { return }
+            if part.text { text = "" }
+            pending.removeFirst(min(part.attachments, pending.count))
         }
         .photosPicker(isPresented: $showPhotos, selection: $photoItems,
                       maxSelectionCount: 10, matching: .images, photoLibrary: .shared())

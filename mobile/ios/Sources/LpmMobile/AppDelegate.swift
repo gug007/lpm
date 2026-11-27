@@ -179,7 +179,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        let serverId = notification.request.content.userInfo["serverId"] as? String
+        let info = notification.request.content.userInfo
+        // The phone's own banner for another agent waiting is meant for the open app.
+        if info[WaitingHeadsUp.marker] as? Bool == true {
+            completionHandler([.banner, .list, .sound])
+            return
+        }
+        let serverId = info["serverId"] as? String
         let shown = MainActor.assumeIsolated {
             model?.showsLive(serverId: serverId) ?? false
         }
@@ -205,6 +211,13 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
             return
         }
         let userInfo = response.notification.request.content.userInfo
+        // Retry on a share the Mac turned down sends it again once the app is up.
+        if response.actionIdentifier == AppModel.shareRetryAction, let id = userInfo["shareId"] as? String {
+            ShareInbox.retry(id: id)
+            MainActor.assumeIsolated { model?.sendWaitingShares() }
+            completionHandler()
+            return
+        }
         let opening = response.actionIdentifier == AgentAnswerSender.reviewChangesAction
             ? NotificationOpenTarget(changesFor: userInfo)
             : NotificationOpenTarget(userInfo: userInfo)

@@ -27,6 +27,7 @@ import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.model.DuplicateOptions
 import cx.lpm.mobile.core.model.Project
 import cx.lpm.mobile.core.model.ProjectFolder
+import cx.lpm.mobile.core.model.StatusEntry
 import cx.lpm.mobile.core.model.WorkStatusInput
 import cx.lpm.mobile.core.model.liveServiceNames
 import cx.lpm.mobile.core.model.nextWorkStatus
@@ -53,6 +54,9 @@ class ProjectsStore(internal val session: MacSession) : SessionStore {
 
     // The undo window of [PendingAgentArchive], running out.
     internal var pendingAgentArchiveJob: Job? = null
+
+    /** A project's status landed: the project with it, and the entries it had before. */
+    internal var onStatusApplied: ((project: Project, before: List<StatusEntry>) -> Unit)? = null
 
     override fun wire(client: LpmClient) {
         val c = client
@@ -99,6 +103,10 @@ class ProjectsStore(internal val session: MacSession) : SessionStore {
         }
         c.onStatusChanged = { project -> c.requestStatus(project) }
         c.onStatus = { project, entries, seen ->
+            // Before the list changes, so the withdrawal it sets off sees the banner updated.
+            state.value.project(project)?.let {
+                onStatusApplied?.invoke(it.withStatus(entries, seen), it.statusEntries)
+            }
             updateProject(project) { it.withStatus(entries, seen) }
         }
         c.onActionError = session.alerts::showError

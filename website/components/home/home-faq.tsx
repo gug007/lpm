@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { FaqAsk } from "@/components/home/faq-ask";
 import { SectionHeader } from "@/components/section-header";
-import { OTHER_STATUS_AGENT_NAMES } from "@/lib/app-facts";
+import { OTHER_RESUME_AGENT_NAMES, OTHER_STATUS_AGENT_NAMES } from "@/lib/app-facts";
 import {
   LINUX_HOST_PATH,
   MAC_MINI_PATH,
@@ -53,7 +53,7 @@ const FAQS: QA[] = [
     short:
       `Claude Code and Codex get one-click buttons and live status. ${OTHER_STATUS_AGENT_NAMES} get live status, and any other CLI agent runs in the terminal.`,
     answer:
-      `Claude Code and Codex get one-click buttons from the first launch and the deepest integration: live working, done and needs-you status, sounds and system notifications, resume and fork, and a model and effort picker. ${OTHER_STATUS_AGENT_NAMES} report live status with sounds and notifications too. Gemini CLI and OpenCode can be added as one-click buttons, and any other command-line agent or script runs in the built-in terminal. lpm doesn't install the agents; you use your own CLI and account.`,
+      `Claude Code and Codex get one-click buttons from the first launch and the deepest integration: live working, done and needs-you status, sounds and system notifications, resume and fork, and a model and effort picker. ${OTHER_STATUS_AGENT_NAMES} report live status with sounds and notifications too, and ${OTHER_RESUME_AGENT_NAMES} sessions resume from the same list. Gemini CLI and OpenCode can be added as one-click buttons, and any other command-line agent or script runs in the built-in terminal. lpm doesn't install the agents; you use your own CLI and account.`,
   },
   {
     question: "Does lpm replace my terminal or editor?",

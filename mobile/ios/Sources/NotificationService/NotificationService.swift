@@ -44,8 +44,19 @@ final class NotificationService: UNNotificationServiceExtension {
         if let changes = Self.changesText(payload["changes"] as? [String: Any]) {
             line += " · " + changes
         }
+        let dialog = status == "Waiting" ? AgentAlertDialog(payload: payload["dialog"]) : nil
+        // A permission prompt shows what Allow approves: the question, then the
+        // command or file it is about.
+        if let dialog {
+            let details = dialog.body
+            if details.isEmpty {
+                mutable.body = dialog.headline(terminal: terminal)
+            } else {
+                mutable.subtitle = dialog.headline(terminal: terminal)
+                mutable.body = details
+            }
         // A finish carries the words the agent ended on, most often its question.
-        if let summary = payload["summary"] as? String, !summary.isEmpty {
+        } else if let summary = payload["summary"] as? String, !summary.isEmpty {
             mutable.subtitle = line
             mutable.body = summary
         } else {
@@ -82,6 +93,7 @@ final class NotificationService: UNNotificationServiceExtension {
             if let ts = payload["ts"] as? Int { info["ts"] = ts }
             info["projectLabel"] = label
             info["terminal"] = terminal
+            dialog?.carry(into: &info)
         }
         mutable.userInfo = info
         return quieted(mutable, status: status)

@@ -4,7 +4,7 @@
 // anchors, inserting a line break, and the macOS ⌃A/⌃E/⌃K/⌃Y line edits, which
 // WebKit stops at every chip. Each edit notifies the field like typing would.
 
-import { isChip, isStrayChar, notifyEdit, partsToText, pointOffset, readParts, stripStray } from "./composerDom";
+import { chipToken, isChip, isStrayChar, notifyEdit, partsToText, pointOffset, readParts, stripStray } from "./composerDom";
 import {
   canonicalizeEditor,
   canonicalizeSelection,
@@ -188,7 +188,7 @@ export function stepCaret(root: HTMLElement, dir: Dir): boolean {
   const at = caretOffset(root);
   if (at === null) return false;
   if (adj.unit.kind === "chip") {
-    const token = `[Image #${adj.unit.chip.dataset.img}]`.length;
+    const token = chipToken(adj.unit.chip).length;
     setCaretAtOffset(root, dir === "backward" ? at - token : at + token);
     return true;
   }

@@ -369,7 +369,7 @@ fn end(app: &AppHandle, run: Run, state: Phase, reason: Option<String>) -> FixLo
         if should_notify(app, NotificationEvent::Ci) {
             notify(app, &title, &body);
         }
-        crate::remote::push_fix_loop_result(app, &view.project, &view.branch, &title, &body);
+        crate::remote::push_branch_ci_alert(app, &view.project, &view.branch, &title, &body);
     }
     view
 }

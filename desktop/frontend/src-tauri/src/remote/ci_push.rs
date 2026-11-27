@@ -61,9 +61,16 @@ pub(crate) fn push_ci_result(app: &AppHandle, result: &CiResult) {
     );
 }
 
-/// How a Keep fixing until green loop ended (ci_fix_loop.rs), under the
-/// branch's CI key so it replaces that branch's last CI alert.
-pub(crate) fn push_fix_loop_result(app: &AppHandle, project: &str, branch: &str, title: &str, body: &str) {
+/// How a Keep fixing until green loop (ci_fix_loop.rs) or an armed merge
+/// (remote_ci.rs) ended, under the branch's CI key so it replaces that branch's
+/// last CI alert.
+pub(crate) fn push_branch_ci_alert(
+    app: &AppHandle,
+    project: &str,
+    branch: &str,
+    title: &str,
+    body: &str,
+) {
     let label = crate::config::project_display_name(project);
     send(
         app,

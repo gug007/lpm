@@ -19,6 +19,9 @@ struct PendingShare: Codable, Identifiable, Equatable {
     /// The shared text and links, a paragraph each.
     let text: String
     var createdAt = Date()
+    /// Why the Mac turned it down, once it did: it waits for Retry rather than
+    /// going again by itself.
+    var failure: String?
 
     /// What the agent is asked, with the shared images' paths on the Mac after it.
     func prompt(imagePaths: [String]) -> String {
@@ -73,6 +76,20 @@ enum ShareInbox {
             images.append(data)
         }
         return images
+    }
+
+    /// Keeps a share the Mac turned down, with why, for a Retry.
+    static func markFailed(_ share: PendingShare, _ failure: String?) {
+        guard let folder = root?.appendingPathComponent(share.id, isDirectory: true) else { return }
+        var marked = share
+        marked.failure = failure
+        try? JSONEncoder().encode(marked).write(to: folder.appendingPathComponent("share.json"), options: .atomic)
+    }
+
+    /// A share the Mac turned down, back in line to be sent.
+    static func retry(id: String) {
+        guard let share = all().first(where: { $0.id == id }) else { return }
+        markFailed(share, nil)
     }
 
     static func remove(_ share: PendingShare) {

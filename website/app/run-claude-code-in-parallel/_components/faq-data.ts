@@ -1,4 +1,4 @@
-import { OTHER_STATUS_AGENT_NAMES, STATUS_AGENT_NAMES } from "@/lib/app-facts";
+import { OTHER_RESUME_AGENT_NAMES, OTHER_STATUS_AGENT_NAMES, STATUS_AGENT_NAMES } from "@/lib/app-facts";
 
 export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
@@ -39,6 +39,6 @@ export const FAQ_ITEMS: { question: string; answer: string }[] = [
   {
     question: "Does it work with Codex, Gemini CLI, Cursor CLI or OpenCode?",
     answer:
-      `Codex gets the same live status, alerts, resume and fork support as Claude Code. ${OTHER_STATUS_AGENT_NAMES} get live status and alerts too, though Cursor CLI asks for approval without telling lpm, so it never shows Needs you. All of them run in tabs, copies and worktrees like any terminal command.`,
+      `Codex gets the same live status, alerts, resume and fork support as Claude Code. ${OTHER_STATUS_AGENT_NAMES} get live status and alerts too, though Cursor CLI asks for approval without telling lpm, so it never shows Needs you, and ${OTHER_RESUME_AGENT_NAMES} sessions resume like Claude Code's. All of them run in tabs, copies and worktrees like any terminal command.`,
   },
 ];

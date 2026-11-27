@@ -13,12 +13,7 @@ struct GitChecksSheet: View {
     private var name: String { project.name }
     private var checks: GitChecks? { model.gitChecks.checks(name) }
     private var ahead: Int { model.git.snapshots[name]?.ahead ?? 0 }
-    private var tabs: [LaunchpadTab]? {
-        model.agentLaunch.options.map {
-            launchpadTabs(model.canPromptActions ? project.actions : [], project: name, agents: $0,
-                          skipOwnTasks: true)
-        }
-    }
+    private var tabs: [LaunchpadTab]? { model.fixTabs(name, actions: project.actions) }
 
     @State private var gauntlet = ActionRunGauntlet()
     /// The fixing option whose inputs or confirmation are up, what it's told, and

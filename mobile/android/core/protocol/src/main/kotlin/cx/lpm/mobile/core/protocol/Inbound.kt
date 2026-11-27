@@ -15,6 +15,7 @@ import cx.lpm.mobile.core.model.BackgroundRunSummary
 import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.ClaudeAccounts as ClaudeAccountsReply
 import cx.lpm.mobile.core.model.CommitFile
+import cx.lpm.mobile.core.model.CommitHookFailure
 import cx.lpm.mobile.core.model.ComposerAction
 import cx.lpm.mobile.core.model.ControlOwner
 import cx.lpm.mobile.core.model.CustomWorkStatus
@@ -282,7 +283,14 @@ sealed interface Inbound {
 
     data class GitDiffs(val project: String, val entries: List<GitDiffEntry>, val error: String?) :
         Inbound
-    data class GitCommit(val project: String, val error: String?) : Inbound
+
+    /** [hook] when a git hook stopped the commit (beside [error], for an older phone). */
+    data class GitCommit(
+        val project: String,
+        val error: String?,
+        val hook: CommitHookFailure? = null
+    ) : Inbound
+
     data class GitPush(val project: String, val error: String?) : Inbound
     data class GitGenMessage(val project: String, val message: String?, val error: String?) :
         Inbound
@@ -364,6 +372,16 @@ sealed interface Inbound {
         val number: Int,
         val deletedBranch: Boolean,
         val error: String?
+    ) : Inbound
+
+    /** Merge When Checks Pass armed, or stopped when [cancel]. */
+    data class GitMergeWhenReady(val project: String, val cancel: Boolean, val error: String?) :
+        Inbound
+
+    /** How the Mac's wait to merge stands (pushed); null [watch] when it sent none. */
+    data class GitMergeWatch(
+        val project: String,
+        val watch: cx.lpm.mobile.core.model.GitMergeWatch?
     ) : Inbound
 
     data class GitCommitFiles(

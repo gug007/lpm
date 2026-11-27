@@ -47,6 +47,11 @@ final class NotesStore {
     // Posting a note, and per-chat post failures.
     var sending: Set<String> = []
     var sendError: [String: String] = [:]
+    /// The last part of a note the Mac accepted, per chat key, for the composer
+    /// to let go of: only then is what it carried really on the Mac.
+    var accepted: [String: NoteSentPart] = [:]
+    /// The parts of a note still to go per chat key, the first on its way.
+    @ObservationIgnored private var parts: [String: [NotePart]] = [:]
     // Edit/delete of a single note, keyed by key(project, messageId).
     var noteMutating: Set<String> = []
     var noteError: [String: String] = [:]
@@ -186,7 +191,9 @@ final class NotesStore {
     }
 
     /// Post a note. Attachments ride inline, so anything over the link's per-file
-    /// ceiling is refused here rather than sent and rejected.
+    /// ceiling is refused here rather than sent and rejected, and several that
+    /// together would make one frame too big for the Mac go as further notes,
+    /// one after another.
     func addNote(_ project: String, chatId: String, text: String,
                  attachments drafts: [NoteAttachmentDraft] = []) {
         let k = key(project, chatId)
@@ -199,12 +206,20 @@ final class NotesStore {
         }
         sending.insert(k)
         sendError[k] = nil
-        let payload: [[String: Any]] = drafts.map {
+        let split = NotePart.split(text: text, drafts: drafts)
+        parts[k] = split
+        sendPart(split[0], project: project, chatId: chatId)
+    }
+
+    private func sendPart(_ part: NotePart, project: String, chatId: String) {
+        let k = key(project, chatId)
+        let payload: [[String: Any]] = part.drafts.map {
             ["name": $0.name, "mimeType": $0.mimeType, "data": $0.data.base64EncodedString()]
         }
-        client?.notesAddMessage(project: project, chatId: chatId, text: text, attachments: payload)
+        client?.notesAddMessage(project: project, chatId: chatId, text: part.text, attachments: payload)
         armTimeout("add", k, seconds: 60) { [weak self] in
             guard let self, self.sending.remove(k) != nil else { return }
+            self.parts[k] = nil
             self.sendError[k] = "Sending timed out. Check your Mac and try again."
         }
     }
@@ -287,9 +302,25 @@ final class NotesStore {
     func finishAddNote(_ project: String, chatId: String, message: NoteMessage?, error: String?) {
         let k = key(project, chatId)
         clearTimeout("add", k)
-        sending.remove(k)
-        guard let message else { sendError[k] = error ?? "Couldn't add the note."; Haptics.error(); return }
+        let left = parts.removeValue(forKey: k) ?? []
+        guard let message else {
+            sending.remove(k)
+            sendError[k] = error ?? "Couldn't add the note."
+            Haptics.error()
+            return
+        }
         sendError[k] = nil
+        if let part = left.first {
+            accepted[k] = NoteSentPart(tick: (accepted[k]?.tick ?? 0) + 1, text: !part.text.isEmpty,
+                                       attachments: part.drafts.count)
+        }
+        let rest = Array(left.dropFirst())
+        if let next = rest.first {
+            parts[k] = rest
+            sendPart(next, project: project, chatId: chatId)
+        } else {
+            sending.remove(k)
+        }
         if messages[k] != nil { messages[k]?.insert(message, at: 0) }
         // The chats list is ordered by last activity, so this chat is now first.
         if let i = chats[project]?.firstIndex(where: { $0.id == chatId }), i > 0 {
@@ -326,7 +357,13 @@ final class NotesStore {
         chatMutating = []
         messagesLoading = []
         pagingKeys = []
+        // A note on its way when the link dropped may or may not have reached the
+        // Mac; the composer keeps it, and says so rather than looking sent.
+        for k in sending {
+            sendError[k] = "The connection dropped before your Mac confirmed this note. Check the chat before sending it again."
+        }
         sending = []
+        parts = [:]
         noteMutating = []
         pendingPage = [:]
         search.handleConnectionReset(active: activeProject)

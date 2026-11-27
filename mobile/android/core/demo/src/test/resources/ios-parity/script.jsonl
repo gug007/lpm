@@ -129,6 +129,10 @@
 {"at": 1000, "frame": {"t": "notesChats", "project": "api-gateway"}}
 {"at": 1500, "frame": {"t": "gitChecks", "project": "storefront"}}
 {"at": 1500, "frame": {"t": "notesMessages", "project": "storefront", "chatId": "chat-1", "limit": 50}}
+{"at": 1600, "frame": {"t": "gitMergePrWhenReady", "project": "storefront", "number": 42, "title": "Two-step checkout flow", "method": "squash", "deleteBranch": true, "bypass": false}}
+{"at": 1700, "frame": {"t": "gitChecks", "project": "storefront"}}
+{"at": 1800, "frame": {"t": "gitMergePrCancel", "project": "storefront"}}
+{"at": 1900, "frame": {"t": "gitMergePrCancel", "project": "blog"}}
 {"at": 2000, "frame": {"t": "notesMessages", "project": "storefront", "chatId": "chat-1", "limit": 50, "beforeId": "note-6"}}
 {"at": 2000, "frame": {"t": "notesMessages", "project": "storefront", "chatId": "chat-56"}}
 {"at": 2000, "frame": {"t": "notesSearch", "project": "storefront", "query": "mock"}}

@@ -16,6 +16,7 @@ import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.CiFixLoop
 import cx.lpm.mobile.core.model.ClaudeAccounts
 import cx.lpm.mobile.core.model.CommitFile
+import cx.lpm.mobile.core.model.CommitHookFailure
 import cx.lpm.mobile.core.model.ComposerAction
 import cx.lpm.mobile.core.model.ControlOwner
 import cx.lpm.mobile.core.model.ConversationUpdate
@@ -30,6 +31,7 @@ import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.GitDiffEntry
 import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitMergeRun
+import cx.lpm.mobile.core.model.GitMergeWatch
 import cx.lpm.mobile.core.model.GitSnapshot
 import cx.lpm.mobile.core.model.HistoryFolder
 import cx.lpm.mobile.core.model.HistoryItem
@@ -188,7 +190,11 @@ abstract class LpmClientCallbacks {
         (project: String, path: String, result: GitDiffResult?, error: String?) -> Unit
     )? = null
     var onGitDiffs: ((project: String, entries: List<GitDiffEntry>, error: String?) -> Unit)? = null
-    var onGitCommit: ((project: String, error: String?) -> Unit)? = null
+
+    // `hook` when a git hook stopped the commit.
+    var onGitCommit: (
+        (project: String, error: String?, hook: CommitHookFailure?) -> Unit
+    )? = null
     var onGitPush: ((project: String, error: String?) -> Unit)? = null
     var onGitGenMessage: ((project: String, message: String?, error: String?) -> Unit)? = null
     var onGitGenPr: (
@@ -241,6 +247,10 @@ abstract class LpmClientCallbacks {
     var onGitMergePr: (
         (project: String, number: Int, deletedBranch: Boolean, error: String?) -> Unit
     )? = null
+
+    // Merge When Checks Pass armed or stopped, and how a wait stands (pushed).
+    var onGitMergeWhenReady: ((project: String, cancel: Boolean, error: String?) -> Unit)? = null
+    var onGitMergeWatch: ((project: String, watch: GitMergeWatch) -> Unit)? = null
     var onGitCommitFiles: (
         (project: String, hash: String, files: List<CommitFile>?, error: String?) -> Unit
     )? = null

@@ -1,0 +1,37 @@
+# Merge When Checks Pass from the CI sheet. While the re-run's checks run, the sheet
+# offers to have the Mac merge once they pass; armed, it says so with Cancel Merge,
+# and the Mac merges #42 the moment the last check passes.
+appId: cx.lpm.mobile
+name: 193-ci-merge-when-ready
+tags: [demo, projects, git]
+---
+- runFlow: subflows/enter-demo.yaml
+- tapOn: "storefront"
+- extendedWaitUntil:
+    visible: "CI on #42.*"
+    timeout: 10000
+# The Git section's rows settle as their answers land; tap once they have.
+- waitForAnimationToEnd:
+    timeout: 3000
+- tapOn: "CI on #42.*"
+- extendedWaitUntil:
+    visible: "test \\(ubuntu-latest\\)"
+    timeout: 5000
+- tapOn: "Re-run failed jobs"
+- extendedWaitUntil:
+    visible: "Merge When Checks Pass"
+    timeout: 10000
+- assertVisible: "lpm merges once the running check passes.*"
+- takeScreenshot: 1-wait
+- tapOn: "Merge When Checks Pass"
+- extendedWaitUntil:
+    visible: "Merging when checks pass.*"
+    timeout: 5000
+- assertVisible: "Cancel Merge"
+- takeScreenshot: 2-armed
+- extendedWaitUntil:
+    visible: "Merged #42.*"
+    timeout: 20000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 3-merged

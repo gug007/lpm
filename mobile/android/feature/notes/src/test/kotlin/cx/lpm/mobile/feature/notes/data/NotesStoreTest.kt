@@ -8,6 +8,7 @@ import cx.lpm.mobile.feature.notes.notes
 import cx.lpm.mobile.feature.notes.pageReply
 import cx.lpm.mobile.feature.notes.settle
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.jsonArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -183,6 +184,58 @@ class NotesStoreTest {
         )
         t.notes.clearErrors("p", "c1")
         assertNull(t.notes.state.value.sendError[notesKey("p", "c1")])
+    }
+
+    @Test
+    fun `attachments too big for one frame go as further notes, one after another`() = runTest {
+        val t = liveSession()
+        val socket = t.connectReady()
+        val mb = 1024 * 1024
+        val files = listOf(6, 6, 3).mapIndexed { i, size ->
+            NoteAttachmentDraft("f$i.pdf", "application/pdf", ByteArray(size * mb))
+        }
+        t.notes.addNote("p", "c1", "the specs", files)
+        val first = socket.sentOf("notesAddMessage").single()
+        assertEquals("the specs", first.string("text"))
+        assertEquals(1, first["attachments"]!!.jsonArray.size)
+        val key = notesKey("p", "c1")
+        socket.receive(
+            """{"t":"notesAddMessage","project":"p","chatId":"c1","ok":true,"message":${noteJson(
+                "n1"
+            )}}"""
+        )
+        t.settle(0)
+        assertEquals(
+            NoteSentPart(1, text = true, attachments = 1),
+            t.notes.state.value.accepted[key]
+        )
+        assertTrue(key in t.notes.state.value.sending)
+        val second = socket.sentOf("notesAddMessage").last()
+        assertEquals("", second.string("text"))
+        assertEquals(2, second["attachments"]!!.jsonArray.size)
+        socket.receive(
+            """{"t":"notesAddMessage","project":"p","chatId":"c1","ok":true,"message":${noteJson(
+                "n2"
+            )}}"""
+        )
+        t.settle(0)
+        val s = t.notes.state.value
+        assertEquals(NoteSentPart(2, text = false, attachments = 2), s.accepted[key])
+        assertTrue(s.sending.isEmpty())
+        assertEquals(2, socket.sentOf("notesAddMessage").size)
+    }
+
+    @Test
+    fun `a send cut off by the link keeps the note and says it may not have landed`() = runTest {
+        val t = liveSession()
+        t.connectReady()
+        t.notes.addNote("p", "c1", "hello")
+        t.notes.onConnectionReset()
+        t.settle(0)
+        val s = t.notes.state.value
+        assertTrue(s.sending.isEmpty())
+        assertNull(s.accepted[notesKey("p", "c1")])
+        assertTrue(s.sendError[notesKey("p", "c1")]!!.startsWith("The connection dropped"))
     }
 
     @Test

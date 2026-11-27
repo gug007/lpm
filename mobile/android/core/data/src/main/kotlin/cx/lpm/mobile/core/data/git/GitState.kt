@@ -1,5 +1,6 @@
 package cx.lpm.mobile.core.data.git
 
+import cx.lpm.mobile.core.model.CommitHookFailure
 import cx.lpm.mobile.core.model.GitBranch
 import cx.lpm.mobile.core.model.GitConflictOp
 import cx.lpm.mobile.core.model.GitConflictSide
@@ -57,6 +58,12 @@ data class GitState(
      * that push finishes: [commitTick] counts the commit then.
      */
     val commitPushing: Set<String> = emptySet(),
+    /**
+     * The hook that stopped a project's last commit, for the commit sheet's panel in
+     * place of [opError], and that commit as it was asked for.
+     */
+    val hookFailures: Map<String, CommitHookFailure> = emptyMap(),
+    val stoppedCommits: Map<String, PendingCommit> = emptyMap(),
     val generatingMessage: Set<String> = emptySet(),
     val generatingPr: Set<String> = emptySet(),
     val creatingPr: Set<String> = emptySet(),

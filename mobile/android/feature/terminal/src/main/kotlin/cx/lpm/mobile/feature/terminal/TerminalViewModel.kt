@@ -11,6 +11,7 @@ import cx.lpm.mobile.core.data.link.view
 import cx.lpm.mobile.core.data.prefs.AppPreferences
 import cx.lpm.mobile.core.data.projects.ProjectsState
 import cx.lpm.mobile.core.data.projects.ProjectsStore
+import cx.lpm.mobile.core.data.push.WaitingHeadsUp
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.MacSessions
 import cx.lpm.mobile.core.data.session.SessionState
@@ -382,6 +383,12 @@ class TerminalViewModel @AssistedInject constructor(
     /** Someone is looking at the terminal: retire the finish or problem it shows. */
     fun markSeen() {
         projects?.markTerminalSeen(key.project, currentId)
+    }
+
+    /** Whether [id] is on screen, where its agent starting to wait needs no banner. */
+    fun onScreen(id: String, shown: Boolean) {
+        val headsUp = session?.store<WaitingHeadsUp>() ?: return
+        if (shown) headsUp.showTerminal(id) else headsUp.hideTerminal(id)
     }
 
     fun loadTerminals() {

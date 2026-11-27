@@ -1,5 +1,7 @@
 package cx.lpm.mobile.core.protocol
 
+import cx.lpm.mobile.core.model.GitMergeMethod
+import cx.lpm.mobile.core.model.GitMergeWatch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.junit.Test
@@ -122,6 +124,33 @@ class WireAutomationsGitTest {
             """{ "t": "gitMergePr", "project": "a", "number": 42, "method": "squash", "head": "abc",
                  "deleteBranch": true }""",
             Wire.gitMergePr("a", 42, "squash", "abc", deleteBranch = true)
+        )
+        assertFrame(
+            """{ "t": "gitMergePr", "project": "a", "number": 42, "method": "merge", "head": "abc",
+                 "deleteBranch": false, "bypass": true }""",
+            Wire.gitMergePr("a", 42, "merge", "abc", deleteBranch = false, bypass = true)
+        )
+    }
+
+    @Test
+    fun gitMergePrWhenReady() {
+        assertFrame(
+            """{ "t": "gitMergePrWhenReady", "project": "a", "number": 42, "title": "Checkout",
+                 "method": "rebase", "deleteBranch": true, "bypass": false }""",
+            Wire.gitMergePrWhenReady(
+                "a",
+                GitMergeWatch(
+                    42,
+                    "Checkout",
+                    GitMergeMethod.REBASE,
+                    deleteBranch = true,
+                    bypass = false
+                )
+            )
+        )
+        assertFrame(
+            """{ "t": "gitMergePrCancel", "project": "a" }""",
+            Wire.gitMergePrCancel("a")
         )
     }
 

@@ -4,11 +4,18 @@ package cx.lpm.mobile.core.demo
  * Demo CI (iOS `DemoGitChecks`): storefront's open pull request with one failing test,
  * api-gateway's main passing, the rest without CI. Running the failed jobs again shows
  * them running for a few seconds, then passing, and the pull request ready to merge;
- * merging it leaves storefront without CI. Keep fixing until green plays two rounds over
- * 28 seconds and ends with the checks passing.
+ * merging it leaves storefront without CI. Merge When Checks Pass, armed while they run,
+ * merges it 4 seconds after they pass. Keep fixing until green plays two rounds over 28
+ * seconds and ends with the checks passing.
  */
 
 private const val RERUN_MS = 6_000L
+
+/**
+ * How long an armed Merge When Checks Pass waits after the checks pass, as the Mac's
+ * next look at GitHub would.
+ */
+private const val ARMED_MERGE_SECONDS = 4.0
 
 internal fun DemoServer.registerGitChecksHandlers() {
     register("gitChecks") { o ->
@@ -35,6 +42,45 @@ internal fun DemoServer.registerGitChecksHandlers() {
                 )
             )
         }
+    }
+    register("gitMergePrWhenReady") { o ->
+        val project = o.string("project") ?: return@register
+        val watch = mapOf(
+            "path" to "",
+            "number" to (o.int("number") ?: 0),
+            "title" to o.string("title").orEmpty(),
+            "method" to (o.string("method") ?: "squash"),
+            "deleteBranch" to (o.bool("deleteBranch") ?: false),
+            "bypass" to (o.bool("bypass") ?: false),
+            "state" to "waiting",
+            "deletedBranch" to false
+        )
+        world.ciMergeWatch[project] = watch
+        push(mapOf("t" to "gitMergePrWhenReady", "project" to project, "ok" to true))
+        push(mapOf("t" to "gitMergeWatch", "project" to project, "watch" to watch))
+        val left = world.ciRerunAt[project]?.let { RERUN_MS - (clock.millis() - it) } ?: 0L
+        pushAfter(maxOf(left, 0L) / 1000.0 + ARMED_MERGE_SECONDS) {
+            val armed = world.ciMergeWatch.remove(project) ?: return@pushAfter null
+            world.ciMerged += project
+            val merged = armed + mapOf(
+                "state" to "merged",
+                "deletedBranch" to (armed["deleteBranch"] ?: false)
+            )
+            mapOf("t" to "gitMergeWatch", "project" to project, "watch" to merged)
+        }
+    }
+    register("gitMergePrCancel") { o ->
+        val project = o.string("project") ?: return@register
+        world.ciMergeWatch.remove(project)?.let { armed ->
+            push(
+                mapOf(
+                    "t" to "gitMergeWatch",
+                    "project" to project,
+                    "watch" to armed + ("state" to "cancelled")
+                )
+            )
+        }
+        push(mapOf("t" to "gitMergePrCancel", "project" to project, "ok" to true))
     }
     register("gitMergePr") { o ->
         val project = o.string("project") ?: return@register
@@ -191,6 +237,7 @@ private fun DemoServer.demoChecksReply(project: String): Dict {
         )
     }
     demoFixLoop(project)?.let { reply["fixLoop"] = it }
+    world.ciMergeWatch[project]?.let { reply["mergeWatch"] = it }
     return reply
 }
 

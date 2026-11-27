@@ -48,6 +48,11 @@ at(660, 'gitCommitChecks', project='storefront'); at(660, 'gitCommitChecks', pro
 at(660, 'gitCommitChecks', project='blog')
 at(700, 'gitChecksRerun', project='storefront', runIds=['7001'])
 at(1500, 'gitChecks', project='storefront'); at(8000, 'gitChecks', project='storefront')
+# Merge When Checks Pass, armed while the re-run's checks run, shown, then cancelled
+at(1600, 'gitMergePrWhenReady', project='storefront', number=42, title='Two-step checkout flow',
+   method='squash', deleteBranch=True, bypass=False)
+at(1700, 'gitChecks', project='storefront')
+at(1800, 'gitMergePrCancel', project='storefront'); at(1900, 'gitMergePrCancel', project='blog')
 # storefront's pull request is ready to merge once the re-run passed; merged, it has no CI
 at(9000, 'gitMergePr', project='storefront', number=42, method='squash',
    head='4b8e2f1c9d0a7e3b5f6c8d2a1e0b9c7f3d5a6e84', deleteBranch=True)

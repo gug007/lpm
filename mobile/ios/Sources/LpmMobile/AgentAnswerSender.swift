@@ -38,7 +38,12 @@ final class AgentAnswerSender {
         let openTab = UNNotificationAction(identifier: openTabAction, title: "Open Tab",
                                            options: [.foreground],
                                            icon: UNNotificationActionIcon(systemImageName: "terminal"))
+        let retryShare = UNNotificationAction(identifier: AppModel.shareRetryAction, title: "Retry",
+                                              options: [.foreground],
+                                              icon: UNNotificationActionIcon(systemImageName: "arrow.clockwise"))
         UNUserNotificationCenter.current().setNotificationCategories([
+            UNNotificationCategory(identifier: AppModel.shareFailedCategory,
+                                   actions: [retryShare], intentIdentifiers: []),
             UNNotificationCategory(identifier: AgentAnswerAction.permissionCategory,
                                    actions: [allow, deny], intentIdentifiers: []),
             UNNotificationCategory(identifier: AgentAnswerAction.replyCategory,

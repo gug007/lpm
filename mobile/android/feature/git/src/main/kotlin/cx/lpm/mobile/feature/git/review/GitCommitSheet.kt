@@ -2,6 +2,7 @@ package cx.lpm.mobile.feature.git.review
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,6 +36,7 @@ import cx.lpm.mobile.core.designsystem.component.TextFieldRow
 import cx.lpm.mobile.core.designsystem.component.ValueRow
 import cx.lpm.mobile.core.designsystem.component.rememberModalSheetState
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.model.CommitHookFailure
 import cx.lpm.mobile.core.navigation.SheetStack
 import cx.lpm.mobile.core.navigation.rememberSheetNavigator
 import cx.lpm.mobile.feature.git.R
@@ -59,16 +61,25 @@ private enum class CommitPage { Form, Files }
  * there's none yet, a Files row opening the list of changed files to include or
  * leave out, the branch and where it pushes, then Commit and Push or Commit only.
  * The message and selection live with the review, so closing the sheet keeps the
- * draft; a commit that lands (with its push, if it pushes) closes it.
+ * draft; a commit that lands (with its push, if it pushes) closes it. A git hook that
+ * stops it gets its panel in place of the buttons, whose [fixRows] close the sheet as
+ * their tab starts; closing the sheet dismisses the panel.
  */
 @Composable
 internal fun GitCommitSheet(
     state: GitReviewUiState,
     actions: CommitActions,
     secrets: SecretCheck,
-    onDismiss: () -> Unit
+    hook: CommitHookCheck,
+    onDismiss: () -> Unit,
+    fixRows: @Composable (onStart: () -> Unit) -> Unit = {}
 ) {
-    DisposableEffect(secrets) { onDispose(secrets::closed) }
+    DisposableEffect(secrets, hook) {
+        onDispose {
+            secrets.closed()
+            hook.dismiss()
+        }
+    }
     val sheet = rememberModalSheetState()
     val pages = rememberSheetNavigator(CommitPage.Form)
     val opened = remember { state.commitTick }
@@ -85,7 +96,23 @@ internal fun GitCommitSheet(
                     actions = actions,
                     secrets = secrets,
                     onCancel = { sheet.dismiss(onDismiss) },
-                    onFiles = { pages.push(CommitPage.Files) }
+                    onFiles = { pages.push(CommitPage.Files) },
+                    hookSection = { failure ->
+                        CommitHookSection(
+                            failure,
+                            busy = state.busy != null,
+                            actions = CommitHookActions(
+                                retry = hook::retry,
+                                skipHooks = hook::commitWithoutHooks,
+                                dismiss = hook::dismiss
+                            )
+                        ) {
+                            fixRows {
+                                hook.dismiss()
+                                sheet.dismiss(onDismiss)
+                            }
+                        }
+                    }
                 )
 
                 CommitPage.Files -> CommitFilesPage(
@@ -105,7 +132,8 @@ private fun CommitFormPage(
     actions: CommitActions,
     secrets: SecretCheck,
     onCancel: () -> Unit,
-    onFiles: () -> Unit
+    onFiles: () -> Unit,
+    hookSection: @Composable ColumnScope.(CommitHookFailure) -> Unit
 ) {
     Column(
         Modifier
@@ -124,6 +152,7 @@ private fun CommitFormPage(
                 .verticalScroll(rememberScrollState())
                 .padding(top = ListDefaults.ContentTopPadding, bottom = 24.dp)
         ) {
+            state.hook?.let { hookSection(it) }
             if (state.findings.isNotEmpty()) SecretFindingsSection(state.findings, secrets)
             if (state.conflicted.isNotEmpty()) ConflictSection(state.conflicted)
             ListSection {
@@ -151,15 +180,17 @@ private fun CommitFormPage(
                 }
             }
         }
-        if (state.findings.isEmpty()) {
-            CommitButtons(
+        when {
+            state.hook != null -> Unit
+
+            state.findings.isEmpty() -> CommitButtons(
                 busy = state.busy,
                 enabled = state.canCommit,
                 onCommitAndPush = actions.commitAndPush,
                 onCommitOnly = actions.commit
             )
-        } else {
-            SecretFindingsButtons(state, secrets)
+
+            else -> SecretFindingsButtons(state, secrets)
         }
     }
 }

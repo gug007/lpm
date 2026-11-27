@@ -78,6 +78,7 @@ class GitReviewScreenTest {
                     commitAndPush = { events += "commit and push" }
                 ),
                 secrets = SecretCheck("storefront", null, null),
+                hook = CommitHookCheck("storefront", null, null) { "" to emptyList() },
                 onDismiss = { events += "dismiss" }
             )
         }

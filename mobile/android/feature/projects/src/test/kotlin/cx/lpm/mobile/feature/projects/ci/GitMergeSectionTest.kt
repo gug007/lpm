@@ -17,6 +17,7 @@ import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.GitMergeMethod
 import cx.lpm.mobile.core.model.GitMergeOffer
+import cx.lpm.mobile.core.model.GitMergeWatch
 import cx.lpm.mobile.core.model.MergedPullRequest
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -31,21 +32,32 @@ class GitMergeSectionTest {
 
     private val events = mutableListOf<String>()
 
-    private fun offer(state: String = "CLEAN", deletesBranch: Boolean = false) = GitMergeOffer(
+    private fun offer(
+        state: String = "CLEAN",
+        deletesBranch: Boolean = false,
+        canBypass: Boolean = false
+    ) = GitMergeOffer(
         mergeable = "MERGEABLE",
         state = state,
         review = "APPROVED",
         head = "4b8e2f1",
         methods = GitMergeMethod.entries,
-        deletesBranch = deletesBranch
+        deletesBranch = deletesBranch,
+        canBypass = canBypass,
+        base = "main"
     )
 
-    private fun checks(offer: GitMergeOffer, state: CiCheck.State = CiCheck.State.PASS) = GitChecks(
+    private fun checks(
+        offer: GitMergeOffer,
+        state: CiCheck.State = CiCheck.State.PASS,
+        mergeWatch: GitMergeWatch? = null
+    ) = GitChecks(
         branch = "feat/x",
         pr = GitChecks.PullRequest(42, "https://github.com/o/r/pull/42", "Checkout", merge = offer),
         commit = null,
         checks = listOf(CiCheck("test", "CI", state, "")),
-        fixPrompt = null
+        fixPrompt = null,
+        mergeWatch = mergeWatch
     )
 
     private fun show(state: GitChecksUiState) = compose.setContent {
@@ -57,6 +69,11 @@ class GitMergeSectionTest {
                     state.checks!!,
                     CiMergeActions(
                         merge = { method, delete -> events += "merge ${method.wire} $delete" },
+                        bypass = { method, delete -> events += "bypass ${method.wire} $delete" },
+                        mergeWhenReady = { method, delete, bypass ->
+                            events += "wait ${method.wire} $delete $bypass"
+                        },
+                        cancelWhenReady = { events += "cancel" },
                         pickMethod = { events += "pick ${it.wire}" },
                         reload = { events += "reload" }
                     )
@@ -155,5 +172,140 @@ class GitMergeSectionTest {
             "Its branch was deleted on GitHub. The branch on your Mac is still checked out."
         ).assertExists()
         compose.onNodeWithText("Ready to merge").assertDoesNotExist()
+    }
+
+    @Test
+    fun runningChecksOfferMergeWhenChecksPass() {
+        show(
+            GitChecksUiState(
+                canMerge = true,
+                canMergeWhenReady = true,
+                checks = checks(offer(state = "UNSTABLE"), CiCheck.State.PENDING)
+            )
+        )
+        compose.onNodeWithText("Waiting for checks").assertExists()
+        compose.onNodeWithText("Method").assertExists()
+        compose.onNodeWithText("lpm merges once the running check passes.").assertExists()
+        compose.onNodeWithText("Merge #42").assertDoesNotExist()
+        compose.onNodeWithText("Bypass Rules and Merge").assertDoesNotExist()
+        compose.onNode(hasText("Merge When Checks Pass") and hasClickAction())
+            .performScrollTo()
+            .performClick()
+        assertEquals(listOf("wait squash true false"), events)
+    }
+
+    @Test
+    fun runningChecksHeldByRulesWaitPastThemOrBypassNow() {
+        show(
+            GitChecksUiState(
+                canMerge = true,
+                canMergeWhenReady = true,
+                checks = checks(offer(state = "BLOCKED", canBypass = true), CiCheck.State.PENDING)
+            )
+        )
+        compose.onNodeWithText(
+            "lpm merges once the running check passes, bypassing the rules on main if they " +
+                "still block it."
+        ).assertExists()
+        compose.onNode(hasText("Merge When Checks Pass") and hasClickAction())
+            .performScrollTo()
+            .performClick()
+        compose.onNode(hasText("Bypass Rules and Merge") and hasClickAction())
+            .performScrollTo()
+            .performClick()
+        assertEquals(listOf("wait squash true true", "bypass squash true"), events)
+    }
+
+    @Test
+    fun blockedByRulesOffersBypass() {
+        show(
+            GitChecksUiState(
+                canMerge = true,
+                canMergeWhenReady = true,
+                checks = checks(offer(state = "BLOCKED", canBypass = true))
+            )
+        )
+        compose.onNodeWithText("Can't merge yet").assertExists()
+        compose.onNodeWithText(
+            "Bypassing merges it now, past the rules on main, as GitHub's Bypass requirements does."
+        ).assertExists()
+        compose.onNodeWithText("Merge When Checks Pass").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Delete branch").performScrollTo().performClick()
+        compose.onNode(hasText("Bypass Rules and Merge") and hasClickAction())
+            .performScrollTo()
+            .performClick()
+        assertEquals(listOf("bypass squash false"), events)
+    }
+
+    @Test
+    fun aMacWithoutWhenReadyOffersNeither() {
+        show(
+            GitChecksUiState(
+                canMerge = true,
+                checks = checks(offer(state = "BLOCKED", canBypass = true), CiCheck.State.PENDING)
+            )
+        )
+        compose.onNodeWithText("Waiting for checks").assertExists()
+        compose.onNodeWithText("Merge When Checks Pass").assertDoesNotExist()
+        compose.onNodeWithText("Bypass Rules and Merge").assertDoesNotExist()
+        compose.onNodeWithText("Method").assertDoesNotExist()
+    }
+
+    @Test
+    fun anArmedWaitSaysWhatItWillDoWithCancel() {
+        val watch =
+            GitMergeWatch(42, "Checkout", GitMergeMethod.REBASE, deleteBranch = true, bypass = true)
+        show(
+            GitChecksUiState(
+                canMerge = true,
+                canMergeWhenReady = true,
+                checks = checks(
+                    offer(state = "BLOCKED", canBypass = true),
+                    CiCheck.State.PENDING,
+                    watch
+                )
+            )
+        )
+        compose.onNodeWithText("Merging when checks pass").assertExists()
+        compose.onNodeWithText(
+            "Rebase and merge once the running checks pass, bypassing the rules on main if " +
+                "they still block it, then delete the branch on GitHub. Stops if a check fails."
+        ).assertExists()
+        compose.onNodeWithText("Waiting for checks").assertDoesNotExist()
+        compose.onNodeWithText("Merge When Checks Pass").assertDoesNotExist()
+        compose.onNodeWithText("lpm merges once the running check passes.").assertDoesNotExist()
+        compose.onNode(
+            hasText("Cancel Merge") and hasClickAction()
+        ).performScrollTo().performClick()
+        assertEquals(listOf("cancel"), events)
+    }
+
+    @Test
+    fun whileArmingTheButtonsWait() {
+        show(
+            GitChecksUiState(
+                canMerge = true,
+                canMergeWhenReady = true,
+                arming = true,
+                checks = checks(offer(state = "BLOCKED", canBypass = true), CiCheck.State.PENDING)
+            )
+        )
+        compose.onNode(hasText("Merge When Checks Pass") and hasClickAction()).assertIsNotEnabled()
+        compose.onNode(hasText("Bypass Rules and Merge") and hasClickAction()).assertIsNotEnabled()
+    }
+
+    @Test
+    fun aWaitForAnotherPullRequestIsNotShown() {
+        val other =
+            GitMergeWatch(7, "Old", GitMergeMethod.SQUASH, deleteBranch = false, bypass = false)
+        show(
+            GitChecksUiState(
+                canMerge = true,
+                canMergeWhenReady = true,
+                checks = checks(offer(), CiCheck.State.PENDING, other)
+            )
+        )
+        compose.onNodeWithText("Merging when checks pass").assertDoesNotExist()
+        compose.onNodeWithText("Merge When Checks Pass").assertExists()
     }
 }

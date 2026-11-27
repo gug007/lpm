@@ -112,7 +112,7 @@ fun LpmApp(
             usageEntries(navigator)
             actionsEntries(navigator)
             automationsEntries(navigator, automationsSlots(navigator))
-            gitEntries(navigator)
+            gitEntries(navigator, gitSlots)
             filesEntries(navigator)
             settingsEntries(navigator, settingsSlots)
             notesEntries(navigator)

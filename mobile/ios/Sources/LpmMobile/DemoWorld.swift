@@ -237,6 +237,7 @@ struct DemoWorld {
     var gitAutoNextId = 1
     var ciRerunAt: [String: Date] = [:] // project -> when its failed CI jobs were run again
     var ciMerged: Set<String> = [] // projects whose pull request was merged from the phone
+    var ciMergeWatch: [String: [String: Any]] = [:] // project -> its armed Merge When Checks Pass
     var ciFixLoops: [String: DemoFixLoop] = [:] // project -> its Keep fixing until green run
     var ciFixLoopNextId = 1
     var gitDiscardNextId = 1

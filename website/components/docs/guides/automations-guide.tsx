@@ -42,21 +42,41 @@ export function AutomationsGuide() {
 
       <DocsHeading id="events">When something happens</DocsHeading>
       <p className={`mb-4 ${P}`}>
-        Set When to Event, and lpm starts the automation on what it sees
-        instead of by the clock.
+        Set When to Event and pick what starts the automation, and lpm
+        reacts to what it sees instead of the clock. The row under the event
+        takes names, separated by commas, to narrow it down.
       </p>
       <GuideList
         items={[
-          "CI fails: a commit you pushed from this computer fails its checks. Name branches to narrow it. It needs the GitHub CLI signed in.",
+          "CI fails: a commit you pushed from this computer fails its checks. Name branches to narrow it. It needs the GitHub CLI, or the GitLab CLI for a GitLab project, signed in.",
           "A service crashes: one of the project's services exits with an error code, noticed within a minute. Name services to narrow it.",
           "An agent finishes: an agent in a terminal ends its turn, in this project or in others you name. It starts a prompt or a command, not an action, whose own agent would finish and start it again.",
-          "Each reacts once per commit, or once a day. A CI automation stops after three runs in a row for failures on the same branch, until CI passes there.",
+          "A PR gets a review: someone with write access, or a bot, reviews a pull request you opened and asks for changes or leaves comments. An approval on its own doesn't count, and neither do your own comments. It stops after three runs in a row that only bots answered.",
+          "A PR is opened: you or someone with write access opens a pull request, or marks a draft ready for review.",
         ]}
       />
       <p className={`mt-4 ${P}`}>
+        For both pull request events, name branches under Into, such as main,
+        to follow only pull requests into them. lpm checks every two minutes
+        through the GitHub CLI, or through the GitLab CLI for a GitLab
+        project, where merge requests work the same way. Whichever one your
+        project uses has to be signed in. When the automation runs in the
+        project&rsquo;s own folder, it works in the copy or worktree that has
+        the pull request&rsquo;s branch checked out. A pull request opened
+        under your name during one of its own runs doesn&rsquo;t start it
+        again.
+      </p>
+      <p className={`mt-4 ${P}`}>
+        At most sets how often an event can start it: once per commit (once
+        per review or once per PR for the pull request events), or once a
+        day. A CI automation stops after three runs in a row for failures on
+        the same branch, until CI passes there.
+      </p>
+      <p className={`mt-4 ${P}`}>
         The run is told what happened, at the top of a prompt and in the{" "}
-        <code className={CODE}>LPM_EVENT_</code>{" "}variables. For example, to
-        fix CI on main in a worktree of its own:
+        <code className={CODE}>LPM_EVENT_</code>{" "}variables, which hold
+        the pull request&rsquo;s number and link for the PR events. For
+        example, to fix CI on main in a worktree of its own:
       </p>
       <div className="mt-4">
         <CodeBlock filename="In a terminal">
@@ -66,6 +86,12 @@ export function AutomationsGuide() {
           {"\n  "}--prompt &quot;Make the failing checks pass and push the fix.&quot;
         </CodeBlock>
       </div>
+      <p className={`mt-4 ${P}`}>
+        The pull request events are{" "}
+        <code className={CODE}>--on prReviewed</code>{" "}and{" "}
+        <code className={CODE}>--on prOpened</code>, and{" "}
+        <code className={CODE}>--branches</code>{" "}fills in Into.
+      </p>
 
       <DocsHeading id="runs">Read a run and reply</DocsHeading>
       <p className={P}>

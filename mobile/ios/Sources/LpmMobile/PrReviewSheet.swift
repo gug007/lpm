@@ -15,12 +15,7 @@ struct PrReviewSheet: View {
 
     private var name: String { project.name }
     private var discussion: PrDiscussion? { model.gitExtras.discussions[name] }
-    private var tabs: [LaunchpadTab]? {
-        model.agentLaunch.options.map {
-            launchpadTabs(model.canPromptActions ? project.actions : [], project: name, agents: $0,
-                          skipOwnTasks: true)
-        }
-    }
+    private var tabs: [LaunchpadTab]? { model.fixTabs(name, actions: project.actions) }
 
     var body: some View {
         NavigationStack {

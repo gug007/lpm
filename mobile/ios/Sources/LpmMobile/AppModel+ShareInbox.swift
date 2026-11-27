@@ -20,11 +20,23 @@ extension AppModel {
         ShareDirectory.load().updating(shareDirectoryMac, keeping: saved, phoneId: Keychain.phoneId).save()
     }
 
+    static let shareFailedCategory = "lpm.share.failed"
+    static let shareRetryAction = "lpm.share.retry"
+    /// A share the Mac turned down waits this long for a Retry.
+    private static let failedShareKeptFor: TimeInterval = 7 * 24 * 3600
+
     /// Send what the share sheet kept for later, each to its Mac, and say how it went.
-    /// A Mac that doesn't answer keeps the rest of its shares for the next time.
+    /// A Mac that doesn't answer keeps the rest of its shares for the next time. One
+    /// the Mac turned down stays, with Retry on the notification saying so, and goes
+    /// again only from there (`ShareInbox.retry`).
     func sendWaitingShares() {
         guard !demoMode, !sendingShares else { return }
-        let waiting = ShareInbox.all()
+        let now = Date()
+        let waiting = ShareInbox.all().filter { share in
+            guard share.failure != nil else { return true }
+            if now.timeIntervalSince(share.createdAt) > Self.failedShareKeptFor { ShareInbox.remove(share) }
+            return false
+        }
         guard !waiting.isEmpty else { return }
         sendingShares = true
         let records = macs
@@ -43,10 +55,13 @@ extension AppModel {
                 case .unreachable:
                     unreachable.insert(share.serverId)
                     continue
-                case .sent: Self.announce(share, failure: nil)
-                case .failed(let message): Self.announce(share, failure: message)
+                case .sent:
+                    Self.announce(share, failure: nil)
+                    ShareInbox.remove(share)
+                case .failed(let message):
+                    ShareInbox.markFailed(share, message)
+                    Self.announce(share, failure: message)
                 }
-                ShareInbox.remove(share)
             }
             sendingShares = false
         }
@@ -57,6 +72,10 @@ extension AppModel {
         content.title = failure == nil ? "Sent to \(share.projectTitle)" : "Couldn't send to \(share.projectTitle)"
         content.body = failure ?? "What you shared reached \(share.macName)."
         content.threadIdentifier = share.project
+        if failure != nil {
+            content.categoryIdentifier = shareFailedCategory
+            content.userInfo = ["shareId": share.id]
+        }
         UNUserNotificationCenter.current().add(
             UNNotificationRequest(identifier: "share-\(share.id)", content: content, trigger: nil))
     }

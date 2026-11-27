@@ -22,23 +22,36 @@ struct GitMergeSection: View {
     var body: some View {
         if store.canMerge, store.merged[project] == nil, let pr = checks.pr, let status = checks.mergeStatus {
             Section {
-                MergeStatusRow(status: status)
-                if case .ready = status {
-                    if methods.count > 1 {
-                        Picker("Method", selection: Binding(get: { method }, set: { methodRaw = $0.rawValue })) {
-                            ForEach(methods) { Text($0.label).tag($0) }
+                if let watch = armed(pr) {
+                    ArmedMergeRow(text: watch.armedText(base: baseName, site: pr.site))
+                    cancelButton
+                } else {
+                    MergeStatusRow(status: status)
+                    if offersMerge(status) {
+                        if methods.count > 1 {
+                            Picker("Method", selection: Binding(get: { method }, set: { methodRaw = $0.rawValue })) {
+                                ForEach(methods) { Text($0.label).tag($0) }
+                            }
                         }
+                        if offer?.deletesBranch == false {
+                            Toggle("Delete branch", isOn: $deleteBranch)
+                        }
+                        if case .ready = status { mergeButton(pr) }
+                        if waits(status) { waitButton(pr) }
+                        if bypassable(status) { bypassButton(pr) }
                     }
-                    if offer?.deletesBranch == false {
-                        Toggle("Delete branch", isOn: $deleteBranch)
-                    }
-                    mergeButton(pr)
                 }
             } footer: {
                 if let error = store.mergeErrors[project] {
                     Text(error).foregroundStyle(.red)
+                } else if armed(pr) != nil {
+                    EmptyView()
                 } else if case .ready = status, offer?.deletesBranch == true {
                     Text("GitHub deletes the branch once it's merged.")
+                } else if waits(status) {
+                    Text(checks.waitText(bypass: offer?.bypassable == true))
+                } else if bypassable(status) {
+                    Text("Bypassing merges it now, past the rules on \(baseName), as \(pr.site)'s Bypass requirements does.")
                 }
             }
             .task(id: status) {
@@ -49,25 +62,125 @@ struct GitMergeSection: View {
         }
     }
 
+    private var deletes: Bool { offer?.deletesBranch == true || deleteBranch }
+    private var baseName: String { offer?.baseName ?? "its base branch" }
+    private static let buttonInsets = EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+    private var arming: Bool { store.arming.contains(project) }
+
+    /// The Mac's wait to merge this pull request, armed here or at the desk.
+    private func armed(_ pr: GitChecks.PullRequest) -> GitMergeWatch? {
+        guard let watch = checks.mergeWatch, watch.waiting, watch.number == pr.number else { return nil }
+        return watch
+    }
+
+    /// The rules hold it back and GitHub lets this person past them.
+    private func bypassable(_ status: GitMergeStatus) -> Bool {
+        guard store.canMergeWhenReady, offer?.bypassable == true else { return false }
+        switch status {
+        case .blocked, .waitingForChecks: return true
+        default: return false
+        }
+    }
+
+    private func offersMerge(_ status: GitMergeStatus) -> Bool {
+        if case .ready = status { return true }
+        return waits(status) || bypassable(status)
+    }
+
+    /// Checks still run and the Mac can merge once they pass.
+    private func waits(_ status: GitMergeStatus) -> Bool {
+        status == .waitingForChecks && store.canMergeWhenReady
+    }
+
     private func mergeButton(_ pr: GitChecks.PullRequest) -> some View {
         Button {
             Haptics.tap()
-            let deletes = offer?.deletesBranch == true || deleteBranch
+            let deletes = deletes
             AppLock.shared.confirm("Merge \(pr.noun) \(pr.ref)") {
                 store.merge(project, method: method, deleteBranch: deletes)
             }
         } label: {
-            ZStack {
-                Text("Merge \(pr.ref)").fontWeight(.semibold).opacity(merging ? 0 : 1)
-                if merging { ProgressView().tint(.white) }
-            }
-            .frame(maxWidth: .infinity)
+            busyLabel("Merge \(pr.ref)", busy: merging, onColor: true)
         }
         .buttonStyle(.borderedProminent)
         .tint(.green)
         .controlSize(.large)
         .disabled(merging)
-        .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
+        .listRowInsets(Self.buttonInsets)
+    }
+
+    private func waitButton(_ pr: GitChecks.PullRequest) -> some View {
+        Button {
+            Haptics.tap()
+            let (deletes, bypass) = (deletes, offer?.bypassable == true)
+            AppLock.shared.confirm("Merge \(pr.noun) \(pr.ref) when checks pass") {
+                store.mergeWhenReady(project, method: method, deleteBranch: deletes, bypass: bypass)
+            }
+        } label: {
+            busyLabel("Merge When Checks Pass", busy: arming, onColor: true)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(.green)
+        .controlSize(.large)
+        .disabled(arming || merging)
+        .listRowInsets(Self.buttonInsets)
+    }
+
+    private func bypassButton(_ pr: GitChecks.PullRequest) -> some View {
+        Button(role: .destructive) {
+            Haptics.tap()
+            let deletes = deletes
+            AppLock.shared.confirm("Bypass the rules and merge \(pr.noun) \(pr.ref)") {
+                store.merge(project, method: method, deleteBranch: deletes, bypass: true)
+            }
+        } label: {
+            busyLabel("Bypass Rules and Merge", busy: merging)
+        }
+        .buttonStyle(.bordered)
+        .tint(.red)
+        .controlSize(.large)
+        .disabled(merging || arming)
+        .listRowInsets(Self.buttonInsets)
+    }
+
+    private var cancelButton: some View {
+        Button {
+            Haptics.tap()
+            store.cancelMergeWhenReady(project)
+        } label: {
+            busyLabel("Cancel Merge", busy: arming)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.large)
+        .disabled(arming)
+        .listRowInsets(Self.buttonInsets)
+    }
+
+    private func busyLabel(_ title: String, busy: Bool, onColor: Bool = false) -> some View {
+        ZStack {
+            Text(title).fontWeight(.semibold).opacity(busy ? 0 : 1)
+            if busy { ProgressView().tint(onColor ? .white : nil) }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// The CI sheet while the Mac waits to merge once the checks pass: what it will
+/// do (the desktop's PR card while armed).
+private struct ArmedMergeRow: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "clock").foregroundStyle(.orange).frame(width: 22)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Merging when checks pass").font(.body.weight(.semibold))
+                Text(text).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
     }
 }
 

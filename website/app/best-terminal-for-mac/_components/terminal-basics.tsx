@@ -31,7 +31,7 @@ const BASICS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: Palette,
     title: "Themes and fonts",
-    body: "Eight color themes, including Dracula, Nord, and One Dark, any installed monospace font, and ⌘+ / ⌘− to resize.",
+    body: "Eight color themes, including Dracula, Nord, and One Dark, any installed monospace font, and ⌘+ / ⌘− to resize. Or take the font, size and colors from Ghostty, iTerm2, Kitty or Alacritty in one click.",
   },
   {
     icon: Link2,

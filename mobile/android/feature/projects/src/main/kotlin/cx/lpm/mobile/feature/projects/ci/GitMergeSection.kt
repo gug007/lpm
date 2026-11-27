@@ -39,12 +39,18 @@ import cx.lpm.mobile.core.model.GitMergeMethod
 import cx.lpm.mobile.core.model.GitMergeStatus
 import cx.lpm.mobile.core.model.MergedPullRequest
 import cx.lpm.mobile.core.model.mergeStatus
+import cx.lpm.mobile.core.model.waitText
 import cx.lpm.mobile.feature.projects.R
 import kotlinx.coroutines.delay
 
 /** What the sheet's merge section does. */
 internal class CiMergeActions(
     val merge: (GitMergeMethod, deleteBranch: Boolean) -> Unit = { _, _ -> },
+    /** Merges now, past the base branch's rules. */
+    val bypass: (GitMergeMethod, deleteBranch: Boolean) -> Unit = { _, _ -> },
+    val mergeWhenReady: (GitMergeMethod, deleteBranch: Boolean, bypass: Boolean) -> Unit =
+        { _, _, _ -> },
+    val cancelWhenReady: () -> Unit = {},
     val pickMethod: (GitMergeMethod) -> Unit = {},
     val reload: () -> Unit = {}
 )
@@ -52,7 +58,8 @@ internal class CiMergeActions(
 /**
  * The CI sheet's last step (iOS `GitMergeSection`): merging the branch's open pull
  * request once GitHub says it can go, with a method the repository allows and its
- * branch deleted on GitHub. The Mac's working copy stays as it is.
+ * branch deleted on GitHub, or once its running checks pass, or past the rules holding
+ * it back. The Mac's working copy stays as it is.
  */
 @Composable
 internal fun GitMergeSection(state: GitChecksUiState, checks: GitChecks, actions: CiMergeActions) {
@@ -60,7 +67,7 @@ internal fun GitMergeSection(state: GitChecksUiState, checks: GitChecks, actions
     val pr = checks.pr ?: return
     val status = checks.mergeStatus
     if (!state.canMerge || state.merged != null || status == null) return
-    val offer = pr.merge
+    val offer = pr.merge ?: return
     val reload by rememberUpdatedState(actions.reload)
     LaunchedEffect(status) {
         if (status != GitMergeStatus.Checking) return@LaunchedEffect
@@ -69,16 +76,31 @@ internal fun GitMergeSection(state: GitChecksUiState, checks: GitChecks, actions
     }
     val colors = LpmTheme.colors
     val ready = status is GitMergeStatus.Ready
+    val waits = status == GitMergeStatus.WaitingForChecks && state.canMergeWhenReady
+    val bypassable = state.canMergeWhenReady && offer.bypassable &&
+        (status is GitMergeStatus.Blocked || status == GitMergeStatus.WaitingForChecks)
+    val armed = checks.mergeWatch?.takeIf { it.waiting && it.number == pr.number }
     val error = state.mergeError
+    val footer = when {
+        error != null -> error
+        armed != null -> null
+        ready && offer.deletesBranch -> stringResource(R.string.ci_merge_deletes_branch)
+        waits -> checks.waitText(bypass = offer.bypassable)
+        bypassable -> stringResource(R.string.ci_merge_bypass_footer, offer.baseName, pr.site)
+        else -> null
+    }
     ListSection(
-        footer = error ?: stringResource(R.string.ci_merge_deletes_branch).takeIf {
-            ready && offer?.deletesBranch == true
-        },
+        footer = footer,
         footerColor = if (error != null) colors.red else colors.secondaryLabel
     ) {
+        if (armed != null) {
+            ArmedMergeRow(armed.armedText(offer.baseName, pr.site))
+            CancelMergeButton(busy = state.arming, onClick = actions.cancelWhenReady)
+            return@ListSection
+        }
         MergeStatusRow(status)
-        if (!ready) return@ListSection
-        val methods = offer?.methods.orEmpty()
+        if (!ready && !waits && !bypassable) return@ListSection
+        val methods = offer.methods
         val method = state.selectedMethod
         if (methods.size > 1) {
             PickerRow(
@@ -89,7 +111,7 @@ internal fun GitMergeSection(state: GitChecksUiState, checks: GitChecks, actions
                 optionLabel = { it.label }
             )
         }
-        if (offer?.deletesBranch == false) {
+        if (!offer.deletesBranch) {
             ToggleRow(
                 title = stringResource(R.string.ci_merge_delete_branch),
                 checked = deleteBranch,
@@ -98,21 +120,87 @@ internal fun GitMergeSection(state: GitChecksUiState, checks: GitChecks, actions
         }
         val haptics = LocalHapticFeedback.current
         val confirmRisky = LocalConfirmRisky.current
-        ProminentButton(
-            text = stringResource(R.string.ci_merge_button, pr.ref),
-            onClick = {
-                haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
-                val deletes = offer?.deletesBranch == true || deleteBranch
-                confirmRisky.confirm("Merge ${pr.noun} ${pr.ref}") {
-                    actions.merge(method, deletes)
-                }
-            },
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            busy = state.merging,
-            enabled = !state.merging,
-            containerColor = colors.green
-        )
+        val deletes = offer.deletesBranch || deleteBranch
+        val tapThenConfirm = { reason: String, action: () -> Unit ->
+            haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+            confirmRisky.confirm(reason, action)
+        }
+        if (ready) {
+            ProminentButton(
+                text = stringResource(R.string.ci_merge_button, pr.ref),
+                onClick = {
+                    tapThenConfirm("Merge ${pr.noun} ${pr.ref}") { actions.merge(method, deletes) }
+                },
+                modifier = ButtonPadding,
+                busy = state.merging,
+                enabled = !state.merging,
+                containerColor = colors.green
+            )
+        }
+        if (waits) {
+            ProminentButton(
+                text = stringResource(R.string.ci_merge_when_ready),
+                onClick = {
+                    tapThenConfirm("Merge ${pr.noun} ${pr.ref} when checks pass") {
+                        actions.mergeWhenReady(method, deletes, offer.bypassable)
+                    }
+                },
+                modifier = ButtonPadding,
+                busy = state.arming,
+                enabled = !state.arming && !state.merging,
+                containerColor = colors.green
+            )
+        }
+        if (bypassable) {
+            ProminentButton(
+                text = stringResource(R.string.ci_merge_bypass),
+                onClick = {
+                    tapThenConfirm("Bypass the rules and merge ${pr.noun} ${pr.ref}") {
+                        actions.bypass(method, deletes)
+                    }
+                },
+                modifier = ButtonPadding,
+                busy = state.merging,
+                enabled = !state.merging && !state.arming,
+                containerColor = colors.red.copy(alpha = BORDERED_TINT_ALPHA),
+                contentColor = colors.red,
+                spinnerColor = colors.gray
+            )
+        }
     }
+}
+
+/** Cancel Merge: stops the Mac's wait (`.bordered`). */
+@Composable
+private fun CancelMergeButton(busy: Boolean, onClick: () -> Unit) {
+    val colors = LpmTheme.colors
+    val haptics = LocalHapticFeedback.current
+    ProminentButton(
+        text = stringResource(R.string.ci_merge_cancel),
+        onClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
+            onClick()
+        },
+        modifier = ButtonPadding,
+        busy = busy,
+        enabled = !busy,
+        containerColor = colors.secondarySystemFill,
+        contentColor = colors.tint,
+        spinnerColor = colors.gray
+    )
+}
+
+/**
+ * The CI sheet while the Mac waits to merge once the checks pass: what it will do (the
+ * desktop's PR card while armed).
+ */
+@Composable
+private fun ArmedMergeRow(text: String) {
+    MergeRow(
+        title = stringResource(R.string.ci_merge_armed),
+        detail = text,
+        leading = { StatusIcon(DesignR.drawable.ic_schedule, LpmTheme.colors.orange) }
+    )
 }
 
 /** "Ready to merge", or why it can't merge yet. */
@@ -200,4 +288,6 @@ private fun StatusIcon(drawable: Int, tint: Color) {
 }
 
 private val StatusSlot = ListLeadingSlot(width = 22.dp, spacing = 10.dp)
+private val ButtonPadding = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+private const val BORDERED_TINT_ALPHA = 0.15f
 private const val RECHECK_MS = 3_000L

@@ -1,6 +1,7 @@
 package cx.lpm.mobile.core.data.client
 
 import cx.lpm.mobile.core.model.GitConflictOp
+import cx.lpm.mobile.core.model.GitMergeWatch
 import cx.lpm.mobile.core.protocol.Wire
 import kotlinx.serialization.json.JsonObject
 
@@ -163,8 +164,12 @@ fun LpmClient.requestGitDiff(project: String, path: String) = send(Wire.gitDiff(
 fun LpmClient.requestGitDiffs(project: String, paths: List<String>) =
     send(Wire.gitDiffs(project, paths))
 
-fun LpmClient.gitCommit(project: String, message: String, files: List<String>) =
-    send(Wire.gitCommit(project, message, files))
+fun LpmClient.gitCommit(
+    project: String,
+    message: String,
+    files: List<String>,
+    skipHooks: Boolean = false
+) = send(Wire.gitCommit(project, message, files, skipHooks))
 
 fun LpmClient.gitPush(project: String) = send(Wire.gitPush(project))
 
@@ -202,8 +207,14 @@ fun LpmClient.requestGitMergePr(
     number: Int,
     method: String,
     head: String,
-    deleteBranch: Boolean
-) = send(Wire.gitMergePr(project, number, method, head, deleteBranch))
+    deleteBranch: Boolean,
+    bypass: Boolean = false
+) = send(Wire.gitMergePr(project, number, method, head, deleteBranch, bypass))
+
+fun LpmClient.requestGitMergePrWhenReady(project: String, watch: GitMergeWatch) =
+    send(Wire.gitMergePrWhenReady(project, watch))
+
+fun LpmClient.requestGitMergePrCancel(project: String) = send(Wire.gitMergePrCancel(project))
 
 fun LpmClient.requestGitCommitFiles(project: String, hash: String) =
     send(Wire.gitCommitFiles(project, hash))

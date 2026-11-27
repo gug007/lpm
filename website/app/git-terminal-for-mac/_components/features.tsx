@@ -38,7 +38,7 @@ const FEATURES: Feature[] = [
   {
     icon: GitPullRequestArrow,
     title: "From commit to pull request in one window",
-    body: "The Git bar under your terminals shows the branch, ahead and behind counts, and how many files changed. Commit picks the files and drafts the message with AI; Create PR writes the title and description and opens it on GitHub.",
+    body: "The Git bar under your terminals shows the branch, ahead and behind counts, and how many files changed. Commit picks the files and drafts the message with AI; Create PR writes the title and description and opens it on GitHub, or as a merge request on GitLab.",
   },
   {
     icon: Layers,

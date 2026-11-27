@@ -2,6 +2,7 @@ import { Check, X } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 
 const KEEP = [
+  "The font, size and colors of your default iTerm2 profile — one click in Settings → Terminal",
   "Search inside any pane",
   "10,000 lines of scrollback in every pane",
   "Clickable links",
@@ -18,7 +19,7 @@ const GIVE_UP = [
   "The Python scripting API",
   "tmux control mode rendered as native tabs",
   "Scrollback you can set as high as you like, or leave unlimited",
-  "Every keybinding and profile you have tuned in iTerm2 — those do not transfer",
+  "Your keybindings, your other profiles, and every profile setting beyond font, size and colors — those do not transfer",
 ];
 
 export function KeepGiveUp() {

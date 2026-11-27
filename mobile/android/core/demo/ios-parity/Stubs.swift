@@ -2,8 +2,8 @@ import CryptoKit
 import Foundation
 
 // The few app types the Demo*.swift files and the helpers copied with them use, from
-// ClaudeAccountModel.swift, LpmProtocol.swift and FileEditScreen.swift, so the demo
-// compiles on its own.
+// ClaudeAccountModel.swift, LpmProtocol.swift, ProjectAgents.swift and
+// FileEditScreen.swift, so the demo compiles on its own.
 
 enum FileEditScreen {
     static func sha256(_ data: Data) -> String {
@@ -59,4 +59,9 @@ enum Wire {
               let s = String(data: data, encoding: .utf8) else { return "{}" }
         return s
     }
+}
+
+extension AgentState {
+    /// Mid-task: working, or stopped on a question.
+    var isBusy: Bool { self == .working || self == .needsYou }
 }

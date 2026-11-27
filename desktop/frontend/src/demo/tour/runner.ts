@@ -53,7 +53,7 @@ export class TourRunner {
         const due = t0 + this.steps[i].beatMs - 900;
         await wait(Math.max(0, due - performance.now()));
         if (token !== this.run) return;
-        await this.perform(i, false, token);
+        if (!(await this.perform(i, false, token))) break;
       }
       await wait(FADE_AFTER_MS);
       if (token !== this.run) return;
@@ -68,7 +68,7 @@ export class TourRunner {
     const token = this.cancel();
     this.enqueue(async () => {
       for (let i = this.stage(); i <= index && i < this.steps.length; i++) {
-        await this.perform(i, i !== index, token);
+        if (!(await this.perform(i, i !== index, token))) break;
       }
       await wait(FADE_AFTER_MS);
       if (token === this.run) cursor.hide();
@@ -81,7 +81,7 @@ export class TourRunner {
     const token = this.cancel();
     const end = Math.min(last, this.steps.length - 1);
     this.enqueue(async () => {
-      for (let i = this.stage(); i <= end; i++) await this.perform(i, true, token);
+      for (let i = this.stage(); i <= end; i++) if (!(await this.perform(i, true, token))) break;
     });
   }
 
@@ -103,8 +103,10 @@ export class TourRunner {
     this.queue = this.queue.then(job, job).catch((err) => console.warn("[demo tour]", err));
   }
 
-  private async perform(index: number, quiet: boolean, token: number): Promise<void> {
-    if (this.landed.has(index) || stepDone(this.steps, index)) return;
+  // Whether the step happened. One that didn't stays unticked and stops the
+  // run, as the steps after it build on it.
+  private async perform(index: number, quiet: boolean, token: number): Promise<boolean> {
+    if (this.landed.has(index) || stepDone(this.steps, index)) return true;
     const step = this.steps[index];
     const ctx: StepContext = {
       project: stepProject(this.steps, index),
@@ -125,9 +127,12 @@ export class TourRunner {
       if (landed) await waitFor(landed, LAND_MS);
     } catch (err) {
       console.warn(`[demo tour] step ${index} (${step.id}) did not land:`, err);
+      this.publish();
+      return false;
     }
     this.landed.add(index);
     this.publish();
+    return true;
   }
 }
 

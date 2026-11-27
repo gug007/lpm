@@ -167,7 +167,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: "Do I lose my iTerm2 profiles and keybindings?",
     answer:
-      "They do not transfer, and that is a real cost. It is also why the recommendation here is to run both rather than switch.",
+      "The look comes with you; the rest does not. Settings → Terminal reads your default iTerm2 profile and, in one click, gives lpm's terminals its font, size and colors, without changing anything in iTerm2. Your keybindings, your other profiles and every other profile setting do not transfer, and that is a real cost. It is also why the recommendation here is to run both rather than switch.",
   },
 ];
 

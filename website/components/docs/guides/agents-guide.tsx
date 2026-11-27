@@ -62,7 +62,8 @@ export function AgentsGuide() {
             {STATUS_AGENT_NAMES} report on their own. Any other agent can post
             the same states with <code className={CODE}>lpm set-status</code>.
           </>,
-          "Claude Code and Codex also get session tools: resume a past conversation, fork one into a new tab, and switch model or effort from the menu next to Send.",
+          "Resume session lists past conversations from Claude Code, Codex, Gemini CLI, OpenCode and Cursor CLI, and reopens one in a new tab. Claude Code and Codex also let you fork a conversation into a new tab and switch model or effort from the menu next to Send.",
+          "Shift+Tab in the composer goes to the agent, so it switches the agent's mode, such as plan or accept edits, as it does in the agent's own CLI.",
         ]}
       />
 

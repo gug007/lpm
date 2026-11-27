@@ -3,6 +3,7 @@ package cx.lpm.mobile.feature.git.review
 import androidx.compose.runtime.Immutable
 import cx.lpm.mobile.core.data.git.GitNotice
 import cx.lpm.mobile.core.data.git.GitOpError
+import cx.lpm.mobile.core.model.CommitHookFailure
 import cx.lpm.mobile.core.model.GitFile
 import cx.lpm.mobile.core.model.SecretFinding
 import cx.lpm.mobile.core.model.TerminalInfo
@@ -64,6 +65,8 @@ data class GitReviewUiState(
     /** Bumped by each commit that lands (after its push, if it pushes), which closes the commit sheet. */
     val commitTick: Int = 0,
     val opError: GitOpError? = null,
+    /** The git hook that stopped the last commit, which the commit sheet's panel shows. */
+    val hook: CommitHookFailure? = null,
     val notice: GitNotice? = null,
     /** The Mac discards one file's changes: each file's "…" offers "Discard Changes…". */
     val canDiscardFiles: Boolean = false,

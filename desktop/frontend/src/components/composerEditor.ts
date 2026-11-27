@@ -54,7 +54,8 @@ export const FILE_CHIP_LABEL_CLASS = "max-w-[160px] truncate";
 // "×" overlay — click it to drop the attachment; click the label to preview it.
 // Unlike the history chip it stays selectable, so a selection over it paints the
 // chip as selected.
-const CHIP_CLASS = `group ${IMAGE_CHIP_BASE_CLASS} cursor-zoom-in transition-colors hover:bg-[#38bdf8]/30`;
+const chipClass = (cursor: string) =>
+  `group ${IMAGE_CHIP_BASE_CLASS} ${cursor} transition-colors hover:bg-[#38bdf8]/30`;
 
 const THUMB_CLASS = `${IMAGE_CHIP_THUMB_CLASS} cursor-pointer text-[var(--text-secondary)] transition-colors hover:text-[var(--accent-red)]`;
 
@@ -64,18 +65,17 @@ const THUMB_CLASS = `${IMAGE_CHIP_THUMB_CLASS} cursor-pointer text-[var(--text-s
 const REMOVE_OVERLAY_CLASS =
   "absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100";
 
-const PLACEHOLDER_ICON =
-  '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="m21 15-5-5L7 21"/></svg>';
-// Resting avatar glyphs for a non-image attachment chip, by file category. Same
-// stroke style and hover-fade as PLACEHOLDER_ICON so the "×" overlay reads over them.
-const DOC_ICON =
-  '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
-const VIDEO_ICON =
-  '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>';
-const AUDIO_ICON =
-  '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
-const FOLDER_ICON =
-  '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+// A chip's resting avatar glyph: one stroke style, fading out on hover so the
+// "×" overlay reads over it.
+export const chipIcon = (shapes: string) =>
+  `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="transition-opacity group-hover:opacity-0">${shapes}</svg>`;
+
+const PLACEHOLDER_ICON = chipIcon('<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="1.6"/><path d="m21 15-5-5L7 21"/>');
+// Non-image attachments, by file category.
+const DOC_ICON = chipIcon('<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>');
+const VIDEO_ICON = chipIcon('<path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/>');
+const AUDIO_ICON = chipIcon('<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>');
+const FOLDER_ICON = chipIcon('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>');
 const VIDEO_EXT_RE = /\.(mp4|mov|webm|mkv|avi|m4v|flv|wmv|mpe?g)$/i;
 const AUDIO_EXT_RE = /\.(mp3|wav|m4a|aac|flac|ogg|oga|opus|aiff?)$/i;
 
@@ -88,18 +88,39 @@ function fileIconSvg(path: string): string {
 const REMOVE_ICON =
   '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
-export function createImageChip(n: number): HTMLSpanElement {
+export interface ChipLook {
+  // `data-img`: an attachment's number, or any non-number for a chip that isn't one.
+  id: string;
+  cursor: string;
+  avatar: string;
+  // What its "×" removes: "image", "project".
+  noun: string;
+  label: string;
+  labelClass?: string;
+}
+
+// The markup every composer chip shares, so the hover "×", remove, select and
+// Backspace handling apply to each as is.
+export function createChip(look: ChipLook): HTMLSpanElement {
   const chip = document.createElement("span");
-  chip.dataset.img = String(n);
+  chip.dataset.img = look.id;
   chip.contentEditable = "false";
-  chip.className = CHIP_CLASS;
+  chip.className = chipClass(look.cursor);
   chip.innerHTML =
-    `<span data-img-remove="${n}" data-img-thumb role="button" aria-label="Remove image" title="Remove image" class="${THUMB_CLASS}">` +
-    `<span data-img-ph class="absolute inset-0 flex items-center justify-center text-[var(--text-muted)]">${PLACEHOLDER_ICON}</span>` +
+    `<span data-img-remove="${look.id}" data-img-thumb role="button" aria-label="Remove ${look.noun}" title="Remove ${look.noun}" class="${THUMB_CLASS}">` +
+    `<span data-img-ph class="absolute inset-0 flex items-center justify-center text-[var(--text-muted)]">${look.avatar}</span>` +
     `<span class="${REMOVE_OVERLAY_CLASS}">${REMOVE_ICON}</span>` +
-    `</span>` +
-    `<span data-img-label>Image ${n}</span>`;
+    `</span>`;
+  const label = document.createElement("span");
+  label.dataset.imgLabel = "";
+  if (look.labelClass) label.className = look.labelClass;
+  label.textContent = look.label;
+  chip.appendChild(label);
   return chip;
+}
+
+export function createImageChip(n: number): HTMLSpanElement {
+  return createChip({ id: String(n), cursor: "cursor-zoom-in", avatar: PLACEHOLDER_ICON, noun: "image", label: `Image ${n}` });
 }
 
 // Re-skin an image chip (createImageChip) as a generic file attachment: a

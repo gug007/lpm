@@ -79,6 +79,12 @@ export const CLI_AREA: FeatureArea = {
       mono: true,
     },
     {
+      title: "lpm awake",
+      body: "Keep the computer awake from any terminal or agent: lpm awake +1h, lpm awake 18:00, lpm awake agents, or lpm awake off.",
+      mono: true,
+      since: "0.7.66",
+    },
+    {
       title: "lpm pair · lpm mobile pair",
       body: "Pair a headless server with your computer or an iPhone from its terminal. The phone's QR code draws right in the shell.",
       mono: true,

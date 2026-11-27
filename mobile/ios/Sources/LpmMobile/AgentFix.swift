@@ -1,6 +1,14 @@
 import Foundation
 
 extension AppModel {
+    /// What a Fix with … row offers on `project`: its agents, and `actions` where
+    /// the Mac takes a prompt with one. Nil until the agents are listed.
+    func fixTabs(_ project: String, actions: [Action]) -> [LaunchpadTab]? {
+        agentLaunch.options.map {
+            launchpadTabs(canPromptActions ? actions : [], project: project, agents: $0, skipOwnTasks: true)
+        }
+    }
+
     /// Starts a Fix with … row's pick in a new tab, `prompt` its agent's first
     /// prompt: the bare agent, or `action` with its input `values`. An item run
     /// from a `last-used` split becomes the one it leads with, as on the desktop.

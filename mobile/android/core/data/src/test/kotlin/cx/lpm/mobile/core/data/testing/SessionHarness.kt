@@ -32,6 +32,7 @@ import cx.lpm.mobile.core.data.push.AgentAnswers
 import cx.lpm.mobile.core.data.push.PushRegistrar
 import cx.lpm.mobile.core.data.push.PushStore
 import cx.lpm.mobile.core.data.push.ResolvedPush
+import cx.lpm.mobile.core.data.push.WaitingHeadsUp
 import cx.lpm.mobile.core.data.services.ServiceLogsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionEnvironment
@@ -123,7 +124,8 @@ class SessionHarness(test: TestScope) {
             SessionStore.Factory(::AgentDialogStore),
             SessionStore.Factory(::ConversationStore),
             SessionStore.Factory(::ProjectFilesStore),
-            SessionStore.Factory { PushStore(it, registrar, answers) }
+            SessionStore.Factory { PushStore(it, registrar, answers) },
+            SessionStore.Factory(::WaitingHeadsUp)
         )
     )
     val session = MacSession(env, visitHost = null)

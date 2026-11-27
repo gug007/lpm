@@ -202,6 +202,28 @@ class PushMessageTest {
     }
 
     @Test
+    fun aPermissionPromptShowsWhatAllowApproves() {
+        val alert = PushAlert.parse(
+            json(
+                """{"project":"api","terminal":"Claude","terminalId":"t-1","key":"k","ts":5,""" +
+                    """"status":"Waiting","actions":["allow","deny"],"dialog":{"id":"abc",""" +
+                    """"question":"Do you want to proceed?","details":["Bash command",""" +
+                    """"npm run db:migrate"],"allow":"Yes","allowKey":"1"}}"""
+            )
+        )!!
+        assertEquals("Claude — Do you want to proceed?", alert.body)
+        assertEquals("Bash command\nnpm run db:migrate", alert.dialog?.text)
+        val allow = alert.answer(AgentAnswerAction.Allow)
+        assertEquals("abc", allow?.dialog)
+        assertEquals("1", allow?.option)
+        assertNull(alert.answer(AgentAnswerAction.Deny)?.dialog)
+        assertEquals(
+            "Allow picks “Yes, allow all edits”",
+            alert.dialog?.copy(details = emptyList(), allow = "Yes, allow all edits")?.text
+        )
+    }
+
+    @Test
     fun aWithdrawalNamesEntriesAndItsMac() {
         val clear = PushClear.parse(
             json(

@@ -67,16 +67,23 @@ class NoteChatViewModel @AssistedInject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initial)
 
     init {
-        // Hold the text until the Mac accepts it, so a failed send doesn't swallow
-        // what the user wrote.
+        // Hold what was written until the Mac says it has it, so a failed send or a
+        // dropped link never swallows it; each part it takes goes from the draft.
         viewModelScope.launch {
-            var wasSending = false
+            var lastTick: Int? = null
             sessions.session(key.session).filterNotNull()
                 .flatMapLatest { it.store<NotesStore>().state }
                 .collect { s ->
-                    val sending = chatKey in s.sending
-                    if (wasSending && !sending && chatKey !in s.sendError) draft.value = NoteDraft()
-                    wasSending = sending
+                    val part = s.accepted[chatKey]
+                    val seen = lastTick
+                    lastTick = part?.tick ?: 0
+                    if (seen == null || part == null || part.tick <= seen) return@collect
+                    draft.update { d ->
+                        d.copy(
+                            text = if (part.text) "" else d.text,
+                            pending = d.pending.drop(part.attachments)
+                        )
+                    }
                 }
         }
     }

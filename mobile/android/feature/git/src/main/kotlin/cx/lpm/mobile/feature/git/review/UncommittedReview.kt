@@ -92,6 +92,7 @@ internal fun uncommittedReviewState(
             project !in e.scanning,
         commitTick = g.commitTick[project] ?: 0,
         opError = g.opError[project],
+        hook = g.hookFailures[project],
         notice = g.notice[project],
         canDiscardFiles = canDiscardFiles,
         discarding = project in g.discarding,

@@ -178,7 +178,9 @@ sealed interface WireSession {
         ts: Long,
         action: String,
         text: String?,
-        reqId: String
+        reqId: String,
+        dialog: String? = null,
+        option: String? = null
     ): String = frame("answerAgent") {
         put("project", project)
         put("terminalId", terminalId)
@@ -186,6 +188,10 @@ sealed interface WireSession {
         put("ts", ts)
         put("action", action)
         text?.let { put("text", it) }
+        if (dialog != null && option != null) {
+            put("dialog", dialog)
+            put("option", option)
+        }
         put("reqId", reqId)
     }
 

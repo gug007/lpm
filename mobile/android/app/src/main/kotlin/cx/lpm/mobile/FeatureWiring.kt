@@ -17,6 +17,7 @@ import cx.lpm.mobile.feature.connection.ConnectionStatusBarRoute
 import cx.lpm.mobile.feature.connection.IssueCardRoute
 import cx.lpm.mobile.feature.connection.TailnetSettingsPage
 import cx.lpm.mobile.feature.connection.TerminalConnectionBannerRoute
+import cx.lpm.mobile.feature.git.GitSlots
 import cx.lpm.mobile.feature.mac.keepawake.KeepAwakeIndicatorRoute
 import cx.lpm.mobile.feature.mac.keepawake.KeepAwakeMenuRoute
 import cx.lpm.mobile.feature.mac.machines.PairDirectlyRoute
@@ -29,6 +30,7 @@ import cx.lpm.mobile.feature.mac.update.liveMacVersion
 import cx.lpm.mobile.feature.memory.composer.ComposerMemorySheet
 import cx.lpm.mobile.feature.pairing.IssueCardSlot
 import cx.lpm.mobile.feature.projects.ProjectsSlots
+import cx.lpm.mobile.feature.projects.ci.AgentFixRows
 import cx.lpm.mobile.feature.projects.duplicate.DuplicateProjectSheet
 import cx.lpm.mobile.feature.projects.menu.ProjectMenuToolbar
 import cx.lpm.mobile.feature.projects.services.ServiceEditorSheet
@@ -152,6 +154,22 @@ internal val settingsSlots = SettingsSlots(
         SettingsPage(stringResource(SpeechR.string.speech_title), onBack) { SpeechSettings() }
     },
     macVersion = { liveMacVersion() }
+)
+
+internal val gitSlots = GitSlots(
+    fixRows = { session, project, detail, prompt, onStart, onSpawned ->
+        AgentFixRows(
+            session = session,
+            project = project,
+            detail = detail,
+            prompt = prompt,
+            onStart = onStart,
+            onSpawnedTerminal = onSpawned,
+            actionInputs = { action, onSubmit, onDismiss ->
+                ActionInputsSheet(action, onSubmit, onDismiss)
+            }
+        )
+    }
 )
 
 internal val configSlots = ConfigSlots(

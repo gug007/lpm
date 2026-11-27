@@ -16,6 +16,7 @@ import cx.lpm.mobile.core.model.CiCheck
 import cx.lpm.mobile.core.model.CiFixLoop
 import cx.lpm.mobile.core.model.GitChecks
 import cx.lpm.mobile.core.model.GitMergeMethod
+import cx.lpm.mobile.core.model.HapticCue
 import cx.lpm.mobile.core.model.LaunchpadOption
 import cx.lpm.mobile.core.model.LaunchpadTab
 import cx.lpm.mobile.core.model.MergedPullRequest
@@ -60,7 +61,13 @@ data class GitChecksUiState(
     val step: ActionRunStep? = null,
     /** The Mac merges pull requests (`gitMergePr`). */
     val canMerge: Boolean = false,
+    /** The Mac merges once the checks pass, and past the rules (`gitMergeWhenReady`). */
+    val canMergeWhenReady: Boolean = false,
     val merging: Boolean = false,
+    /** Merge When Checks Pass being armed or cancelled. */
+    val arming: Boolean = false,
+    /** How arming it last went, felt while the sheet shows. */
+    val mergeFeedback: HapticCue? = null,
     val mergeError: String? = null,
     /** The pull request this phone just merged, until the sheet closes. */
     val merged: MergedPullRequest? = null,
@@ -159,7 +166,10 @@ class GitChecksViewModel @AssistedInject constructor(
             fixTabs = tabs,
             step = step,
             canMerge = store.canMerge,
+            canMergeWhenReady = store.canMergeWhenReady,
             merging = project in ci.merging,
+            arming = project in ci.arming,
+            mergeFeedback = ci.mergeFeedback[project],
             mergeError = ci.mergeErrors[project],
             merged = ci.merged[project],
             mergeMethod = method,
@@ -198,6 +208,19 @@ class GitChecksViewModel @AssistedInject constructor(
 
     fun merge(method: GitMergeMethod, deleteBranch: Boolean) {
         session?.store<GitChecksStore>()?.merge(project, method, deleteBranch)
+    }
+
+    /** Merges now, past the base branch's rules. */
+    fun bypassAndMerge(method: GitMergeMethod, deleteBranch: Boolean) {
+        session?.store<GitChecksStore>()?.merge(project, method, deleteBranch, bypass = true)
+    }
+
+    fun mergeWhenReady(method: GitMergeMethod, deleteBranch: Boolean, bypass: Boolean) {
+        session?.store<GitChecksStore>()?.mergeWhenReady(project, method, deleteBranch, bypass)
+    }
+
+    fun cancelMergeWhenReady() {
+        session?.store<GitChecksStore>()?.cancelMergeWhenReady(project)
     }
 
     fun pickMergeMethod(method: GitMergeMethod) {

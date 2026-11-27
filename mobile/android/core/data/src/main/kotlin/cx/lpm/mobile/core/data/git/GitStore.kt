@@ -14,6 +14,7 @@ import cx.lpm.mobile.core.data.review.noteWin
 import cx.lpm.mobile.core.data.session.GenerationTimeout
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.model.CommitHookFailure
 import cx.lpm.mobile.core.model.GitConflictOp
 import cx.lpm.mobile.core.model.GitDiffResult
 import cx.lpm.mobile.core.model.GitSnapshot
@@ -47,6 +48,7 @@ class GitStore(private val session: MacSession) : SessionStore {
         watched = { it in watching },
         refresh = ::refreshWatched
     )
+    private val hooks = GitCommitHooks(mutable)
     private val changedWork = mutableMapOf<String, Job>()
 
     // Review screens open: only they prefetch every file's diff with the snapshot.
@@ -72,7 +74,7 @@ class GitStore(private val session: MacSession) : SessionStore {
                 entries.forEach { diffs.apply(project, it.path, it.result, it.error) }
             }
         }
-        c.onGitCommit = { project, error -> finish(GitOpCopy.Commit, project, error) }
+        c.onGitCommit = { project, error, hook -> finish(GitOpCopy.Commit, project, error, hook) }
         c.onGitPush = { project, error -> finish(GitOpCopy.Push, project, error) }
         c.onGitPull = { project, error -> finish(GitOpCopy.Pull, project, error) }
         c.onGitFetch = { project, error -> finish(GitOpCopy.Fetch, project, error) }
@@ -184,16 +186,27 @@ class GitStore(private val session: MacSession) : SessionStore {
         load(project)
     }
 
-    fun commit(project: String, message: String, files: List<String>) =
-        start(GitOpCopy.Commit, project) { it.gitCommit(project, message, files) }
+    /** [skipHooks] only from the hook panel's Commit Without Hooks ([commitWithoutHooks]). */
+    fun commit(project: String, message: String, files: List<String>, skipHooks: Boolean = false) {
+        if (project in state.value.committing) return
+        hooks.asked(project, message, files)
+        start(GitOpCopy.Commit, project) { it.gitCommit(project, message, files, skipHooks) }
+    }
 
     /** Commit, then push once the commit lands. A failed push keeps the commit. */
-    fun commitAndPush(project: String, message: String, files: List<String>) {
+    fun commitAndPush(
+        project: String,
+        message: String,
+        files: List<String>,
+        skipHooks: Boolean = false
+    ) {
         val s = state.value
         if (project in s.committing || project in s.pushing) return
         mutable.update { it.copy(commitPushing = it.commitPushing + project) }
-        commit(project, message, files)
+        commit(project, message, files, skipHooks)
     }
+
+    fun dismissHookFailure(project: String) = hooks.dismiss(project)
 
     fun genMessage(project: String, files: List<String>) =
         start(GitOpCopy.GenMessage, project) { it.gitGenMessage(project, files) }
@@ -304,9 +317,15 @@ class GitStore(private val session: MacSession) : SessionStore {
         }
     }
 
-    private fun finish(copy: GitOpCopy, project: String, error: String?) {
+    private fun finish(
+        copy: GitOpCopy,
+        project: String,
+        error: String?,
+        hook: CommitHookFailure? = null
+    ) {
         timeout.cancel(gitTimeoutKey(copy.op.name, project))
         mutable.update { copy.op.mark(it, project, false) }
+        if (hook != null) return hooks.stopped(project, hook)
         if (copy == GitOpCopy.Commit && project in state.value.commitPushing) {
             return finishCommitBeforePush(project, error)
         }

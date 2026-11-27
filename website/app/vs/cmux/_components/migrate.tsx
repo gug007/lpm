@@ -45,6 +45,11 @@ const EQUIVALENTS: Equivalent[] = [
     ),
     note: "Declared once per project, so every copy of that project has it too.",
   },
+  {
+    from: "your Ghostty font, size and colors",
+    to: "one click on Ghostty's row in Settings → Terminal",
+    note: "lpm reads ~/.config/ghostty/config, the file cmux reads. Colors come from that file or the theme it names, looked up in ~/.config/ghostty/themes and Ghostty.app; a theme that lives only inside cmux.app is not read, so its colors stay behind.",
+  },
 ];
 
 export default function Migrate() {

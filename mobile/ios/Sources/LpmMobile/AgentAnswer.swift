@@ -13,6 +13,10 @@ struct AgentAnswer: Equatable {
     let ts: Int
     let action: AgentAnswerAction
     let text: String?
+    /// For Allow: the dialog the notification showed and the choice it named,
+    /// so the Mac presses Enter only while that choice is still highlighted.
+    let dialog: String?
+    let option: String?
 
     init?(response: UNNotificationResponse) {
         guard let action = AgentAnswerAction(identifier: response.actionIdentifier) else { return nil }
@@ -31,6 +35,9 @@ struct AgentAnswer: Equatable {
         self.ts = ts
         self.action = action
         self.text = action == .reply ? text : nil
+        let shown = AgentAlertDialog(userInfo: info)
+        dialog = action == .allow ? shown?.id : nil
+        option = action == .allow ? shown?.allowKey : nil
     }
 
     var title: String { projectLabel.isEmpty ? project : projectLabel }

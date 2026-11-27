@@ -74,7 +74,9 @@ data class PendingShare(
     /** The shared text and links, a paragraph each. */
     val text: String,
     /** Milliseconds since the epoch, which orders the shares kept for later. */
-    val createdAt: Long
+    val createdAt: Long,
+    /** Why the Mac turned it down, once it did: it waits for Retry rather than going again. */
+    val failure: String? = null
 ) {
     /** What the agent is asked, with the shared images' paths on the Mac after it. */
     fun prompt(imagePaths: List<String>): String =

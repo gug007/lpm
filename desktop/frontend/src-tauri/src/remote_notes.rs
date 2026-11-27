@@ -83,7 +83,7 @@ fn run(app: &AppHandle, verb: &str, v: &Value) -> Value {
     let id = || string_at(v, "id");
 
     match verb {
-        "notesChats" => wrap("chats", notes_list_chats(state, project)),
+        "notesChats" => wrap("chats", chats_or_general(state, project)),
         "notesCreateChat" => wrap(
             "chat",
             notes_create_chat(state, project, string_at(v, "title")),
@@ -152,6 +152,21 @@ fn attachment(state: tauri::State<'_, NotesState>, project: String, hash: String
         Ok(data) => json!({ "ok": true, "data": data }),
         Err(e) => err(e),
     }
+}
+
+/// A project's chats, with the "General" chat the desktop seeds the first time
+/// its notes open made here when there is none yet, so a share or a note from
+/// the phone to a project never opened in Notes has somewhere to go.
+fn chats_or_general(
+    state: tauri::State<'_, NotesState>,
+    project: String,
+) -> Result<Vec<crate::notes_store::Chat>, String> {
+    let chats = notes_list_chats(state.clone(), project.clone())?;
+    if !chats.is_empty() {
+        return Ok(chats);
+    }
+    let general = crate::notes_store::DEFAULT_CHAT_TITLE.to_string();
+    Ok(vec![notes_create_chat(state, project, general)?])
 }
 
 fn wrap<T: Serialize>(key: &str, result: Result<T, String>) -> Value {

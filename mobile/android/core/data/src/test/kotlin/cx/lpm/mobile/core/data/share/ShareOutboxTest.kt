@@ -105,7 +105,11 @@ class ShareOutboxTest {
         sweep.join()
 
         assertEquals(listOf("A" to null, "E" to "No notes here."), told)
-        assertEquals(listOf("B", "F"), inbox.all().map { it.id })
+        // E stays for its Retry, marked so no sweep sends it again by itself.
+        assertEquals(listOf("B", "E", "F"), inbox.all().map { it.id })
+        assertEquals("No notes here.", inbox.all().single { it.id == "E" }.failure)
+        inbox.retry("E")
+        assertEquals(null, inbox.all().single { it.id == "E" }.failure)
         // F waits with B, without dialling its Mac again.
         assertEquals(1, h.prober.probed.count { it == "192.168.1.30" })
         assertEquals(2, h.transport.sockets.size)

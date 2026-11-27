@@ -232,7 +232,17 @@ fun LpmClient.sendLiveActivity(on: Boolean) = send(Wire.liveActivity(on))
 
 /** A notification's answer; live only, so a dead link times out rather than resending it. */
 fun LpmClient.answerAgent(a: AgentAnswer, reqId: String) = sendLive(
-    Wire.answerAgent(a.project, a.terminalId, a.key, a.ts, a.action.wire, a.text, reqId)
+    Wire.answerAgent(
+        a.project,
+        a.terminalId,
+        a.key,
+        a.ts,
+        a.action.wire,
+        a.text,
+        reqId,
+        a.dialog,
+        a.option
+    )
 )
 
 fun LpmClient.requestAgentDialog(project: String, terminalId: String) =

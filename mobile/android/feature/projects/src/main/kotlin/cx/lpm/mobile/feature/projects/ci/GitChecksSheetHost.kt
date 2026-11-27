@@ -56,6 +56,9 @@ internal fun GitChecksSheetHost(
         actionInputs = actionInputs,
         merge = CiMergeActions(
             merge = viewModel::merge,
+            bypass = viewModel::bypassAndMerge,
+            mergeWhenReady = viewModel::mergeWhenReady,
+            cancelWhenReady = viewModel::cancelMergeWhenReady,
             pickMethod = viewModel::pickMergeMethod,
             reload = viewModel::load
         )

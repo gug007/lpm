@@ -131,7 +131,7 @@ export function DemoSteps({ steps, tour, done, onRun, onRestart }: Props) {
         <div className="flex min-w-0 max-w-full items-center gap-2">
           <ol
             aria-label="What the demo is doing"
-            className="scrollbar-none flex min-w-0 items-center gap-1 overflow-x-auto"
+            className="flex min-w-0 flex-wrap items-center justify-center gap-x-1 gap-y-2"
           >
             {steps.map((step, i) => {
               const stepDone = i < tour.stage;
@@ -143,12 +143,6 @@ export function DemoSteps({ steps, tour, done, onRun, onRestart }: Props) {
                   key={`${step.id}-${i}`}
                   className="flex shrink-0 items-center gap-1"
                 >
-                  {i > 0 && (
-                    <span
-                      aria-hidden="true"
-                      className="h-px w-2.5 bg-gray-200 dark:bg-white/10"
-                    />
-                  )}
                   <button
                     type="button"
                     onClick={() => {
@@ -167,8 +161,13 @@ export function DemoSteps({ steps, tour, done, onRun, onRestart }: Props) {
                   >
                     <Marker index={i} done={stepDone} active={active} />
                     {step.title}
-                    {active && !tour.playing && (
-                      <span className="rounded-full bg-white/15 px-2 text-[11px] leading-[18px] dark:bg-gray-900/10">
+                    {/* Kept while the tour plays, so the row wraps the same way
+                        in every state and the window under it stays put. */}
+                    {active && (
+                      <span
+                        aria-hidden={tour.playing || undefined}
+                        className={`rounded-full bg-white/15 px-2 text-[11px] leading-[18px] dark:bg-gray-900/10 ${tour.playing ? "invisible" : ""}`}
+                      >
                         Run
                       </span>
                     )}
@@ -187,6 +186,14 @@ export function DemoSteps({ steps, tour, done, onRun, onRestart }: Props) {
                       </span>
                     )}
                   </button>
+                  {/* After its step, so a wrapped row breaks after a dash
+                      rather than starting a line with one. */}
+                  {i < steps.length - 1 && (
+                    <span
+                      aria-hidden="true"
+                      className="h-px w-2.5 bg-gray-200 dark:bg-white/10"
+                    />
+                  )}
                 </li>
               );
             })}

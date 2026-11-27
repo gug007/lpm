@@ -10,6 +10,7 @@ import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.prefs.PreferenceKeys
 import cx.lpm.mobile.core.data.session.SessionStore
 import cx.lpm.mobile.core.model.GitMergeMethod
+import cx.lpm.mobile.core.model.Haptic
 import cx.lpm.mobile.core.model.MergedPullRequest
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.core.testing.FakeSocket
@@ -65,7 +66,10 @@ class GitChecksViewModelTest {
             """"merge":{"mergeable":"MERGEABLE","state":"CLEAN","review":"APPROVED",""" +
             """"head":"4b8e2f1","methods":["merge","rebase"],"deletesBranch":false}}}"""
 
-    private fun TestScope.connected(actions: String = "[]"): Pair<TestSession, FakeSocket> {
+    private fun TestScope.connected(
+        actions: String = "[]",
+        more: List<String> = emptyList()
+    ): Pair<TestSession, FakeSocket> {
         val t = TestSession(
             this,
             setOf(
@@ -82,7 +86,7 @@ class GitChecksViewModelTest {
                 LpmClient.ACTION_PROMPT_FEATURE,
                 LpmClient.GIT_CHECKS_FEATURE,
                 LpmClient.GIT_MERGE_FEATURE
-            )
+            ) + more
         )
         socket.receive(
             """{"t":"projects","projects":[{"name":"storefront","running":true,"actions":$actions}]}"""
@@ -205,5 +209,40 @@ class GitChecksViewModelTest {
         vm.forgetMerge()
         testScheduler.runCurrent()
         assertNull(vm.uiState.value.merged)
+    }
+
+    @Test
+    fun `merge when checks pass arms, cancels and bypasses through the store`() = runTest {
+        val (t, socket) = connected(more = listOf(LpmClient.GIT_MERGE_WHEN_READY_FEATURE))
+        val vm = subscribed(t, socket)
+        socket.receive(mergeable.replace("\"state\":\"pass\"", "\"state\":\"pending\""))
+        testScheduler.runCurrent()
+        assertTrue(vm.uiState.value.canMergeWhenReady)
+
+        vm.mergeWhenReady(GitMergeMethod.MERGE, deleteBranch = false, bypass = false)
+        testScheduler.runCurrent()
+        assertTrue(vm.uiState.value.arming)
+        assertEquals(42, vm.uiState.value.checks?.mergeWatch?.number)
+        assertEquals(
+            JsonPrimitive("merge"),
+            socket.sentOf("gitMergePrWhenReady").single()["method"]
+        )
+
+        socket.receive("""{"t":"gitMergePrWhenReady","project":"storefront","ok":true}""")
+        testScheduler.runCurrent()
+        assertFalse(vm.uiState.value.arming)
+        assertEquals(Haptic.Success, vm.uiState.value.mergeFeedback?.haptic)
+
+        vm.cancelMergeWhenReady()
+        testScheduler.runCurrent()
+        assertEquals(1, socket.sentOf("gitMergePrCancel").size)
+        socket.receive("""{"t":"gitMergePrCancel","project":"storefront","ok":true}""")
+        testScheduler.runCurrent()
+        assertNull(vm.uiState.value.checks?.mergeWatch)
+
+        vm.bypassAndMerge(GitMergeMethod.REBASE, deleteBranch = true)
+        testScheduler.runCurrent()
+        assertTrue(vm.uiState.value.merging)
+        assertEquals(JsonPrimitive(true), socket.sentOf("gitMergePr").single()["bypass"])
     }
 }

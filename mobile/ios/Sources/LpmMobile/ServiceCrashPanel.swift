@@ -11,14 +11,8 @@ struct ServiceCrashPanel: View {
 
     @State private var copied = false
 
-    private var actions: [Action] {
-        guard model.canPromptActions else { return [] }
-        return model.projects.first { $0.name == project }?.actions ?? []
-    }
     private var tabs: [LaunchpadTab]? {
-        model.agentLaunch.options.map {
-            launchpadTabs(actions, project: project, agents: $0, skipOwnTasks: true)
-        }
+        model.fixTabs(project, actions: model.projects.first { $0.name == project }?.actions ?? [])
     }
 
     var body: some View {

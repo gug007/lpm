@@ -217,6 +217,20 @@
     <string name="git_secrets_leave_out_commit">Leave Out %1$s and Commit</string>
     <string name="git_secrets_anyway_push">Commit and Push Anyway</string>
     <string name="git_secrets_anyway">Commit Anyway</string>
+    <string name="git_hook_title">The %1$s hook stopped this commit</string>
+    <string name="git_hook_show_all" tools:ignore="PluralsCandidate">Show All %1$d Lines</string>
+    <string name="git_hook_show_less">Show Less</string>
+    <string name="git_hook_changed_one">It rewrote %1$s and left the change out of the commit.</string>
+    <string name="git_hook_changed_many" tools:ignore="PluralsCandidate">It rewrote %1$d files and left the changes out of the commit.</string>
+    <string name="git_hook_fix_detail">Opens a new tab with what the hook printed</string>
+    <string name="git_hook_retry">Try Again</string>
+    <plurals name="git_hook_retry_changed">
+        <item quantity="one">Add the File It Changed and Commit</item>
+        <item quantity="other">Add the %1$d Files It Changed and Commit</item>
+    </plurals>
+    <string name="git_hook_skip">Commit Without Hooks</string>
+    <string name="git_hook_skip_title">Commit without hooks?</string>
+    <string name="git_hook_skip_message" tools:ignore="TypographyDashes">Commits with --no-verify: the %1$s hook and the others don\'t run.</string>
     <string name="git_scope_uncommitted">Uncommitted</string>
     <string name="git_scope_branch">Branch</string>
     <plurals name="git_scope_branch_files">

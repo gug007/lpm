@@ -235,7 +235,7 @@ lpm status --json`}
             "You want a native macOS terminal with agent ergonomics baked in.",
           points: [
             "You want the terminal itself to be programmable: vertical tabs, splits, a browser pane your scripts can click through, and cmux.json behind all of it.",
-            "You want libghostty rendering, and your Ghostty theme and font to carry over.",
+            "You want libghostty doing the rendering. lpm takes the font, size and colors from your Ghostty config, though not from a theme that lives only inside cmux.app.",
             "Your work is one repo at a time, and project juggling isn't your bottleneck.",
           ],
         }}

@@ -21,6 +21,7 @@
     <string name="share_sent_title">Sent to %1$s</string>
     <string name="share_sent_body">What you shared reached %1$s.</string>
     <string name="share_failed_title">Couldn\'t send to %1$s</string>
+    <string name="share_retry">Retry</string>
 
     <!-- Answering from a notification. -->
     <string name="answer_allow">Allow</string>
@@ -44,4 +45,12 @@
     <string name="live_open">Open</string>
     <string name="live_at_work">Agents at work</string>
     <string name="live_problem">problem</string>
+
+    <!-- Another agent starting to wait while the app is open. -->
+    <string name="heads_up_an_agent">An agent needs you</string>
+    <string name="heads_up_needs_you">%1$s needs you</string>
+    <plurals name="heads_up_agents">
+        <item quantity="one">%d agent needs you</item>
+        <item quantity="other">%d agents need you</item>
+    </plurals>
 </resources>

@@ -182,6 +182,11 @@ export const IPHONE_AREA: FeatureArea = {
       note: "Needs the lpm window open on your computer.",
     },
     {
+      title: "lpm Link for Android",
+      body: "The same app on Android, from Google Play: terminals, the composer, notifications, Git, automations and pairing.",
+      note: "Android 8 or later.",
+    },
+    {
       title: "iPhone and iPad",
       body: "Runs on iPhone and iPad in portrait or landscape, with eight terminal themes and adjustable font size.",
     },

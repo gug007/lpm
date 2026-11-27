@@ -429,6 +429,8 @@ final class AppModel {
     var gitExtras = GitExtrasStore()
     // The dialogs waiting agents show (`model.agentDialogs`), same split.
     var agentDialogs = AgentDialogStore()
+    // The banner for another agent starting to wait while the app is open.
+    @ObservationIgnored let headsUp = WaitingHeadsUp()
     // Agent tabs' conversations (`model.conversations`), same split.
     var conversations = ConversationStore()
     // The action popup on screen (`model.actionPopups`), same split.
@@ -524,6 +526,7 @@ final class AppModel {
         gitChecks.model = self
         gitExtras.model = self
         agentDialogs.model = self
+        headsUp.model = self
         conversations.model = self
         actionPopups.model = self
         pushRegistrar.onIdentity = { [weak self] localId, serverId, serverName, platform in
@@ -1496,6 +1499,7 @@ final class AppModel {
         gitExtras.model = self
         agentDialogs = AgentDialogStore()
         agentDialogs.model = self
+        headsUp.handleConnectionReset()
         conversations.handleConnectionReset()
         conversations = ConversationStore()
         conversations.model = self
@@ -2543,6 +2547,7 @@ final class AppModel {
         gitExtras.handleConnectionReset()
         fileFetches.handleConnectionReset()
         agentDialogs.handleConnectionReset()
+        headsUp.handleConnectionReset()
         conversations.handleConnectionReset()
         answerRequests.failAll()
         historyPending = []
@@ -3164,8 +3169,10 @@ final class AppModel {
         c.onStatus = { [weak self] proj, entries, seen in
             guard let self else { return }
             if let idx = self.projects.firstIndex(where: { $0.name == proj }) {
+                let before = self.projects[idx].statusEntries
                 // Copy with fresh status — preserves services/actions.
                 self.projects[idx] = self.projects[idx].withStatus(entries, seen: seen)
+                self.headsUp.statusChanged(self.projects[idx], before: before)
                 self.reconcileNotifications([self.projects[idx]])
                 self.keepFinishedAnswers([self.projects[idx]])
             }
@@ -3198,7 +3205,9 @@ final class AppModel {
                 self.git.applyDiff(project, path: e.path, result: e.result, error: e.error)
             }
         }
-        c.onGitCommit = { [weak self] project, error in self?.git.finishCommit(project, error: error) }
+        c.onGitCommit = { [weak self] project, error, hook in
+            self?.git.finishCommit(project, error: error, hook: hook)
+        }
         c.onGitPush = { [weak self] project, error in self?.git.finishPush(project, error: error) }
         c.onGitGenMessage = { [weak self] project, message, error in
             self?.git.finishGenMessage(project, message: message, error: error)

@@ -121,6 +121,11 @@
     <string name="ci_merge_delete_branch">Delete branch</string>
     <string name="ci_merge_deletes_branch">GitHub deletes the branch once it\'s merged.</string>
     <string name="ci_merge_button">Merge %1$s</string>
+    <string name="ci_merge_when_ready">Merge When Checks Pass</string>
+    <string name="ci_merge_bypass">Bypass Rules and Merge</string>
+    <string name="ci_merge_bypass_footer">Bypassing merges it now, past the rules on %1$s, as %2$s\'s Bypass requirements does.</string>
+    <string name="ci_merge_armed">Merging when checks pass</string>
+    <string name="ci_merge_cancel">Cancel Merge</string>
     <string name="ci_merged">Merged %1$s</string>
     <string name="ci_merged_branch_deleted">Its branch was deleted on %1$s. The branch on your Mac is still checked out.</string>
     <string name="ci_merged_branch_kept">The branch on your Mac is still checked out.</string>

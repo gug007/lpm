@@ -30,6 +30,11 @@ data class NotesState(
     val messagesError: Map<String, String> = emptyMap(),
     val sending: Set<String> = emptySet(),
     val sendError: Map<String, String> = emptyMap(),
+    /**
+     * The last part of a note the Mac accepted, per chat key, for the composer to let go
+     * of: only then is what it carried really on the Mac.
+     */
+    val accepted: Map<String, NoteSentPart> = emptyMap(),
     val noteMutating: Set<String> = emptySet(),
     val noteError: Map<String, String> = emptyMap(),
     /** Bumped on each failure the phone should feel (iOS `Haptics.error()`). */

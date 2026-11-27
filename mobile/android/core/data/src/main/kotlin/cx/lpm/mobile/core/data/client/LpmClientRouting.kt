@@ -183,7 +183,7 @@ private fun LpmClientCallbacks.routeGitAndMore(frame: Inbound) {
 
         is Inbound.GitDiffs -> onGitDiffs?.invoke(frame.project, frame.entries, frame.error)
 
-        is Inbound.GitCommit -> onGitCommit?.invoke(frame.project, frame.error)
+        is Inbound.GitCommit -> onGitCommit?.invoke(frame.project, frame.error, frame.hook)
 
         is Inbound.GitPush -> onGitPush?.invoke(frame.project, frame.error)
 
@@ -243,6 +243,11 @@ private fun LpmClientCallbacks.routeGitAndMore(frame: Inbound) {
 
         is Inbound.GitMergePr ->
             onGitMergePr?.invoke(frame.project, frame.number, frame.deletedBranch, frame.error)
+
+        is Inbound.GitMergeWhenReady ->
+            onGitMergeWhenReady?.invoke(frame.project, frame.cancel, frame.error)
+
+        is Inbound.GitMergeWatch -> frame.watch?.let { onGitMergeWatch?.invoke(frame.project, it) }
 
         is Inbound.GitCommitFiles ->
             onGitCommitFiles?.invoke(frame.project, frame.hash, frame.files, frame.error)

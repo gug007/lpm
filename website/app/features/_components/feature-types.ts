@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 
-export type FeatureScope = "claude-codex" | "claude" | "github";
+export type FeatureScope = "claude-codex" | "claude" | "git-host";
 
 export type Feature = {
   title: string;

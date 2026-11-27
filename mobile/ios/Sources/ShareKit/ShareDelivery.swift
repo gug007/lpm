@@ -69,15 +69,46 @@ enum ShareDelivery {
               let chat = (chats["chats"] as? [[String: Any]])?.first?["id"] as? String else {
             throw ShareMacLink.Failure.refused(chats["error"] as? String ?? "Couldn't open the project's notes.")
         }
-        let attachments = images.enumerated().map { index, image in
-            ["name": "shared-\(index + 1).jpg", "mimeType": "image/jpeg", "data": image.base64EncodedString()]
+        // Images past the budget go as further notes after the first, which
+        // carries the text.
+        for (part, group) in noteGroups(Array(images.enumerated()), bytes: { $0.element.count }).enumerated() {
+            let attachments = group.map { index, image in
+                ["name": "shared-\(index + 1).jpg", "mimeType": "image/jpeg", "data": image.base64EncodedString()]
+            }
+            let reqId = UUID().uuidString
+            try await link.send(["t": "notesAddMessage", "project": share.project, "chatId": chat,
+                                 "text": part == 0 ? share.noteText : "", "attachments": attachments, "reqId": reqId])
+            let reply = try await link.reply {
+                $0["t"] as? String == "notesAddMessage" && $0["reqId"] as? String == reqId
+            }
+            guard reply["ok"] as? Bool == true else {
+                throw ShareMacLink.Failure.refused(reply["error"] as? String ?? "Couldn't add the note.")
+            }
         }
-        let reqId = UUID().uuidString
-        try await link.send(["t": "notesAddMessage", "project": share.project, "chatId": chat,
-                             "text": share.noteText, "attachments": attachments, "reqId": reqId])
-        let reply = try await link.reply { $0["t"] as? String == "notesAddMessage" && $0["reqId"] as? String == reqId }
-        guard reply["ok"] as? Bool == true else {
-            throw ShareMacLink.Failure.refused(reply["error"] as? String ?? "Couldn't add the note.")
+    }
+
+    /// The Mac reads frames of up to 16 MiB and attachments ride as base64, a
+    /// third bigger, so one note carries at most this many bytes of files.
+    static let noteBudget = 10 * 1024 * 1024
+
+    /// `items` in order, in groups whose `bytes` each fit one note; one empty
+    /// group for none. One frame too big for the Mac drops the link, so what is
+    /// past the budget goes as further notes.
+    static func noteGroups<T>(_ items: [T], bytes: (T) -> Int) -> [[T]] {
+        var groups: [[T]] = []
+        var current: [T] = []
+        var size = 0
+        for item in items {
+            let n = bytes(item)
+            if !current.isEmpty, size + n > noteBudget {
+                groups.append(current)
+                current = []
+                size = 0
+            }
+            current.append(item)
+            size += n
         }
+        groups.append(current)
+        return groups
     }
 }

@@ -92,7 +92,7 @@ pub fn merge_pull_request_when_ready(
             watch: watch.clone(),
         },
     );
-    let _ = app.emit(EVENT, &watch);
+    tell(&app, &watch);
     std::thread::spawn(move || follow(app, cwd, id));
     Ok(())
 }
@@ -101,14 +101,20 @@ pub fn merge_pull_request_when_ready(
 pub fn cancel_pull_request_merge(app: AppHandle, cwd: String) {
     let removed = armed().lock().unwrap().remove(&cwd);
     if let Some(a) = removed {
-        let _ = app.emit(
-            EVENT,
-            MergeWatch {
+        tell(
+            &app,
+            &MergeWatch {
                 state: "cancelled",
                 ..a.watch
             },
         );
     }
+}
+
+/// Every window, and every phone showing a project at that checkout.
+fn tell(app: &AppHandle, watch: &MergeWatch) {
+    let _ = app.emit(EVENT, watch);
+    crate::remote_ci::watch_changed(app, watch);
 }
 
 /// The wait armed for the checkout at `cwd`, if any.
@@ -270,14 +276,14 @@ fn finish(app: &AppHandle, path: &str, id: u64, result: Result<bool, String>) {
             ..armed.watch
         },
     };
-    let _ = app.emit(EVENT, &watch);
+    tell(app, &watch);
     if should_notify(app, NotificationEvent::Ci) {
         let (title, body) = banner_text(&watch);
         notify(app, &title, &body);
     }
 }
 
-fn banner_text(watch: &MergeWatch) -> (String, String) {
+pub(crate) fn banner_text(watch: &MergeWatch) -> (String, String) {
     if watch.state == "merged" {
         return (format!("Merged #{}", watch.number), watch.title.clone());
     }

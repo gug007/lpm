@@ -81,7 +81,7 @@ mod tab_account;
 mod tab_menu;
 pub(crate) mod tabs;
 
-pub(crate) use ci_push::{push_ci_result, push_fix_loop_result};
+pub(crate) use ci_push::{push_branch_ci_alert, push_ci_result};
 pub(crate) use mac_alert::send_all as send_mac_alert;
 pub(crate) use paused::push_pause_notice;
 pub(crate) use recap_push::send_weekly_recap;
@@ -208,6 +208,7 @@ const PHONE_FEATURES: &[&str] = &[
     crate::remote_ci::COMMITS_FEATURE,
     crate::remote_ci::MERGE_FEATURE,
     crate::remote_ci::FIX_LOOP_FEATURE,
+    crate::remote_ci::MERGE_WATCH_FEATURE,
     crate::remote_popup::FEATURE,
     crate::remote_popup::APP_FEATURE,
     review::SECRETS_FEATURE,
@@ -2057,6 +2058,22 @@ pub fn set_claude_limits_enabled(app: &AppHandle, enabled: bool) {
     broadcast(hub.inner(), frame);
 }
 
+/// `gitCommit`'s reply: a hook that stopped the commit comes back as
+/// `hookFailure` beside the same text in `error`, for the phone's hook panel.
+fn commit_reply(project: &str, r: Result<(), crate::githook::Stopped>) -> Value {
+    use crate::githook::Stopped;
+    let (r, hook) = match r {
+        Ok(()) => (Ok(()), None),
+        Err(Stopped::Hook(failure)) => (Err(failure.message()), Some(failure)),
+        Err(Stopped::Other(e)) => (Err(e), None),
+    };
+    let mut reply = git_result_reply("gitCommit", project, r);
+    if let Some(failure) = hook {
+        reply["hookFailure"] = json!(failure);
+    }
+    reply
+}
+
 /// Like `result_reply` but echoes the `project` the phone addressed, so a reply
 /// can be matched to its request even with several projects in flight.
 pub(crate) fn git_result_reply(kind: &str, project: &str, r: Result<(), String>) -> Value {
@@ -3742,10 +3759,11 @@ fn handle_msg(
                         .collect()
                 })
                 .unwrap_or_default();
+            let skip_hooks = v.get("skipHooks").and_then(Value::as_bool).unwrap_or(false);
             match config::project_root(&project) {
                 Ok((cwd, _)) => {
-                    let r = crate::git::git_commit(cwd, message, files);
-                    send(ws, git_result_reply("gitCommit", &project, r))?;
+                    let r = crate::git::commit_files(&cwd, &message, &files, skip_hooks);
+                    send(ws, commit_reply(&project, r))?;
                 }
                 Err(e) => send(
                     ws,
@@ -4812,6 +4830,9 @@ fn handle_msg(
             crate::remote_ci::handle(out, t, &v)
         }
         "ciFixLoop" => crate::remote_ci::handle_fix_loop(app, out, &v),
+        "gitMergePrWhenReady" | "gitMergePrCancel" => {
+            crate::remote_ci::handle_merge_watch(app, out, t, &v)
+        }
         "actionPopup" => crate::remote_popup::handle(out, &v, crate::config::popup::View::Popup),
         "actionApp" => crate::remote_popup::handle(out, &v, crate::config::popup::View::App),
         "gitScanSecrets" | "gitBranchFiles" | "gitBranchDiffs" | "gitPrDiscussion" => {
@@ -5853,30 +5874,38 @@ fn relay_envelope(dev: &PushDevice, blob: String) -> Value {
 
 /// Seal and POST one alert per (device, wanted job). A 410 from the relay retires
 /// the device token, so the rest of that device's jobs are skipped.
+#[allow(clippy::too_many_arguments)]
 fn send_alert_pushes(
     client: &reqwest::blocking::Client,
     relay: &str,
     hub: &RemoteHub,
+    app: &AppHandle,
     server_id: &str,
     project: &str,
     project_label: &str,
     recipients: &[PushDevice],
-    jobs: &[PushJob],
+    jobs: Vec<PushJob>,
 ) {
-    let details: Vec<Value> = jobs
-        .iter()
-        .map(|j| {
-            if recipients.iter().any(|dev| dev.wants_in(project, &j.value)) {
-                push_detail::of(project, &j.key, &j.value, j.turn_start)
-            } else {
-                Value::Null
+    // A permission prompt's alert names what Allow approves, read off the
+    // terminal's screen, and offers Allow only when it could be read.
+    let prepared: Vec<(PushJob, Value)> = jobs
+        .into_iter()
+        .filter(|j| recipients.iter().any(|dev| dev.wants_in(project, &j.value)))
+        .map(|mut job| {
+            let mut detail = push_detail::of(project, &job.key, &job.value, job.turn_start);
+            if answer::offers_allow(&job.actions) {
+                let read = dialog::for_alert(hub, app, &job.terminal_id);
+                job.actions = answer::with_dialog(job.actions, read.as_ref());
+                if let Some(read) = read {
+                    detail["dialog"] = read;
+                }
             }
+            (job, detail)
         })
         .collect();
     for dev in recipients {
-        for (job, detail) in jobs
+        for (job, detail) in prepared
             .iter()
-            .zip(&details)
             .filter(|(j, _)| dev.wants_in(project, &j.value))
         {
             let plaintext = alert_payload(server_id, project, project_label, job, detail);
@@ -5902,6 +5931,7 @@ fn spawn_deferred_codex_pushes(
     jobs: Vec<PushJob>,
 ) {
     let hub = hub.clone();
+    let app = app.clone();
     let project = project.to_string();
     let project_label = project_label.to_string();
     let store: Arc<StatusStore> = app.state::<Arc<StatusStore>>().inner().clone();
@@ -5946,11 +5976,12 @@ fn spawn_deferred_codex_pushes(
             client,
             &relay,
             &hub,
+            &app,
             &server_id,
             &project,
             &project_label,
             &recipients,
-            &jobs,
+            jobs,
         );
     });
 }
@@ -6109,7 +6140,7 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
         return;
     }
 
-    let (hub, project) = (hub.clone(), project.to_string());
+    let (hub, app, project) = (hub.clone(), app.clone(), project.to_string());
     std::thread::spawn(move || {
         let Some(client) = relay_client() else {
             return;
@@ -6119,11 +6150,12 @@ fn push_notifications(hub: &RemoteHub, app: &AppHandle, project: &str) {
             client,
             &relay,
             &hub,
+            &app,
             &server_id,
             &project,
             &project_label,
             &recipients,
-            &jobs,
+            jobs,
         );
 
         // Withdrawal: one batched background push per registered device.

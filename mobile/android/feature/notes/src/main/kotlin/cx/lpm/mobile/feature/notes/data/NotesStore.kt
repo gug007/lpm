@@ -55,6 +55,9 @@ class NotesStore(private val session: MacSession, private val clock: Clock = Clo
     // The text each in-flight edit carries; the reply echoes only the note id.
     private val pendingEdit = mutableMapOf<String, String>()
 
+    // The parts of a note still to go per chat key, the first on its way.
+    private val parts = mutableMapOf<String, List<NotePart>>()
+
     override fun wire(client: LpmClient) {
         client.onNotesChats = ::applyChats
         client.onNotesCreateChat = ::finishCreateChat
@@ -75,6 +78,7 @@ class NotesStore(private val session: MacSession, private val clock: Clock = Clo
         activeChat.clear()
         pendingPage.clear()
         pendingEdit.clear()
+        parts.clear()
         mutable.value = NotesState()
         search.reset()
         attachments.reset()
@@ -87,13 +91,13 @@ class NotesStore(private val session: MacSession, private val clock: Clock = Clo
     override fun onConnectionReset() {
         timeout.cancelAll()
         pendingPage.clear()
+        parts.clear()
         mutable.update {
-            it.copy(
+            it.sendsInterrupted().copy(
                 chatsLoading = emptySet(),
                 chatMutating = emptySet(),
                 messagesLoading = emptySet(),
                 paging = emptySet(),
-                sending = emptySet(),
                 noteMutating = emptySet()
             )
         }
@@ -216,9 +220,25 @@ class NotesStore(private val session: MacSession, private val clock: Clock = Clo
             return
         }
         mutable.update { it.sendStarted(key) }
-        client?.notesAddMessage(project, chatId, text, drafts.map(NoteAttachmentDraft::wire))
+        // Several attachments that together would make one frame too big for the Mac go
+        // as further notes, one after another.
+        val split = NotePart.split(text, drafts)
+        parts[key] = split
+        sendPart(split.first(), project, chatId)
+    }
+
+    private fun sendPart(part: NotePart, project: String, chatId: String) {
+        val key = notesKey(project, chatId)
+        client?.notesAddMessage(
+            project,
+            chatId,
+            part.text,
+            part.drafts.map(NoteAttachmentDraft::wire)
+        )
         arm("add", key, SEND_TIMEOUT_MS) {
-            if (key in state.value.sending) mutable.update { it.sendTimedOut(key) }
+            if (key !in state.value.sending) return@arm
+            parts.remove(key)
+            mutable.update { it.sendTimedOut(key) }
         }
     }
 
@@ -289,8 +309,21 @@ class NotesStore(private val session: MacSession, private val clock: Clock = Clo
         message: NoteMessage?,
         error: String?
     ) {
-        cancel("add", notesKey(project, chatId))
-        mutable.update { it.withAddedNote(project, chatId, message, error) }
+        val key = notesKey(project, chatId)
+        cancel("add", key)
+        val left = parts.remove(key).orEmpty()
+        val part = left.firstOrNull()?.takeIf { message != null }
+        val rest = left.drop(1)
+        val next = rest.firstOrNull()?.takeIf { message != null }
+        mutable.update { s ->
+            val added = s.withAddedNote(project, chatId, message, error)
+            val took = if (part != null) added.withAcceptedPart(key, part) else added
+            if (next != null) took.copy(sending = took.sending + key) else took
+        }
+        if (next != null) {
+            parts[key] = rest
+            sendPart(next, project, chatId)
+        }
     }
 
     private fun finishEditNote(project: String, id: String, error: String?) {

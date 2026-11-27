@@ -29,6 +29,9 @@
         <receiver
             android:name=".LiveDismissedReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".ShareRetryReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

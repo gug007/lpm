@@ -45,7 +45,7 @@ toml_edit = "0.25"
 # SQLCipher 4.x compiled from source with vendored OpenSSL so the build is
 # self-contained (no Homebrew openssl / OPENSSL_DIR). On-disk format is crypto-
 # provider-independent, so it reads files written by Go's go-sqlcipher/v4.
-rusqlite = { version = "0.40", features = ["bundled-sqlcipher-vendored-openssl"] }
+rusqlite = { version = "0.43", features = ["bundled-sqlcipher-vendored-openssl"] }
 aes-gcm = "0.11"        # AES-256-GCM blob + export AEAD (ct||tag, 12B nonce)
 argon2 = "0.6"          # Argon2id KEK for vault key export/import
 sha2 = "0.11"           # blob content addressing
