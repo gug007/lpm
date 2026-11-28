@@ -1,5 +1,5 @@
 import { TransformText } from "../bridge/commands";
-import { isCanceledError, type AIGeneration } from "./hooks/useAIGeneration";
+import { isCanceledError, type AIGenerationRunner } from "./hooks/useAIGeneration";
 import { toast } from "./notifications/toast";
 import type { ComposerAction } from "./store/composerActions";
 import { getSettings } from "./store/settings";
@@ -85,7 +85,7 @@ export async function generateVariants(
 }
 
 interface ActionRewrite {
-  gen: AIGeneration;
+  gen: AIGenerationRunner;
   projectName: string | null;
   cwd: string;
   ai: AIPicker;

@@ -35,8 +35,12 @@ import {
   useEnabledComposerActions,
   type ComposerAction,
 } from "../store/composerActions";
-import { rewriteWithAction } from "../composerVariants";
-import { useAIGeneration } from "../hooks/useAIGeneration";
+import {
+  composerRewriteOf,
+  endComposerRewrite,
+  startComposerRewrite,
+  useComposerRewrite,
+} from "../store/composerRewrites";
 import { ComposerActionsModal } from "./ComposerActionsModal";
 import { ComposerVariantsModal } from "./ComposerVariantsModal";
 import { ComposerToolbar } from "./ComposerToolbar";
@@ -271,6 +275,7 @@ const SHARED_TEXT_ONLY = "Only text can be sent to a shared tab.";
 // service can't bury the prompt (or the agent's context).
 const MENTION_LOG_LINES = 200;
 const NO_PROMPT: SendPrompt = { text: "", imageCount: 0 };
+const NO_VARIANTS: string[] = [];
 
 
 // "/lpm-memory " (Claude) or "$lpm-memory " (Codex skill mention) with a
@@ -329,9 +334,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   >(null);
   // Local path of the image shown full-window in the lightbox, or null when closed.
   const [lightboxPath, setLightboxPath] = useState<string | null>(null);
-  // The composer action currently being applied (drives the busy UI), or null.
-  const [transformingId, setTransformingId] = useState<string | null>(null);
-  const gen = useAIGeneration(projectName);
+  // The AI rewrite of this tab's prompt, running or answered (drives the busy
+  // UI), or null. Held outside the composer under the tab's lasting key, so one
+  // started before the composer was swapped out, or before the whole project
+  // view was rebuilt around a new terminal id, is found again here.
+  const rewrite = useComposerRewrite(historyKey);
   const [actionsModalOpen, setActionsModalOpen] = useState(false);
   // The target picker for "Send to another tab". Null while closed; open it with
   // the prompt, shown at its top, whose image count decides whether a tab on
@@ -340,14 +347,6 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // that can still fail.
   const [sendTarget, setSendTarget] = useState<SendPrompt | null>(null);
   const [sendingAway, setSendingAway] = useState(false);
-  // Set while the multi-result variant picker is open. `startedId` pins the tab
-  // the rewrites belong to, and `images` rehydrates whichever one is committed.
-  const [variants, setVariants] = useState<{
-    label: string;
-    list: string[];
-    images: Record<string, string>;
-    startedId: string;
-  } | null>(null);
   // Slash-command autocomplete: open state, highlighted row, the filtered list,
   // and the caret rect the popover anchors to.
   const [slashOpen, setSlashOpen] = useState(false);
@@ -368,9 +367,9 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // caret (and sized to the caret's line height so it sits on the text baseline),
   // relative to the composer box.
   const [hint, setHint] = useState<{ text: string; left: number; top: number; height: number } | null>(null);
-  // Guards runAction/send against re-entry across the AI await without waiting
-  // for the transformingId state to settle.
-  const transforming = useRef(false);
+  // The field is locked while a rewrite is out; read from the store, not the
+  // render, so a callback from an earlier render still sees it.
+  const rewriting = () => composerRewriteOf(historyKey) !== null;
   const ai = useAIPicker(shown, projectName);
   const enabledActions = useEnabledComposerActions();
   // The CLI running in the target terminal, derived from its launch command. The
@@ -783,7 +782,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       tabs.current.push(tab);
       const typingHere = document.activeElement === editor && Date.now() - lastLocalEditAt.current < 1500;
       // The field also isn't ours to swap while an action is rewriting it.
-      if (!typingHere && !transforming.current) loadTab(tab);
+      if (!typingHere && !rewriting()) loadTab(tab);
       refreshTabView();
       syncState();
     });
@@ -809,7 +808,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // visible tab's edits so nothing typed is lost on the swap.
   const switchTab = useCallback(
     (id: string) => {
-      if (id === activeId.current || transforming.current) return;
+      if (id === activeId.current || rewriting()) return;
       syncState();
       const target = tabs.current.find((t) => t.id === id);
       if (!target) return;
@@ -824,7 +823,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // own tab so the user can prepare several and send them one at a time.
   const addTab = useCallback(() => {
     const editor = editorRef.current;
-    if (!editor || transforming.current) return;
+    if (!editor || rewriting()) return;
     syncState();
     const tab = createInputTab();
     tabs.current.push(tab);
@@ -849,7 +848,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // closing a background tab leaves the editor (and whatever owns focus) untouched.
   const closeTab = useCallback(
     (id: string) => {
-      if (tabs.current.length <= 1 || transforming.current) return;
+      if (tabs.current.length <= 1 || rewriting()) return;
       const idx = tabs.current.findIndex((t) => t.id === id);
       if (idx === -1) return;
       const wasActive = id === activeId.current;
@@ -1320,7 +1319,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
 
   const send = async () => {
     const editor = editorRef.current;
-    if (!editor || transforming.current) return;
+    if (!editor || rewriting()) return;
     const value = serializeEditor(editor);
     if (!value.trim()) return;
     // Snapshot the token→local-path map now (before it's cleared) — a plain-object
@@ -1374,7 +1373,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // next prompt. The draft is reopened later from the history popover.
   const saveCurrentDraft = async () => {
     const editor = editorRef.current;
-    if (!editor || transforming.current) return;
+    if (!editor || rewriting()) return;
     const value = serializeEditor(editor);
     if (!value.trim()) return;
     // Same re-entry guard send() uses: the field stays editable across the write,
@@ -1400,7 +1399,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // deleted image isn't carried along.
   const readPrompt = useCallback((): ComposerPrompt | null => {
     const editor = editorRef.current;
-    if (!editor || transforming.current) return null;
+    if (!editor || rewriting()) return null;
     const text = serializeEditor(editor);
     if (!text.trim()) return null;
     const present = presentImageTokens(editor);
@@ -1418,7 +1417,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     const editor = editorRef.current;
     // While an action rewrites the input, the prompt arrives as its own
     // prepared prompt instead, which never displaces the one being rewritten.
-    if (!editor || transforming.current) {
+    if (!editor || rewriting()) {
       deliverPromptDraft(terminalId, historyKey, text, images);
       return;
     }
@@ -1471,7 +1470,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // runs until confirm.
   const runInDuplicates = (count: number) => {
     const editor = editorRef.current;
-    if (!editor || transforming.current) return;
+    if (!editor || rewriting()) return;
     const text = serializeEditor(editor);
     if (!text.trim()) return;
     const present = presentImageTokens(editor);
@@ -1480,7 +1479,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       if (present.has(token)) images.push({ token, path });
     }
     const runHere = async () => {
-      if (transforming.current) return;
+      if (rewriting()) return;
       const map: Record<string, string> = {};
       for (const img of images) map[img.token] = img.path;
       await deliverPrompt(text, map);
@@ -1504,7 +1503,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // target that refuses input keeps it here to try again.
   const sendToAnotherTab = async (row: SendTargetRow, mode: SendTargetMode) => {
     const editor = editorRef.current;
-    if (!editor || transforming.current) return;
+    if (!editor || rewriting()) return;
     const text = serializeEditor(editor);
     if (!text.trim()) return;
     const sentId = activeId.current;
@@ -1618,7 +1617,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     editorRef,
     read: undoSnapshot,
     apply: applyUndoSnapshot,
-    locked: () => transforming.current,
+    locked: rewriting,
   });
   const commitUndo = edits.commit;
 
@@ -1692,7 +1691,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // Bracketed in undo steps so ⌘Z brings the replaced draft back.
   const loadFromHistory = (text: string, images: Record<string, string>) => {
     const editor = editorRef.current;
-    if (!editor || transforming.current) return;
+    if (!editor || rewriting()) return;
     commitUndo();
     applyHistoryEntry(editor, { text, images });
     histIdx.current = -1;
@@ -1706,7 +1705,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // the moment that run ends (an argument, a space) or matches no command.
   const updateSlashMenu = () => {
     const editor = editorRef.current;
-    if (!editor || transforming.current || !slashCli) {
+    if (!editor || rewriting() || !slashCli) {
       setSlashOpen(false);
       return;
     }
@@ -1740,7 +1739,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // composer, and closes the moment that run ends or matches nothing.
   const updateMentionMenu = () => {
     const editor = editorRef.current;
-    if (!editor || transforming.current) {
+    if (!editor || rewriting()) {
       setMentionOpen(false);
       return;
     }
@@ -2017,11 +2016,13 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     commitUndo(); // …and the rewrite as the next, so ⌘Z reverts it
   };
 
-  // Release the transform lock and re-seat focus/caret once the field flips back
-  // to editable next render.
-  const endTransform = () => {
-    transforming.current = false;
-    setTransformingId(null);
+  // Release the field and put the rewrite, if there is one, into the prompt it
+  // was made from. The lock pins that prompt in the field while the composer is
+  // here; one that arrived while it was away may have taken its place, and the
+  // rewrite then goes to the parked prompt. Ending takes the rewrite off the
+  // store, so an answer lands only once.
+  const finishRewrite = (text?: string) => {
+    const ended = endComposerRewrite(historyKey);
     requestAnimationFrame(() => {
       const ed = editorRef.current;
       if (ed) {
@@ -2029,65 +2030,56 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
         placeCaretAtEnd(ed);
       }
     });
+    const editor = editorRef.current;
+    if (!ended || text === undefined || !editor) return;
+    if (activeId.current === ended.promptId) {
+      applyRewrite(editor, text, ended.images);
+      return;
+    }
+    const tab = tabs.current.find((t) => t.id === ended.promptId);
+    if (!tab) return;
+    const rewritten = tabFromPrompt(text, ended.images);
+    tab.text = rewritten.text;
+    tab.imagePaths = rewritten.imagePaths;
+    tab.imgCounter = Math.max(tab.imgCounter, rewritten.imgCounter);
+    syncState();
   };
 
   // Apply a composer action: send the current text through the user's AI CLI
-  // with the action's instruction, then rebuild the field from the result —
-  // reusing the history-entry path so any preserved image tokens become chips.
-  // A count above 1 asks for several rewrites and opens the variant picker
-  // instead of applying one straight away.
-  const runAction = async (action: ComposerAction, count = 1) => {
+  // with the action's instruction. A count above 1 asks for several rewrites
+  // and opens the variant picker instead of applying one straight away. The
+  // field is locked and tab switching is blocked until the answer has landed
+  // (see `rewriting`), so the text and image map snapshotted here stay
+  // faithful to exactly what was sent.
+  const runAction = (action: ComposerAction, count = 1) => {
     const editor = editorRef.current;
-    if (!editor || transforming.current) return;
+    if (!editor || rewriting()) return;
     const value = serializeEditor(editor);
     if (!value.trim()) return;
-    // Snapshot text, the image map, and the originating tab before the await.
-    // The field is locked and tab switching is blocked while a transform runs
-    // (see `transforming`), so nothing can race the result back in — pinning the
-    // snapshot just keeps the rebuilt field faithful to exactly what was sent.
-    const images = Object.fromEntries(imagePaths.current);
-    const startedId = activeId.current;
-    transforming.current = true;
-    setTransformingId(action.id);
-    // The picker keeps the transform locked until a variant is committed, so the
-    // finally must not release it — chooseVariant/closeVariants do.
-    let openedPicker = false;
-    await rewriteWithAction({
-      gen,
+    startComposerRewrite(historyKey, {
       projectName,
       cwd,
       ai,
       action,
       value,
       count,
-      onText: (text) => {
-        if (activeId.current === startedId) applyRewrite(editor, text, images);
-      },
-      onVariants: (list) => {
-        if (activeId.current !== startedId) return;
-        openedPicker = true;
-        setVariants({ label: action.label, list, images, startedId });
-      },
+      promptId: activeId.current,
+      images: Object.fromEntries(imagePaths.current),
     });
-    if (!openedPicker) endTransform();
   };
 
-  const chooseVariant = (text: string) => {
-    const session = variants;
-    setVariants(null);
-    const editor = editorRef.current;
-    // The lock pins the tab while the picker is open, so this normally holds; the
-    // guard just refuses to write a rewrite into the wrong tab if it somehow did.
-    if (editor && session && activeId.current === session.startedId) {
-      applyRewrite(editor, text, session.images);
-    }
-    endTransform();
-  };
-
-  const closeVariants = () => {
-    setVariants(null);
-    endTransform();
-  };
+  // The answer lands here whether the composer sat through the wait or was
+  // swapped out and came back to it: the field is rebuilt through the
+  // history-entry path, so any preserved image tokens become chips. Several
+  // rewrites wait for the picker instead, which keeps the field locked until
+  // one is chosen.
+  const outcome = rewrite?.outcome ?? null;
+  const variantList = outcome?.kind === "variants" ? outcome.list : null;
+  useEffect(() => {
+    if (!outcome || outcome.kind === "variants") return;
+    finishRewrite(outcome.kind === "text" ? outcome.text : undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per answer
+  }, [outcome]);
 
   // Bracketed in undo steps — chip removal fires no input event, so without an
   // explicit step ⌘Z couldn't bring the deleted image back.
@@ -2191,7 +2183,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
     }
     // The field is locked while an action transform runs; swallow keys so a
     // stray Enter/Arrow can't send or recall over the in-flight result.
-    if (transforming.current) {
+    if (rewriting()) {
       e.preventDefault();
       return;
     }
@@ -2500,7 +2492,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
   // both must share identical font metrics or the placeholder drifts.
   const textStyle = { fontSize: inputFontSize, lineHeight: 1.5, fontFamily: TERMINAL_FONT_FAMILY };
 
-  const busy = transformingId !== null;
+  const busy = rewrite !== null;
   const showActions = ai.anyAvailable && !guest;
 
   return (
@@ -2628,7 +2620,7 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
               ? {
                   enabledActions,
                   busy,
-                  onStop: gen.generating ? gen.cancel : undefined,
+                  onStop: rewrite && !outcome ? rewrite.stop : undefined,
                   canRun: !disabled,
                   cliLabel: ai.cliLabel,
                   onRun: runAction,
@@ -2766,11 +2758,11 @@ export function TerminalComposer({ terminalId, historyKey, projectName, shown, f
       )}
       <ComposerActionsModal open={actionsModalOpen} onClose={() => setActionsModalOpen(false)} />
       <ComposerVariantsModal
-        open={variants !== null}
-        actionLabel={variants?.label ?? ""}
-        variants={variants?.list ?? []}
-        onChoose={chooseVariant}
-        onClose={closeVariants}
+        open={variantList !== null && shown}
+        actionLabel={rewrite?.label ?? ""}
+        variants={variantList ?? NO_VARIANTS}
+        onChoose={finishRewrite}
+        onClose={() => finishRewrite()}
       />
     </div>
   );

@@ -10,6 +10,8 @@ const bridge = vi.hoisted(() => ({
   ReleasePaneStatus: vi.fn(async () => {}),
   LoadTerminals: vi.fn(async () => ({})),
   SaveTerminals: vi.fn(async () => {}),
+  TransformText: vi.fn((..._args: unknown[]) => new Promise<string>(() => {})),
+  CancelAIGenerate: vi.fn(async () => true),
 }));
 const toast = vi.hoisted(() => ({ show: vi.fn() }));
 vi.mock("../../../bridge/commands", () => bridge);
@@ -37,7 +39,9 @@ vi.mock("../../store/sendLater", async () => {
 
 import { collectPanes, collectTerminals, makePaneLeaf, makeTerminal, type PaneNode } from "../../paneTree";
 import { useAppStore } from "../../store/app";
+import type { AIPicker } from "../useAIPicker";
 import { createInputTab, forgetComposerDraft, noteUnsentElsewhere, saveComposerDraft } from "../../store/composerDrafts";
+import { composerRewriteOf, startComposerRewrite } from "../../store/composerRewrites";
 import { useSendLater } from "../../store/sendLater";
 import { applyTerminalCommandEvent, useTerminalCommands } from "../../store/terminalCommands";
 import { closeTabAsked, type CloseTabRequest, type TabFacts } from "../../tabClose/request";
@@ -134,6 +138,30 @@ describe("a tab closed for a command", () => {
     await close("t5");
     await act(async () => void (await vi.advanceTimersByTimeAsync(6_000)));
     expect(bridge.StopTerminal).toHaveBeenCalledTimes(1);
+    hidden.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("stops a refine still running in it once it is closed for good", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+    const action = { id: "improve", icon: "sparkles", label: "Improve", instruction: "Improve", enabled: true };
+    const key = collectTerminals(treeRef.current!).find((t) => t.id === "t1")!.historyKey!;
+    startComposerRewrite(key, {
+      projectName: "web",
+      cwd: "/web",
+      ai: { selectedCLI: "claude", selectedModel: "", selectedEffort: "", selectedFast: false } as AIPicker,
+      action,
+      value: "fix teh bug",
+      count: 1,
+      promptId: "p1",
+      images: {},
+    });
+    await close("t1");
+    expect(composerRewriteOf(key)).not.toBeNull();
+    await act(async () => void (await vi.advanceTimersByTimeAsync(5_100)));
+    expect(composerRewriteOf(key)).toBeNull();
+    expect(bridge.CancelAIGenerate).toHaveBeenCalledWith(bridge.TransformText.mock.calls[0][8]);
     hidden.mockRestore();
     vi.useRealTimers();
   });

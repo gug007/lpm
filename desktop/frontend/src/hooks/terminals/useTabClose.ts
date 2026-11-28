@@ -8,6 +8,7 @@ import {
 } from "../../../bridge/commands";
 import { disposeInteractivePaneSession } from "../../components/InteractivePane";
 import { forgetComposerDraft } from "../../store/composerDrafts";
+import { endComposerRewrite } from "../../store/composerRewrites";
 import { forgetFiles, hasUnsavedFiles } from "../../components/files/fileDrafts";
 import { showUndoCloseToast } from "../../components/UndoCloseToast";
 import {
@@ -119,6 +120,7 @@ export function useTabClose({
           ClearPaneStatus(projectName, t.id).catch(() => {});
         }
         forgetFiles(t.id);
+        endComposerRewrite(t.historyKey ?? t.id);
       }
       recordClosingTabs(tabs, flush);
       onTerminalsClosed(projectName, tabs.map((t) => t.historyKey));

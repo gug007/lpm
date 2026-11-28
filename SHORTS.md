@@ -79,3 +79,4 @@ Vertical lessons posted to TikTok and YouTube Shorts, oldest first. The short-pu
 - Claude built an app in my terminal
 - Claude switches accounts before you hit the limit
 - Claude cuts you off in an hour
+- Stop burning Claude Opus on a typo
