@@ -38,6 +38,7 @@ interface TalkState {
   edit: (patch: Partial<TalkPlan>) => void;
   approve: () => Promise<void>;
   askAgain: () => void;
+  sayAgain: () => void;
 }
 
 const RESTING = {
@@ -131,10 +132,20 @@ export const useTalkStore = create<TalkState>()((set, get) => ({
     }, DONE_VISIBLE_MS);
   },
 
-  askAgain: () => {
-    if (get().phase === "failed") set({ ...RESTING, phase: "ask", text: get().text });
-  },
+  askAgain: () => reask(get().text),
+
+  sayAgain: () => reask(""),
 }));
+
+// Back to the question with `text` in the field, giving up a plan still on
+// its way. An empty field starts a new take where VoiceToText is installed.
+function reask(text: string): void {
+  const { phase } = useTalkStore.getState();
+  if (phase !== "failed" && phase !== "plan" && phase !== "planning") return;
+  if (phase === "planning") void CancelAIGenerate(genId(asked)).catch(() => {});
+  asked += 1;
+  useTalkStore.setState({ ...RESTING, phase: "ask", text });
+}
 
 // A detached window has no panel of its own, so the main window shows it.
 export function toggleTalk(): void {

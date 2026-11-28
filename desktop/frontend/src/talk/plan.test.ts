@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  WHICH_PROJECT,
+  TALK_PLACES,
   readTalkReply,
+  talkAgentLabel,
+  talkPlaceLabel,
   talkPlanReady,
   talkProjectChoices,
-  talkRows,
-  talkStepCount,
+  talkProjectLabel,
   type TalkPlan,
 } from "./plan";
 
@@ -16,34 +17,22 @@ const projects = [
 ];
 const plan: TalkPlan = { project: "glimpse", where: "copy", agent: "claude", prompt: "fix the latest issue", label: "latest issue" };
 
-describe("talkRows", () => {
-  it("reads a copy as three steps: duplicate, start, send", () => {
-    expect(talkRows(plan, projects).map((r) => [r.label, r.value])).toEqual([
-      ["Duplicate", "glimpse"],
-      ["Start", "Claude Code, in the copy"],
-      ["Send", "fix the latest issue"],
-    ]);
-    expect(talkStepCount(plan)).toBe(3);
+describe("the plan's rows", () => {
+  it("names where the agent starts, and offers every place", () => {
+    expect(talkPlaceLabel("copy")).toBe("Duplicate");
+    expect(talkPlaceLabel("worktree")).toBe("Worktree");
+    expect(talkPlaceLabel("here")).toBe("In");
+    expect(TALK_PLACES.map((p) => p.choice)).toEqual(["In the project", "In a duplicate", "In a worktree"]);
   });
 
-  it("names a worktree, and the project itself when nothing is copied", () => {
-    const worktree = talkRows({ ...plan, where: "worktree", project: "glimpse-api" }, projects);
-    expect([worktree[0].label, worktree[0].value, worktree[1].value]).toEqual([
-      "Worktree",
-      "Glimpse API",
-      "Claude Code, in the worktree",
-    ]);
-    const here = { ...plan, where: "here" as const, agent: "codex" };
-    expect(talkRows(here, projects).slice(0, 2).map((r) => [r.label, r.value])).toEqual([
-      ["In", "glimpse"],
-      ["Start", "Codex"],
-    ]);
-    expect(talkStepCount(here)).toBe(2);
+  it("shows projects and agents as the sidebar names them", () => {
+    expect(talkProjectLabel("glimpse-api", projects)).toBe("Glimpse API");
+    expect(talkProjectLabel("gone", projects)).toBe("gone");
+    expect(talkAgentLabel("codex")).toBe("Codex");
   });
 
-  it("asks which project when none was matched, and holds the plan until told", () => {
+  it("holds the plan until it has a project and a prompt", () => {
     const open = { ...plan, project: "" };
-    expect(talkRows(open, projects)[0]).toMatchObject({ value: WHICH_PROJECT, missing: true });
     expect(talkPlanReady(open)).toBe(false);
     expect(talkPlanReady({ ...plan, prompt: "  " })).toBe(false);
     expect(talkPlanReady(plan)).toBe(true);

@@ -32,22 +32,23 @@ export interface TalkAgentOption {
   label: string;
 }
 
-export type TalkRowId = "project" | "agent" | "prompt";
-
-export interface TalkRow {
-  id: TalkRowId;
+export interface TalkPlaceOption {
+  id: TalkPlace;
+  // The first row's title while this place is picked.
   label: string;
-  value: string;
-  // The owner has to fill this in before the plan can run.
-  missing: boolean;
+  // The place in the menu that changes it.
+  choice: string;
 }
 
 export const WHICH_PROJECT = "Which project?";
 
 export const TALK_AGENTS: TalkAgentOption[] = AI_CLI_OPTIONS.map((cli) => ({ id: cli.value, label: cli.label }));
 
-const PLACE_LABEL: Record<TalkPlace, string> = { copy: "Duplicate", worktree: "Worktree", here: "In" };
-const PLACE_TAIL: Record<TalkPlace, string> = { copy: ", in the copy", worktree: ", in the worktree", here: "" };
+export const TALK_PLACES: TalkPlaceOption[] = [
+  { id: "here", label: "In", choice: "In the project" },
+  { id: "copy", label: "Duplicate", choice: "In a duplicate" },
+  { id: "worktree", label: "Worktree", choice: "In a worktree" },
+];
 
 // `machines` names each paired computer by slug, so a project that lives on
 // one reads apart from this computer's project of the same name.
@@ -68,26 +69,8 @@ export function talkProjectLabel(name: string, projects: TalkProjectOption[]): s
   return projects.find((p) => p.name === name)?.label ?? name;
 }
 
-export function talkStepCount(plan: TalkPlan): number {
-  return plan.where === "here" ? 2 : 3;
-}
-
-export function talkRows(plan: TalkPlan, projects: TalkProjectOption[]): TalkRow[] {
-  return [
-    {
-      id: "project",
-      label: PLACE_LABEL[plan.where],
-      value: plan.project ? talkProjectLabel(plan.project, projects) : WHICH_PROJECT,
-      missing: !plan.project,
-    },
-    {
-      id: "agent",
-      label: "Start",
-      value: `${talkAgentLabel(plan.agent)}${PLACE_TAIL[plan.where]}`,
-      missing: false,
-    },
-    { id: "prompt", label: "Send", value: plan.prompt, missing: !plan.prompt.trim() },
-  ];
+export function talkPlaceLabel(where: TalkPlace): string {
+  return TALK_PLACES.find((p) => p.id === where)?.label ?? where;
 }
 
 export function talkPlanReady(plan: TalkPlan): boolean {

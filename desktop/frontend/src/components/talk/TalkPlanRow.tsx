@@ -1,23 +1,21 @@
 import type { ReactNode } from "react";
 import { Check, Loader2 } from "lucide-react";
-import type { TalkRow } from "../../talk/plan";
 
 export type TalkRowStatus = "idle" | "running" | "done";
 
 interface TalkPlanRowProps {
-  row: TalkRow;
   icon: ReactNode;
   status: TalkRowStatus;
   // The last row has no line running down to a next one.
   last: boolean;
-  // Shown in place of the value: the prompt while it is being edited.
-  editor?: ReactNode;
-  // The row's "Change" or "Edit", hidden once the plan runs.
-  action?: ReactNode;
+  // What the step does, and the thing it does it to: each a menu or a field
+  // until the plan runs.
+  title: ReactNode;
+  children: ReactNode;
 }
 
-// One line of the plan: what happens, to what, and a way to change it.
-export function TalkPlanRow({ row, icon, status, last, editor, action }: TalkPlanRowProps) {
+// One line of the plan: what happens, and to what.
+export function TalkPlanRow({ icon, status, last, title, children }: TalkPlanRowProps) {
   const tile =
     status === "done" ? (
       <Check size={14} className="text-[var(--accent-green)]" />
@@ -34,19 +32,9 @@ export function TalkPlanRow({ row, icon, status, last, editor, action }: TalkPla
         </span>
         {!last && <span className="min-h-3 w-px flex-1 bg-[var(--border)]" />}
       </div>
-      <div className={`flex min-w-0 flex-1 gap-3 ${editor ? "items-start" : "items-center"} ${last ? "" : "pb-3"}`}>
-        <span className="w-[72px] shrink-0 text-xs leading-7 text-[var(--text-muted)]">{row.label}</span>
-        {editor ?? (
-          <span
-            title={row.value}
-            className={`min-w-0 flex-1 truncate text-[13px] font-medium leading-7 ${
-              row.missing ? "text-[var(--accent-amber-text)]" : "text-[var(--text-primary)]"
-            }`}
-          >
-            {row.value}
-          </span>
-        )}
-        {action && <span className="flex h-7 shrink-0 items-center">{action}</span>}
+      <div className={`flex min-w-0 flex-1 items-start gap-3 ${last ? "" : "pb-3"}`}>
+        <span className="flex h-7 w-[72px] shrink-0 items-center text-xs text-[var(--text-muted)]">{title}</span>
+        <div className="flex min-h-7 min-w-0 flex-1 items-center">{children}</div>
       </div>
     </li>
   );

@@ -16,12 +16,14 @@ interface DictationWaveformProps {
   // Transcribing: the trace stops where the recording ended and a light
   // sweeps across it while VoiceToText works.
   frozen: boolean;
+  // The trace's height: a composer row's unless the host gives it more room.
+  className?: string;
 }
 
 // The level trace of the recording, as if leaving a tape head: sound enters
 // at the red dot and scrolls left. Silence is a dotted line; speech rises
 // into bars.
-export function DictationWaveform({ frozen }: DictationWaveformProps) {
+export function DictationWaveform({ frozen, className = "h-7" }: DictationWaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const headRef = useRef<HTMLSpanElement>(null);
   const frozenRef = useRef(frozen);
@@ -97,7 +99,7 @@ export function DictationWaveform({ frozen }: DictationWaveformProps) {
   }, []);
 
   return (
-    <div className="relative h-7 min-w-0 flex-1">
+    <div className={`relative min-w-0 flex-1 ${className}`}>
       <canvas ref={canvasRef} aria-hidden className="block h-full w-full text-[var(--dictation-ink)]" />
       <span
         ref={headRef}

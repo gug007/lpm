@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Check } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { useAnchoredPanel } from "../../hooks/useAnchoredPanel";
-import { TALK_LINK } from "./talkStyles";
 
 interface TalkPick {
   id: string;
@@ -10,15 +9,19 @@ interface TalkPick {
 }
 
 interface TalkPickMenuProps {
-  // What the link changes, for a screen reader.
+  // What the menu changes, for a screen reader.
   ariaLabel: string;
   picks: TalkPick[];
   picked: string;
   onPick: (id: string) => void;
+  // The trigger's look: a row's title or its value (talkStyles).
+  className: string;
+  children: ReactNode;
 }
 
-// A plan row's "Change": the choices for that row, opening over the card.
-export function TalkPickMenu({ ariaLabel, picks, picked, onPick }: TalkPickMenuProps) {
+// A part of a plan row that is also its menu: the choices for it, opening over
+// the card.
+export function TalkPickMenu({ ariaLabel, picks, picked, onPick, className, children }: TalkPickMenuProps) {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
   const { triggerRef, panelRef, style } = useAnchoredPanel<HTMLButtonElement, HTMLDivElement>({
@@ -38,9 +41,10 @@ export function TalkPickMenu({ ariaLabel, picks, picked, onPick }: TalkPickMenuP
         aria-expanded={open}
         aria-label={ariaLabel}
         onClick={() => setOpen((on) => !on)}
-        className={TALK_LINK}
+        className={className}
       >
-        Change
+        {children}
+        <ChevronDown size={12} aria-hidden className="shrink-0 opacity-70" />
       </button>
       {open &&
         style &&

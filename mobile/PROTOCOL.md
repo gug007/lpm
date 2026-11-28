@@ -837,8 +837,9 @@ default. `prompt` is the task in the speaker's words, without the part that says
 to run it; the machine doesn't solve or look anything up. `label` is a short name for
 the copy and `""` for `"here"`.
 
-The phone may change `project`, `agent` and `prompt` before `talkRun`, and sends the
-whole plan back. It never sends a plan nobody approved.
+The phone may change `project`, `where`, `agent` and `prompt` before `talkRun`, and
+sends the whole plan back. A `where` changed to `"copy"` or `"worktree"` may keep an
+empty `label`; the copy then gets the machine's default name. It never sends a plan nobody approved.
 
 ### Machines this Mac connects to
 

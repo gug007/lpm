@@ -1,25 +1,31 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Copy, CornerDownLeft, Folder, GitBranch, Send, Sparkles } from "lucide-react";
 import { useTalkStore } from "../../store/talk";
 import {
   TALK_AGENTS,
+  TALK_PLACES,
+  WHICH_PROJECT,
+  talkAgentLabel,
+  talkPlaceLabel,
   talkPlanReady,
   talkProjectChoices,
-  talkRows,
-  talkStepCount,
+  talkProjectLabel,
   type TalkPlace,
-  type TalkRowId,
 } from "../../talk/plan";
 import { BTN_PRIMARY, BTN_QUIET } from "../ui/buttons";
 import { FLOATING_CARD } from "../ui/floatingCard";
+import { TalkCardHeader } from "./TalkCardHeader";
+import { TalkHeard } from "./TalkHeard";
 import { TalkPickMenu } from "./TalkPickMenu";
 import { TalkPlanRow, type TalkRowStatus } from "./TalkPlanRow";
-import { TALK_LINK } from "./talkStyles";
+import { TalkPromptField } from "./TalkPromptField";
+import { TALK_TITLE_MENU, TALK_VALUE_MENU } from "./talkStyles";
 
 const PLACE_ICON: Record<TalkPlace, typeof Copy> = { copy: Copy, worktree: GitBranch, here: Folder };
+const PLACE_PICKS = TALK_PLACES.map((p) => ({ id: p.id, label: p.choice }));
 
-// The plan as three rows, each one changeable, and the one button that runs
-// it. Nothing happens before Approve.
+// The plan as three rows, every part of it changeable where it stands, and the
+// one button that runs it. Nothing happens before Approve.
 export function TalkPlanCard() {
   const plan = useTalkStore((s) => s.plan);
   const candidates = useTalkStore((s) => s.candidates);
@@ -27,56 +33,29 @@ export function TalkPlanCard() {
   const phase = useTalkStore((s) => s.phase);
   const done = useTalkStore((s) => s.done);
   const { edit, approve, close } = useTalkStore.getState();
-  const [editing, setEditing] = useState(false);
   const cardRef = useRef<HTMLElement>(null);
   const running = phase === "running";
 
   // Return and Escape are the card's only while focus is in it. It takes focus
-  // when the field that held it has just gone (the sentence's as the card
-  // appears, the prompt's as its editing ends), never from somewhere else.
+  // as it appears, when the sentence's field that held it has just gone.
   useEffect(() => {
     const held = document.activeElement;
-    if (!editing && (!held || held === document.body)) cardRef.current?.focus();
-  }, [editing]);
+    if (!held || held === document.body) cardRef.current?.focus();
+  }, []);
 
   if (!plan) return null;
 
-  const statusOf = (id: TalkRowId): TalkRowStatus =>
-    done ? "done" : running && id === "project" ? "running" : "idle";
+  const statusOf = (row: "project" | "agent" | "prompt"): TalkRowStatus =>
+    done ? "done" : running && row === "project" ? "running" : "idle";
   const PlaceIcon = PLACE_ICON[plan.where];
-  const icons: Record<TalkRowId, ReactNode> = {
-    project: <PlaceIcon size={14} />,
-    agent: <Sparkles size={14} className={plan.agent === "claude" ? "text-[var(--accent-claude)]" : undefined} />,
-    prompt: <Send size={14} />,
-  };
-  const pick = (patch: { project: string } | { agent: string }) => {
+  const pick = (patch: { project: string } | { agent: string } | { where: TalkPlace }) => {
     edit(patch);
     cardRef.current?.focus();
   };
-
-  const actions: Record<TalkRowId, ReactNode> = {
-    project: (
-      <TalkPickMenu
-        ariaLabel="Change the project"
-        picks={talkProjectChoices(projects, candidates).map((p) => ({ id: p.name, label: p.label }))}
-        picked={plan.project}
-        onPick={(project) => pick({ project })}
-      />
-    ),
-    agent: (
-      <TalkPickMenu
-        ariaLabel="Change the agent"
-        picks={TALK_AGENTS}
-        picked={plan.agent}
-        onPick={(agent) => pick({ agent })}
-      />
-    ),
-    prompt: (
-      <button type="button" onClick={() => setEditing((on) => !on)} className={TALK_LINK}>
-        {editing ? "Done" : "Edit"}
-      </button>
-    ),
-  };
+  const projectText = plan.project ? talkProjectLabel(plan.project, projects) : WHICH_PROJECT;
+  const shown = (text: ReactNode) => (
+    <span className="min-w-0 truncate text-[13px] font-medium text-[var(--text-primary)]">{text}</span>
+  );
 
   return (
     <section
@@ -88,43 +67,88 @@ export function TalkPlanCard() {
         if (running) return;
         if (e.key === "Escape") {
           e.preventDefault();
-          if (editing) setEditing(false);
-          else close();
+          close();
         } else if (e.key === "Enter" && e.target === e.currentTarget) {
           e.preventDefault();
           void approve();
         }
       }}
     >
-      <div className="flex items-center gap-2.5">
-        <h2 id="talk-plan-title" className="min-w-0 flex-1 text-sm font-semibold text-[var(--text-primary)]">
-          {running ? "Running the plan" : "Run this plan?"}
-        </h2>
-        <span className="text-[11px] text-[var(--text-muted)]">{`${talkStepCount(plan)} steps`}</span>
-      </div>
+      <TalkCardHeader
+        id="talk-plan-title"
+        tile="rest"
+        title={running ? "Running the plan" : "Run this plan?"}
+        subtitle={running ? "Starting it now" : "Change anything before it runs"}
+      />
+      <TalkHeard fixed={running} />
       <ol className="flex flex-col">
-        {talkRows(plan, projects).map((row, i, rows) => (
-          <TalkPlanRow
-            key={row.id}
-            row={row}
-            icon={icons[row.id]}
-            status={statusOf(row.id)}
-            last={i === rows.length - 1}
-            action={running ? undefined : actions[row.id]}
-            editor={
-              row.id === "prompt" && editing && !running ? (
-                <textarea
-                  value={plan.prompt}
-                  onChange={(e) => edit({ prompt: e.target.value })}
-                  rows={3}
-                  autoFocus
-                  aria-label="Prompt"
-                  className="min-w-0 flex-1 resize-y rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-2.5 py-1.5 text-[13px] leading-relaxed text-[var(--text-primary)] outline-none"
-                />
-              ) : undefined
-            }
-          />
-        ))}
+        <TalkPlanRow
+          icon={<PlaceIcon size={14} />}
+          status={statusOf("project")}
+          last={false}
+          title={
+            running ? (
+              talkPlaceLabel(plan.where)
+            ) : (
+              <TalkPickMenu
+                ariaLabel="Change where it runs"
+                picks={PLACE_PICKS}
+                picked={plan.where}
+                onPick={(where) => pick({ where: where as TalkPlace })}
+                className={TALK_TITLE_MENU}
+              >
+                {talkPlaceLabel(plan.where)}
+              </TalkPickMenu>
+            )
+          }
+        >
+          {running ? (
+            shown(projectText)
+          ) : (
+            <TalkPickMenu
+              ariaLabel="Change the project"
+              picks={talkProjectChoices(projects, candidates).map((p) => ({ id: p.name, label: p.label }))}
+              picked={plan.project}
+              onPick={(project) => pick({ project })}
+              className={TALK_VALUE_MENU}
+            >
+              <span className={`truncate ${plan.project ? "" : "text-[var(--accent-amber-text)]"}`}>{projectText}</span>
+            </TalkPickMenu>
+          )}
+        </TalkPlanRow>
+        <TalkPlanRow
+          icon={<Sparkles size={14} className={plan.agent === "claude" ? "text-[var(--accent-claude)]" : undefined} />}
+          status={statusOf("agent")}
+          last={false}
+          title="Start"
+        >
+          {running ? (
+            shown(talkAgentLabel(plan.agent))
+          ) : (
+            <TalkPickMenu
+              ariaLabel="Change the agent"
+              picks={TALK_AGENTS}
+              picked={plan.agent}
+              onPick={(agent) => pick({ agent })}
+              className={TALK_VALUE_MENU}
+            >
+              <span className="truncate">{talkAgentLabel(plan.agent)}</span>
+            </TalkPickMenu>
+          )}
+        </TalkPlanRow>
+        <TalkPlanRow icon={<Send size={14} />} status={statusOf("prompt")} last title="Send">
+          {running ? (
+            <p className="min-w-0 whitespace-pre-wrap break-words py-1 text-[13px] font-medium leading-[18px] text-[var(--text-primary)]">
+              {plan.prompt}
+            </p>
+          ) : (
+            <TalkPromptField
+              value={plan.prompt}
+              onChange={(prompt) => edit({ prompt })}
+              onSubmit={() => void approve()}
+            />
+          )}
+        </TalkPlanRow>
       </ol>
       {!running && (
         <div className="flex flex-wrap items-center gap-2">
