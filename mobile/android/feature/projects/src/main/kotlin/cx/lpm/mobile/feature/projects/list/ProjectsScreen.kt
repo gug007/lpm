@@ -31,6 +31,7 @@ import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import cx.lpm.mobile.core.data.link.clockStamp
 import cx.lpm.mobile.core.data.projects.PendingAgentArchive
@@ -46,6 +47,7 @@ import cx.lpm.mobile.core.model.ProjectFolder
 import cx.lpm.mobile.core.model.SessionKey
 import cx.lpm.mobile.feature.projects.ProjectsSlots
 import cx.lpm.mobile.feature.projects.R as ProjectsR
+import cx.lpm.mobile.feature.projects.talk.TalkButtonInset
 import cx.lpm.mobile.feature.projects.ui.TipCard
 import cx.lpm.mobile.feature.projects.ui.UndoBar
 import java.time.Instant
@@ -62,7 +64,7 @@ class FolderActions(
  * The projects list (iOS `ProjectsView`): the Mac's name and status over the list,
  * the purple Demo Mode banner, folders and projects as the desktop sidebar arranges
  * them with the Mac's machines at their slots, pull to refresh, the usage rows at the
- * foot, and the duplicate progress HUD over the lpm update bar.
+ * foot, the Talk button over it, and the duplicate progress HUD over the lpm update bar.
  */
 @Composable
 fun ProjectsScreen(
@@ -78,6 +80,7 @@ fun ProjectsScreen(
     machineActions: MachineActions = MachineActions(),
     onUndoArchive: () -> Unit = {},
     onCloseTip: (AppTip) -> Unit = {},
+    talkButton: (@Composable () -> Unit)? = null,
     slots: ProjectsSlots = ProjectsSlots()
 ) {
     Column(
@@ -97,7 +100,8 @@ fun ProjectsScreen(
                 refreshing = refreshing,
                 onRefresh = onRefresh,
                 actions = ListActions(rowActions, folderActions, machineActions, onCloseTip),
-                slots = slots
+                slots = slots,
+                bottomInset = if (talkButton != null) TalkButtonInset else 0.dp
             )
             if (state.listIsEmpty) {
                 val issue = state.issue
@@ -119,6 +123,13 @@ fun ProjectsScreen(
 
                     else -> ProjectListSkeleton(Modifier.fillMaxSize())
                 }
+            }
+            talkButton?.let { button ->
+                Box(
+                    Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp)
+                ) { button() }
             }
         }
         UndoBar(message = state.pendingArchive?.let { archivedMessage(it) }, onUndo = onUndoArchive)
@@ -196,7 +207,8 @@ private fun ProjectsList(
     onRefresh: () -> Unit,
     actions: ListActions,
     slots: ProjectsSlots,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    bottomInset: Dp = 0.dp
 ) {
     val scroll = rememberScrollState()
     val edgeRows = remember { AgentEdgeRows() }
@@ -212,7 +224,7 @@ private fun ProjectsList(
                     .verticalScroll(scroll)
                     .onPlaced { edgeRows.content = it }
                     .heightIn(min = maxHeight)
-                    .padding(top = ListTopPadding)
+                    .padding(top = ListTopPadding, bottom = bottomInset)
             ) {
                 state.tip?.let { tip ->
                     ListSection { TipCard(tip, onClose = { actions.closeTip(tip) }) }

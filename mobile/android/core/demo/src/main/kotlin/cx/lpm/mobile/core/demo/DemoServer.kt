@@ -37,6 +37,7 @@ class DemoServer(
         registerProjectsHandlers()
         registerTerminalsHandlers()
         registerAgentHandlers()
+        registerTalkHandlers()
         registerFilesHandlers()
         registerTabMenuHandlers()
         registerConversationHandlers()

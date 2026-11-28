@@ -4,6 +4,7 @@ import { BrowserOpenURL } from "../../bridge/runtime";
 import { GET_KEY_URL, type GenerateDecision, type GenerateRequest } from "../generate";
 import { isMac } from "../platform";
 import { BTN_PRIMARY, BTN_QUIET, BTN_SECONDARY } from "./ui/buttons";
+import { FLOATING_CARD, FLOATING_CARD_TILE } from "./ui/floatingCard";
 
 const CHIP = "rounded-full border border-[var(--border)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]";
 const ALLOW_KEYS = isMac ? "⌘↩" : "Ctrl+Enter";
@@ -53,7 +54,7 @@ export function GenerateRequestCard({
   return (
     <section
       aria-labelledby="generate-request-title"
-      className="pointer-events-auto flex w-full max-w-[600px] flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4 shadow-2xl"
+      className={FLOATING_CARD}
       onKeyDown={(e) => {
         if (e.key === "Enter" && (isMac ? e.metaKey : e.ctrlKey)) {
           e.preventDefault();
@@ -62,7 +63,7 @@ export function GenerateRequestCard({
       }}
     >
       <div className="flex items-center gap-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-active)] text-[var(--text-primary)]">
+        <span className={FLOATING_CARD_TILE}>
           {needsKey ? <KeyRound size={15} /> : speech ? <AudioLines size={15} /> : <ImageIcon size={15} />}
         </span>
         <div className="min-w-0 flex-1">

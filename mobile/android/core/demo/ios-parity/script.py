@@ -740,6 +740,36 @@ at(86500, 'gitMergeStop', project='mobile-app'); at(91000, 'git', project='mobil
 at(91500, 'gitMergeResolve', project='mobile-app'); at(97000, 'git', project='mobile-app')
 at(97500, 'gitMergeContinue', project='mobile-app'); at(98500, 'git', project='mobile-app')
 at(98500, 'gitMergeAbort', project='mobile-app')
+# Talk: a sentence sorted into a plan with no AI, then plans run or refused
+at(92000, 'talkPlan', reqId='tp1', text='  Fix the cart badge in a separate duplicate in Storefront  ')
+at(92000, 'talkPlan', reqId='tp2', text='tidy the README in a worktree with codex')
+at(92000, 'talkPlan', reqId='tp3', text='ask Gemini to review the blog and api-gateway changes')
+at(92000, 'talkPlan', reqId='tp4', text='COPY it and run the tests')
+at(92000, 'talkPlan', reqId='tp5', text='   '); at(92000, 'talkPlan', reqId=6)
+at(92000, 'talkPlan', reqId='tp7', text='Delete the blog duplicate')
+at(93500, 'talkRun', reqId='tr1', plan={'project': 'blog', 'where': 'copy', 'agent': 'claude',
+                                        'prompt': ' Fix the cart badge\nThen run the tests ', 'label': 'talk'})
+at(93500, 'talkRun', reqId='tr2', plan={'project': 'api-gateway', 'where': 'worktree', 'agent': 'codex',
+                                        'prompt': 'Tidy the README', 'label': ''})
+at(93500, 'talkRun', reqId='tr3', plan={'project': 'storefront', 'where': 'here', 'agent': 'gemini',
+                                        'prompt': 'Review my changes', 'label': ''})
+at(93500, 'talkRun', reqId='tr4', plan={'project': 'nope', 'where': 'copy', 'agent': 'claude', 'prompt': 'x',
+                                        'label': 'talk'})
+at(93500, 'talkRun', reqId='tr5', plan={'project': 'blog', 'where': 'here', 'agent': 'claude', 'prompt': '  ',
+                                        'label': ''})
+at(93500, 'talkRun', reqId='tr6', plan={'project': 'blog', 'where': 'here', 'agent': 'nope', 'prompt': 'x',
+                                        'label': ''})
+at(93500, 'talkRun', reqId=7)
+# copies under a label already taken land as talk-2 and talk-3, and a sentence can name a copy
+at(94500, 'talkRun', reqId='tr8', plan={'project': 'blog', 'where': 'copy', 'agent': 'opencode',
+                                        'prompt': 'Again', 'label': ' talk '})
+at(94500, 'talkRun', reqId='tr9', plan={'project': 'talk', 'where': 'worktree', 'agent': 'claude',
+                                        'prompt': 'And again', 'label': 'talk'})
+at(95500, 'projects'); at(95500, 'sidebar'); at(95500, 'terminals', project='talk')
+at(95500, 'terminals', project='talk-2'); at(95500, 'terminals', project='talk-3')
+at(95500, 'terminals', project='api-gateway-2')
+at(95500, 'terminals', project='storefront'); at(95500, 'git', project='talk')
+at(95500, 'talkPlan', reqId='tp8', text='look at talk-2 here')
 steps.append({'at': 100000})
 steps.sort(key=lambda s: s['at'])
 for s in steps:

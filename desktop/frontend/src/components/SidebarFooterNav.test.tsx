@@ -490,18 +490,30 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
 
   const STUDIO = { slug: "studio", alias: "Studio", host: "studio.local", port: 8766, enabled: true, connected: true };
 
-  it("shows the cup for a connected computer kept awake, and gives each its own tab", async () => {
+  const studioKeptAwake = () =>
     mocks.peerInvoke.mockImplementation((_slug: string, cmd: string) =>
       cmd === "keep_awake_state"
         ? Promise.resolve({ ...KEEP_AWAKE, mode: "timed", active: true, endsIn: 30 * 60_000, power: "awake" })
         : Promise.reject(new Error("no")),
     );
+
+  it("has no cup for a connected computer kept awake while this one is off", async () => {
+    studioKeptAwake();
     renderNav({ peers: [STUDIO] as never });
     await act(async () => {});
 
-    expect(cup()!.getAttribute("aria-label")).toBe("Keep awake: 1 other computer kept awake");
-    expect(cup()!.textContent).toBe("1");
-    expect(coffee()).toBe(false);
+    expect(cup()).toBeUndefined();
+  });
+
+  it("speaks for this computer only on the cup, and gives each its own tab", async () => {
+    studioKeptAwake();
+    mocks.keepAwakeState.mockResolvedValue({ ...KEEP_AWAKE, mode: "always", active: true, power: "awake" });
+    renderNav({ peers: [STUDIO] as never });
+    await act(async () => {});
+
+    expect(cup()!.getAttribute("aria-label")).toBe("Keep awake: until you turn it off");
+    expect(cup()!.textContent).toBe("");
+    expect(coffee()).toBe(true);
     act(() => {
       cup()!.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
       cup()!.click();
@@ -509,14 +521,11 @@ describe("SidebarFooterNav Keep awake in the More menu", () => {
     await act(async () => {});
     const menu = () => document.querySelector("[data-context-menu]")!;
     const tabs = [...menu().querySelectorAll('[role="tab"]')];
-    expect(tabs.map((t) => t.textContent)).toEqual(["This Mac", "Studio, kept awake"]);
-    expect(tabs[1].getAttribute("aria-selected")).toBe("true");
-    expect(menu().textContent).toContain("Keep Studio awake");
-
-    act(() => (tabs[0] as HTMLButtonElement).click());
+    expect(tabs.map((t) => t.textContent)).toEqual(["This Mac, kept awake", "Studio, kept awake"]);
+    expect(tabs[0].getAttribute("aria-selected")).toBe("true");
     expect(menu().textContent).toContain("Keep this Mac awake");
 
-    act(() => (menu().querySelectorAll('[role="tab"]')[1] as HTMLButtonElement).click());
+    act(() => (tabs[1] as HTMLButtonElement).click());
     expect(menu().textContent).toContain("Keep Studio awake");
     expect(menu().textContent).not.toContain("Loading");
     expect(menu().textContent).toContain("For a set time");

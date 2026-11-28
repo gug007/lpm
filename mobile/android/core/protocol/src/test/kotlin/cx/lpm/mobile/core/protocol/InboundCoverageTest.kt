@@ -50,7 +50,8 @@ class InboundCoverageTest {
         "gitIssues", "gitIssue", "writeFile", "generateRequests", "answerGenerate",
         "conversation", "conversationPage", "conversationDetail", "gitMergeResolve", "gitMergeStop",
         "gitMergeAbort",
-        "gitMergeContinue", "gitConflictTake", "gitConflictResolved", "gitMergeRun", "answers"
+        "gitMergeContinue", "gitConflictTake", "gitConflictResolved", "gitMergeRun", "answers",
+        "talkPlan", "talkRun"
     )
 
     // Replies only Android asks for: iOS registers for push with `apnsToken`.
@@ -58,7 +59,7 @@ class InboundCoverageTest {
 
     @Test
     fun decodesExactlyTheTypesIosDoesPlusAndroidsOwn() {
-        assertEquals(198, iosTypes.size)
+        assertEquals(200, iosTypes.size)
         assertEquals(iosTypes + androidOnlyTypes, inboundParsers.keys)
     }
 
@@ -76,7 +77,8 @@ class InboundCoverageTest {
             memoryNotesParsers,
             serviceParsers,
             commandParsers,
-            conversationParsers
+            conversationParsers,
+            talkParsers
         )
         assertEquals(inboundParsers.size, tables.sumOf { it.size })
     }

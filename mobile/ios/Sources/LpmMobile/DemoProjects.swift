@@ -240,8 +240,7 @@ extension DemoServer {
             for i in 0..<count {
                 let label = (labels.indices.contains(i) ? labels[i] : "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
-                let copyName = self.uniqueProjectName(label.isEmpty ? name : label,
-                                                      reserved: reserved)
+                let copyName = self.duplicateName(of: name, label: label, reserved: reserved)
                 reserved.insert(copyName)
                 plans.append((copyName, label))
             }
@@ -262,6 +261,11 @@ extension DemoServer {
                  "names": plans.map(\.name)]
             }
         }
+    }
+
+    /// The name a copy lands under: its label's when it has one, else its source's.
+    func duplicateName(of source: String, label: String, reserved: Set<String> = []) -> String {
+        uniqueProjectName(label.isEmpty ? source : label, reserved: reserved)
     }
 
     func createDuplicate(of source: String, named copyName: String, label: String,

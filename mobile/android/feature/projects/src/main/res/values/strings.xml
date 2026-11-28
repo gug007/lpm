@@ -466,4 +466,22 @@
     <string name="review_verdict_changes">requested changes</string>
     <string name="review_verdict_commented">commented</string>
     <string name="review_verdict_dismissed">dismissed</string>
+    <string name="talk_button">Talk</string>
+    <string name="talk_ask_title">What should I do?</string>
+    <string name="talk_ask_placeholder">Say or type what to do</string>
+    <string name="talk_make_plan">Make a plan</string>
+    <string name="talk_planning">Making the plan…</string>
+    <string name="talk_unsupported_title">I can\'t do that from here</string>
+    <string name="talk_failed_title">Couldn\'t make the plan</string>
+    <string name="talk_try_again">Try again</string>
+    <string name="talk_plan_title">Run this plan?</string>
+    <string name="talk_which_project">Which project?</string>
+    <string name="talk_change">Change</string>
+    <string name="talk_start">Start</string>
+    <string name="talk_send">Send</string>
+    <string name="talk_prompt">Prompt</string>
+    <string name="talk_edit">Edit</string>
+    <string name="talk_done">Done</string>
+    <string name="talk_nothing_runs">Nothing runs until you approve</string>
+    <string name="talk_approve">Approve</string>
 </resources>

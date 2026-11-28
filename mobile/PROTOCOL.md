@@ -161,6 +161,8 @@ branch's changes since it left its base; `"gitPrDiscussion"` — `gitPrDiscussio
 the review on the open pull request; `"gitIssues"` — `gitIssues` and `gitIssue`,
 the repository's open issues; `"gitCheckLog"` — `gitCheckLog`, the end of a
 failed check's log; `"writeFile"` — `writeFile`, saving an edit to a project file;
+`"talk"` — `talkPlan` and `talkRun`, a spoken or typed request turned into a plan
+to approve (see [Talk](#talk));
 `"generateApproval"` — `generateRequests` and `answerGenerate`, and the
 `generateRequests` push (see [Images and speech](#images-and-speech));
 `"listDir"` — browsing a project's folders (`listDir`); `"locatePath"` — where a path
@@ -810,6 +812,33 @@ VoiceToText's (`too_short` and `no_speech` mean nothing was said), or `unavailab
 (VoiceToText can't be reached, or needs updating) or `disconnected` (it quit mid-take).
 Past `dictateStop` the machine is silent while it transcribes, which takes minutes for a
 long take on a slow model, so the phone should wait that long before giving up.
+
+### Talk
+
+The Talk button, on a machine whose `features` has `"talk"`: the phone hears or takes one
+sentence ("fix the latest GitHub issue assigned to me in a separate duplicate in
+glimpse"), the machine turns it into a plan, the phone shows the plan and, once it is
+approved, the machine runs it. The phone records with its own dictation (the
+[Dictation](#dictation) requests where the machine has VoiceToText, its own recognizer
+where not) or takes typed text; either way `talkPlan` gets the words as text.
+
+| Request | Reply |
+|---|---|
+| `{ "t": "talkPlan", "reqId": "<id>", "text": "<the sentence>" }` | `{ "t": "talkPlan", "reqId": "<id>", "ok": true, "plan": TalkPlan, "candidates": ["<project>"…] }` / `{ "t": "talkPlan", "reqId": "<id>", "ok": false, "error": "…", "unsupported": bool }` — asks the machine's AI CLI (the one set in Settings, with its small model) to sort the sentence into a plan; nothing runs. It takes several seconds, so the phone shows that it is working and may wait up to two minutes. `unsupported: true` means the sentence asks for something a plan can't do, and `error` says so in a sentence to show as is; without it `error` is a failure to show and offer again. Async (worker) |
+| `{ "t": "talkRun", "reqId": "<id>", "plan": TalkPlan }` | `{ "t": "talkRun", "reqId": "<id>", "ok": true }` / `{ "t": "talkRun", "reqId": "<id>", "ok": false, "error": "…" }` — relay; the machine's main window runs the plan exactly as its own Approve does. With `where` `"copy"` or `"worktree"` it makes one copy of `project` (a worktree for `"worktree"`) with the desktop's duplicate defaults and `label` as its name, then opens `agent` in a new tab there with `prompt`; with `"here"` it opens that tab in `project` itself. `ok: true` means it has started: the copy arrives on the projects list and the tab on `terminals`, behind whatever the machine shows. Refused when the window is closed, `project` isn't listed, `agent` isn't one the machine offers or `prompt` is blank |
+
+**TalkPlan**: `{ "project": "<name>", "where": "copy" | "worktree" | "here", "agent": "<agent id>", "prompt": "<text>", "label": "<text>" }`
+
+`project` is a project's `name` from the projects list, or `""` when the sentence named
+none the machine could match for sure. Then `candidates` lists the names it could mean
+(often two, sometimes none) and the phone asks which before it lets the plan run.
+`agent` is an `id` from `agentOptions`: the one the sentence named, else the machine's
+default. `prompt` is the task in the speaker's words, without the part that says where
+to run it; the machine doesn't solve or look anything up. `label` is a short name for
+the copy and `""` for `"here"`.
+
+The phone may change `project`, `agent` and `prompt` before `talkRun`, and sends the
+whole plan back. It never sends a plan nobody approved.
 
 ### Machines this Mac connects to
 

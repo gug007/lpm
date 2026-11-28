@@ -28,7 +28,7 @@ import { RemoteFolderPickerHost } from "./components/RemoteFolderPickerHost";
 import { PortConflictDialog } from "./components/PortConflictDialog";
 import { PairApprovalHost } from "./components/PairApprovalHost";
 import { AgentFilesApproval } from "./components/AgentFilesApproval";
-import { GenerateApproval } from "./components/GenerateApproval";
+import { FloatingCards } from "./components/FloatingCards";
 import { QuitGuardHost } from "./components/QuitGuardHost";
 import { CloseGuardHost } from "./components/CloseGuardHost";
 import { PairRequestDialog } from "./components/connections/PairRequestDialog";
@@ -447,7 +447,7 @@ export default function App() {
       <SidebarRowLayoutDialog />
       <PairApprovalHost />
       <AgentFilesApproval />
-      <GenerateApproval />
+      <FloatingCards />
       <QuitGuardHost />
       <CloseGuardHost />
       <PairRequestDialog />

@@ -11,6 +11,7 @@ import { historyCommands } from "./commands/history";
 import { portCommands } from "./commands/ports";
 import { jobCommands } from "./commands/jobs";
 import { generateCommands } from "./commands/generate";
+import { talkCommands } from "./commands/talk";
 import { keepAwakeCommands } from "./commands/keepAwake";
 import { lpmCommandCommands } from "./commands/lpmCommands";
 import { notesCommands } from "./commands/notes";
@@ -52,6 +53,7 @@ export const HANDLERS: CommandMap = {
   ...toolCommands,
   ...keepAwakeCommands,
   ...generateCommands,
+  ...talkCommands,
   ...lpmCommandCommands,
   ...notesCommands,
   ...globalConfigCommands,

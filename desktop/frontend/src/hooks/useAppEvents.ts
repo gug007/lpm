@@ -17,6 +17,8 @@ import { onFocusMainTerminal } from "../windowFocus";
 import { getSettings, useSettingsStore } from "../store/settings";
 import { applySettingsOutsideStore } from "../settingsEffects";
 import type { SpawnTask } from "../types";
+import { useTalkStore } from "../store/talk";
+import { runTalkPlan, type TalkPlan } from "../talk/plan";
 import { displayNameForProjectName } from "../components/ProjectNameDisplay";
 import { announceJobResult } from "../jobResultToast";
 import { isPeerName, peerSlugOf, stripMarker } from "../peer/markers";
@@ -180,10 +182,13 @@ export function useAppEvents(): void {
           action?: string | null;
           inputValues?: Record<string, string>;
           confirmed?: boolean;
+          // A plan a phone's Talk sheet approved (PROTOCOL.md "Talk").
+          talk?: TalkPlan;
         } & RemoteTabRequest
       > = (await RemoteTakeRunActions().catch(() => [])) ?? [];
       for (const req of pending) {
-        if (req?.project)
+        if (req?.talk) void runTalkPlan(req.talk);
+        else if (req?.project)
           triggerRemoteAction(req.project, req.action ?? null, req.inputValues, req.confirmed, {
             agent: req.agent,
             resume: req.resume,
@@ -280,6 +285,12 @@ export function useAppEvents(): void {
       // for it via FocusMainWindow("usage")), so route it to the modal.
       if (view === "usage") {
         setUsageOpen(true);
+        return;
+      }
+      // Talk is a panel over the app: a detached window's Talk button asks
+      // for it here.
+      if (view === "talk") {
+        useTalkStore.getState().open();
         return;
       }
       // "mobile" is the Add a project picker's Phone screen, not a view.

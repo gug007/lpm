@@ -72,14 +72,7 @@ internal fun DemoServer.registerTerminalsHandlers() {
 private fun DemoServer.registerTerminalLifecycleHandlers() {
     register("newTerminal") { o ->
         val project = o.string("project") ?: return@register
-        val (n, id) = nextTerminalId(project)
-        val term = demoAgentTerminal(o, id, project) ?: DemoWorld.Terminal(
-            id = id,
-            label = "Terminal $n",
-            project = project,
-            buffer = shellPrompt(project)
-        )
-        world.terminals.getOrPut(project) { mutableListOf() }.add(term)
+        demoOpenTab(o, project)
         push(mapOf("t" to "newTerminal", "ok" to true))
     }
     // A shell that ran `exit` comes back in its tab under a new id, as the desktop's
@@ -302,6 +295,21 @@ private val composerActions = listOf(
 )
 
 // cross-domain hooks
+
+/**
+ * Open the tab a `newTerminal` asks for: the agent's when it names one the demo can
+ * start, else a shell. Called by talkRun too.
+ */
+internal fun DemoServer.demoOpenTab(o: Dict, project: String) {
+    val (n, id) = nextTerminalId(project)
+    val term = demoAgentTerminal(o, id, project) ?: DemoWorld.Terminal(
+        id = id,
+        label = "Terminal $n",
+        project = project,
+        buffer = shellPrompt(project)
+    )
+    world.terminals.getOrPut(project) { mutableListOf() }.add(term)
+}
 
 /**
  * Create the terminals for a freshly added project: mirrored from `copyOf` (fresh ids,

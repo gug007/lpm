@@ -25,19 +25,16 @@ const TEXT_TONE = {
 // agents hold it or the time left; it turns amber only in the last five
 // minutes, with the heads-up toast. An empty gray cup is on but not holding:
 // waiting for an agent, or with a battery or "!" on its corner when it can't.
-// Connected computers kept awake are counted beside it. Resting on it shows
-// `card`, and a click opens the whole menu.
+// It speaks for this machine only: connected computers are in `card`, shown on
+// rest, and in the menu a click opens.
 export function KeepAwakeFooterButton({
   session,
-  othersOn,
   card,
   menuOpen,
   onToggleMenu,
   className,
 }: {
   session: KeepAwakeSession;
-  /** Connected computers whose Keep awake is on. */
-  othersOn: number;
   card: ReactNode;
   menuOpen: boolean;
   onToggleMenu: (trigger: HTMLElement) => void;
@@ -46,14 +43,9 @@ export function KeepAwakeFooterButton({
   const { state, endsAt } = session;
   const left = useKeepAwakeLeft(endsAt);
   const total = useKeepAwakeSpan(endsAt);
-  const look = keepAwakeCup(state, left, total, othersOn);
-  if (!look) return null;
-  const localOn = state !== null && state.mode !== "off";
-  const others = `${othersOn} ${othersOn === 1 ? "other computer" : "other computers"} kept awake`;
-  const label = localOn
-    ? `${keepAwakeCupLabel(state, left)}${othersOn > 0 ? `, ${others}` : ""}`
-    : others;
-  const wide = look.text !== null || look.others > 0;
+  const look = keepAwakeCup(state, left, total);
+  if (!state || !look) return null;
+  const wide = look.text !== null;
 
   return (
     <Tooltip content={card} side="top" wide interactive delay={150} triggerClassName="inline-flex shrink-0">
@@ -61,7 +53,7 @@ export function KeepAwakeFooterButton({
         type="button"
         onClick={(e) => onToggleMenu(e.currentTarget)}
         aria-expanded={menuOpen}
-        aria-label={`Keep awake: ${label}`}
+        aria-label={`Keep awake: ${keepAwakeCupLabel(state, left)}`}
         className={`${className} gap-1.5 ${wide ? "w-auto min-w-9 px-2" : ""} ${TONE[look.tone]} ${
           menuOpen ? "bg-[var(--bg-active)]" : "hover:bg-[var(--bg-hover)]"
         }`}
@@ -91,18 +83,6 @@ export function KeepAwakeFooterButton({
         {look.text && (
           <span aria-hidden className={`text-[11px] leading-none tabular-nums ${TEXT_TONE[look.tone]}`}>
             {look.text}
-          </span>
-        )}
-        {look.others > 0 && (
-          <span
-            aria-hidden
-            className="flex items-center gap-0.5 text-[11px] font-semibold leading-none tabular-nums text-[var(--text-secondary)]"
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round">
-              <rect x="1.2" y="1.8" width="9.6" height="6.4" rx="1.2" />
-              <path d="M4.2 10.4h3.6" />
-            </svg>
-            {look.others}
           </span>
         )}
       </button>

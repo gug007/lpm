@@ -1,5 +1,6 @@
 package cx.lpm.mobile.feature.projects.list
 
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
@@ -12,6 +13,7 @@ import cx.lpm.mobile.core.designsystem.theme.LpmTheme
 import cx.lpm.mobile.core.model.AppTip
 import cx.lpm.mobile.core.model.ProjectFolder
 import cx.lpm.mobile.feature.projects.project
+import cx.lpm.mobile.feature.projects.talk.TalkButton
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -51,7 +53,10 @@ class ProjectsScreenTest {
             folderId = folderId
         )
 
-    private fun show(state: ProjectsUiState = this.state) = compose.setContent {
+    private fun show(
+        state: ProjectsUiState = this.state,
+        talkButton: (@Composable () -> Unit)? = null
+    ) = compose.setContent {
         LpmTheme {
             ProjectsScreen(
                 state = state,
@@ -73,7 +78,8 @@ class ProjectsScreenTest {
                 folderActions = FolderActions(
                     toggle = { f, open -> events += "toggle ${f.name} $open" }
                 ),
-                onCloseTip = { events += "close ${it.name}" }
+                onCloseTip = { events += "close ${it.name}" },
+                talkButton = talkButton
             )
         }
     }
@@ -150,6 +156,13 @@ class ProjectsScreenTest {
         compose.onNodeWithText("storefront").performTouchInput { longClick() }
         compose.onNodeWithText("Pin to top").performClick()
         assertEquals(listOf("pin blog false", "pin storefront true"), events)
+    }
+
+    @Test
+    fun theTalkButtonTakesARequest() {
+        show(talkButton = { TalkButton(onClick = { events += "talk" }) })
+        compose.onNodeWithContentDescription("Talk").performClick()
+        assertEquals(listOf("talk"), events)
     }
 
     @Test

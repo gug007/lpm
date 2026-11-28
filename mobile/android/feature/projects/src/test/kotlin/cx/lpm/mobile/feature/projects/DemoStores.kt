@@ -16,6 +16,7 @@ import cx.lpm.mobile.core.data.git.GitStore
 import cx.lpm.mobile.core.data.machines.MachineImporter
 import cx.lpm.mobile.core.data.services.ServiceLogsStore
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.data.talk.TalkStore
 import cx.lpm.mobile.core.data.usage.UsageStore
 import cx.lpm.mobile.core.testing.TestSession
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -38,7 +39,8 @@ val ScreenStores: Set<SessionStore.Factory> = setOf(
     SessionStore.Factory(::AgentLaunchStore),
     SessionStore.Factory(::AgentDialogStore),
     SessionStore.Factory(::ProjectFilesStore),
-    SessionStore.Factory(::LpmCommandsStore)
+    SessionStore.Factory(::LpmCommandsStore),
+    SessionStore.Factory(::TalkStore)
 )
 
 /** A session in Demo Mode with the sample Mac's first answers in. */

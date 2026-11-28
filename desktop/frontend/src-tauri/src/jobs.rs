@@ -1965,7 +1965,7 @@ fn emit_or_park(app: &AppHandle, key: &str, target: &str, task: Value) -> Dispat
     }
 }
 
-fn default_ai_cli() -> String {
+pub(crate) fn default_ai_cli() -> String {
     config::load_settings()
         .get("aiCli")
         .and_then(Value::as_str)

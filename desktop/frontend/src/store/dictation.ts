@@ -8,7 +8,7 @@ import {
   VoiceToTextStop,
   VoiceToTextToggle,
 } from "../../bridge/commands";
-import { insertDictation, type DictationTarget } from "../dictation/insert";
+import { DICTATION_DELIVERED, insertDictation, type DictationTarget } from "../dictation/insert";
 
 // lpm's own recorder over VoiceToText's app API. VoiceToText records and
 // transcribes; the events it sends (relayed as `voice-to-text`) drive this
@@ -114,7 +114,11 @@ export const useDictationStore = create<DictationState>()((set, get) => {
   const deliver = (text: string) => {
     const { target } = get();
     reset();
-    if (!text || insertDictation(target, text)) return;
+    if (!text) return;
+    if (insertDictation(target, text)) {
+      target?.element.dispatchEvent(new Event(DICTATION_DELIVERED));
+      return;
+    }
     SetClipboardText(text).then(
       () => toast.success("Transcript copied to the clipboard"),
       (err: unknown) => toast.error(`Could not copy the transcript: ${err}`),

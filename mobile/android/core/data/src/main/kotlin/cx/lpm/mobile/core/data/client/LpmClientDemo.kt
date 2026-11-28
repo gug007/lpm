@@ -71,6 +71,7 @@ internal fun LpmClient.connectDemo() {
                 add(LpmClient.GIT_ISSUES_FEATURE)
                 add(LpmClient.GIT_CHECK_LOG_FEATURE)
                 add(LpmClient.WRITE_FILE_FEATURE)
+                add(LpmClient.TALK_FEATURE)
             }
         }
         injectInbound(Wire.json(ready))

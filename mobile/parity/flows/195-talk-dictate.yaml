@@ -1,0 +1,75 @@
+# Talk by voice: a take that ends with words asks for the plan by itself. A
+# sentence that names no project gets a plan that asks which, and waits for it.
+appId: cx.lpm.mobile
+name: 195-talk-dictate
+tags: [demo, projects, talk]
+---
+- runFlow: subflows/enter-demo.yaml
+- extendedWaitUntil:
+    visible: "Talk"
+    timeout: 5000
+- tapOn: "Talk"
+- extendedWaitUntil:
+    visible: "What should I do\\?"
+    timeout: 5000
+- tapOn: "Dictate"
+- extendedWaitUntil:
+    visible: "Stop and insert"
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "Run the tests.*"
+    timeout: 5000
+- takeScreenshot: 1-recording
+- tapOn: "Stop and insert"
+- extendedWaitUntil:
+    visible: "Run this plan\\?"
+    timeout: 10000
+- assertVisible: "2 steps"
+- assertVisible: "In"
+- assertVisible: "Which project\\?"
+- assertVisible: "Claude Code"
+- assertVisible: "Run the tests and fix anything that fails."
+- assertVisible:
+    text: "Approve"
+    enabled: false
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 2-which-project
+- tapOn:
+    text: "Change"
+    index: 0
+- extendedWaitUntil:
+    visible: "design-system"
+    timeout: 5000
+- takeScreenshot: 3-projects
+- tapOn: "design-system"
+- extendedWaitUntil:
+    notVisible: "Which project\\?"
+    timeout: 5000
+- assertVisible:
+    text: "Approve"
+    enabled: true
+- tapOn: "Edit"
+- extendedWaitUntil:
+    visible: "Done"
+    timeout: 5000
+- inputText: " Then commit."
+- tapOn: "Done"
+- extendedWaitUntil:
+    visible: "Run the tests and fix anything that fails. Then commit."
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 4-project-picked
+- tapOn: "Approve"
+- extendedWaitUntil:
+    notVisible: "Run this plan\\?"
+    timeout: 5000
+# The agent's tab is in the project itself.
+- tapOn: "design-system"
+- extendedWaitUntil:
+    visible: "Claude Code"
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 5-tab-in-project

@@ -42,6 +42,7 @@ import { SidebarAgentSummary } from "./SidebarAgentSummary";
 import { SidebarFooterMore } from "./SidebarFooterMore";
 import { SidebarNavRowMenu } from "./SidebarNavRowMenu";
 import { SidebarNavRow, type SidebarNavEntry } from "./SidebarNavRow";
+import { SidebarTalkButton } from "./talk/SidebarTalkButton";
 import { CountBadge } from "./ui/CountBadge";
 import { Tooltip } from "./ui/Tooltip";
 
@@ -299,9 +300,10 @@ export function SidebarFooterNav({
           />
         )}
         {menuIds.includes("awake") && keepAwake.cup(FOOTER_ICON_CLASS)}
+        <SidebarTalkButton className={FOOTER_ICON_CLASS} />
         <Tooltip
           content={`Settings  ·  ${chordLabel(SETTINGS_CHORD)}`}
-          triggerClassName="ml-auto inline-flex shrink-0"
+          triggerClassName="inline-flex shrink-0"
         >
           <button
             type="button"

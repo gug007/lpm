@@ -74,11 +74,7 @@ extension DemoServer {
 
         register("newTerminal") { [weak self] o in
             guard let self, let project = o["project"] as? String else { return }
-            let (n, id) = self.nextTerminalId(project)
-            let term = self.demoAgentTerminal(o, id: id, project: project)
-                ?? DemoWorld.Terminal(id: id, label: "Terminal \(n)", project: project,
-                                      buffer: self.shellPrompt(project))
-            self.world.terminals[project, default: []].append(term)
+            self.demoOpenTab(o, project: project)
             self.push(["t": "newTerminal", "ok": true])
         }
         // A shell that ran `exit` comes back in its tab under a new id, as the
@@ -226,6 +222,16 @@ extension DemoServer {
     }
 
     // MARK: cross-domain hooks
+
+    /// Open the tab a `newTerminal` asks for: the agent's when it names one the
+    /// demo can start, else a shell. Called by talkRun too.
+    func demoOpenTab(_ o: [String: Any], project: String) {
+        let (n, id) = nextTerminalId(project)
+        let term = demoAgentTerminal(o, id: id, project: project)
+            ?? DemoWorld.Terminal(id: id, label: "Terminal \(n)", project: project,
+                                  buffer: shellPrompt(project))
+        world.terminals[project, default: []].append(term)
+    }
 
     /// Create the terminals for a freshly added project — mirrored from `copyOf`
     /// (fresh ids, fresh screens) or empty for a brand-new project. Called by

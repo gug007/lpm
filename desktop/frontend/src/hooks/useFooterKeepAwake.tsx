@@ -90,7 +90,6 @@ export function useFooterKeepAwake({
     cup: (className: string) => (
       <KeepAwakeFooterButton
         session={local}
-        othersOn={others.length}
         card={card}
         menuOpen={menu !== null}
         onToggleMenu={toggle}

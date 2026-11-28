@@ -4,10 +4,12 @@ tags: [demo, usage]
 ---
 - runFlow: subflows/enter-demo.yaml
 # A usage row reads out its account and tag ("Work, pool"); tapping it opens
-# both of its windows, which the desktop shows on hover.
+# both of its windows, which the desktop shows on hover. The row comes to the
+# middle first: at the foot of the screen its own middle is under the Talk button.
 - scrollUntilVisible:
     element: "Work, pool"
     direction: DOWN
+    centerElement: true
 - tapOn: "Work, pool"
 - extendedWaitUntil:
     visible: ".*OPUS 4.6.*"
@@ -25,6 +27,16 @@ tags: [demo, usage]
 - scrollUntilVisible:
     element: "storefront"
     direction: UP
+# Android leaves the open row under the Talk button here. iOS leaves its header
+# clear of it, and there the open row's middle is its detail, which doesn't close it.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - scrollUntilVisible:
+          element: "Work, pool"
+          direction: DOWN
+          centerElement: true
 - tapOn: "Work, pool"
 - waitForAnimationToEnd:
     timeout: 3000

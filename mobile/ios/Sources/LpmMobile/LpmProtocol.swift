@@ -934,6 +934,8 @@ enum Wire {
         case gitPrDiscussion(PrDiscussionReply)
         case gitIssues(RepoIssuesReply)
         case gitIssue(RepoIssueReply)
+        case talkPlan(TalkPlanReply)
+        case talkRun(TalkRunReply)
         case gitCheckLog(CheckLogReply)
         case writeFile(FileWriteReply)
         // Server push: watched files changed for this project (already debounced).
@@ -1421,6 +1423,8 @@ enum Wire {
             case "gitPrDiscussion": return .gitPrDiscussion(PrDiscussionReply(obj))
             case "gitIssues": return .gitIssues(RepoIssuesReply(obj))
             case "gitIssue": return .gitIssue(RepoIssueReply(obj))
+            case "talkPlan": return .talkPlan(TalkPlanReply(obj))
+            case "talkRun": return .talkRun(TalkRunReply(obj))
             case "gitCheckLog": return .gitCheckLog(CheckLogReply(obj))
             case "writeFile": return .writeFile(FileWriteReply(obj))
             case "gitRestoreDiscarded":

@@ -413,6 +413,7 @@ struct ProjectsView: View {
                        ready: model.projectsLoaded) { await model.refreshProjects() }
         .feedsUsageRows()
         .showsAgentEdges(rows: edgeRows, inView: rowsInView)
+        .safeAreaInset(edge: .bottom) { TalkButton() }
         .safeAreaInset(edge: .bottom) {
             UndoBar(message: model.pendingAgentArchive?.message) { model.undoAgentArchive() }
         }

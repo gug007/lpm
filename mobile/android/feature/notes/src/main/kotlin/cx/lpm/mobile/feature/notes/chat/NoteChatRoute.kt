@@ -28,13 +28,13 @@ import cx.lpm.mobile.core.designsystem.component.LpmConfirmationDialog
 import cx.lpm.mobile.core.model.NoteAttachment
 import cx.lpm.mobile.core.model.NoteMessage
 import cx.lpm.mobile.core.navigation.NoteChatKey
+import cx.lpm.mobile.core.ui.dictation.FieldDictation
 import cx.lpm.mobile.core.ui.dictation.rememberDictationStart
 import cx.lpm.mobile.feature.notes.R
 import cx.lpm.mobile.feature.notes.attachment.NoteAttachmentActions
 import cx.lpm.mobile.feature.notes.attachment.NoteImageViewer
 import cx.lpm.mobile.feature.notes.attachment.shareNoteAttachment
 import cx.lpm.mobile.feature.notes.composer.NotesComposerActions
-import cx.lpm.mobile.feature.notes.composer.NotesDictation
 import cx.lpm.mobile.feature.notes.composer.rememberNoteCamera
 import kotlinx.coroutines.launch
 
@@ -138,7 +138,7 @@ fun NoteChatRoute(
             remove = viewModel::drop,
             dismissWarning = viewModel::dismissWarning
         ),
-        dictation = NotesDictation(
+        dictation = FieldDictation(
             state = take,
             owner = viewModel.dictationOwner,
             meter = viewModel.dictationMeter,

@@ -37,8 +37,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
-import cx.lpm.mobile.core.data.dictation.DictationMeter
-import cx.lpm.mobile.core.data.dictation.DictationState
 import cx.lpm.mobile.core.data.dictation.plusDictated
 import cx.lpm.mobile.core.designsystem.R as DesignR
 import cx.lpm.mobile.core.designsystem.component.ActivityIndicator
@@ -48,6 +46,7 @@ import cx.lpm.mobile.core.designsystem.component.ContextMenuItem
 import cx.lpm.mobile.core.designsystem.component.PlainTextField
 import cx.lpm.mobile.core.designsystem.component.clickableNoIndication
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.designsystem.theme.dimmed
 import cx.lpm.mobile.core.ui.ComposerToast
 import cx.lpm.mobile.core.ui.dictation.DictationCancelButton
 import cx.lpm.mobile.core.ui.dictation.DictationGhostMic
@@ -56,6 +55,7 @@ import cx.lpm.mobile.core.ui.dictation.DictationMicGap
 import cx.lpm.mobile.core.ui.dictation.DictationPreview
 import cx.lpm.mobile.core.ui.dictation.DictationStopButton
 import cx.lpm.mobile.core.ui.dictation.DictationStrip
+import cx.lpm.mobile.core.ui.dictation.FieldDictation
 import cx.lpm.mobile.feature.notes.R
 import cx.lpm.mobile.feature.notes.chat.NoteDraft
 import cx.lpm.mobile.feature.notes.ui.barMaterial
@@ -72,21 +72,6 @@ class NotesComposerActions(
     val dismissWarning: () -> Unit = {}
 )
 
-/** The app's recorder as this composer sees it; `start` asks for the microphone if it must. */
-@Immutable
-class NotesDictation(
-    val state: DictationState,
-    val owner: String,
-    val meter: DictationMeter,
-    val start: () -> Unit,
-    val stop: () -> Unit,
-    val cancel: () -> Unit
-) {
-    val active: Boolean get() = state.isActive(owner)
-    val stripShown: Boolean get() = active || state.failure(owner) != null
-    val heard: String get() = state.words(owner)
-}
-
 /**
  * The note composer under a transcript (iOS `NotesComposer`): a growing field, the
  * attach menu (Photo Library / Take Photo / Choose Files), chips for what's queued,
@@ -100,7 +85,7 @@ internal fun NotesComposer(
     canSend: Boolean,
     actions: NotesComposerActions,
     modifier: Modifier = Modifier,
-    dictation: NotesDictation? = null
+    dictation: FieldDictation? = null
 ) {
     val colors = LpmTheme.colors
     val stripShown = dictation?.stripShown == true
@@ -310,6 +295,3 @@ private val KeyEvent.isHardware: Boolean
         nativeKeyEvent.flags and NativeKeyEvent.FLAG_SOFT_KEYBOARD == 0
 
 private const val MAX_LINES = 6
-
-/** SwiftUI's `.opacity(_:)` on a color that already has some: the alphas multiply. */
-private fun Color.dimmed(opacity: Float): Color = copy(alpha = alpha * opacity)

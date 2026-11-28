@@ -15,6 +15,8 @@ import cx.lpm.mobile.core.protocol.PrDiscussionReply
 import cx.lpm.mobile.core.protocol.RepoIssueReply
 import cx.lpm.mobile.core.protocol.RepoIssuesReply
 import cx.lpm.mobile.core.protocol.SecretScanReply
+import cx.lpm.mobile.core.protocol.TalkPlanReply
+import cx.lpm.mobile.core.protocol.TalkRunReply
 
 /**
  * Hands a reply or push to its callback. The frames that drive the connection
@@ -456,6 +458,10 @@ private fun LpmClientCallbacks.routeConfigAndNotes(frame: Inbound) {
         is ConversationPageReply -> onConversationPage?.invoke(frame)
 
         is ConversationDetailReply -> onConversationDetail?.invoke(frame)
+
+        is TalkPlanReply -> onTalkPlan?.invoke(frame)
+
+        is TalkRunReply -> onTalkRun?.invoke(frame)
 
         // The connection frames, which LpmClient handled before routing.
         else -> Unit

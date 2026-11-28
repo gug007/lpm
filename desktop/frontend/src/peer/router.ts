@@ -8,6 +8,7 @@ import { MACHINE } from "../machineWords";
 // peer_term_attach's prefixed id, intentionally carry markers we must not
 // strip). Everything else is project-scoped and safe to forward.
 const LOCAL_ONLY_EXACT = new Set<string>([
+  "talk_plan",
   "focus_detached_window",
   "focus_main_window",
   "restore_detached_windows",

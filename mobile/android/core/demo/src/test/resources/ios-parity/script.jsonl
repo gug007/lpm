@@ -798,6 +798,31 @@
 {"at": 86500, "frame": {"t": "gitMergeStop", "project": "mobile-app"}}
 {"at": 91000, "frame": {"t": "git", "project": "mobile-app"}}
 {"at": 91500, "frame": {"t": "gitMergeResolve", "project": "mobile-app"}}
+{"at": 92000, "frame": {"t": "talkPlan", "reqId": "tp1", "text": "  Fix the cart badge in a separate duplicate in Storefront  "}}
+{"at": 92000, "frame": {"t": "talkPlan", "reqId": "tp2", "text": "tidy the README in a worktree with codex"}}
+{"at": 92000, "frame": {"t": "talkPlan", "reqId": "tp3", "text": "ask Gemini to review the blog and api-gateway changes"}}
+{"at": 92000, "frame": {"t": "talkPlan", "reqId": "tp4", "text": "COPY it and run the tests"}}
+{"at": 92000, "frame": {"t": "talkPlan", "reqId": "tp5", "text": "   "}}
+{"at": 92000, "frame": {"t": "talkPlan", "reqId": 6}}
+{"at": 92000, "frame": {"t": "talkPlan", "reqId": "tp7", "text": "Delete the blog duplicate"}}
+{"at": 93500, "frame": {"t": "talkRun", "reqId": "tr1", "plan": {"project": "blog", "where": "copy", "agent": "claude", "prompt": " Fix the cart badge\nThen run the tests ", "label": "talk"}}}
+{"at": 93500, "frame": {"t": "talkRun", "reqId": "tr2", "plan": {"project": "api-gateway", "where": "worktree", "agent": "codex", "prompt": "Tidy the README", "label": ""}}}
+{"at": 93500, "frame": {"t": "talkRun", "reqId": "tr3", "plan": {"project": "storefront", "where": "here", "agent": "gemini", "prompt": "Review my changes", "label": ""}}}
+{"at": 93500, "frame": {"t": "talkRun", "reqId": "tr4", "plan": {"project": "nope", "where": "copy", "agent": "claude", "prompt": "x", "label": "talk"}}}
+{"at": 93500, "frame": {"t": "talkRun", "reqId": "tr5", "plan": {"project": "blog", "where": "here", "agent": "claude", "prompt": "  ", "label": ""}}}
+{"at": 93500, "frame": {"t": "talkRun", "reqId": "tr6", "plan": {"project": "blog", "where": "here", "agent": "nope", "prompt": "x", "label": ""}}}
+{"at": 93500, "frame": {"t": "talkRun", "reqId": 7}}
+{"at": 94500, "frame": {"t": "talkRun", "reqId": "tr8", "plan": {"project": "blog", "where": "copy", "agent": "opencode", "prompt": "Again", "label": " talk "}}}
+{"at": 94500, "frame": {"t": "talkRun", "reqId": "tr9", "plan": {"project": "talk", "where": "worktree", "agent": "claude", "prompt": "And again", "label": "talk"}}}
+{"at": 95500, "frame": {"t": "projects"}}
+{"at": 95500, "frame": {"t": "sidebar"}}
+{"at": 95500, "frame": {"t": "terminals", "project": "talk"}}
+{"at": 95500, "frame": {"t": "terminals", "project": "talk-2"}}
+{"at": 95500, "frame": {"t": "terminals", "project": "talk-3"}}
+{"at": 95500, "frame": {"t": "terminals", "project": "api-gateway-2"}}
+{"at": 95500, "frame": {"t": "terminals", "project": "storefront"}}
+{"at": 95500, "frame": {"t": "git", "project": "talk"}}
+{"at": 95500, "frame": {"t": "talkPlan", "reqId": "tp8", "text": "look at talk-2 here"}}
 {"at": 97000, "frame": {"t": "git", "project": "mobile-app"}}
 {"at": 97500, "frame": {"t": "gitMergeContinue", "project": "mobile-app"}}
 {"at": 98500, "frame": {"t": "git", "project": "mobile-app"}}

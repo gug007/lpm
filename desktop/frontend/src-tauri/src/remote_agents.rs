@@ -78,6 +78,22 @@ pub fn remote_set_agent_options(agents: Value) {
     }
 }
 
+/// The reported agents as (id, label), in the desktop's order.
+pub(crate) fn agent_labels() -> Vec<(String, String)> {
+    reported()
+        .lock()
+        .unwrap()
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|a| {
+            let id = a.get("id").and_then(Value::as_str).filter(|s| !s.is_empty())?;
+            let label = a.get("label").and_then(Value::as_str).unwrap_or(id);
+            Some((id.to_string(), label.to_string()))
+        })
+        .collect()
+}
+
 pub fn options_reply() -> Value {
     json!({ "t": "agentOptions", "agents": reported().lock().unwrap().clone() })
 }

@@ -20,7 +20,7 @@ vi.mock("../../bridge/runtime", () => ({
 vi.mock("../notifications/toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { dictationLevel, useDictationStore } from "./dictation";
-import { captureDictationTarget } from "../dictation/insert";
+import { DICTATION_DELIVERED, captureDictationTarget } from "../dictation/insert";
 
 const emit = (payload: Record<string, unknown>) => listeners.forEach((cb) => cb(payload));
 const store = () => useDictationStore.getState();
@@ -65,8 +65,10 @@ describe("dictation store", () => {
     expect(dictationLevel()).toBe(0.6);
   });
 
-  it("inserts the transcript into the field that had focus", async () => {
+  it("inserts the transcript into the field that had focus, and tells it", async () => {
     const area = field("Please");
+    const told = vi.fn(() => area.value);
+    area.addEventListener(DICTATION_DELIVERED, told);
     await recordInto(area);
     store().stop();
     expect(commands.VoiceToTextStop).toHaveBeenCalledOnce();
@@ -74,6 +76,7 @@ describe("dictation store", () => {
     emit({ event: "state", state: "transcribing" });
     emit({ event: "transcript", text: "run the tests." });
     expect(area.value).toBe("Please run the tests.");
+    expect(told).toHaveReturnedWith("Please run the tests.");
     expect(store().phase).toBe("idle");
     emit({ event: "state", state: "idle" });
     expect(store().phase).toBe("idle");

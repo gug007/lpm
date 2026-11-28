@@ -272,7 +272,7 @@ private fun DemoServer.duplicate(o: Dict) {
     val reserved = mutableSetOf<String>()
     val plans = (0 until count).map { i ->
         val label = labels.getOrElse(i) { "" }.trimmingWhitespacesAndNewlines()
-        val copyName = uniqueProjectName(label.ifEmpty { name }, reserved)
+        val copyName = duplicateName(name, label, reserved)
         reserved.add(copyName)
         copyName to label
     }
@@ -307,6 +307,13 @@ private fun DemoServer.duplicate(o: Dict) {
         )
     }
 }
+
+/** The name a copy lands under: its label's when it has one, else its source's. */
+internal fun DemoServer.duplicateName(
+    source: String,
+    label: String,
+    reserved: Set<String> = emptySet()
+): String = uniqueProjectName(label.ifEmpty { source }, reserved)
 
 internal fun DemoServer.createDuplicate(
     source: String,

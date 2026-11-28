@@ -27,7 +27,7 @@ internal val emptyObject = JsonObject(emptyMap())
 internal val inboundParsers: Map<String, Parser> by lazy {
     sessionParsers + projectParsers + configParsers + terminalParsers + composerParsers +
         automationParsers + gitParsers + memoryNotesParsers + serviceParsers + commandParsers +
-        gitExtrasParsers + conversationParsers
+        gitExtrasParsers + conversationParsers + talkParsers
 }
 
 internal fun decodeInbound(text: String): Inbound? {

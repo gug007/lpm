@@ -37,6 +37,7 @@ import cx.lpm.mobile.core.data.services.ServiceLogsStore
 import cx.lpm.mobile.core.data.session.MacSession
 import cx.lpm.mobile.core.data.session.SessionEnvironment
 import cx.lpm.mobile.core.data.session.SessionStore
+import cx.lpm.mobile.core.data.talk.TalkStore
 import cx.lpm.mobile.core.data.terminals.AgentTabsStore
 import cx.lpm.mobile.core.data.terminals.TerminalsStore
 import cx.lpm.mobile.core.data.usage.StatsStore
@@ -125,7 +126,8 @@ class SessionHarness(test: TestScope) {
             SessionStore.Factory(::ConversationStore),
             SessionStore.Factory(::ProjectFilesStore),
             SessionStore.Factory { PushStore(it, registrar, answers) },
-            SessionStore.Factory(::WaitingHeadsUp)
+            SessionStore.Factory(::WaitingHeadsUp),
+            SessionStore.Factory(::TalkStore)
         )
     )
     val session = MacSession(env, visitHost = null)

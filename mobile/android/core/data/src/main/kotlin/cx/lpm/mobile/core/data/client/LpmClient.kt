@@ -485,6 +485,9 @@ class LpmClient internal constructor(
         // `writeFile`: saving an edit from the file preview.
         const val WRITE_FILE_FEATURE = "writeFile"
 
+        // `talkPlan` and `talkRun`: the Talk button.
+        const val TALK_FEATURE = "talk"
+
         const val OFFLINE_HINT =
             "Can't reach your Mac. On cellular, make sure Tailscale is connected on both devices."
 

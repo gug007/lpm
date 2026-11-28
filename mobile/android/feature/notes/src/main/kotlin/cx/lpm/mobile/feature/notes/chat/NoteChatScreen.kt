@@ -37,11 +37,11 @@ import cx.lpm.mobile.core.designsystem.component.EmptyState
 import cx.lpm.mobile.core.designsystem.component.GlassIconButton
 import cx.lpm.mobile.core.designsystem.component.LpmTopBar
 import cx.lpm.mobile.core.designsystem.theme.LpmTheme
+import cx.lpm.mobile.core.ui.dictation.FieldDictation
 import cx.lpm.mobile.feature.notes.R
 import cx.lpm.mobile.feature.notes.attachment.NoteAttachmentActions
 import cx.lpm.mobile.feature.notes.composer.NotesComposer
 import cx.lpm.mobile.feature.notes.composer.NotesComposerActions
-import cx.lpm.mobile.feature.notes.composer.NotesDictation
 import cx.lpm.mobile.feature.notes.ui.NotesErrorBanner
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -70,7 +70,7 @@ fun NoteChatScreen(
     modifier: Modifier = Modifier,
     actions: NoteChatActions = NoteChatActions(),
     composer: NotesComposerActions = NotesComposerActions(),
-    dictation: NotesDictation? = null
+    dictation: FieldDictation? = null
 ) {
     val list = rememberLazyListState()
     FollowNewest(list, state.newestId)

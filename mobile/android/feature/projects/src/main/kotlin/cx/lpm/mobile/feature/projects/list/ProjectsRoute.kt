@@ -2,6 +2,7 @@ package cx.lpm.mobile.feature.projects.list
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,6 +23,9 @@ import cx.lpm.mobile.core.navigation.TerminalKey
 import cx.lpm.mobile.core.navigation.UsageKey
 import cx.lpm.mobile.core.ui.HapticEffect
 import cx.lpm.mobile.feature.projects.ProjectsSlots
+import cx.lpm.mobile.feature.projects.talk.TalkButton
+import cx.lpm.mobile.feature.projects.talk.TalkSheetHost
+import cx.lpm.mobile.feature.projects.talk.TalkViewModel
 import cx.lpm.mobile.feature.projects.ui.SessionAlertsHost
 import cx.lpm.mobile.feature.projects.visit.destination
 import kotlinx.coroutines.delay
@@ -33,9 +37,12 @@ fun ProjectsRoute(
     onNavigate: (NavKey) -> Unit,
     modifier: Modifier = Modifier,
     slots: ProjectsSlots = ProjectsSlots(),
-    viewModel: ProjectsViewModel = hiltViewModel()
+    viewModel: ProjectsViewModel = hiltViewModel(),
+    talkViewModel: TalkViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val talk = talkViewModel.uiState.collectAsStateWithLifecycle()
+    val talkOffered by remember(talk) { derivedStateOf { talk.value.offered } }
     val alerts by viewModel.alerts.collectAsStateWithLifecycle()
     val removal by viewModel.removal.collectAsStateWithLifecycle()
     var dialog by remember { mutableStateOf<ProjectsDialog?>(null) }
@@ -156,8 +163,22 @@ fun ProjectsRoute(
             viewModel.undoArchive()
         },
         onCloseTip = viewModel::closeTip,
+        talkButton = if (talkOffered) {
+            {
+                TalkButton(
+                    onClick = {
+                        tap()
+                        talkViewModel.begin()
+                    },
+                    hidden = talk.value.open
+                )
+            }
+        } else {
+            null
+        },
         slots = slots
     )
+    TalkSheetHost()
 
     ProjectsDialogHost(
         dialog = dialog,

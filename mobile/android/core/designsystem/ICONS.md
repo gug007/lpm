@@ -230,3 +230,6 @@ the iPhone screenshots). An icon-only control keeps the accessible name iOS give
 | `video` / `play.fill` (video answer) | `videocam` / `play_arrow` (fill) | 22 dp in the "+" menu, 23 dp on Send | the composer's "Answer as a video": its "+" row, and Send while it's on | "Answer as a video" / "Send for a video" / "Back to a text answer" |
 | `photo` (image answer) | `image` | 22 dp in the "+" menu and on Send, 16 dp on its chip | the composer's "Generate image": its "+" row (checked while on), its chip, and Send while it's on | "Generate image" / "Send for an image" / "Image, Back to a text answer" |
 | `xmark` (answer chip) | `close` | 14 dp | the end of the composer's answer chip, which goes back to a text answer | |
+| `waveform` (Talk) | `graphic_eq` | 28 dp on a 56 dp tint circle | the Talk button over the projects list | "Talk" |
+| `plus.square.on.square` / `sparkle` / `paperplane` (Talk plan) | `library_add` / `auto_awesome` (fill) / `send` | 19 dp / 18 dp / 22 dp on a 36 dp tile | a Talk plan's steps: where, Start, Send | |
+| `mic.circle.fill` (Talk) | `mic` on a label-colored circle (`DictationMicDisc`) | 20 dp on a 30 dp circle | the Talk sheet's mic | "Dictate" |

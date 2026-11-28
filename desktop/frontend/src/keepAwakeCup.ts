@@ -18,26 +18,22 @@ export interface KeepAwakeCupLook {
   text: string | null;
   /** On the cup's corner: paused by power, or couldn't hold. */
   mark: "battery" | "error" | null;
-  /** Connected computers kept awake, counted beside the cup. */
-  others: number;
 }
 
 /** How the footer's cup looks for this machine's state, with `total` the
- *  length of the running countdown and `othersOn` the connected computers kept
- *  awake; null when there's nothing to show. */
+ *  length of the running countdown; null while it's off. */
 export function keepAwakeCup(
   state: KeepAwakeState | null,
   left: number | null,
   total: number | null,
-  othersOn: number,
 ): KeepAwakeCupLook | null {
   const empty = (
     tone: KeepAwakeCupLook["tone"],
     mark: KeepAwakeCupLook["mark"] = null,
     text: string | null = null,
-  ): KeepAwakeCupLook => ({ tone, level: null, text, mark, others: othersOn });
+  ): KeepAwakeCupLook => ({ tone, level: null, text, mark });
 
-  if (!state || state.mode === "off") return othersOn > 0 ? empty("ready") : null;
+  if (!state || state.mode === "off") return null;
   if (keepAwakeStopped(state)) {
     if (state.power === "failed") return empty("stopped", "error");
     return empty("stopped", "battery", state.power === "low" ? `${state.floor}%` : null);
@@ -51,6 +47,5 @@ export function keepAwakeCup(
     level: counting !== null && total ? Math.min(1, counting / total) : 1,
     text: working ? count(state.agents, "agent", "agents") : counting !== null ? shortLeft(counting) : null,
     mark: null,
-    others: othersOn,
   };
 }

@@ -575,6 +575,7 @@ macro_rules! all_command_handlers {
             terminal_unpresent_control,
             toggle_project_service,
             transform_text,
+            talk_plan,
             trash_project,
             uninstall_kokoro,
             uninstall_app,

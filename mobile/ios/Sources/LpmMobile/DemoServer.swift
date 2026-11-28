@@ -53,6 +53,7 @@ final class DemoServer {
         registerPowerHandlers()
         registerUploadHandlers()
         registerAgentHandlers()
+        registerTalkHandlers()
         registerFilesHandlers()
     }
 

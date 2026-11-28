@@ -11,6 +11,9 @@ export interface DictationTarget {
   caret: { start: number; end: number } | Range | null;
 }
 
+// Fired on a field once a transcript has been typed into it.
+export const DICTATION_DELIVERED = "lpm-dictation-delivered";
+
 const TEXT_INPUT_TYPES = new Set(["text", "search", "url", "email", ""]);
 
 function isTextField(el: Element): el is TextField {

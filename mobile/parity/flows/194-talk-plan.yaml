@@ -1,0 +1,54 @@
+# The Talk button: one sentence becomes a plan of three steps, and nothing runs
+# until it is approved. Approved, the copy joins the list under its project.
+appId: cx.lpm.mobile
+name: 194-talk-plan
+tags: [demo, projects, talk]
+---
+- runFlow: subflows/enter-demo.yaml
+- extendedWaitUntil:
+    visible: "Talk"
+    timeout: 5000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-talk-button
+- tapOn: "Talk"
+- extendedWaitUntil:
+    visible: "What should I do\\?"
+    timeout: 5000
+- assertVisible: "Dictate"
+- assertVisible:
+    text: "Make a plan"
+    enabled: false
+- takeScreenshot: 2-ask
+- tapOn: "Say or type what to do"
+- inputText: "Fix the cart badge in a separate duplicate in storefront"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 3-typed
+- tapOn: "Make a plan"
+- extendedWaitUntil:
+    visible: "Run this plan\\?"
+    timeout: 10000
+- assertVisible: "3 steps"
+- assertVisible: "Duplicate"
+- assertVisible: "Start"
+- assertVisible: "Claude Code, in the copy"
+- assertVisible: "Send"
+- assertVisible: "Fix the cart badge in a separate duplicate in storefront"
+- assertVisible: "Nothing runs until you approve"
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 4-plan
+- tapOn: "Approve"
+- extendedWaitUntil:
+    notVisible: "Run this plan\\?"
+    timeout: 5000
+# The copy is named "talk": a second match beside the Talk button.
+- extendedWaitUntil:
+    visible:
+      text: "talk"
+      index: 1
+    timeout: 10000
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 5-copy-in-list

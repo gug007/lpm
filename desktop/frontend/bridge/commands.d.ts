@@ -472,6 +472,7 @@ export function StopTerminal(...args: any[]): Promise<any>;
 export function StopWatchingProject(...args: any[]): Promise<any>;
 export function StopProjectService(...args: any[]): Promise<any>;
 export function ToggleProjectService(...args: any[]): Promise<any>;
+export function TalkPlan(...args: any[]): Promise<any>;
 export function TransformText(...args: any[]): Promise<any>;
 export function TrashProject(...args: any[]): Promise<any>;
 export function UninstallApp(...args: any[]): Promise<any>;

@@ -127,7 +127,7 @@ fn parse_split(raw: &str, files: &[String]) -> Result<Vec<CommitGroup>, String> 
     Ok(groups)
 }
 
-fn json_object(raw: &str) -> Option<&str> {
+pub(crate) fn json_object(raw: &str) -> Option<&str> {
     let start = raw.find('{')?;
     let end = raw.rfind('}')?;
     (end > start).then(|| &raw[start..=end])

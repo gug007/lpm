@@ -1447,6 +1447,9 @@ export function StopProjectService(name, serviceName) {
 export function ToggleProjectService(name, serviceName) {
   return invoke("toggle_project_service", { name, serviceName });
 }
+export function TalkPlan(text, projects, agents, genId = "") {
+  return invoke("talk_plan", { text, projects, agents, genId });
+}
 export function TransformText(projectName, cwd, cli, model, effort, fast, instruction, text, genId = "") {
   return invoke("transform_text", { projectName, cwd, cli, model, effort, fast, instruction, text, genId });
 }

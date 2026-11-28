@@ -124,6 +124,8 @@ final class LpmClient: NSObject {
     var onGitPrDiscussion: ((PrDiscussionReply) -> Void)?
     var onGitIssues: ((RepoIssuesReply) -> Void)?
     var onGitIssue: ((RepoIssueReply) -> Void)?
+    var onTalkPlan: ((TalkPlanReply) -> Void)?
+    var onTalkRun: ((TalkRunReply) -> Void)?
     var onGitCheckLog: ((CheckLogReply) -> Void)?
     var onWriteFile: ((FileWriteReply) -> Void)?
     var onGitMergePr: ((_ project: String, _ number: Int, _ deletedBranch: Bool, _ error: String?) -> Void)?
@@ -348,6 +350,7 @@ final class LpmClient: NSObject {
     static let gitIssuesFeature = "gitIssues"
     static let gitCheckLogFeature = "gitCheckLog"
     static let writeFileFeature = "writeFile"
+    static let talkFeature = "talk"
 
     // Requests made while the link is down or half-dead, delivered on the next
     // `ready`. iOS kills the socket seconds after backgrounding and the
@@ -599,7 +602,7 @@ final class LpmClient: NSObject {
                              Self.actionAppFeature,
                              Self.gitScanSecretsFeature, Self.gitBranchDiffFeature, Self.gitPrDiscussionFeature,
                              Self.gitIssuesFeature,
-                             Self.gitCheckLogFeature, Self.writeFileFeature],
+                             Self.gitCheckLogFeature, Self.writeFileFeature, Self.talkFeature],
             ]))
         }
     }
@@ -1314,6 +1317,10 @@ final class LpmClient: NSObject {
     func requestIssue(project: String, number: Int, reqId: String) {
         send(Wire.gitIssue(project: project, number: number, reqId: reqId))
     }
+    func talkPlan(reqId: String, text: String) { send(Wire.talkPlan(reqId: reqId, text: text)) }
+    /// Live only: a plan approved before the link dropped must not run by itself
+    /// once the link is back.
+    func talkRun(reqId: String, plan: TalkPlan) { sendLive(Wire.talkRun(reqId: reqId, plan: plan)) }
     func requestCheckLog(project: String, url: String) { send(Wire.gitCheckLog(project: project, url: url)) }
     func writeFile(project: String, path: String, content: String, base: String, reqId: String) {
         send(Wire.writeFile(project: project, path: path, content: content, base: base, reqId: reqId))
@@ -1758,6 +1765,8 @@ final class LpmClient: NSObject {
             case .gitPrDiscussion(let reply): self.onGitPrDiscussion?(reply)
             case .gitIssues(let reply): self.onGitIssues?(reply)
             case .gitIssue(let reply): self.onGitIssue?(reply)
+            case .talkPlan(let reply): self.onTalkPlan?(reply)
+            case .talkRun(let reply): self.onTalkRun?(reply)
             case .gitCheckLog(let reply): self.onGitCheckLog?(reply)
             case .writeFile(let reply): self.onWriteFile?(reply)
             case .gitChanged(let proj): self.onGitChanged?(proj)

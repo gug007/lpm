@@ -1,0 +1,34 @@
+# Talk says so when a sentence asks for more than a plan can do, and keeps the
+# sentence for another try.
+appId: cx.lpm.mobile
+name: 196-talk-unsupported
+tags: [demo, projects, talk]
+---
+- runFlow: subflows/enter-demo.yaml
+- extendedWaitUntil:
+    visible: "Talk"
+    timeout: 5000
+- tapOn: "Talk"
+- extendedWaitUntil:
+    visible: "What should I do\\?"
+    timeout: 5000
+- tapOn: "Say or type what to do"
+- inputText: "Delete the blog project"
+- tapOn: "Make a plan"
+- extendedWaitUntil:
+    visible: "I can't do that from here"
+    timeout: 10000
+- assertVisible: "A plan can only duplicate a project, start an agent and send it a prompt."
+- waitForAnimationToEnd:
+    timeout: 3000
+- takeScreenshot: 1-unsupported
+- tapOn: "Try again"
+- extendedWaitUntil:
+    visible: "What should I do\\?"
+    timeout: 5000
+- assertVisible: "Delete the blog project"
+- takeScreenshot: 2-sentence-kept
+- tapOn: "Cancel"
+- extendedWaitUntil:
+    notVisible: "What should I do\\?"
+    timeout: 5000

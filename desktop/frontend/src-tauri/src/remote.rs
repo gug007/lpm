@@ -78,6 +78,7 @@ mod issues;
 mod review;
 pub(crate) mod relayed;
 mod tab_account;
+mod talk;
 mod tab_menu;
 pub(crate) mod tabs;
 
@@ -217,6 +218,7 @@ const PHONE_FEATURES: &[&str] = &[
     issues::FEATURE,
     check_log::FEATURE,
     file_write::FEATURE,
+    talk::FEATURE,
 ];
 
 /// `PHONE_FEATURES`, and what depends on this machine as well as this build.
@@ -4839,6 +4841,8 @@ fn handle_msg(
             review::handle(out, t, &v)
         }
         "gitIssues" | "gitIssue" => issues::handle(out, t, &v),
+        "talkPlan" => talk::plan(out, app, &v),
+        "talkRun" => send(ws, talk::run(hub, app, &v))?,
         "gitCheckLog" => check_log::handle(out, &v),
         "gitMergeResolve" | "gitMergeStop" | "gitMergeAbort" | "gitMergeContinue"
         | "gitConflictTake" | "gitConflictResolved" => conflicts::handle(app, out, t, &v),

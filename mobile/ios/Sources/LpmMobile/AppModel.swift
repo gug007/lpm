@@ -414,6 +414,8 @@ final class AppModel {
     var power = PowerStore()
     // The `lpm generate` requests waiting on the live Mac (`model.generate`), same split.
     var generate = GenerateStore()
+    // The Talk button's request and its plan (`model.talk`), same split.
+    var talk = TalkStore()
     // The weekly recap card (`model.weeklyRecap`), same split.
     var weeklyRecap = WeeklyRecapStore()
 
@@ -519,6 +521,7 @@ final class AppModel {
         keepAwake.model = self
         power.model = self
         generate.model = self
+        talk.model = self
         weeklyRecap.model = self
         agentLaunch.model = self
         projectFiles.model = self
@@ -1484,6 +1487,9 @@ final class AppModel {
         power.model = self
         generate = GenerateStore()
         generate.model = self
+        talk.handleConnectionReset()
+        talk = TalkStore()
+        talk.model = self
         weeklyRecap = WeeklyRecapStore()
         weeklyRecap.model = self
         agentLaunch = AgentLaunchStore()
@@ -2540,6 +2546,7 @@ final class AppModel {
         macUpdate.handleConnectionReset()
         keepAwake.handleConnectionReset()
         generate.handleConnectionReset()
+        talk.handleConnectionReset()
         agentLaunch.handleConnectionReset()
         projectFiles.handleConnectionReset()
         gitHistory.handleConnectionReset()
@@ -2756,6 +2763,7 @@ final class AppModel {
         wireKeepAwake(c)
         wirePower(c)
         wireGenerate(c)
+        wireTalk(c)
         wireAutoPull(c)
         wireAgentArchive(c)
         wireClaudeAccounts(c)
@@ -2823,6 +2831,7 @@ final class AppModel {
                 self.keepAwake.noteReady(features: c.hostFeatures)
                 self.power.noteReady(features: c.hostFeatures)
                 self.generate.noteReady(features: c.hostFeatures)
+                self.talk.noteReady(features: c.hostFeatures)
                 // Demo Mode has no APNs identity and no relay — skip push registration.
                 if !self.demoMode && !self.isVisit {
                     self.requestPushRegistration()

@@ -5,9 +5,8 @@ import { GENERATE_REQUEST_EVENT, type GenerateDecision, type GenerateRequest } f
 import { toast } from "../notifications/toast";
 import { GenerateRequestCard } from "./GenerateRequestCard";
 
-// An agent's `lpm generate` waiting for a yes (generate/approval.rs). Mounted at
-// the app root and floating over it, so the terminal behind stays readable;
-// the agent waits until someone answers here.
+// An agent's `lpm generate` waiting for a yes (generate/approval.rs). It floats
+// over the app (FloatingCards), and the agent waits until someone answers here.
 export function GenerateApproval() {
   const [requests, setRequests] = useState<GenerateRequest[]>([]);
 
@@ -37,9 +36,5 @@ export function GenerateApproval() {
     }
   };
 
-  return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-12 z-40 flex justify-center px-4">
-      <GenerateRequestCard key={active.id} request={active} waiting={requests.length - 1} onAnswer={answer} />
-    </div>
-  );
+  return <GenerateRequestCard key={active.id} request={active} waiting={requests.length - 1} onAnswer={answer} />;
 }

@@ -76,7 +76,9 @@ a commit's line under its subject (hash ·
   StoreKit, and Settings › Help's "Rate lpm Link" opens the app's Play listing where iOS
   opens the App Store's review page; Send Feedback is a page pushed inside Settings where
   iOS shows a sheet; rows that stack at the largest text sizes do so from a font scale of
-  1.5, Android's nearest to iOS's accessibility sizes.
+  1.5, Android's nearest to iOS's accessibility sizes; an open usage row carries its
+  accessible name ("Work, pool") on its header alone, where iOS gives it to the whole open
+  card.
 - **Same persisted keys and semantics** as iOS (table below), so behavior and
   defaults match.
 - Desktop changes that touch the phone now update both apps (AGENTS.md).
@@ -258,6 +260,7 @@ Port order is top to bottom within each milestone below. Lines are iOS sizes.
 | Notes → `:feature:notes` | NotesScreen, NotesChatView, NotesComposer, NotesMessageRow, NotesAttachmentView, NotesSearchStore, NotesStore, NotesTypes, NoteAttachmentStore | 1,736 |
 | Memory → `:feature:memory` | MemoryScreen, MemorySessionView, MemoryCreateSheet, MemoryEditorSheet, MemoryStore, MemoryTypes, ComposerMemorySheet | 1,167 |
 | lpm commands → `:feature:commands`, `:core:data` (`LpmCommandsStore`), `:feature:terminal` (`/` menu, runs), `:core:demo` | CommandsScreen, CommandFolderScreen, CommandFolderRow, CommandRow, CommandEditorSheet, CommandVariablesHint, ComposerLpmCommands, SlashMenu, LpmCommandTypes, LpmCommandsStore, AppModel+LpmCommands, DemoCommands | 1,378 |
+| Talk → `:feature:projects` (`talk/`), `:core:data` (`TalkStore`), `:core:model` (`TalkPlan`), `:core:demo` | TalkPlan, TalkStore, TalkButton, TalkSheet, TalkAskView, TalkPlanView, TalkPlanRow, DemoTalk | 718 |
 | Files / preview → `:feature:files`, `:core:web` | FileFetch, FilePreviewContent, FilePreviewKind, FilePreviewPlatformViews, FilePreviewSheet, MarkdownWebView, MarkdownImageLoader, MarkdownLink | 854 |
 | Usage / stats, Usage and Token activity widgets → `:feature:usage` | Usage*, StatsFormat, StatsScreen, TokenActivityFeed, Shared/TokenActivityStore, Shared/UsageNumbers, Shared/UsageWindows, Shared/UsageWidgetStore, Widgets/TokenActivityWidget, Widgets/TokenActivityView, Widgets/UsageWidget, Widgets/UsageWidgetView | 3,090 |
 | Claude accounts → `:feature:claudeaccount` | ClaudeAccountConsent, ClaudeAccountMenu, ClaudeAccountModel, ClaudeInUse, AppModel+ClaudeAccount | 493 |

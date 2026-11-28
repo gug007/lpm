@@ -70,6 +70,8 @@ import cx.lpm.mobile.core.protocol.ConversationDetailReply
 import cx.lpm.mobile.core.protocol.ConversationPageReply
 import cx.lpm.mobile.core.protocol.Inbound
 import cx.lpm.mobile.core.protocol.LpmCommandsInbound
+import cx.lpm.mobile.core.protocol.TalkPlanReply
+import cx.lpm.mobile.core.protocol.TalkRunReply
 import java.time.Instant
 import kotlinx.serialization.json.JsonObject
 
@@ -242,6 +244,10 @@ abstract class LpmClientCallbacks {
     var onConversation: ((update: ConversationUpdate) -> Unit)? = null
     var onConversationPage: ((reply: ConversationPageReply) -> Unit)? = null
     var onConversationDetail: ((reply: ConversationDetailReply) -> Unit)? = null
+
+    // The Talk button: the plan the Mac made of a sentence, and whether it ran it.
+    var onTalkPlan: ((reply: TalkPlanReply) -> Unit)? = null
+    var onTalkRun: ((reply: TalkRunReply) -> Unit)? = null
 
     // The open pull request merged, and whether its branch went with it.
     var onGitMergePr: (

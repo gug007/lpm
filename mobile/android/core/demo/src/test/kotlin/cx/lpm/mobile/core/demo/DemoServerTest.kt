@@ -129,6 +129,7 @@ class DemoServerTest {
         "gitMergeContinue", "gitConflictTake", "gitConflictResolved",
         "gitScanSecrets", "gitBranchFiles", "gitBranchDiffs", "gitPrDiscussion", "gitCheckLog",
         "gitIssues", "gitIssue",
-        "writeFile", "agentOptions", "agentSessions", "resumeSession", "listDir", "locatePath"
+        "writeFile", "agentOptions", "agentSessions", "resumeSession", "listDir", "locatePath",
+        "talkPlan", "talkRun"
     )
 }
